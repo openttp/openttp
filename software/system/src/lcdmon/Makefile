@@ -1,6 +1,3 @@
-#Makefile for Crystalfontz ./test635
-#Please read the README for details on using the 'test635' utility and 'make' options
-
 CC = g++
 DEBUGFLAG = -g
 LIBS = -lconfigurator -lstdc++
