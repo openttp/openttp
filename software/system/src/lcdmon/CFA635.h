@@ -32,11 +32,7 @@ class CFA635
 		
 		void ShowReceivedPacket(void);
 		
-		void Debug(std::string);
-		
 	protected:
-	
-		bool debugOn;
 		
 		int		Serial_Init(char *devname, int baud_rate);
 		void	Uninit_Serial();
@@ -50,7 +46,7 @@ class CFA635
 		ubyte	PeekByte(void);
 		void	SendData(unsigned char *data,int length);
 
-		void CFA635::USendByte(unsigned char datum);
+		void USendByte(unsigned char datum);
 		
 		COMMAND_PACKET incoming_command;
 		COMMAND_PACKET outgoing_response;

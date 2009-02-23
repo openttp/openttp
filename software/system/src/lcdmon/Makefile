@@ -1,11 +1,11 @@
 CC = g++
 DEBUGFLAG = -g
-LIBS = -lconfigurator -lstdc++
+LIBS = -L/usr/local/lib -lcwd -lconfigurator -lstdc++
 DEBUGFLAG = -g
-CFLAGS = -Wall $(DEBUGFLAG) -I/usr/local/include
+CFLAGS = -DCWDEBUG -Wall $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
 
-OBJS = CFA635.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o
+OBJS = CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o
 TARGET = lcdmonitor
 
 all: $(TARGET)
@@ -21,13 +21,15 @@ CFA635.o: CFA635.h
 
 ConfirmationDialog.o: ConfirmationDialog.h Dialog.h Widget.h KeyEvent.h
 
+Debug.o: Debug.h
+
 Dialog.o: Dialog.h Widget.h KeyEvent.h
 
 IPWidget.o: Widget.h IPWidget.h KeyEvent.h
 
 Label.o: Widget.h Label.h
 
-LCDMonitor.o: CFA635.h Dialog.h IPWidget.h LCDMonitor.h MenuCallback.h KeyEvent.h
+LCDMonitor.o: CFA635.h Dialog.h IPWidget.h LCDMonitor.h MenuCallback.h KeyEvent.h Functor.h
 
 Main.o: LCDMonitor.h
 

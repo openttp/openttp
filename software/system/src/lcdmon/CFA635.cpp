@@ -2,6 +2,9 @@
 //
 //
 
+#include "Sys.h"
+#include "Debug.h"
+
 #include  <stdlib.h>
 #include  <termios.h>
 #include  <unistd.h>
@@ -115,21 +118,12 @@ static const char *key_names[21]=
 		
 CFA635::CFA635()
 {
-	debugOn=true;
 }
 
 CFA635::~CFA635()
 {
-	
 }
 
-void CFA635::Debug(std::string oss)
-{
-	if (debugOn)
-	{
-		std::cerr << oss<< std::endl;
-	}
-}
 
 word CFA635::crc(ubyte *bufptr,word len,word seed)
 {
@@ -257,8 +251,7 @@ void CFA635::ShowReceivedPacket(void)
     i;
   //Terminate the incoming data so C handles it well in case it is a string.
   incoming_command.data[incoming_command.data_length]=0;
-  char
-    expanded[400];
+  char expanded[400];
   expanded[0]=0;
   for(i=0;i<incoming_command.data_length;i++)
     {
@@ -279,17 +272,25 @@ void CFA635::ShowReceivedPacket(void)
     }
 
   //key
+	#ifdef CWDEBUG
   if(incoming_command.command==0x80)
-    printf("C=%d(key:%s),L=%d,D=\"%s\",CRC=0x%04X\n",
-      incoming_command.command,incoming_command.data[0]<=20?
-        key_names[incoming_command.data[0]]:
-          "HUH?",
-      incoming_command.data_length,
-      expanded,
-      incoming_command.CRC);
+	{
+		char buf[1024];
+		snprintf(buf,1023,"C=%d(key:%s),L=%d,D=\"%s\",CRC=0x%04X\n",
+     incoming_command.command,incoming_command.data[0]<=20?
+       key_names[incoming_command.data[0]]:
+         "HUH?",
+     incoming_command.data_length,
+     expanded,
+     incoming_command.CRC);
+		Dout(dc::trace,"CFA635::ShowReceivedPacket()");
+		Dout(dc::trace,buf);
+	}
   else
-	//any other packet types
-    printf("C=%d(%s),L=%d,D=\"%s\",CRC=0x%04X\n",
+	{
+		//any other packet types
+		char buf[1024];
+		snprintf(buf,1023,"C=%d(%s),L=%d,D=\"%s\",CRC=0x%04X",
       incoming_command.command,
       ((incoming_command.command&0xC0)==0xC0)?
         error_names[0x3F&incoming_command.command]:
@@ -297,6 +298,10 @@ void CFA635::ShowReceivedPacket(void)
       incoming_command.data_length,
       expanded,
       incoming_command.CRC);
+		Dout(dc::trace,"CFA635::ShowReceivedPacket()");
+		Dout(dc::trace,buf);
+	}
+	#endif
 }
 //
 //
@@ -312,10 +317,10 @@ int CFA635::Serial_Init(char *devname, int baud_rate)
   handle = open(devname, O_RDWR | O_NOCTTY | O_NONBLOCK);
 
   if(handle <= 0)
-    {
-      	printf("Serial_Init:: Open() failed\n");
-	return(1);
-    }
+	{
+		Dout(dc::warning,"CFA635::Serial_Init() open() failed");
+		return(1);
+	}
 
   //get baud rate constant from numeric value
   switch (baud_rate)
@@ -327,15 +332,16 @@ int CFA635::Serial_Init(char *devname, int baud_rate)
       brate=B115200;
       break;
     default:
-      printf("Serial_Init:: Invalid baud rate: %d (must be 19200 or 115200)\n", baud_rate);
+      Dout(dc::warning,"CFA635::Serial_Init() invalid baud rate: " << baud_rate <<
+				" (must be 19200 or 115200)");
       return(2);
   }
   //get device struct
   if(tcgetattr(handle, &term) != 0)
-    {
-    printf("Serial_Init:: tcgetattr() failed\n");
+  {
+    Dout(dc::warning,"CFA635::Serial_Init() tcgetattr() failed");
     return(3);
-    }
+	}
 
   //input modes
   term.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|INPCK|ISTRIP|INLCR|IGNCR|ICRNL
@@ -360,16 +366,16 @@ int CFA635::Serial_Init(char *devname, int baud_rate)
 
   //set new device settings
   if(tcsetattr(handle, TCSANOW, &term)  != 0)
-    {
-    printf("Serial_Init:: tcsetattr() failed\n");
+  {
+    Dout(dc::warning,"CFA635::Serial_Init() tcsetattr() failed");
     return(4);
-    }
+  }
 
   ReceiveBufferHead=ReceiveBufferTail=0;
 
-  printf("Serial_Init:: success\n");
+  Dout(dc::trace,"CFA635::Serial_Init() success");
   return(0);
-  }
+}
 
 void CFA635::Uninit_Serial()
 {
@@ -379,36 +385,40 @@ void CFA635::Uninit_Serial()
 
 void CFA635::USendByte(unsigned char datum)
 {
-  dword
-    bytes_written;
-  bytes_written=0;
+  int bytes_written=0;
 
   if(handle)
-    {
+	{
     if((bytes_written=write(handle, &datum, 1)) != 1)
-      printf("SendByte(): system call \"write()\" return error.\n  Asked for %d bytes to be written, but %d bytes reported as written.\n",
-             1,bytes_written);
-    }
+		{
+      Dout(dc::warning,"CFA635::USendByte(): system call write() return error");
+			Dout(dc::warning,"CFA635::USendByte(): Asked for 1 byte to be written, but " << bytes_written <<  "reported as written.");
+		}
+	}
   else
-    printf("SendByte(): \"handle\" is null\n");
+	{
+    Dout(dc::warning,"CFA635::USendByte() handle is null");
+	}
 }
 
 void CFA635::SendData(unsigned char *data,int length)
-  {
-  dword
-    bytes_written;
-  bytes_written=0;
+{
+  int bytes_written=0;
 
-  if(handle)
-    {
-    if((bytes_written=write(handle, data, length)) != length)
-      printf("SendData(): system call \"write()\" return error.\n  Asked for %d bytes to be written, but %d bytes reported as written.\n",
-             length,bytes_written);
-    }
-  else
-    printf("SendData(): \"handle\" is null\n");
 
-  }
+	if(handle)
+	{
+		if((bytes_written=write(handle, data, length)) != length)
+		{
+			Dout(dc::warning,"CFA635::SendByte(): system call write() return error");
+			Dout(dc::warning,"CFA635::SendByte(): Asked for "<< length << " bytes to be written, but " << bytes_written <<  "reported as written.");
+		}
+	}
+	else
+	{
+		Dout(dc::warning,"CFA635::SendByte() handle is null");
+	}
+}
 //------------------------------------------------------------------------------
 //Gets incoming data and puts it into SerialReceiveBuffer[].
 void CFA635::Sync_Read_Buffer(void)
@@ -419,10 +429,7 @@ void CFA635::Sync_Read_Buffer(void)
     BytesRead;
 
   //  COMSTAT status;
-  dword
-    errors;
-  dword
-    i;
+  
 
   if(!handle)
     return;
@@ -432,7 +439,7 @@ void CFA635::Sync_Read_Buffer(void)
   if(0<BytesRead)
   {
   //Read the incoming ubyte, store it.
-  for(i=0; i < BytesRead; i++)
+  for(long i=0; i < BytesRead; i++)
     {
     SerialReceiveBuffer[ReceiveBufferHead] = Incoming[i];
 
