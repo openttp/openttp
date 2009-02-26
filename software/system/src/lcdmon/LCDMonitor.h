@@ -28,7 +28,6 @@ class LCDMonitor:public CFA635
 		// callbacks for whatever - public so menu can access
 		
 		void showAlarms();
-		void surveyAntenna();
 		
 		void networkDisable();
 		void networkConfigDHCP();
@@ -62,7 +61,8 @@ class LCDMonitor:public CFA635
 		void init();
 		void configure();
 		void log(std::string );
-		
+		void touchLock();
+
 		void showHelp();
 		void showVersion();
 		
@@ -75,31 +75,39 @@ class LCDMonitor:public CFA635
 		void updateStatusLED(int,LEDState);
 		void statusLEDsOff();
 		void updateCursor(int,int);
-		void clearAlarms();
-		void addAlarm(std::string);
-		bool checkNTP();
-		bool checkPRS10();
 		
+		bool checkAlarms();
+		bool checkGPS(int *,std::string &,bool *);
 		
 		bool checkFile(const char *);
 		time_t lastLazyCheck;
 		
 		void parseNetworkConfig();
 		void parseConfigEntry(std::string &,std::string &,char );
+
+		std::string user;
+
+		std::string poweroffCommand;
+		std::string rebootCommand;
+		std::string ntpdRestartCommand;
+		std::string gpsRxRestartCommand;
+		std::string gpsLoggerLockFile;
+
 		std::string bootProtocol;
 		std::string ipv4addr,ipv4nm,ipv4gw,ipv4ns;
-		
-		
 		
 		std::string status[4];
 		LEDState    statusLED[4];
 		std::vector<std::string> alarms;
 		
+		bool showPRNs;
+
 		Menu *menu;
 		
 		std::string logFile;
 		std::string lockFile;
-		
+		std::string alarmPath;
+
 		std::string NTPuser,GPSCVuser;
 		
 		std::string DNSconf,networkConf,eth0Conf;

@@ -2,7 +2,11 @@
 //
 //
 
+#include "Sys.h"
+#include "Debug.h"
+
 #include <errno.h>
+#include <glob.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -12,11 +16,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/sysinfo.h>
- 
+#include <utime.h>
+
+#include <algorithm>
 #include <iostream>
 #include <stack>
 #include <fstream>
 #include <sstream>
+#include <boost/algorithm/string.hpp>
 
 #include "configurator.h"
 
@@ -29,6 +36,9 @@
 #include "MenuCallback.h"
 #include "Menu.h"
 #include "Widget.h"
+#include "Version.h"
+
+#define LCDMONITOR_VERSION "1.0"
 
 #define BAUD 115200
 #define PORT "/dev/ttyUSB0"
@@ -41,21 +51,25 @@
 
 
 using namespace std;
+using namespace::boost;
 
 bool LCDMonitor::timeout=false;
+extern LCDMonitor *app;
 
 LCDMonitor::LCDMonitor(int argc,char **argv)
 {
 
+	user = "cvgps"; // need to set this here, thaer than in init()
+
 	char c;
-	
-	while ((c=getopt(argc,argv,"hvd")) != EOF)
+	while ((c=getopt(argc,argv,"hvdu:")) != EOF)
 	{
 		switch(c)
   	{
 			case 'h':showHelp(); exit(EXIT_SUCCESS);
 			case 'v':showVersion();exit(EXIT_SUCCESS);
-			case 'd':debugOn=true;break; 
+			case 'd':Debug(dc::trace.on());break;
+			case 'u':user=optarg;break;
 		}
 	}
 	
@@ -68,8 +82,17 @@ LCDMonitor::LCDMonitor(int argc,char **argv)
 LCDMonitor::~LCDMonitor()
 {
 	Uninit_Serial();
+	log("Shutdown");
+	unlink(lockFile.c_str());
 }
 
+
+void LCDMonitor::touchLock()
+{
+	// the lock is touched periodically to signal that
+	// the process is still alive
+	utime(lockFile.c_str(),0);
+}
 
 void LCDMonitor::showAlarms()
 {
@@ -77,28 +100,25 @@ void LCDMonitor::showAlarms()
 	Dialog *dlg = new Dialog();
 	dlg->setGeometry(0,0,20,4);
 	// quick and dirty here ...
+	
 	unsigned int nalarms=alarms.size();
 	if (nalarms > 4) nalarms=4;
-	std::cerr << nalarms << endl;
-	for (unsigned int i=0;i<nalarms;i++)
+	if (nalarms == 0)
 	{
-		Label *l = new Label(alarms[i],dlg);
-		l->setGeometry(0,i,20,1);
-		std::cerr << alarms[i] << endl;
+		Label *l = new Label("     No alarms",dlg);
+		l->setGeometry(0,1,20,1);
+	}
+	else
+	{
+		for (unsigned int i=0;i<nalarms;i++)
+		{
+			Label *l = new Label(alarms[i],dlg);
+			l->setGeometry(0,i,20,1);
+		}
 	}
 	
 	execDialog(dlg);
 	delete dlg;
-}
-
-void LCDMonitor::surveyAntenna()
-{
-	clearDisplay();
-	updateLine(0,"Getting new coords..");
-	sleep(1);
-	updateLine(1,"Done");
-	sleep(1);
-	log("antenna coordinates updated");
 }
 
 void LCDMonitor::networkDisable()
@@ -137,7 +157,6 @@ void LCDMonitor::networkConfigApply()
 	ofstream fout(ftmp.c_str());
 	while (!fin.eof())
 	{
-		Debug(tmp);
 		if (string::npos != tmp.find("GATEWAY"))
 			fout << "GATEWAY=" << ipv4gw << endl;
 		else
@@ -263,12 +282,88 @@ void LCDMonitor::networkConfigStaticIPv6NameServer()
 					
 void LCDMonitor::restartGPS()
 {
-	log("GPS receiver restarted");
+	clearDisplay();
+	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm GPS rx restart");
+	bool ret = execDialog(dlg);
+	if (ret)
+	{
+		clearDisplay();
+		
+		updateLine(1,"  Restarting GPS rx");
+		// first kill the logging process if it is running
+		struct stat statbuf;
+		if ((0 == stat(gpsLoggerLockFile.c_str(),&statbuf)))
+		{
+			
+			std::ifstream fin(gpsLoggerLockFile.c_str());
+			if (!fin.good())
+			{
+				log("Couldn't open " + gpsLoggerLockFile);
+				goto fail;
+			}
+   		pid_t pid;
+			fin >> pid;
+			fin.close();
+			if (pid >0) // be careful here, since we are superdude
+				kill(pid,SIGTERM);
+			else
+				goto fail;
+			sleep(2); // wait a bit for OS to do its thing
+		}
+
+		int sysret = system(gpsRxRestartCommand.c_str());
+		Dout(dc::trace,"LCDMonitor::restartGPS() system() returns " << sysret);
+		if (sysret == -1)
+			goto fail;
+		else
+		{
+			updateLine(2,"  Done");
+			log("GPS rx restarted");
+		}
+		sleep(2);
+		
+		delete dlg;
+		return;
+	}
+	else //cancelled the dialog
+	{
+		delete dlg;
+		return;
+	}
+
+	fail:
+		updateLine(2,"  Restart failed");
+		log("GPS rx restart failed");
+		sleep(2);
+		delete dlg;
+
 }
 
 void LCDMonitor::restartNtpd()
 {
-	log("ntpd restarted");
+	clearDisplay();
+	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm NTP restart");
+	bool ret = execDialog(dlg);
+	if (ret)
+	{
+		clearDisplay();
+		updateLine(1,"  Restarting ntpd");
+		int sysret = system(ntpdRestartCommand.c_str());
+		Dout(dc::trace,"LCDMonitor::restartNtpd() system() returns " << sysret);
+		if (sysret == -1)
+		{
+			log("ntpd restart failed");
+			updateLine(2,"  Restart failed");
+		}
+		else
+		{
+			log("ntpd restarted");
+			updateLine(2,"  Done");
+		}
+		sleep(2);
+	}
+	delete dlg;
+	
 }
 
 void LCDMonitor::reboot()
@@ -279,10 +374,23 @@ void LCDMonitor::reboot()
 	bool ret = execDialog(dlg);
 	if (ret)
 	{
-		log("reboot");
+		clearDisplay();
+		updateLine(1,"  Rebooting");
+		int sysret = system(rebootCommand.c_str());
+		Dout(dc::trace,"LCDMonitor::reboot() system() returns " << sysret);
+		if (sysret == -1)
+		{
+			log("reboot failed");
+			updateLine(2,"  Reboot failed");
+		}
+		else
+		{
+			log("Rebooted");
+			updateLine(2,"  Done");
+		}
+		sleep(2);
 	}
 	delete dlg;
-	Debug("Deleted");
 }
 
 void LCDMonitor::poweroff()
@@ -293,7 +401,21 @@ void LCDMonitor::poweroff()
 	bool ret = execDialog(dlg);
 	if (ret)
 	{
-		log("poweroff");
+		clearDisplay();
+		updateLine(1,"  Powering down");
+		int sysret = system(rebootCommand.c_str());
+		Dout(dc::trace,"LCDMonitor::poweroff() system() returns " << sysret);
+		if (sysret == -1)
+		{
+			log("poweroff failed");
+			updateLine(2,"  Poweroff failed");
+		}
+		else
+		{
+			log("Powering off");
+			updateLine(2,"  Done");
+		}
+		sleep(2);
 	}
 	delete dlg;
 }
@@ -347,33 +469,80 @@ void LCDMonitor::showStatus()
 	
 	updateLine(0,buf);
 	
-	bool GPSOK=false;
-	sprintf(buf,"GPS sats=%d",0);
-	updateLine(1,buf);
-	if (GPSOK)
-		updateStatusLED(1,GreenOn);
-	else
-		updateStatusLED(1,RedOn);
-
-	// only run these checks every 30s or so
-	if (tnow - lastLazyCheck > 30)
+	// only run these checks every 10s or so
+	if (tnow - lastLazyCheck > 10)
 	{
 		
-		clearAlarms();
-		
-		bool ntpOK=checkNTP();
-		bool prs10OK=checkPRS10();
-
-		updateLine(2,buf);
-		if (GPSOK && ntpOK && prs10OK)
+		touchLock();
+	
+		std::string prn="";
+		int nsats=0;
+		bool unexpectedEOF;
+		bool GPSOK=checkGPS(&nsats,prn,&unexpectedEOF);
+		if (unexpectedEOF)
+			Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF");
+		if (showPRNs && !unexpectedEOF)
 		{
-			updateLine(2,"SYSTEM OK");
-			updateStatusLED(2,GreenOn);
+			// split this over two lines
+			// Have 15 characters per line == 6 per line
+			std::vector<std::string> sprns;
+			boost::split(sprns,prn,is_any_of(",")); // note that if no split, then input is returned
+			std::vector<int> prns;
+			for (unsigned int i=0;i<sprns.size();i++)
+			{
+				prns.push_back(atoi(sprns.at(i).c_str()));
+			}
+			sort(prns.begin(),prns.end());
+			int nprns = prns.size();
+			if (nprns > 6) nprns=6;
+			std::string sbuf;
+			ostringstream ossbuf(sbuf);
+			ossbuf << "SV";
+		
+			for (int s=0;s<nprns;s++)
+			{
+				ossbuf.width(3);
+				ossbuf << prns[s];
+			}
+			updateLine(1,ossbuf.str().c_str());
+		
+			nprns = prns.size();
+			if (nprns > 12) nprns=12; // can only do 12
+			nprns -=6; // number left to show
+			ossbuf.clear(); // clear any errors 
+			ossbuf.str("");
+			ossbuf << "  ";
+			for (int s=0;s<nprns;s++)
+			{
+				ossbuf.width(3);
+				ossbuf << prns[s+6];
+			}
+			updateLine(2,ossbuf.str().c_str());
+			GPSOK = GPSOK && (nsats > 0);
+		}
+		else if (!unexpectedEOF)
+		{
+			sprintf(buf,"GPS sats=%d",nsats);
+			updateLine(1,buf);
+			GPSOK = GPSOK && (nsats > 0);
+		}
+
+		if (GPSOK)
+			updateStatusLED(1,GreenOn);
+		else
+			updateStatusLED(1,RedOn);
+
+		bool systemOK=checkAlarms();
+
+		if (GPSOK && systemOK)
+		{
+			updateLine(3,"SYSTEM OK");
+			updateStatusLED(3,GreenOn);
 		}
 		else
 		{
-			updateLine(2,"SYSTEM ALARM");
-			updateStatusLED(2,RedOn);
+			updateLine(3,"SYSTEM ALARM");
+			updateStatusLED(3,RedOn);
 		}
 		lastLazyCheck=tnow;
 	}
@@ -403,7 +572,26 @@ void LCDMonitor::showStatus()
 			snprintf(buf,20,"UNSYNCHRONIZED");
 			break;	
 	}
-	updateLine(3,buf);
+	//updateLine(3,buf);
+
+	#ifdef CWDEBUG
+	{
+		Dout(dc::trace,"-------------------");
+		Dout(dc::trace,"  12345678901234567890");
+		for (int i=0;i<4;i++)
+		{
+			char l;
+			switch (statusLED[i])
+			{
+				case Off: l='O';break;
+				case RedOn: l='R';break;
+				case GreenOn:l='G';break; 
+			}
+			Dout(dc::trace,l << " " << status[i].c_str());
+		}
+		Dout(dc::trace,"-------------------");
+	}
+	#endif
 }
 
 void LCDMonitor::execMenu()
@@ -441,13 +629,13 @@ void LCDMonitor::execMenu()
 				{
 					if (incoming_command.data[0]==11 )// ENTER
 					{
-						if (debugOn) fprintf(stderr,"Selected %i\n",currRow);
+						Dout(dc::trace,"LCDMonitor::execMenu() selected " << currRow);
 						MenuItem *currItem = currMenu->itemAt(currRow);
 						if (currItem)
 						{
 							if (currItem->isMenu())
 							{
-								if (debugOn) fprintf(stderr,"Selected menu %i (menu)\n",currRow);
+								Dout(dc::trace,"LCDMonitor::execMenu() selected menu " << currRow << "(menu)");
 								currMenu = (Menu *) currItem;
 								menus.push(currMenu);
 								currRow=0;
@@ -509,7 +697,7 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 	
 	bool retval = false;
 	
-	Debug("LCDMonitor::execDialog()");
+	Dout(dc::trace,"LCDMonitor::execDialog()");
 	startTimer();
 	while (exec && !LCDMonitor::timeout)
 	{
@@ -541,7 +729,6 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 						{
 							retval = dlg->exitCode()==Dialog::OK;
 							exec=false;
-							Debug("Got there");
 						}
 						break;
 					}
@@ -589,14 +776,14 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 					{
 						exec=false;
 						retval=false;
-						Debug("Dialog cancelled");
+						Dout(dc::trace,"Dialog cancelled");
 						break;
 					}
 				}
 			}
 		}
 	}
-	Debug("Dialog finished");
+	Dout(dc::trace,"Dialog finished");
 	stopTimer();
 	return retval;
 }
@@ -609,7 +796,15 @@ void LCDMonitor::signalHandler(int sig)
 {
 	switch (sig)
 	{
-		case SIGALRM: fprintf(stderr,"SIGALRM\n");LCDMonitor::timeout=true;break;// can't call Debug()
+		case SIGALRM: 
+			Dout(dc::trace,"LCDMonitor::signalHandler SIGALRM");
+			LCDMonitor::timeout=true;
+			break;// can't call Debug()
+		case SIGTERM: case SIGQUIT: case SIGINT: case SIGHUP:
+			Dout(dc::trace,"LCDMonitor::signalHandler SIGxxx");
+			delete app;
+			exit(EXIT_SUCCESS);
+			break;
 	}
 
 }
@@ -643,24 +838,17 @@ void LCDMonitor::stopTimer()
 		
 void LCDMonitor::init()
 {
-	string  homedir;
-	char   *hd;
+	
 	struct stat statbuf;
 
 	FILE *fd;
 	pid_t oldpid;
 	
 	
-	if ((hd=getenv("HOME"))==NULL) /* get our home directory */
-	{
-		cerr << "Couldn't get $HOME" << endl;
-		exit(EXIT_FAILURE);
-	}
-	
-	logFile=hd;
+	logFile= "/home/"+user;
 	logFile+=DEFAULT_LOG_FILE;
 	
-	lockFile = hd;
+	lockFile = "/home/"+user;
 	lockFile += DEFAULT_LOCK_FILE;
 	
 	/* Check that there isn't already a process running */
@@ -677,8 +865,9 @@ void LCDMonitor::init()
 	}
 	
 	log(PRETTIFIER);
-	//snprintf(sbuf,BUF_LEN-1,"announcer v%s, last modified %s",
-	//	ANNOUNCER_VERSION,LAST_MODIFIED);
+	ostringstream sbuf;
+	sbuf << "lcdmonitor v" << LCDMONITOR_VERSION << ", last modified " << LAST_MODIFIED; 
+	log(sbuf.str());
 	log(PRETTIFIER);
 	
 	/* make a new lock */
@@ -698,12 +887,12 @@ void LCDMonitor::init()
 	
 	if(Serial_Init(PORT,BAUD))
 	{
-		if (debugOn) fprintf(stderr,"Could not open port \"%s\" at \"%d\" baud.\n",PORT,BAUD);
+		Dout(dc::trace,"Could not open port " << PORT << " at " << BAUD << " baud.");
 		exit(EXIT_FAILURE);
 	}
 	else
 	{
-    if (debugOn) fprintf(stderr,"\"%s\" opened at \"%d\" baud.\n\n",PORT,BAUD);
+    Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
 	}
 	
 	/* Clear the buffer */
@@ -723,6 +912,14 @@ void LCDMonitor::init()
                                 
 	sigaction(SIGALRM,&sa,NULL); 
 
+	sigaction(SIGTERM,&sa,NULL);
+	
+	sigaction(SIGQUIT,&sa,NULL);
+	
+	sigaction(SIGINT,&sa,NULL);
+	
+	sigaction(SIGHUP,&sa,NULL);
+
 	lastLazyCheck=0; // trigger an immediate check
 	
 	statusLEDsOff();
@@ -732,13 +929,21 @@ void LCDMonitor::init()
 void LCDMonitor::configure()
 {
 	#define BUF_LEN 1024
-	char *hd;
+
 	HashEntry *htab[ALPHABETIC_HASH_SIZE];
 	char buf[BUF_LEN];
 	char **sections,*stmp;
 	int nsections;
+	int itmp;
 
 	// set some sensible defaults
+
+	poweroffCommand="/sbin/poweroff";
+	rebootCommand="/sbin/reboot";
+	ntpdRestartCommand="/sbin/service ntpd restart";
+	gpsRxRestartCommand="/home/cvgps/bin/check_rx";
+	gpsLoggerLockFile="/home/cvgps/logs/rx.lock";
+
 	ipv4addr="192.168.1.2";
 	ipv4nm  ="255.255.255.0";
 	ipv4gw  ="192.168.1.1";
@@ -751,19 +956,16 @@ void LCDMonitor::configure()
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
 	
 	receiverName="resolutiont";
+	alarmPath="/home/cvgps/logs/alarms";
 	rbStatusFile="/home/cvgps/logs/rb.status";
-	GPSStatusFile="home/cvgps/logs/rcvr.status";
+	GPSStatusFile="/home/cvgps/logs/rx.status";
 
 	string squealerConfig("/home/cvgps/etc/squealer.conf");
-	string cctfConfig("home/cvgps/etc/cctf.setup");
+	string cctfConfig("/home/cvgps/etc/cctf.setup");
 	
-	if ((hd=getenv("HOME"))==NULL) /* get our home directory */
-	{
-		cerr << "Couldn't get $HOME" << endl;
-		exit(EXIT_FAILURE);
-	}
-	
-	string config(hd);
+	showPRNs=false;
+
+	string config = "/home/" + user;
 	config += "/etc/lcdmonitor.conf";
 	
 	if (!configfile_getsections(&sections,&nsections,config.c_str()))
@@ -789,26 +991,16 @@ void LCDMonitor::configure()
 		
 		if (strstr("General",sections[i]))
 		{
-			if (hash_get_stringvalue(htab,"NTP user",&stmp))
+			if (hash_get_stringvalue(htab,"Ntp user",&stmp))
 				NTPuser=stmp;
 			else
 				log("NTP user not found in config file");
-				
-			if (hash_get_stringvalue(htab,"GPSCV user",&stmp))
-				GPSCVuser=stmp;
-			else
-				log("GPSCV user not found in config file");
-				
+					
 			if (hash_get_stringvalue(htab,"Squealer config",&stmp))
 				squealerConfig=stmp;
 			else
 				log("Squealer config not found in config file");
 				
-			if (hash_get_stringvalue(htab,"CCTF config",&stmp))
-				cctfConfig=stmp;
-			else
-				log("CCTF config not found in config file");
-			
 		}
 		if (strstr("Network",sections[i]))
 		{
@@ -827,6 +1019,58 @@ void LCDMonitor::configure()
 			
 		}
 		
+		if (strstr("GPSCV",sections[i]))
+		{
+
+			if (hash_get_stringvalue(htab,"GPSCV user",&stmp))
+				GPSCVuser=stmp;
+			else
+				log("GPSCV user not found in config file");
+
+			if (hash_get_stringvalue(htab,"CCTF config",&stmp))
+				cctfConfig=stmp;
+			else
+				log("CCTF config not found in config file");
+
+			if (hash_get_stringvalue(htab,"GPS restart command",&stmp))
+				gpsRxRestartCommand=stmp;
+			else
+				log("GPS restart command not found in config file");
+
+			if (hash_get_stringvalue(htab,"GPS logger lock file",&stmp))
+				gpsLoggerLockFile=stmp;
+			else
+				log("GPS logger lock file not found in config file");
+
+		}
+
+		if (strstr("UI",sections[i]))
+		{
+			if (hash_get_intvalue(htab,"Show PRNs",&itmp))
+				showPRNs = (itmp==1);
+			else
+				log("Show PRNs not found in config file");
+		}
+
+		if (strstr("OS",sections[i]))
+		{
+			if (hash_get_stringvalue(htab,"Reboot command",&stmp))
+				rebootCommand= stmp;
+			else
+				log("Reboot command not found in config file");
+			
+			if (hash_get_stringvalue(htab,"Poweroff command",&stmp))
+				poweroffCommand= stmp;
+			else
+				log("Poweroff command not found in config file");
+
+			if (hash_get_stringvalue(htab,"ntpd restart command",&stmp))
+				ntpdRestartCommand= stmp;
+			else
+				log("ntpd restart command not found in config file");
+
+		}
+
 		hash_clear(htab,ALPHABETIC_HASH_SIZE);
 	}
 	
@@ -854,10 +1098,20 @@ void LCDMonitor::configure()
 		
 		if (strstr("Main",sections[i]))
 		{
-			if (hash_get_stringvalue(htab,"receiver name",&stmp))
+			if (hash_get_stringvalue(htab,"Receiver",&stmp))
 				receiverName=stmp;
 			else
-				log("receiver name not found in config file");
+				log("receiver type not found in cctf.setup");
+
+			if (hash_get_stringvalue(htab,"Rb Status",&stmp))
+				rbStatusFile=stmp;
+			else
+				log("Rb Status not found in cctf.setup");
+			
+			if (hash_get_stringvalue(htab,"receiver status",&stmp))
+				GPSStatusFile=stmp;
+			else
+				log("Receiver Status not found in cctf.setup");
 			
 		}
 		
@@ -886,20 +1140,17 @@ void LCDMonitor::configure()
 			exit(EXIT_FAILURE);
 		}
 		
-		if (strstr("General",sections[i]))
+		if (strstr("Alarms",sections[i]))
 		{
-			if (hash_get_stringvalue(htab,"Rb Status File",&stmp))
-				rbStatusFile=stmp;
+			if (hash_get_stringvalue(htab,"Status File Directory",&stmp))
+			{
+				alarmPath=stmp;
+				alarmPath+="/*";
+			}
 			else
-				log("Rb Status File not found in config file");
+				log("Status File Directory not found in config file");
 			
-			if (hash_get_stringvalue(htab,"GPS Status File",&stmp))
-				GPSStatusFile=stmp;
-			else
-				log("Rb Status File not found in config file");
-				
 		}
-		
 		hash_clear(htab,ALPHABETIC_HASH_SIZE);
 	}
 	
@@ -910,7 +1161,7 @@ void LCDMonitor::log(std::string msg)
 {
 	FILE *fd;
 	
-	Debug(msg);
+	Dout(dc::trace,"LCDMonitor::log() " << msg);
 	time_t tt =  time(0);
 	struct tm *gmt = gmtime(&tt);
 	char tc[128];
@@ -926,15 +1177,17 @@ void LCDMonitor::log(std::string msg)
 
 void LCDMonitor::showHelp()
 {
-	cout << "Usage: lcdmonitor -dhv" << endl;
-	cout << "  -d debugging on" << endl;
-	cout << "  -h show this help" << endl;
-	cout << "  -v show version" << endl;
+	cout << "Usage: lcdmonitor [options]" << endl;
+	cout << "Available options are" << endl;
+	cout << "\t-d" << endl << "\t Turn on debuggging" << endl;
+	cout << "\t-h" << endl << "\t Show this help" << endl;
+	cout << "\t-u USER" << endl<< "\t Set user who owns the configuration and log files" << endl;
+	cout << "\t-v" << endl << "\t Show version" << endl;
 }
 
 void LCDMonitor::showVersion()
 {
-	cout << "lcdmonitor " << endl;
+	cout << "lcdmonitor v" << LCDMONITOR_VERSION << ", last modified " << LAST_MODIFIED << endl;
 	cout << "This ain't no stinkin' Perl script!" << endl;
 }
 
@@ -946,12 +1199,9 @@ void LCDMonitor::makeMenu()
 	Menu *setupM = new Menu("Setup...");
 	menu->insertItem(setupM);
 	
-		MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::surveyAntenna);
-		setupM->insertItem("Survey antenna",cb);
-	
 		Menu *networkM = new Menu("Network...");
 		setupM->insertItem(networkM);
-			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
+			MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
 			networkM->insertItem("Set up DHCP",cb);
 	
 			Menu* staticIPv4 = new Menu("Set up static IPv4");
@@ -1003,12 +1253,12 @@ void LCDMonitor::getResponse()
 			
 			ShowReceivedPacket();
 			timed_out = 0; 
-			break;                                   	
+			break;
 		}
 	}
 	if(timed_out)
 	{
-		Debug("Timed out waiting for a response");
+		Dout(dc::trace,"LCDMonitor::getResponse() Timed out waiting for a response");
 	}
 }
 
@@ -1026,7 +1276,7 @@ void LCDMonitor::showCursor(bool on)
 
 void LCDMonitor::updateLine(int row,std::string buf)
 {
-	// a bit of optimization to cuto down on I/O and flicker
+	// a bit of optimization to cut down on I/O and flicker
 	if (buf==status[row]) return;
 	status[row]=buf;
 	std::string tmp=buf;
@@ -1042,7 +1292,6 @@ void LCDMonitor::updateLine(int row,std::string buf)
 	outgoing_response.data_length =2+nch;
 	send_packet();
 	getResponse();
-
 }
 
 void LCDMonitor::updateStatusLED(int row,LEDState s)
@@ -1090,41 +1339,82 @@ void LCDMonitor::updateCursor(int row,int col)
 	getResponse();
 }
 
-void LCDMonitor::clearAlarms()
+bool LCDMonitor::checkAlarms()
 {
-	alarms.clear();
-}
-
-void LCDMonitor::addAlarm(std::string a)
-{
-	alarms.push_back(a);
-}
-
-bool LCDMonitor::checkNTP()
-{
-	struct timex tx;
-	adjtimex(&tx);
-	std::string alarm="NTPD:";
-	bool ok=true;
-	if (tx.status == TIME_BAD)
+	glob_t aglob;
+	int globret=glob(alarmPath.c_str(),0,0,&aglob);
+	if (globret == GLOB_NOMATCH)
 	{
-		ok=false;
-		alarm +="unsynchronized";
-	}
-	return ok;
-}
-
-bool LCDMonitor::checkPRS10()
-{
-	
-	// is it being logged ?
-	bool ret = checkFile(rbStatusFile.c_str());
-	if (!ret)
+		globfree(&aglob);
+		return true;
+	} 
+	else if (globret == 0)
 	{
-		addAlarm("PRS10:No logging");
+		alarms.clear();
+		Dout(dc::trace,"LCDMonitor::checkAlarms()");
+		for (unsigned int i=0;i<aglob.gl_pathc;i++)
+		{
+			// have to strip path
+			std::string msg(aglob.gl_pathv[i]);
+			size_t pos = msg.find_last_of('/');
+			if (pos != string::npos)
+				msg = msg.substr(pos+1,string::npos);
+			alarms.push_back(msg);
+			Dout(dc::trace,msg);
+		}
+		globfree(&aglob);
 		return false;
 	}
-	// status file is current so check if Rb is locked 
+	
+	return false;
+}
+
+bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
+{
+	
+	*unexpectedEOF=false;
+	bool ret = checkFile(GPSStatusFile.c_str());
+	if (!ret)
+	{
+		Dout(dc::trace,"LCDMonitor::checkGPS() stale file");
+		return false; // don't display stale information
+	}
+
+	// status file is current so extract useful stuff
+	std::ifstream fin(GPSStatusFile.c_str());
+	if (!fin.good()) // not really going to happen
+	{
+		Dout(dc::trace,"LCDMonitor::checkGPS() stream error");
+		return false;
+	}
+
+	std::string tmp;
+	bool gotSats=false;
+
+	while (!fin.eof())
+	{
+		getline(fin,tmp);
+		if (string::npos != tmp.find("sats"))
+		{	
+			gotSats=true;
+			std::string sbuf;
+			parseConfigEntry(tmp,sbuf,'=');
+			int ntmp=-1;
+			ntmp=atoi(sbuf.c_str());
+			if (ntmp >=0)
+			{
+				gotSats=true;
+				*nsats=ntmp;
+			}
+		}
+		else if (string::npos != tmp.find("prns"))
+		{	
+			parseConfigEntry(tmp,prns,'=');
+		}
+	}
+	fin.close();
+	*unexpectedEOF = !(gotSats || (!prns.empty()));
+	Dout(dc::trace,"LCDMonitor::checkGPS() done");
 	return ret;
 }
 
@@ -1151,18 +1441,18 @@ bool LCDMonitor::checkFile(const char *fname)
 			/* Is it current ? */
 			if (ttime - statbuf.st_mtime < MAX_FILE_AGE)
 			{
-				Debug("LCDMonitor::checkFile(): file ok");
+				Dout(dc::trace,"LCDMonitor::checkFile(): " << fname << " ok");
 				return true;
 			}
 			else
 			{
-				Debug("LCDMonitor::checkFile(): file too old");
+				Dout(dc::trace,"LCDMonitor::checkFile(): " << fname <<" too old");
 				return false;
 			}
 		}
 		else
 		{
-			Debug("LCDMonitor::checkFile(): file predates boot");
+			Dout(dc::trace,"LCDMonitor::checkFile(): " << fname <<" predates boot");
 			return false; /* predates boot */
 		}
 		
@@ -1170,7 +1460,7 @@ bool LCDMonitor::checkFile(const char *fname)
 	else /* file doesn't exist */
 	{
 		/* Have we just booted ? OK if we have */
-		Debug("LCDMonitor::checkFile(): file doesn't exist");
+		Dout(dc::trace,"LCDMonitor::checkFile(): " << fname << "doesn't exist");
 		return (info.uptime < BOOT_GRACE_PERIOD);
 	}
 	
@@ -1183,15 +1473,14 @@ void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim
 	size_t pos = entry.find(delim);
 	if (pos != string::npos)
 	{
-		val = entry.substr(pos+1);
-		Debug(val);
+		val = entry.substr(pos+1);//FIXME needs checking
 	}
 }
 
 void LCDMonitor::parseNetworkConfig()
 {
-	
-	
+	Dout(dc::trace,"LCDMonitor::parseNetworkConfig()");
+
 	std::ifstream fin(networkConf.c_str());
 	if (!fin.good())
 	{
@@ -1203,7 +1492,6 @@ void LCDMonitor::parseNetworkConfig()
 	fin >> tmp;
 	while (!fin.eof())
 	{
-		Debug(tmp);
 		if (string::npos != tmp.find("GATEWAY"))
 			parseConfigEntry(tmp,ipv4gw,'=');
 		fin >> tmp;
@@ -1222,7 +1510,6 @@ void LCDMonitor::parseNetworkConfig()
 	while (!fin2.eof())
 	{
 		
-		Debug(tmp);
 		if (string::npos != tmp.find("BOOTPROTO"))
 			parseConfigEntry(tmp,bootProtocol,'=');
 		else if (string::npos != tmp.find("IPADDR"))

@@ -15,6 +15,7 @@ template <class TClass> class MenuCallback : public Functor
       // them in two private variables
       MenuCallback(TClass* _pt2Object, void(TClass::*_fpt)())
          { pt2Object = _pt2Object;  fpt=_fpt; };
+			virtual ~MenuCallback(){;}
 
       // override operator "()"
       virtual void operator()()

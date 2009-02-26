@@ -122,6 +122,7 @@ CFA635::CFA635()
 
 CFA635::~CFA635()
 {
+	Dout(dc::trace,"CFA635::~CFA635()");
 }
 
 
