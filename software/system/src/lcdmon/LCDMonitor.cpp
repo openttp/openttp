@@ -41,7 +41,7 @@
 #define LCDMONITOR_VERSION "1.0"
 
 #define BAUD 115200
-#define PORT "/dev/ttyUSB0"
+#define PORT "/dev/lcd"
 #define DEFAULT_LOG_FILE        "/logs/lcdmonitor.log"
 #define DEFAULT_LOCK_FILE       "/logs/lcdmonitor.lock"
 #define PRETTIFIER "*********************************************"
@@ -350,15 +350,15 @@ void LCDMonitor::restartNtpd()
 		updateLine(1,"  Restarting ntpd");
 		int sysret = system(ntpdRestartCommand.c_str());
 		Dout(dc::trace,"LCDMonitor::restartNtpd() system() returns " << sysret);
-		if (sysret == -1)
-		{
-			log("ntpd restart failed");
-			updateLine(2,"  Restart failed");
-		}
-		else
+		if (sysret == 0)
 		{
 			log("ntpd restarted");
 			updateLine(2,"  Done");
+		}
+		else
+		{
+			log("ntpd restart failed");
+			updateLine(2,"  Restart failed");
 		}
 		sleep(2);
 	}
@@ -378,15 +378,15 @@ void LCDMonitor::reboot()
 		updateLine(1,"  Rebooting");
 		int sysret = system(rebootCommand.c_str());
 		Dout(dc::trace,"LCDMonitor::reboot() system() returns " << sysret);
-		if (sysret == -1)
-		{
-			log("reboot failed");
-			updateLine(2,"  Reboot failed");
-		}
-		else
+		if (sysret == 0)
 		{
 			log("Rebooted");
 			updateLine(2,"  Done");
+		}
+		else
+		{
+			log("reboot failed");
+			updateLine(2,"  Reboot failed");
 		}
 		sleep(2);
 	}
@@ -405,15 +405,16 @@ void LCDMonitor::poweroff()
 		updateLine(1,"  Powering down");
 		int sysret = system(rebootCommand.c_str());
 		Dout(dc::trace,"LCDMonitor::poweroff() system() returns " << sysret);
-		if (sysret == -1)
-		{
-			log("poweroff failed");
-			updateLine(2,"  Poweroff failed");
-		}
-		else
+		if (sysret == 0)
 		{
 			log("Powering off");
 			updateLine(2,"  Done");
+			
+		}
+		else
+		{
+			log("poweroff failed");
+			updateLine(2,"  Poweroff failed");
 		}
 		sleep(2);
 	}
