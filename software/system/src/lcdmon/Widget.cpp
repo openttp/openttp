@@ -2,6 +2,8 @@
 //
 //
 
+#include "Sys.h"
+#include "Debug.h"
 
 #include "KeyEvent.h"
 #include "Widget.h"
@@ -16,6 +18,7 @@ Widget::Widget(Widget *parent)
 	width_=20;
 	height_=4;
 	focus_=false;
+	dirty_=false;
 }
 
 Widget::~Widget()
@@ -67,3 +70,23 @@ bool Widget::contains(int xp,int yp)
 {
 	return ((xp >= x_) && (xp <=x_+width_ -1) && (yp>=y_) && (yp <=y_+height_-1)); 
 }
+
+bool Widget::dirty()
+{
+	bool ret=dirty_;
+	for (unsigned int i=0;i<children.size();i++)
+		ret = ret || children.at(i)->dirty();
+	return ret;
+}
+
+//
+//
+//
+
+void Widget::setDirty(bool d)
+{
+	dirty_ = d;
+}
+
+
+

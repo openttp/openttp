@@ -27,15 +27,20 @@ class Widget
 		void setFocus(bool f){focus_=f;}
 		bool contains(int,int);
 		
+		bool dirty(); // repaint required
+		
 	protected:
 	
 		std::vector<Widget *> children;
+		void setDirty(bool);
 		
 	private:
 	
 		Widget *parent_;
 		int x_,y_,width_,height_; // coordinates are all absolute
 		bool focus_;
+		
+		bool dirty_;
 };
 
 #endif

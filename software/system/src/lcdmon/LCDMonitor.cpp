@@ -28,13 +28,16 @@
 #include "configurator.h"
 
 #include "ConfirmationDialog.h"
+#include "ContrastWidget.h"
 #include "Dialog.h"
+#include "IntensityWidget.h"
 #include "IPWidget.h"
 #include "KeyEvent.h"
 #include "Label.h"
 #include "LCDMonitor.h"
 #include "MenuCallback.h"
 #include "Menu.h"
+#include "SliderWidget.h"
 #include "Widget.h"
 #include "Version.h"
 
@@ -279,7 +282,48 @@ void LCDMonitor::networkConfigStaticIPv6Gateway()
 void LCDMonitor::networkConfigStaticIPv6NameServer()
 {
 }
-					
+
+void LCDMonitor::displayConfig()
+{
+	clearDisplay();
+	Dialog *dlg = new Dialog();
+	dlg->setGeometry(0,0,20,4);
+	IntensityWidget *iw = new IntensityWidget("Intensity",intensity,dlg);
+	iw->setGeometry(0,0,20,1);
+	ContrastWidget *cw = new ContrastWidget("Contrast",contrast,dlg);
+	cw->setRange(0,255);
+	cw->setNumSteps(10);
+	cw->setGeometry(0,1,20,1);
+	std::string help = "  Adjust with ";
+	help += 225;
+	help += " ";
+	help += 223;
+	Label *l= new Label(help,dlg);
+	l->setGeometry(0,3,20,1);
+	bool ret = execDialog(dlg);
+	if (ret)
+	{
+		intensity=iw->value();
+		contrast=cw->value();
+			// fix up config file
+	}
+	else // we cancelled
+	{
+		// bit ugly but ...
+		COMMAND_PACKET cmd;
+		cmd.command=13;
+		cmd.data[0]=contrast;
+		cmd.data_length=1;
+		app->sendCommand(cmd);
+		
+		cmd.command=14;
+		cmd.data[0]=intensity;
+		cmd.data_length=1;
+		app->sendCommand(cmd);
+	}
+	delete dlg;
+}
+
 void LCDMonitor::restartGPS()
 {
 	clearDisplay();
@@ -763,6 +807,19 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 							if (currCol > 0) currCol--;
 							updateCursor(currRow,currCol);
 						}
+						else
+						{
+							if (dlg->dirty())
+							{
+								dlg->paint(display);
+		
+								for (int i=0;i<4;i++)
+								{
+									if (display.at(i).size()>0)
+									updateLine(i,display.at(i));
+								}
+							}
+						}
 					}
 					else if (incoming_command.data[0]==10) // RIGHT RELEASE
 					{
@@ -771,6 +828,19 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 						{
 							if (currCol<19) currCol++;
 							updateCursor(currRow,currCol);
+						}
+						else
+						{
+							if (dlg->dirty())
+							{
+								dlg->paint(display);
+		
+								for (int i=0;i<4;i++)
+								{
+									if (display.at(i).size()>0)
+									updateLine(i,display.at(i));
+								}
+							}
 						}
 					}
 					else if (incoming_command.data[0]==12) // EXIT_RELEASE
@@ -787,6 +857,17 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 	Dout(dc::trace,"Dialog finished");
 	stopTimer();
 	return retval;
+}
+
+void LCDMonitor::sendCommand(COMMAND_PACKET &cmd)
+{
+	Dout(dc::trace,"LCDMonitor::sendCommand");
+	outgoing_response.command =cmd.command;
+	outgoing_response.data_length=cmd.data_length;
+	for (unsigned int i=0;i<cmd.data_length;i++)
+		outgoing_response.data[i]=cmd.data[i];
+	send_packet();
+	getResponse();
 }
 
 //
@@ -969,6 +1050,9 @@ void LCDMonitor::configure()
 	string config = "/home/" + user;
 	config += "/etc/lcdmonitor.conf";
 	
+	intensity=100;
+	contrast=95;
+		
 	if (!configfile_getsections(&sections,&nsections,config.c_str()))
 	{
 		ostringstream msg;
@@ -1228,6 +1312,9 @@ void LCDMonitor::makeMenu()
 			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigApply);
 			networkM->insertItem("Apply changes",cb);
 	
+		cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::displayConfig);
+		setupM->insertItem("Display...",cb);
+		
 	cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
 	menu->insertItem("Show alarms",cb);
 	

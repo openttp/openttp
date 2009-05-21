@@ -25,6 +25,8 @@ class LCDMonitor:public CFA635
 		void execMenu();
 		bool execDialog(Dialog *);
 		
+		void sendCommand(COMMAND_PACKET &);
+		 
 		// callbacks for whatever - public so menu can access
 		
 		void showAlarms();
@@ -42,6 +44,8 @@ class LCDMonitor:public CFA635
 		void networkConfigStaticIPv6NetMask();
 		void networkConfigStaticIPv6Gateway();
 		void networkConfigStaticIPv6NameServer();
+		
+		void displayConfig();
 		
 		void restartGPS();
 		void restartNtpd();
@@ -114,6 +118,10 @@ class LCDMonitor:public CFA635
 		
 		std::string receiverName;
 		std::string rbStatusFile,GPSStatusFile; 
+		
+		// some settings
+		int intensity;
+		int contrast;
 };
 
 #endif

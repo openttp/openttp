@@ -91,7 +91,7 @@ void LCDConfigure::clearDisplay()
 void LCDConfigure::run()
 {
 	clearDisplay();
-	updateLine(0,"   NMI Australia");
+	updateLine(1,"   NMI Australia");
 	updateLine(2,"Time Transfer System");
 	storeState();
 }
