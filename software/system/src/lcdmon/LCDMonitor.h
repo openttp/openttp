@@ -64,6 +64,7 @@ class LCDMonitor:public CFA635
 		
 		void init();
 		void configure();
+		void updateConfig(std::string,std::string,std::string);
 		void log(std::string );
 		void touchLock();
 
@@ -85,6 +86,7 @@ class LCDMonitor:public CFA635
 		
 		bool checkFile(const char *);
 		time_t lastLazyCheck;
+		
 		
 		void parseNetworkConfig();
 		void parseConfigEntry(std::string &,std::string &,char );

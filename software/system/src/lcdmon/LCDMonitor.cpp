@@ -303,9 +303,22 @@ void LCDMonitor::displayConfig()
 	bool ret = execDialog(dlg);
 	if (ret)
 	{
-		intensity=iw->value();
-		contrast=cw->value();
-			// fix up config file
+		if (intensity != iw->value())
+		{
+			intensity = iw->value();
+			std::string sbuf;
+			ostringstream ossbuf(sbuf);
+			ossbuf << intensity;
+			updateConfig("ui","lcd intensity",ossbuf.str());
+		}
+		if (contrast != cw->value())
+		{
+			contrast = cw->value();
+			std::string sbuf;
+			ostringstream ossbuf(sbuf);
+			ossbuf << contrast;
+			updateConfig("ui","lcd contrast",ossbuf.str());
+		}
 	}
 	else // we cancelled
 	{
@@ -314,12 +327,12 @@ void LCDMonitor::displayConfig()
 		cmd.command=13;
 		cmd.data[0]=contrast;
 		cmd.data_length=1;
-		app->sendCommand(cmd);
+		sendCommand(cmd);
 		
 		cmd.command=14;
 		cmd.data[0]=intensity;
 		cmd.data_length=1;
-		app->sendCommand(cmd);
+		sendCommand(cmd);
 	}
 	delete dlg;
 }
@@ -1005,6 +1018,19 @@ void LCDMonitor::init()
 	lastLazyCheck=0; // trigger an immediate check
 	
 	statusLEDsOff();
+	
+	/* set up intensity and contrast */
+	COMMAND_PACKET cmd;
+	cmd.command=13;
+	cmd.data[0]=contrast;
+	cmd.data_length=1;
+	sendCommand(cmd);
+		
+	cmd.command=14;
+	cmd.data[0]=intensity;
+	cmd.data_length=1;
+	sendCommand(cmd);
+		
 }
 
 
@@ -1050,7 +1076,7 @@ void LCDMonitor::configure()
 	string config = "/home/" + user;
 	config += "/etc/lcdmonitor.conf";
 	
-	intensity=100;
+	intensity=80;
 	contrast=95;
 		
 	if (!configfile_getsections(&sections,&nsections,config.c_str()))
@@ -1135,6 +1161,24 @@ void LCDMonitor::configure()
 				showPRNs = (itmp==1);
 			else
 				log("Show PRNs not found in config file");
+				
+			if (hash_get_intvalue(htab,"LCD intensity",&itmp))
+			{
+				intensity = itmp;
+				if (intensity <0) intensity=0;
+				if (intensity >100) intensity=100;
+			}
+			else
+				log("LCD intensity not found in config file");
+				
+			if (hash_get_intvalue(htab,"LCD contrast",&itmp))
+			{
+				contrast= itmp;
+				if (contrast <0) contrast=0;
+				if (contrast >255) contrast=255;
+			}
+			else
+				log("LCD contrast not found in config file");
 		}
 
 		if (strstr("OS",sections[i]))
@@ -1240,6 +1284,14 @@ void LCDMonitor::configure()
 	}
 	
 	#undef BUF_LEN
+}
+
+void LCDMonitor::updateConfig(std::string section,std::string token,std::string val)
+{
+	string config = "/home/" + user;
+	config += "/etc/lcdmonitor.conf";
+	Dout(dc::trace,"Updating " << config);
+	configfile_update(section.c_str(),token.c_str(),val.c_str(),config.c_str());
 }
 
 void LCDMonitor::log(std::string msg)
