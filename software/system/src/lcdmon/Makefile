@@ -60,8 +60,9 @@ install:
 	-/bin/cp ./lcdmonitor $(BINDIR)
 	-/bin/cp ./lcdconfig $(BINDIR)
 	-/bin/cp ./lcdmonitor.conf $(ETCDIR)
+	
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(LCDMONOBJS) $(LCDCONFIGOBJS) lcdmonitor lcdconfig
 
 distribution:	clean
 	tar -C .. -cvzf ../lcdmonitor.tgz lcdmon
