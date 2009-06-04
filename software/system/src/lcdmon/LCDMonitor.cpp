@@ -1036,12 +1036,8 @@ void LCDMonitor::init()
 
 void LCDMonitor::configure()
 {
-	#define BUF_LEN 1024
 
-	HashEntry *htab[ALPHABETIC_HASH_SIZE];
-	char buf[BUF_LEN];
-	char **sections,*stmp;
-	int nsections;
+	char *stmp;
 	int itmp;
 
 	// set some sensible defaults
@@ -1078,135 +1074,9 @@ void LCDMonitor::configure()
 	
 	intensity=80;
 	contrast=95;
-		
-	if (!configfile_getsections(&sections,&nsections,config.c_str()))
-	{
-		ostringstream msg;
-		msg << "failed to read " << config;
-		log(msg.str());
-		exit(EXIT_FAILURE);
-	}
-
-	hash_init(htab,ALPHABETIC_HASH_SIZE);
 	
-	for (int i=0;i<nsections;i++)
-	{
-		
-		if (!configfile_parse(htab,sections[i],config.c_str()))
-		{
-			ostringstream msg;
-			msg << "failed to parse section " << sections[i] << " in " << config;
-			log(msg.str());
-			exit(EXIT_FAILURE);
-		}
-		
-		if (strstr("General",sections[i]))
-		{
-			if (hash_get_stringvalue(htab,"Ntp user",&stmp))
-				NTPuser=stmp;
-			else
-				log("NTP user not found in config file");
-					
-			if (hash_get_stringvalue(htab,"Squealer config",&stmp))
-				squealerConfig=stmp;
-			else
-				log("Squealer config not found in config file");
-				
-		}
-		if (strstr("Network",sections[i]))
-		{
-			if (hash_get_stringvalue(htab,"DNS",&stmp))
-				DNSconf=stmp;
-			else
-				log("DNS not found in config file");
-			if (hash_get_stringvalue(htab,"Network",&stmp))
-				networkConf=stmp;
-			else
-				log("Network not found in config file");
-			if (hash_get_stringvalue(htab,"Eth0",&stmp))
-				eth0Conf=stmp;
-			else
-				log("Eth0 not found in config file");
-			
-		}
-		
-		if (strstr("GPSCV",sections[i]))
-		{
-
-			if (hash_get_stringvalue(htab,"GPSCV user",&stmp))
-				GPSCVuser=stmp;
-			else
-				log("GPSCV user not found in config file");
-
-			if (hash_get_stringvalue(htab,"CCTF config",&stmp))
-				cctfConfig=stmp;
-			else
-				log("CCTF config not found in config file");
-
-			if (hash_get_stringvalue(htab,"GPS restart command",&stmp))
-				gpsRxRestartCommand=stmp;
-			else
-				log("GPS restart command not found in config file");
-
-			if (hash_get_stringvalue(htab,"GPS logger lock file",&stmp))
-				gpsLoggerLockFile=stmp;
-			else
-				log("GPS logger lock file not found in config file");
-
-		}
-
-		if (strstr("UI",sections[i]))
-		{
-			if (hash_get_intvalue(htab,"Show PRNs",&itmp))
-				showPRNs = (itmp==1);
-			else
-				log("Show PRNs not found in config file");
-				
-			if (hash_get_intvalue(htab,"LCD intensity",&itmp))
-			{
-				intensity = itmp;
-				if (intensity <0) intensity=0;
-				if (intensity >100) intensity=100;
-			}
-			else
-				log("LCD intensity not found in config file");
-				
-			if (hash_get_intvalue(htab,"LCD contrast",&itmp))
-			{
-				contrast= itmp;
-				if (contrast <0) contrast=0;
-				if (contrast >255) contrast=255;
-			}
-			else
-				log("LCD contrast not found in config file");
-		}
-
-		if (strstr("OS",sections[i]))
-		{
-			if (hash_get_stringvalue(htab,"Reboot command",&stmp))
-				rebootCommand= stmp;
-			else
-				log("Reboot command not found in config file");
-			
-			if (hash_get_stringvalue(htab,"Poweroff command",&stmp))
-				poweroffCommand= stmp;
-			else
-				log("Poweroff command not found in config file");
-
-			if (hash_get_stringvalue(htab,"ntpd restart command",&stmp))
-				ntpdRestartCommand= stmp;
-			else
-				log("ntpd restart command not found in config file");
-
-		}
-
-		hash_clear(htab,ALPHABETIC_HASH_SIZE);
-	}
-	
-	
-	// read cctf.setup
-	
-	if (!configfile_getsections(&sections,&nsections,cctfConfig.c_str()))
+	ListEntry *last;
+	if (!configfile_parse_as_list(&last,config.c_str()))
 	{
 		ostringstream msg;
 		msg << "failed to read " << config;
@@ -1214,76 +1084,141 @@ void LCDMonitor::configure()
 		exit(EXIT_FAILURE);
 	}
 	
-	for (int i=0;i<nsections;i++)
-	{
+	// General
+	if (list_get_string_value(last,"General","Ntp user",&stmp))
+		NTPuser=stmp;
+	else
+		log("NTP user not found in config file");
 		
-		if (!configfile_parse(htab,sections[i],cctfConfig.c_str()))
-		{
-			ostringstream msg;
-			msg << "failed to parse section " << sections[i] << " in " << cctfConfig;
-			log(msg.str());
-			exit(EXIT_FAILURE);
-		}
-		
-		if (strstr("Main",sections[i]))
-		{
-			if (hash_get_stringvalue(htab,"Receiver",&stmp))
-				receiverName=stmp;
-			else
-				log("receiver type not found in cctf.setup");
+	if (list_get_string_value(last,"General","Squealer config",&stmp))
+		squealerConfig=stmp;
+	else
+		log("Squealer config not found in config file");
+	
+	// Network	
+	if (list_get_string_value(last,"Network","DNS",&stmp))
+		DNSconf=stmp;
+	else
+		log("DNS not found in config file");
 
-			if (hash_get_stringvalue(htab,"Rb Status",&stmp))
-				rbStatusFile=stmp;
-			else
-				log("Rb Status not found in cctf.setup");
-			
-			if (hash_get_stringvalue(htab,"receiver status",&stmp))
-				GPSStatusFile=stmp;
-			else
-				log("Receiver Status not found in cctf.setup");
-			
-		}
+	if (list_get_string_value(last,"Network","Network",&stmp))
+		networkConf=stmp;
+	else
+		log("Network not found in config file");
 		
-		hash_clear(htab,ALPHABETIC_HASH_SIZE);
+	if (list_get_string_value(last,"Network","Eth0",&stmp))
+		eth0Conf=stmp;
+	else
+		log("Eth0 not found in config file");
+	
+	// GPSCV
+	if (list_get_string_value(last,"GPSCV","GPSCV user",&stmp))
+		GPSCVuser=stmp;
+	else
+		log("GPSCV user not found in config file");
+
+	if (list_get_string_value(last,"GPSCV","CCTF config",&stmp))
+		cctfConfig=stmp;
+	else
+		log("CCTF config not found in config file");
+
+	if (list_get_string_value(last,"GPSCV","GPS restart command",&stmp))
+		gpsRxRestartCommand=stmp;
+	else
+		log("GPS restart command not found in config file");
+
+	if (list_get_string_value(last,"GPSCV","GPS logger lock file",&stmp))
+		gpsLoggerLockFile=stmp;
+	else
+		log("GPS logger lock file not found in config file");
+	
+	// OS
+	if (list_get_string_value(last,"OS","Reboot command",&stmp))
+		rebootCommand= stmp;
+	else
+		log("Reboot command not found in config file");
+			
+	if (list_get_string_value(last,"OS","Poweroff command",&stmp))
+		poweroffCommand= stmp;
+	else
+		log("Poweroff command not found in config file");
+
+	if (list_get_string_value(last,"OS","ntpd restart command",&stmp))
+		ntpdRestartCommand= stmp;
+	else
+		log("ntpd restart command not found in config file");
+
+	// UI
+	if (list_get_int_value(last,"UI","Show PRNs",&itmp))
+		showPRNs = (itmp==1);
+	else
+		log("Show PRNs not found in config file");
+				
+	if (list_get_int_value(last,"UI","LCD intensity",&itmp))
+	{
+		intensity = itmp;
+		if (intensity <0) intensity=0;
+		if (intensity >100) intensity=100;
 	}
+	else
+		log("LCD intensity not found in config file");
+				
+	if (list_get_int_value(last,"UI","LCD contrast",&itmp))
+	{
+		contrast= itmp;
+		if (contrast <0) contrast=0;
+		if (contrast >255) contrast=255;
+	}
+	else
+		log("LCD contrast not found in config file");
+		
+	list_clear(last);
 	
 	
-	// read squealer.conf
-	
-	if (!configfile_getsections(&sections,&nsections,squealerConfig.c_str()))
+	if (!configfile_parse_as_list(&last,cctfConfig.c_str()))
 	{
 		ostringstream msg;
-		msg << "failed to read " << squealerConfig;
+		msg << "failed to read " << config;
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
 	
-	for (int i=0;i<nsections;i++)
-	{
-		
-		if (!configfile_parse(htab,sections[i],squealerConfig.c_str()))
-		{
-			ostringstream msg;
-			msg << "failed to parse section " << sections[i] << " in " << squealerConfig;
-			log(msg.str());
-			exit(EXIT_FAILURE);
-		}
-		
-		if (strstr("Alarms",sections[i]))
-		{
-			if (hash_get_stringvalue(htab,"Status File Directory",&stmp))
-			{
-				alarmPath=stmp;
-				alarmPath+="/*";
-			}
-			else
-				log("Status File Directory not found in config file");
+	if (list_get_string_value(last,"Main","Receiver",&stmp))
+		receiverName=stmp;
+	else
+		log("receiver type not found in cctf.setup");
+
+	if (list_get_string_value(last,"Main","Rb Status",&stmp))
+		rbStatusFile=stmp;
+	else
+		log("Rb Status not found in cctf.setup");
 			
-		}
-		hash_clear(htab,ALPHABETIC_HASH_SIZE);
+	if (list_get_string_value(last,"Main","receiver status",&stmp))
+		GPSStatusFile=stmp;
+	else
+		log("Receiver Status not found in cctf.setup");
+		
+	list_clear(last);
+	
+	
+	if (!configfile_parse_as_list(&last,squealerConfig.c_str()))
+	{
+		ostringstream msg;
+		msg << "failed to read " << config;
+		log(msg.str());
+		exit(EXIT_FAILURE);
 	}
 	
-	#undef BUF_LEN
+	if (list_get_string_value(last,"Alarms","Status File Directory",&stmp))
+	{
+		alarmPath=stmp;
+		alarmPath+="/*";
+	}
+	else
+		log("Status File Directory not found in config file");
+				
+	list_clear(last);
+	
 }
 
 void LCDMonitor::updateConfig(std::string section,std::string token,std::string val)
@@ -1336,33 +1271,33 @@ void LCDMonitor::makeMenu()
 	Menu *setupM = new Menu("Setup...");
 	menu->insertItem(setupM);
 	
-		Menu *networkM = new Menu("Network...");
-		setupM->insertItem(networkM);
-			MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
-			networkM->insertItem("Set up DHCP",cb);
-	
-			Menu* staticIPv4 = new Menu("Set up static IPv4");
-			networkM->insertItem(staticIPv4);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4Address);
-					staticIPv4 ->insertItem("Address",cb);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4NetMask);
-					staticIPv4 ->insertItem("Netmask",cb);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4Gateway);
-					staticIPv4 ->insertItem("Gateway",cb);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4NameServer);
-					staticIPv4 ->insertItem("Nameserver",cb);
-			Menu *staticIPV6 = new Menu("Set up static IPv6");
-			networkM->insertItem(staticIPV6);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6Address);
-					staticIPV6->insertItem("Address",cb);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6NetMask);
-					staticIPV6->insertItem("Netmask",cb);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6Gateway);
-					staticIPV6->insertItem("Gateway",cb);
-					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6NameServer);
-					staticIPV6->insertItem("Nameserver",cb);				
-			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigApply);
-			networkM->insertItem("Apply changes",cb);
+// 		Menu *networkM = new Menu("Network...");
+// 		setupM->insertItem(networkM);
+// 			MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
+// 			networkM->insertItem("Set up DHCP",cb);
+// 	
+// 			Menu* staticIPv4 = new Menu("Set up static IPv4");
+// 			networkM->insertItem(staticIPv4);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4Address);
+// 					staticIPv4 ->insertItem("Address",cb);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4NetMask);
+// 					staticIPv4 ->insertItem("Netmask",cb);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4Gateway);
+// 					staticIPv4 ->insertItem("Gateway",cb);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4NameServer);
+// 					staticIPv4 ->insertItem("Nameserver",cb);
+// 			Menu *staticIPV6 = new Menu("Set up static IPv6");
+// 			networkM->insertItem(staticIPV6);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6Address);
+// 					staticIPV6->insertItem("Address",cb);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6NetMask);
+// 					staticIPV6->insertItem("Netmask",cb);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6Gateway);
+// 					staticIPV6->insertItem("Gateway",cb);
+// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6NameServer);
+// 					staticIPV6->insertItem("Nameserver",cb);				
+// 			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigApply);
+// 			networkM->insertItem("Apply changes",cb);
 	
 		cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::displayConfig);
 		setupM->insertItem("Display...",cb);
