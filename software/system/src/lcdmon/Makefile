@@ -1,5 +1,6 @@
-BINDIR = $(HOME)/bin
-ETCDIR = $(HOME)/etc
+INSTDIR=/usr/local
+BINDIR = $(INSTDIR)/bin
+ETCDIR = $(INSTDIR)/etc
 GROUP = suck
 CC = g++
 DEBUGFLAG = -g
@@ -58,9 +59,15 @@ Widget.o: KeyEvent.h Widget.h
 
 install:
 	-/bin/cp ./lcdmonitor $(BINDIR)
-	-/bin/cp ./lcdconfig $(BINDIR)
+	-/bin/cp ./lcdconfig  $(BINDIR)
 	-/bin/cp ./lcdmonitor.conf $(ETCDIR)
-	
+	chown root. $(BINDIR)/lcdmonitor
+	chmod og-x  $(BINDIR)/lcdmonitor
+	chown root. $(BINDIR)/lcdconfig
+	chmod og-x  $(BINDIR)/lcdconfig
+	chown root. $(ETCDIR)/lcdmonitor.conf
+	chmod og-w  $(ETCDIR)/lcdmonitor.conf
+
 clean:
 	rm -f $(LCDMONOBJS) $(LCDCONFIGOBJS) lcdmonitor lcdconfig
 
