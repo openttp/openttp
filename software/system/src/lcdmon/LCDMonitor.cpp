@@ -45,8 +45,10 @@
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
-#define DEFAULT_LOG_FILE        "/logs/lcdmonitor.log"
-#define DEFAULT_LOCK_FILE       "/logs/lcdmonitor.lock"
+#define DEFAULT_LOG_FILE        "/usr/local/log/lcdmonitor.log"
+#define DEFAULT_LOCK_FILE       "/usr/local/log/lcdmonitor.lock"
+#define DEFAULT_CONFIG          "/usr/local/etc/lcdmonitor.conf"
+
 #define PRETTIFIER "*********************************************"
 
 #define BOOT_GRACE_PERIOD 300 // in seconds
@@ -62,17 +64,15 @@ extern LCDMonitor *app;
 LCDMonitor::LCDMonitor(int argc,char **argv)
 {
 
-	user = "cvgps"; // need to set this here, thaer than in init()
 
 	char c;
-	while ((c=getopt(argc,argv,"hvdu:")) != EOF)
+	while ((c=getopt(argc,argv,"hvd")) != EOF)
 	{
 		switch(c)
   	{
 			case 'h':showHelp(); exit(EXIT_SUCCESS);
 			case 'v':showVersion();exit(EXIT_SUCCESS);
 			case 'd':Debug(dc::trace.on());break;
-			case 'u':user=optarg;break;
 		}
 	}
 	
@@ -266,6 +266,7 @@ void LCDMonitor::networkConfigStaticIPv6Address()
 	bool ret = execDialog(dlg);
 	if (ret)
 	{
+			//ipv6addr = ipw->ipAddress();
 			log("Network address changed");
 	}
 	delete dlg;
@@ -367,7 +368,7 @@ void LCDMonitor::restartGPS()
 				goto fail;
 			sleep(2); // wait a bit for OS to do its thing
 		}
-
+		Dout(dc::trace,"LCDMonitor::restartGPS() " << gpsRxRestartCommand );
 		int sysret = system(gpsRxRestartCommand.c_str());
 		Dout(dc::trace,"LCDMonitor::restartGPS() system() returns " << sysret);
 		if (sysret == -1)
@@ -536,7 +537,7 @@ void LCDMonitor::showStatus()
 		std::string prn="";
 		int nsats=0;
 		bool unexpectedEOF;
-		bool GPSOK=checkGPS(&nsats,prn,&unexpectedEOF);
+		checkGPS(&nsats,prn,&unexpectedEOF);
 		if (unexpectedEOF)
 			Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF");
 		if (showPRNs && !unexpectedEOF)
@@ -576,23 +577,19 @@ void LCDMonitor::showStatus()
 				ossbuf << prns[s+6];
 			}
 			updateLine(2,ossbuf.str().c_str());
-			GPSOK = GPSOK && (nsats > 0);
 		}
 		else if (!unexpectedEOF)
 		{
 			sprintf(buf,"GPS sats=%d",nsats);
 			updateLine(1,buf);
-			GPSOK = GPSOK && (nsats > 0);
 		}
 
-		if (GPSOK)
-			updateStatusLED(1,GreenOn);
-		else
-			updateStatusLED(1,RedOn);
+		//if (GPSOK)
+		//	updateStatusLED(1,GreenOn);
+		//else
+		//	updateStatusLED(1,RedOn);
 
-		bool systemOK=checkAlarms();
-
-		if (GPSOK && systemOK)
+		if (checkAlarms())
 		{
 			updateLine(3,"SYSTEM OK");
 			updateStatusLED(3,GreenOn);
@@ -666,7 +663,7 @@ void LCDMonitor::execMenu()
 	menus.push(menu);
 	Menu *currMenu=menus.top();
 	
-	startTimer();
+	startTimer(300);
 	while (showMenu && !LCDMonitor::timeout)
 	{
 		// show the menu
@@ -682,7 +679,7 @@ void LCDMonitor::execMenu()
 			if(packetReceived())
 			{
 				stopTimer();
-				startTimer();
+				startTimer(300);
 				if(incoming_command.command==0x80)
 				{
 					if (incoming_command.data[0]==11 )// ENTER
@@ -702,7 +699,7 @@ void LCDMonitor::execMenu()
 							{
 								stopTimer();
 								currItem->exec();
-								startTimer();
+								startTimer(300);
 							}
 						}
 						
@@ -756,7 +753,7 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 	bool retval = false;
 	
 	Dout(dc::trace,"LCDMonitor::execDialog()");
-	startTimer();
+	startTimer(300);
 	while (exec && !LCDMonitor::timeout)
 	{
 	
@@ -776,7 +773,7 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 			if(packetReceived())
 			{
 				stopTimer();
-				startTimer();
+				startTimer(300);
 				
 				if(incoming_command.command==0x80)
 				{
@@ -934,17 +931,14 @@ void LCDMonitor::stopTimer()
 void LCDMonitor::init()
 {
 	
-	struct stat statbuf;
 
 	FILE *fd;
 	pid_t oldpid;
 	
 	
-	logFile= "/home/"+user;
-	logFile+=DEFAULT_LOG_FILE;
+	logFile=DEFAULT_LOG_FILE;
 	
-	lockFile = "/home/"+user;
-	lockFile += DEFAULT_LOCK_FILE;
+	lockFile = DEFAULT_LOCK_FILE;
 	
 	/* Check that there isn't already a process running */
 	if ((fd=fopen(lockFile.c_str(),"r")))
@@ -1069,8 +1063,7 @@ void LCDMonitor::configure()
 	
 	showPRNs=false;
 
-	string config = "/home/" + user;
-	config += "/etc/lcdmonitor.conf";
+	string config = DEFAULT_CONFIG;
 	
 	intensity=80;
 	contrast=95;
@@ -1223,8 +1216,7 @@ void LCDMonitor::configure()
 
 void LCDMonitor::updateConfig(std::string section,std::string token,std::string val)
 {
-	string config = "/home/" + user;
-	config += "/etc/lcdmonitor.conf";
+	string config = DEFAULT_CONFIG;
 	Dout(dc::trace,"Updating " << config);
 	configfile_update(section.c_str(),token.c_str(),val.c_str(),config.c_str());
 }
@@ -1253,7 +1245,6 @@ void LCDMonitor::showHelp()
 	cout << "Available options are" << endl;
 	cout << "\t-d" << endl << "\t Turn on debuggging" << endl;
 	cout << "\t-h" << endl << "\t Show this help" << endl;
-	cout << "\t-u USER" << endl<< "\t Set user who owns the configuration and log files" << endl;
 	cout << "\t-v" << endl << "\t Show version" << endl;
 }
 
@@ -1299,7 +1290,7 @@ void LCDMonitor::makeMenu()
 // 			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigApply);
 // 			networkM->insertItem("Apply changes",cb);
 	
-		cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::displayConfig);
+		MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::displayConfig);
 		setupM->insertItem("Display...",cb);
 		
 	cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
@@ -1416,6 +1407,9 @@ void LCDMonitor::updateCursor(int row,int col)
 
 bool LCDMonitor::checkAlarms()
 {
+
+	alarms.clear();
+
 	glob_t aglob;
 	int globret=glob(alarmPath.c_str(),0,0,&aglob);
 	if (globret == GLOB_NOMATCH)
@@ -1425,7 +1419,7 @@ bool LCDMonitor::checkAlarms()
 	} 
 	else if (globret == 0)
 	{
-		alarms.clear();
+		
 		Dout(dc::trace,"LCDMonitor::checkAlarms()");
 		for (unsigned int i=0;i<aglob.gl_pathc;i++)
 		{

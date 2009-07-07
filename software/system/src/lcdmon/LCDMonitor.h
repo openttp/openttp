@@ -91,7 +91,6 @@ class LCDMonitor:public CFA635
 		void parseNetworkConfig();
 		void parseConfigEntry(std::string &,std::string &,char );
 
-		std::string user;
 
 		std::string poweroffCommand;
 		std::string rebootCommand;
