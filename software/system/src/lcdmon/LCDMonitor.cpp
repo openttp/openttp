@@ -461,7 +461,7 @@ void LCDMonitor::poweroff()
 	{
 		clearDisplay();
 		updateLine(1,"  Powering down");
-		int sysret = system(rebootCommand.c_str());
+		int sysret = system(poweroffCommand.c_str());
 		Dout(dc::trace,"LCDMonitor::poweroff() system() returns " << sysret);
 		if (sysret == 0)
 		{
@@ -1037,9 +1037,9 @@ void LCDMonitor::configure()
 	// set some sensible defaults
 
 	poweroffCommand="/sbin/poweroff";
-	rebootCommand="/sbin/reboot";
+	rebootCommand="/sbin/shutdown -r now";
 	ntpdRestartCommand="/sbin/service ntpd restart";
-	gpsRxRestartCommand="/home/cvgps/bin/check_rx";
+	gpsRxRestartCommand="su - cvgps -c '/home/cvgps/bin/check_rx'";
 	gpsLoggerLockFile="/home/cvgps/logs/rx.lock";
 
 	ipv4addr="192.168.1.2";
