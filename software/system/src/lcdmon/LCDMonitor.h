@@ -3,6 +3,7 @@
 
 #include <signal.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include <sstream>
 #include <string>
@@ -45,7 +46,9 @@ class LCDMonitor:public CFA635
 		void networkConfigStaticIPv6Gateway();
 		void networkConfigStaticIPv6NameServer();
 		
-		void displayConfig();
+		void LCDConfig();
+		void setGPSDisplayMode();
+		void setNTPDisplayMode();
 		
 		void restartGPS();
 		void restartNtpd();
@@ -55,6 +58,7 @@ class LCDMonitor:public CFA635
 	private:
 	
 		enum LEDState {Off,RedOn,GreenOn};
+		enum DisplayMode {GPS,NTP};
 		
 		static void signalHandler(int);
 		void startTimer(long secs=10);
@@ -83,6 +87,7 @@ class LCDMonitor:public CFA635
 		
 		bool checkAlarms();
 		bool checkGPS(int *,std::string &,bool *);
+		void getNTPstats(int *,int *);
 		
 		bool checkFile(const char *);
 		time_t lastLazyCheck;
@@ -90,7 +95,6 @@ class LCDMonitor:public CFA635
 		
 		void parseNetworkConfig();
 		void parseConfigEntry(std::string &,std::string &,char );
-
 
 		std::string poweroffCommand;
 		std::string rebootCommand;
@@ -107,7 +111,8 @@ class LCDMonitor:public CFA635
 		
 		bool showPRNs;
 
-		Menu *menu;
+		Menu *menu,*displayModeM;
+		int midGPSDisplayMode,midNTPDisplayMode; // some menu items we want to track
 		
 		std::string logFile;
 		std::string lockFile;
@@ -123,6 +128,12 @@ class LCDMonitor:public CFA635
 		// some settings
 		int intensity;
 		int contrast;
+		int displayMode;
+		
+		// 
+		struct timeval lastNTPtrafficPoll,currNTPtrafficPoll;
+		int    lastNTPPacketCount,currNTPPacketCount;
+		
 };
 
 #endif

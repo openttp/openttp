@@ -11,12 +11,11 @@
 #include "Functor.h"
 #include "Menu.h"
 
-static int menuid=1;
-
 MenuItem::MenuItem()
 {
 	ismenu=false;
 	callback=NULL;
+	checked_=false;
 }
 
 MenuItem::MenuItem(std::string txt,Functor *cb)
@@ -24,6 +23,7 @@ MenuItem::MenuItem(std::string txt,Functor *cb)
 	MenuItem::txt = txt;
 	ismenu=false;
 	callback=cb;
+	checked_=false;
 }
 
 MenuItem::~MenuItem()
@@ -64,14 +64,12 @@ MenuItem *Menu::itemAt(unsigned int idx)
 int Menu::insertItem(std::string txt,Functor *cb)
 {
 	items.push_back(new MenuItem(txt,cb));
-	menuid++;
-	return menuid;
+	return items.size()-1;
 }
 
 int Menu::insertItem(Menu *m)
 {
 	items.push_back(m);
-	menuid++;
-	return menuid;
+	return items.size()-1;
 }
 

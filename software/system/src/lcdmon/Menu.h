@@ -18,6 +18,9 @@ class MenuItem
 		MenuItem(std::string,Functor *);
 		virtual ~MenuItem();
 		
+		bool checked(){return checked_;}
+		void setChecked(bool c){checked_=c;}
+		
 		std::string text(){return txt;}
 		void setText(std::string txt){MenuItem::txt = txt;}
 		
@@ -33,7 +36,7 @@ class MenuItem
 		std::string txt;
 		bool ismenu;
 		Functor *callback;
-		
+	  bool checked_;
 };
 
 class Menu:public MenuItem

@@ -284,7 +284,7 @@ void LCDMonitor::networkConfigStaticIPv6NameServer()
 {
 }
 
-void LCDMonitor::displayConfig()
+void LCDMonitor::LCDConfig()
 {
 	clearDisplay();
 	Dialog *dlg = new Dialog();
@@ -338,6 +338,38 @@ void LCDMonitor::displayConfig()
 	delete dlg;
 }
 
+void LCDMonitor::setGPSDisplayMode()
+{
+	if (displayMode==GPS) return;
+	
+	
+	displayMode=GPS;
+	MenuItem *mi = displayModeM->itemAt(midGPSDisplayMode);
+	mi->setChecked(true);
+	mi = displayModeM->itemAt(midNTPDisplayMode);
+	mi->setChecked(false);
+	
+	updateConfig("ui","display mode","GPS");
+	
+	clearDisplay();
+}
+
+void LCDMonitor::setNTPDisplayMode()
+{
+	if (displayMode==NTP) return;
+	
+	displayMode=NTP;
+	MenuItem *mi = displayModeM->itemAt(midGPSDisplayMode);
+	mi->setChecked(false);
+	mi = displayModeM->itemAt(midNTPDisplayMode);
+	mi->setChecked(true);
+	lastNTPtrafficPoll.tv_sec=0;
+	
+	updateConfig("ui","display mode","NTP");
+	
+	clearDisplay();
+}
+		
 void LCDMonitor::restartGPS()
 {
 	clearDisplay();
@@ -534,56 +566,103 @@ void LCDMonitor::showStatus()
 		
 		touchLock();
 	
-		std::string prn="";
-		int nsats=0;
-		bool unexpectedEOF;
-		checkGPS(&nsats,prn,&unexpectedEOF);
-		if (unexpectedEOF)
-			Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF");
-		if (showPRNs && !unexpectedEOF)
+		switch (displayMode)
 		{
-			// split this over two lines
-			// Have 15 characters per line == 6 per line
-			std::vector<std::string> sprns;
-			boost::split(sprns,prn,is_any_of(",")); // note that if no split, then input is returned
-			std::vector<int> prns;
-			for (unsigned int i=0;i<sprns.size();i++)
+			case NTP:
 			{
-				prns.push_back(atoi(sprns.at(i).c_str()));
+				gettimeofday(&currNTPtrafficPoll,NULL);
+				if (currNTPtrafficPoll.tv_sec - lastNTPtrafficPoll.tv_sec < 60) break;
+			
+				int oldpkts=-1,newpkts=-1;
+				getNTPstats(&oldpkts,&newpkts);
+				if (oldpkts >=0 && newpkts >=0)
+				{
+					
+					currNTPPacketCount=oldpkts+newpkts;
+					if (currNTPPacketCount < lastNTPPacketCount) // counter rollover
+					{
+						lastNTPtrafficPoll = currNTPtrafficPoll;
+						lastNTPPacketCount = currNTPPacketCount; 
+						break; // no update
+					}
+					if (lastNTPtrafficPoll.tv_sec>0) // got an interval
+					{
+						double pktrate = 60.0 * (currNTPPacketCount -  lastNTPPacketCount)/
+							(currNTPtrafficPoll.tv_sec - lastNTPtrafficPoll.tv_sec +
+							 1.0E-6*(currNTPtrafficPoll.tv_usec - lastNTPtrafficPoll.tv_usec));
+						std::string sbuf;
+						ostringstream ossbuf(sbuf);
+						ossbuf.precision(1); // just one after the decimal point
+						ossbuf << std::fixed << pktrate << " pkts/min";
+						updateLine(1,ossbuf.str().c_str());
+						lastNTPtrafficPoll = currNTPtrafficPoll;
+						lastNTPPacketCount = currNTPPacketCount; 
+					}
+					else // first time thru
+					{
+						updateLine(1,"???? pkts/min");
+						lastNTPtrafficPoll = currNTPtrafficPoll;
+						lastNTPPacketCount = currNTPPacketCount; 
+					}
+					
+				}
+				break;
 			}
-			sort(prns.begin(),prns.end());
-			int nprns = prns.size();
-			if (nprns > 6) nprns=6;
-			std::string sbuf;
-			ostringstream ossbuf(sbuf);
-			ossbuf << "SV";
+			case GPS:
+			{
+				std::string prn="";
+				int nsats=0;
+				bool unexpectedEOF;
+				checkGPS(&nsats,prn,&unexpectedEOF); 
+				if (unexpectedEOF)
+					Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF");
+			
+				if (showPRNs && !unexpectedEOF)
+				{
+					// split this over two lines
+					// Have 15 characters per line == 6 per line
+					std::vector<std::string> sprns;
+					boost::split(sprns,prn,is_any_of(",")); // note that if no split, then input is returned
+					std::vector<int> prns;
+					for (unsigned int i=0;i<sprns.size();i++)
+					{
+						prns.push_back(atoi(sprns.at(i).c_str()));
+					}
+					sort(prns.begin(),prns.end());
+					int nprns = prns.size();
+					if (nprns > 6) nprns=6;
+					std::string sbuf;
+					ostringstream ossbuf(sbuf);
+					ossbuf << "SV";
 		
-			for (int s=0;s<nprns;s++)
-			{
-				ossbuf.width(3);
-				ossbuf << prns[s];
-			}
-			updateLine(1,ossbuf.str().c_str());
+					for (int s=0;s<nprns;s++)
+					{
+						ossbuf.width(3);
+						ossbuf << prns[s];
+					}
+					updateLine(1,ossbuf.str().c_str());
 		
-			nprns = prns.size();
-			if (nprns > 12) nprns=12; // can only do 12
-			nprns -=6; // number left to show
-			ossbuf.clear(); // clear any errors 
-			ossbuf.str("");
-			ossbuf << "  ";
-			for (int s=0;s<nprns;s++)
-			{
-				ossbuf.width(3);
-				ossbuf << prns[s+6];
+					nprns = prns.size();
+					if (nprns > 12) nprns=12; // can only do 12
+					nprns -=6; // number left to show
+					ossbuf.clear(); // clear any errors 
+					ossbuf.str("");
+					ossbuf << "  ";
+					for (int s=0;s<nprns;s++)
+					{
+						ossbuf.width(3);
+						ossbuf << prns[s+6];
+					}
+					updateLine(2,ossbuf.str().c_str());
+				}
+				else if (!unexpectedEOF)
+				{
+					sprintf(buf,"GPS sats=%d",nsats);
+					updateLine(1,buf);
+				}
+				break;
 			}
-			updateLine(2,ossbuf.str().c_str());
 		}
-		else if (!unexpectedEOF)
-		{
-			sprintf(buf,"GPS sats=%d",nsats);
-			updateLine(1,buf);
-		}
-
 		//if (GPSOK)
 		//	updateStatusLED(1,GreenOn);
 		//else
@@ -602,33 +681,36 @@ void LCDMonitor::showStatus()
 		lastLazyCheck=tnow;
 	}
 	
-	// leap second status
-	struct timex tx;
-	tx.modes=0;
-	int clkstate=adjtimex(&tx);
-	switch (clkstate)
+	// leap second status 
+	if (displayMode == NTP)
 	{
-		case TIME_OK:
-			snprintf(buf,20,"TIME OK");
-			break;
-		case TIME_INS:
-			snprintf(buf,20,"LS INS TODAY");
-			break;
-		case TIME_DEL:
-			snprintf(buf,20,"LS DEL TODAY");
-			break;
-		case TIME_OOP:
-			snprintf(buf,20,"LS IN PROGRESS");
-			break;
-		case TIME_WAIT:
-			snprintf(buf,20,"LS OCCURRED");
-			break;
-		case TIME_BAD:
-			snprintf(buf,20,"UNSYNCHRONIZED");
-			break;	
+		struct timex tx;
+		tx.modes=0;
+		int clkstate=adjtimex(&tx);
+		switch (clkstate)
+		{
+			case TIME_OK:
+				snprintf(buf,20,"Time OK");
+				break;
+			case TIME_INS:
+				snprintf(buf,20,"Leap second today");
+				break;
+			case TIME_DEL:
+				snprintf(buf,20,"Leap second today");
+				break;
+			case TIME_OOP:
+				snprintf(buf,20,"Leap second now");
+				break;
+			case TIME_WAIT:
+				snprintf(buf,20,"Leap second occurred");
+				break;
+			case TIME_BAD:
+				snprintf(buf,20,"Unsynchronized");
+				break;	
+		}
+		updateLine(2,buf);
 	}
-	//updateLine(3,buf);
-
+	
 	#ifdef CWDEBUG
 	{
 		Dout(dc::trace,"-------------------");
@@ -670,8 +752,14 @@ void LCDMonitor::execMenu()
 		clearDisplay();
 		int numItems=currMenu->numItems();
 		for (int i=0;i<numItems;i++)
-			updateLine(i,">"+currMenu->itemAt(i)->text());
-		
+		{
+			std::string buf = ">" + currMenu->itemAt(i)->text();
+			if (buf.length() < 20) // pad the string
+				buf+=std::string(20-buf.length(),' ');
+			if (currMenu->itemAt(i)->checked())	
+				buf.at(19)='*';
+			updateLine(i,buf);
+		}
 		updateCursor(currRow,0);
 		while (!LCDMonitor::timeout)
 		{
@@ -971,7 +1059,9 @@ void LCDMonitor::init()
 		exit(EXIT_FAILURE);
 	}
 	
-
+	lastNTPtrafficPoll.tv_sec=0;
+	lastNTPPacketCount=0;
+	
 	configure();
 	
 	if(Serial_Init(PORT,BAUD))
@@ -1036,6 +1126,8 @@ void LCDMonitor::configure()
 
 	// set some sensible defaults
 
+	displayMode = GPS;
+	
 	poweroffCommand="/sbin/poweroff";
 	rebootCommand="/sbin/shutdown -r now";
 	ntpdRestartCommand="/sbin/service ntpd restart";
@@ -1164,6 +1256,21 @@ void LCDMonitor::configure()
 	}
 	else
 		log("LCD contrast not found in config file");
+	
+	if (list_get_string_value(last,"UI","Display mode",&stmp))
+	{
+		boost::to_upper(stmp);
+		if (0==strcmp(stmp,"GPS"))
+			displayMode = GPS;
+		else if (0==strcmp(stmp,"NTP"))
+			displayMode = NTP;
+		else
+		{
+			ostringstream msg;
+			msg << "Unknown display mode " << stmp;
+			log(msg.str());
+		}
+	}
 		
 	list_clear(last);
 	
@@ -1171,7 +1278,7 @@ void LCDMonitor::configure()
 	if (!configfile_parse_as_list(&last,cctfConfig.c_str()))
 	{
 		ostringstream msg;
-		msg << "failed to read " << config;
+		msg << "failed to read " << cctfConfig;
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
@@ -1197,7 +1304,7 @@ void LCDMonitor::configure()
 	if (!configfile_parse_as_list(&last,squealerConfig.c_str()))
 	{
 		ostringstream msg;
-		msg << "failed to read " << config;
+		msg << "failed to read " << squealerConfig;
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
@@ -1290,9 +1397,23 @@ void LCDMonitor::makeMenu()
 // 			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigApply);
 // 			networkM->insertItem("Apply changes",cb);
 	
-		MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::displayConfig);
-		setupM->insertItem("Display...",cb);
+		MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
+		setupM->insertItem("LCD settings...",cb);
 		
+		displayModeM = new Menu("Display mode...");
+		setupM->insertItem(displayModeM);
+			
+			cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::setGPSDisplayMode);
+		  midGPSDisplayMode =  displayModeM ->insertItem("GPS",cb);
+			MenuItem *mi = displayModeM->itemAt(midGPSDisplayMode);
+			Dout(dc::trace,"midGPSDisplayMode = " << midGPSDisplayMode);
+			if (mi != NULL) mi->setChecked(displayMode==GPS);
+			
+			cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::setNTPDisplayMode);
+		  midNTPDisplayMode = displayModeM ->insertItem("NTP",cb);
+			mi = displayModeM->itemAt(midNTPDisplayMode);
+			if (mi != NULL) mi->setChecked(displayMode==NTP);
+			
 	cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
 	menu->insertItem("Show alarms",cb);
 	
@@ -1485,6 +1606,46 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	*unexpectedEOF = !(gotSats || (!prns.empty()));
 	Dout(dc::trace,"LCDMonitor::checkGPS() done");
 	return ret;
+}
+
+void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts)
+{
+	
+	char buf[1024];
+	
+	FILE *fp=popen("ntpdc -c sysstats","r");
+	while (fgets(buf,1023,fp) != NULL)
+	{
+		Dout(dc::trace,buf);
+	
+		if (strstr(buf,"new version packets"))
+		{
+			char* sep = strchr(buf,':');
+			if (sep!=NULL)
+			{
+				if (strlen(sep) > 1)
+				{
+					sep++;
+					*newpkts=atoi(sep);
+				}
+			}
+		}
+		else if(strstr(buf,"old version packets"))
+		{
+			char* sep = strchr(buf,':');
+			if (sep!=NULL)
+			{
+				if (strlen(sep) > 1)
+				{
+					sep++;
+					*oldpkts=atoi(sep);
+				}
+			}
+		}
+		
+	}
+	pclose(fp);
+	Dout(dc::trace,"getNTPstats() " << *oldpkts << " " << *newpkts);
 }
 
 bool LCDMonitor::checkFile(const char *fname)
