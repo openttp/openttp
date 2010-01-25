@@ -12,7 +12,6 @@ class ConfirmationDialog:public Dialog
 		virtual bool keyEvent(KeyEvent &);
 		virtual void paint(std::vector<std::string> &);
 		
-		virtual void  focus(int *,int *);
 		
 	private:
 	

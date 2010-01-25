@@ -7,8 +7,8 @@ class KeyEvent
 	
 		enum Event
 		{
-			KeyPressEvent=0x01,
-			KeyReleaseEvent=0x02,
+			KeyPress=0x01,
+			KeyRelease=0x02,
 			KeyUp=0x04,
 			KeyDown=0x08,
 			KeyLeft=0x10,

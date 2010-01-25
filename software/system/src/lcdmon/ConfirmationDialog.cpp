@@ -5,6 +5,7 @@
 ConfirmationDialog::ConfirmationDialog(std::string msg,Widget *parent):Dialog(parent)
 {
 	ConfirmationDialog::msg = msg;
+	setFocus(2,1);
 }
 
 		
@@ -16,13 +17,21 @@ bool ConfirmationDialog::keyEvent(KeyEvent &ke)
 	{
 		return true;
 	}
-	else if (ev & KeyEvent::KeyDown)
-	{
-		if (ke.y() == 2) return true;
-	}
 	else if (ev & KeyEvent::KeyUp)
 	{
-		if (ke.y()==1) return true;
+		if (ke.y() == 2) 
+		{
+			setFocus(2,1);
+			return true;
+		}
+	}
+	else if (ev & KeyEvent::KeyDown)
+	{
+		if (ke.y()==1)
+		{ 
+			setFocus(2,2);
+			return true;
+		}
 	}
 	else if (ev & KeyEvent::KeyEnter)
 	{
@@ -43,8 +52,3 @@ void ConfirmationDialog::paint(std::vector<std::string> &display)
 	display[2]="  No";
 }
 
-void  ConfirmationDialog::focus(int *x,int *y)
-{
-	*x=2;
-	*y=1;
-}

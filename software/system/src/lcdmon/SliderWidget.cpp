@@ -25,25 +25,33 @@ SliderWidget::SliderWidget(std::string label,int initialValue,Widget *parent):Wi
 bool SliderWidget::keyEvent(KeyEvent &ke)
 {
 	Dout(dc::trace,"SliderWidget::keyEvent() for " << label);
+	
 	if (!contains(ke.x(),ke.y())) return false;
+	
+	setFocusWidget(true);
+	
 	int ev=ke.event();
-	if ((ev & KeyEvent::KeyReleaseEvent) && 
-		((ev & KeyEvent::KeyLeft) || (ev & KeyEvent::KeyRight)))
+	if (ev & KeyEvent::KeyRelease)
 	{
-		if (ev & KeyEvent::KeyLeft)
+		if  ((ev & KeyEvent::KeyLeft) || (ev & KeyEvent::KeyRight))
 		{
-			val -= stepSize;
+			if (ev & KeyEvent::KeyLeft)
+				val -= stepSize;
+			else
+				val += stepSize;
+			if (val <minVal)   val=minVal;
+			if (val >maxVal) val=maxVal;
+			Dout(dc::trace,"SliderWidget::keyEvent value = " << val);
+			setDirty(true);
+			updateSetting();
+			setFocusWidget(true);
+			return true;
 		}
-		else
+		else if ((ev & KeyEvent::KeyUp) || (ev & KeyEvent::KeyDown))
 		{
-			val += stepSize;
+			setFocusWidget(false);
+			return false;
 		}
-		if (val <minVal)   val=minVal;
-		if (val >maxVal) val=maxVal;
-		Dout(dc::trace,"SliderWidget::keyEvent value = " << val);
-		setDirty(true);
-		updateSetting();
-		return true;
 	}
 	return false;
 }
@@ -65,12 +73,6 @@ void SliderWidget::paint(std::vector<std::string> &display)
 		txt += 213 - rem;
 	display.at(y())=txt;
 	setDirty(false);
-}
-
-void SliderWidget::focus(int *fx,int *fy)
-{
-	*fx=x();
-	*fy=y();
 }
 
 int SliderWidget::value()

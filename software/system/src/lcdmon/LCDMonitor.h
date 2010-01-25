@@ -34,6 +34,7 @@ class LCDMonitor:public CFA635
 		
 		void networkDisable();
 		void networkConfigDHCP();
+		void networkConfigStaticIP4();
 		void networkConfigApply();
 		
 		void networkConfigStaticIPv4Address();
@@ -59,6 +60,7 @@ class LCDMonitor:public CFA635
 	
 		enum LEDState {Off,RedOn,GreenOn};
 		enum DisplayMode {GPS,NTP};
+		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
 		
 		static void signalHandler(int);
 		void startTimer(long secs=10);
@@ -90,6 +92,9 @@ class LCDMonitor:public CFA635
 		void getNTPstats(int *,int *);
 		
 		bool checkFile(const char *);
+		void restartNetworking();
+		bool runSystemCommand(std::string,std::string,std::string);
+		
 		time_t lastLazyCheck;
 		
 		
@@ -111,8 +116,9 @@ class LCDMonitor:public CFA635
 		
 		bool showPRNs;
 
-		Menu *menu,*displayModeM;
+		Menu *menu,*displayModeM,*protocolM;
 		int midGPSDisplayMode,midNTPDisplayMode; // some menu items we want to track
+		int midDHCP,midStaticIP4,midStaticIP6;
 		
 		std::string logFile;
 		std::string lockFile;
@@ -129,7 +135,7 @@ class LCDMonitor:public CFA635
 		int intensity;
 		int contrast;
 		int displayMode;
-		
+		int networkProtocol;
 		// 
 		struct timeval lastNTPtrafficPoll,currNTPtrafficPoll;
 		int    lastNTPPacketCount,currNTPPacketCount;

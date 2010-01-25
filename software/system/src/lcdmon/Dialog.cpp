@@ -17,12 +17,16 @@ Dialog::~Dialog()
 
 bool Dialog::keyEvent(KeyEvent &ke)
 {
-	if (Widget::keyEvent(ke)) return true; // check children
+	
 	int ev=ke.event();
 	if (ev & KeyEvent::KeyEnter)
 	{
+		//  this would be where we validated any changes
 		return true;
 	}
+	
+	Widget::keyEvent(ke);
+	
 	return false;
 }
 
@@ -40,4 +44,3 @@ void Dialog::cancel()
 {
 	exitCode_=Cancel;
 }
-

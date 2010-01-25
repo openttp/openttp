@@ -4,6 +4,7 @@
 Label::Label(std::string t,Widget *parent):Widget(parent)
 {
 	txt=t;
+	setAcceptsFocus(false);
 }
 
 Label::~Label()

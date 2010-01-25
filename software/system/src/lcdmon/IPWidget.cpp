@@ -1,4 +1,7 @@
 
+#include "Sys.h"
+#include "Debug.h"
+
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -48,10 +51,13 @@ bool IPWidget::keyEvent(KeyEvent &ke)
 	//XXXX:NNN.NNN.NNN.NNN
 	// Is it even in our space
 	
+	Dout(dc::trace,"IPWidget ::keyEvent at " << ke.x() << " " << ke.y());
+	
 	if (!contains(ke.x(),ke.y())) return false;
+	setFocusWidget(true);
 	
 	int ev=ke.event();
-	if ((ev & KeyEvent::KeyReleaseEvent) && 
+	if ((ev & KeyEvent::KeyRelease) && 
 		((ev & KeyEvent::KeyUp) || (ev & KeyEvent::KeyDown)))
 	{
 		int col=ke.x();
@@ -87,10 +93,7 @@ bool IPWidget::keyEvent(KeyEvent &ke)
 			return true;
 		}
 	}
-	else if (ev & KeyEvent::KeyEnter)
-	{
-		return false;
-	}
+	
 	return false;
 }
 

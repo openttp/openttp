@@ -10,7 +10,7 @@ CFLAGS = -DCWDEBUG -Wall $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
 
 LCDMONOBJS = CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o \
-	SliderWidget.o IntensityWidget.o ContrastWidget.o
+	SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o
 
 LCDCONFIGOBJS=CFA635.o Debug.o LCDConfigure.o
 
@@ -45,9 +45,11 @@ IntensityWidget.o: Widget.h SliderWidget.h KeyEvent.h IntensityWidget.h
 Label.o: Widget.h Label.h
 
 LCDMonitor.o: CFA635.h Dialog.h IPWidget.h LCDMonitor.h MenuCallback.h KeyEvent.h Functor.h \
-	Version.h SliderWidget.h IntensityWidget.h ContrastWidget.h
+	Version.h SliderWidget.h IntensityWidget.h ContrastWidget.h Wizard.h
 
 LCDConfigure.o: CFA635.h LCDConfigure.h Version.h
+
+Wizard.o: Wizard.h Dialog.h Widget.h KeyEvent.h
 
 Main.o: LCDMonitor.h
 

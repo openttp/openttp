@@ -39,9 +39,10 @@
 #include "Menu.h"
 #include "SliderWidget.h"
 #include "Widget.h"
+#include "Wizard.h"
 #include "Version.h"
 
-#define LCDMONITOR_VERSION "1.0"
+#define LCDMONITOR_VERSION "1.1"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -137,18 +138,85 @@ void LCDMonitor::networkDisable()
 
 void LCDMonitor::networkConfigDHCP()
 {
+	
 	clearDisplay();
-	updateLine(0,"Config for DHCP");
-	sleep(1);
-	updateLine(1,"Done");
-	sleep(1);
-	log("DHCP configured");
+	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
+	bool ret = execDialog(dlg);
+	if (ret)
+	{
+	
+		string ftmp("/tmp/ifcfg-eth0.tmp");
+		ofstream fout(ftmp.c_str());
+		// A minimal DHCP configuration
+		fout << "DEVICE=eth0" << endl;
+		fout << "BOOTPROTO=dhcp" << endl;
+		fout << "ONBOOT=yes" << endl;
+		
+		string tmp;
+		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
+		ifstream fin(ifcfg.c_str());
+		getline(fin,tmp);
+		while (!fin.eof())
+		{
+			if (string::npos != tmp.find("HWADDR"))	
+				fout << tmp;
+			getline(fin,tmp);
+		}
+		fin.close();
+		
+		fout.close();
+		
+		restartNetworking();
+	
+	}
+	delete dlg;
+	
+	MenuItem *mi = protocolM->itemAt(midDHCP);
+	mi->setChecked(ret);
+	mi = protocolM->itemAt(midStaticIP4);
+	mi->setChecked(!ret);
+	
 }
 
+void LCDMonitor::networkConfigStaticIP4()
+{
+	clearDisplay();
+	Wizard *dlg = new Wizard();
+	Widget *w = dlg->addPage("IP address");
+	w->setGeometry(0,0,20,1);
+	IPWidget *ipw = new IPWidget("ADDR",ipv4addr,IPWidget::IPV4,w);
+	//w = dlg->addPage("Net mask");
+	//IPWidget * nmw = new IPWidget("NM  ",ipv4nm,IPWidget::IPV4,w);
+	//gww = new IPWidget("GW  ",ipv4gw,IPWidget::IPV4,w);
+	bool ret = execDialog(dlg);
+	if (ret)
+	{
+		//ipv4addr = ipw->ipAddress();
+		//ipv4nm = nmw->ipAddress();
+		//ipv4gw = ipw->ipAddress();
+		restartNetworking();
+	}
+	delete dlg;
+}
+
+void LCDMonitor::restartNetworking()
+{
+	clearDisplay();
+	updateLine(1,"  Restarting network services");
+		//runSystemCommand(ntpdRestartCommand,"networking restarted","networking restart failed");
+	sleep(1);
+	updateLine(1,"  Restarting ssh");
+	sleep(1);
+	updateLine(1,"  Restarting ntpd");
+	sleep(1);
+}
+	
 void LCDMonitor::networkConfigApply()
 {
 	clearDisplay();
 	
+	
+
 	// make temporary files and copy across
 	
 	// network
@@ -190,57 +258,43 @@ void LCDMonitor::networkConfigApply()
 	fin2.close();
 	fout2.close();
 	
+	// /etc/resolv.conf
+	string nscfg("/etc/resolv.conf");
+	ifstream fin3(nscfg.c_str());
+	getline(fin3,tmp);
+	ftmp="/tmp/resolv.conf.tmp";
+	ofstream fout3(ftmp.c_str());
+	bool gotIt=false; // should only be one NS defined but if someone has manually fiddled
+										// then make sure we only change the first one configured in resolv.conf
+	while (!fin3.eof())
+	{
+		if ((!gotIt) && (string::npos != tmp.find("nameserver")))
+		{
+			fout3 << "nameserver " << ipv4ns << endl;
+			gotIt=true;
+		}
+		else
+			fout3 << tmp << endl;
+			
+		getline(fin3,tmp);
+	}
+	fin3.close();
+	fout3.close();
+	
 	updateLine(0,"Restarting network ...");
 	sleep(1);
 	updateLine(1,"Done");
 	sleep(1);
+	updateLine(0,"Restarting network services ...");
+	updateLine(1," ssh ");
+	updateLine(2," ntp ");
+	sleep(1);
 	log("network config changed");
 }
 
-void LCDMonitor::networkConfigStaticIPv4Address()
-{
-	clearDisplay();
-	Dialog *dlg = new Dialog();
-	dlg->setGeometry(0,0,20,4);
-	IPWidget *ipw = new IPWidget("ADDR",ipv4addr,IPWidget::IPV4,dlg);
-	bool ret = execDialog(dlg);
-	if (ret)
-	{
-			ipv4addr = ipw->ipAddress();
-			log("Network address changed");
-	}
-	delete dlg;
-}
 
-void LCDMonitor::networkConfigStaticIPv4NetMask()
-{
-	clearDisplay();
-	Dialog *dlg = new Dialog();
-	dlg->setGeometry(0,0,20,4);
-	IPWidget *ipw = new IPWidget("NM  ",ipv4nm,IPWidget::IPV4,dlg);
-	bool ret = execDialog(dlg);
-	if (ret)
-	{
-			ipv4nm = ipw->ipAddress();
-			log("Network netmask changed");
-	}
-	delete dlg;
-}
 
-void LCDMonitor::networkConfigStaticIPv4Gateway()
-{
-	clearDisplay();
-	Dialog *dlg = new Dialog();
-	dlg->setGeometry(0,0,20,4);
-	IPWidget *ipw = new IPWidget("GW  ",ipv4gw,IPWidget::IPV4,dlg);
-	bool ret = execDialog(dlg);
-	if (ret)
-	{
-			ipv4gw = ipw->ipAddress();
-			log("Network gateway changed");
-	}
-	delete dlg;
-}
+
 
 void LCDMonitor::networkConfigStaticIPv4NameServer()
 {
@@ -438,19 +492,7 @@ void LCDMonitor::restartNtpd()
 	{
 		clearDisplay();
 		updateLine(1,"  Restarting ntpd");
-		int sysret = system(ntpdRestartCommand.c_str());
-		Dout(dc::trace,"LCDMonitor::restartNtpd() system() returns " << sysret);
-		if (sysret == 0)
-		{
-			log("ntpd restarted");
-			updateLine(2,"  Done");
-		}
-		else
-		{
-			log("ntpd restart failed");
-			updateLine(2,"  Restart failed");
-		}
-		sleep(2);
+		runSystemCommand(ntpdRestartCommand,"ntpd restarted","ntpd restart failed");
 	}
 	delete dlg;
 	
@@ -466,19 +508,7 @@ void LCDMonitor::reboot()
 	{
 		clearDisplay();
 		updateLine(1,"  Rebooting");
-		int sysret = system(rebootCommand.c_str());
-		Dout(dc::trace,"LCDMonitor::reboot() system() returns " << sysret);
-		if (sysret == 0)
-		{
-			log("Rebooted");
-			updateLine(2,"  Done");
-		}
-		else
-		{
-			log("reboot failed");
-			updateLine(2,"  Reboot failed");
-		}
-		sleep(2);
+		runSystemCommand(rebootCommand,"rebooted","reboot failed");
 	}
 	delete dlg;
 }
@@ -493,20 +523,7 @@ void LCDMonitor::poweroff()
 	{
 		clearDisplay();
 		updateLine(1,"  Powering down");
-		int sysret = system(poweroffCommand.c_str());
-		Dout(dc::trace,"LCDMonitor::poweroff() system() returns " << sysret);
-		if (sysret == 0)
-		{
-			log("Powering off");
-			updateLine(2,"  Done");
-			
-		}
-		else
-		{
-			log("poweroff failed");
-			updateLine(2,"  Poweroff failed");
-		}
-		sleep(2);
+		runSystemCommand(poweroffCommand,"powering off","poweroff failed");
 	}
 	delete dlg;
 }
@@ -736,7 +753,7 @@ void LCDMonitor::execMenu()
 	bool showMenu=true;
 	std::stack<Menu *> menus;
 	
-	parseNetworkConfig();
+	parseNetworkConfig(); // keep this up to date
 	
 	int currRow=0;
 	statusLEDsOff();
@@ -770,7 +787,7 @@ void LCDMonitor::execMenu()
 				startTimer(300);
 				if(incoming_command.command==0x80)
 				{
-					if (incoming_command.data[0]==11 )// ENTER
+					if (incoming_command.data[0]==10 )// RIGHT RELEASE - next menu/exec item
 					{
 						Dout(dc::trace,"LCDMonitor::execMenu() selected " << currRow);
 						MenuItem *currItem = currMenu->itemAt(currRow);
@@ -793,17 +810,17 @@ void LCDMonitor::execMenu()
 						
 						break;
 					}
-					else if (incoming_command.data[0]==7) // UP RELEASE
+					else if (incoming_command.data[0]==7) // UP RELEASE - prev item
 					{
 						if (currRow>0) currRow--;
 						updateCursor(currRow,0);
 					}
-					else if (incoming_command.data[0]==8) // DOWN RELEASE
+					else if (incoming_command.data[0]==8) // DOWN RELEASE  - next itme
 					{
 						if (currRow<numItems-1) currRow++;
 						updateCursor(currRow,0);
 					}
-					else if (incoming_command.data[0]==12) // EXIT_RELEASE
+					else if (incoming_command.data[0]==9) // LEFT_RELEASE - prev menu
 					{
 						// What's on the stack
 						if (menus.size() == 1)
@@ -814,6 +831,11 @@ void LCDMonitor::execMenu()
 							currMenu=menus.top();
 							currRow=0;
 						}
+						break;
+					}
+					else if (incoming_command.data[0]==12) // EXIT_RELEASE - back to main screen
+					{
+						showMenu=false;	
 						break;
 					}
 				}
@@ -877,69 +899,51 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 					}
 					else if (incoming_command.data[0]==7) // UP RELEASE
 					{
-						KeyEvent ke(KeyEvent::KeyReleaseEvent|KeyEvent::KeyUp,currCol,currRow);
-						if (!(dlg->keyEvent(ke)))
-						{
-							if (currRow>0) currRow--;
-							updateCursor(currRow,currCol);
-						}
-						else
-							break;
+						KeyEvent ke(KeyEvent::KeyRelease|KeyEvent::KeyUp,currCol,currRow);
+						dlg->keyEvent(ke);
+						dlg->focus(&currCol,&currRow);
+						updateCursor(currRow,currCol);
 					}
 					else if (incoming_command.data[0]==8) // DOWN RELEASE
 					{
-						KeyEvent ke(KeyEvent::KeyReleaseEvent|KeyEvent::KeyDown,currCol,currRow);
-						if (!(dlg->keyEvent(ke)))
-						{
-							if (currRow<3) currRow++;
-							updateCursor(currRow,currCol);
-						}
-						else
-							break;
+						KeyEvent ke(KeyEvent::KeyRelease|KeyEvent::KeyDown,currCol,currRow);
+						dlg->keyEvent(ke);
+						dlg->focus(&currCol,&currRow);
+						updateCursor(currRow,currCol);
 					}
 					else if (incoming_command.data[0]==9) // LEFT RELEASE
 					{
-						KeyEvent ke(KeyEvent::KeyReleaseEvent|KeyEvent::KeyLeft,currCol,currRow);
-						if (!(dlg->keyEvent(ke)))
+						KeyEvent ke(KeyEvent::KeyRelease|KeyEvent::KeyLeft,currCol,currRow);
+						dlg->keyEvent(ke);
+						dlg->focus(&currCol,&currRow);
+						if (dlg->dirty())
 						{
-							if (currCol > 0) currCol--;
-							updateCursor(currRow,currCol);
-						}
-						else
-						{
-							if (dlg->dirty())
-							{
-								dlg->paint(display);
+							dlg->paint(display);
 		
 								for (int i=0;i<4;i++)
 								{
 									if (display.at(i).size()>0)
 									updateLine(i,display.at(i));
 								}
-							}
 						}
+						updateCursor(currRow,currCol);
 					}
 					else if (incoming_command.data[0]==10) // RIGHT RELEASE
 					{
-						KeyEvent ke(KeyEvent::KeyReleaseEvent|KeyEvent::KeyRight,currCol,currRow);
-						if (!(dlg->keyEvent(ke)))
+						KeyEvent ke(KeyEvent::KeyRelease|KeyEvent::KeyRight,currCol,currRow);
+						dlg->keyEvent(ke);
+						dlg->focus(&currCol,&currRow);
+						if (dlg->dirty())
 						{
-							if (currCol<19) currCol++;
-							updateCursor(currRow,currCol);
-						}
-						else
-						{
-							if (dlg->dirty())
-							{
-								dlg->paint(display);
+							dlg->paint(display);
 		
-								for (int i=0;i<4;i++)
-								{
-									if (display.at(i).size()>0)
-									updateLine(i,display.at(i));
-								}
+							for (int i=0;i<4;i++)
+							{
+								if (display.at(i).size()>0)
+								updateLine(i,display.at(i));
 							}
 						}
+						updateCursor(currRow,currCol);
 					}
 					else if (incoming_command.data[0]==12) // EXIT_RELEASE
 					{
@@ -1063,6 +1067,8 @@ void LCDMonitor::init()
 	lastNTPPacketCount=0;
 	
 	configure();
+	
+	parseNetworkConfig();
 	
 	if(Serial_Init(PORT,BAUD))
 	{
@@ -1368,36 +1374,22 @@ void LCDMonitor::makeMenu()
 	
 	Menu *setupM = new Menu("Setup...");
 	menu->insertItem(setupM);
+
 	
-// 		Menu *networkM = new Menu("Network...");
-// 		setupM->insertItem(networkM);
-// 			MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
-// 			networkM->insertItem("Set up DHCP",cb);
-// 	
-// 			Menu* staticIPv4 = new Menu("Set up static IPv4");
-// 			networkM->insertItem(staticIPv4);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4Address);
-// 					staticIPv4 ->insertItem("Address",cb);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4NetMask);
-// 					staticIPv4 ->insertItem("Netmask",cb);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4Gateway);
-// 					staticIPv4 ->insertItem("Gateway",cb);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv4NameServer);
-// 					staticIPv4 ->insertItem("Nameserver",cb);
-// 			Menu *staticIPV6 = new Menu("Set up static IPv6");
-// 			networkM->insertItem(staticIPV6);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6Address);
-// 					staticIPV6->insertItem("Address",cb);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6NetMask);
-// 					staticIPV6->insertItem("Netmask",cb);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6Gateway);
-// 					staticIPV6->insertItem("Gateway",cb);
-// 					cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIPv6NameServer);
-// 					staticIPV6->insertItem("Nameserver",cb);				
-// 			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigApply);
-// 			networkM->insertItem("Apply changes",cb);
-	
-		MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
+		protocolM = new Menu("Network boot protocol...");
+		setupM->insertItem(protocolM);
+			
+			MenuCallback<LCDMonitor> *cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
+			midDHCP=protocolM->insertItem("DHCP...",cb);
+			MenuItem *mi = protocolM->itemAt(midStaticIP4);
+			if (mi != NULL) mi->setChecked(networkProtocol==DHCP);
+			
+			cb = new MenuCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4);
+			midStaticIP4=protocolM->insertItem("Static IPv4...",cb);
+			mi = protocolM->itemAt(midStaticIP4);
+			if (mi != NULL) mi->setChecked(networkProtocol==StaticIPV4);
+			
+		cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
 		setupM->insertItem("LCD settings...",cb);
 		
 		displayModeM = new Menu("Display mode...");
@@ -1405,7 +1397,7 @@ void LCDMonitor::makeMenu()
 			
 			cb = new MenuCallback<LCDMonitor>(this, &LCDMonitor::setGPSDisplayMode);
 		  midGPSDisplayMode =  displayModeM ->insertItem("GPS",cb);
-			MenuItem *mi = displayModeM->itemAt(midGPSDisplayMode);
+			mi = displayModeM->itemAt(midGPSDisplayMode);
 			Dout(dc::trace,"midGPSDisplayMode = " << midGPSDisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==GPS);
 			
@@ -1446,6 +1438,23 @@ void LCDMonitor::getResponse()
 	if(timed_out)
 	{
 		Dout(dc::trace,"LCDMonitor::getResponse() Timed out waiting for a response");
+		log("I/O timeout");
+		
+		Uninit_Serial();
+		
+		if(Serial_Init(PORT,BAUD))
+		{
+			Dout(dc::trace,"Could not open port " << PORT << " at " << BAUD << " baud.");
+			exit(EXIT_FAILURE);
+		}
+		else
+		{
+   	 Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
+		}
+	
+		/* Clear the buffer */
+		while(BytesAvail())
+    	GetByte();
 	}
 }
 
@@ -1697,6 +1706,23 @@ bool LCDMonitor::checkFile(const char *fname)
 	return (retval != 0);	
 }
 
+bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string failmsg)
+{
+	int sysret = system(cmd.c_str());
+	Dout(dc::trace, cmd << " returns " << sysret);
+	if (sysret == 0)
+	{
+		log(okmsg);
+		updateLine(2,okmsg);
+	}
+	else
+	{
+		log(failmsg);
+		updateLine(2,failmsg);
+	}
+	sleep(2);
+	return (sysret==0);
+}
 
 void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim)
 {
@@ -1741,7 +1767,13 @@ void LCDMonitor::parseNetworkConfig()
 	{
 		
 		if (string::npos != tmp.find("BOOTPROTO"))
+		{
 			parseConfigEntry(tmp,bootProtocol,'=');
+			if (bootProtocol=="dhcp")
+				networkProtocol=DHCP;
+			else if (bootProtocol=="static")
+				networkProtocol=StaticIPV4;
+		}
 		else if (string::npos != tmp.find("IPADDR"))
 			parseConfigEntry(tmp,ipv4addr,'=');
 		else if (string::npos != tmp.find("NETMASK"))

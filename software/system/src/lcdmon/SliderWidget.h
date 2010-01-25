@@ -13,8 +13,6 @@ class SliderWidget:public Widget
 		virtual bool keyEvent(KeyEvent &);
 		virtual void paint(std::vector<std::string> &);
 		
-		virtual void  focus(int *,int *);
-		
 		virtual int value();
 		void setRange(int,int);
 		void setNumSteps(int);
