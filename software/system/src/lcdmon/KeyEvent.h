@@ -17,6 +17,7 @@ class KeyEvent
 			KeyEsc=0x80
 		};
 	
+		KeyEvent(){;}
 		KeyEvent(KeyEvent &ke){*this=ke;}
 		KeyEvent(int ev,int xpos,int ypos){KeyEvent::ev = ev;KeyEvent::xpos=xpos;KeyEvent::ypos=ypos;}
 		

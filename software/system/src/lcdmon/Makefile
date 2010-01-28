@@ -9,8 +9,8 @@ DEBUGFLAG = -g
 CFLAGS = -DCWDEBUG -Wall $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
 
-LCDMONOBJS = CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o \
-	SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o
+LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o \
+	SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o MessageBox.o
 
 LCDCONFIGOBJS=CFA635.o Debug.o LCDConfigure.o
 
@@ -28,6 +28,8 @@ lcdmonitor:	$(LCDMONOBJS)
 lcdconfig:	$(LCDCONFIGOBJS)
 	$(CC) $(CFLAGS) -o lcdconfig $(LCDCONFIGOBJS) $(LIBS)
 	
+Button.o: Button.h Widget.h Functor.h
+
 CFA635.o: CFA635.h
 
 ConfirmationDialog.o: ConfirmationDialog.h Dialog.h Widget.h KeyEvent.h
@@ -44,12 +46,14 @@ IntensityWidget.o: Widget.h SliderWidget.h KeyEvent.h IntensityWidget.h
 
 Label.o: Widget.h Label.h
 
-LCDMonitor.o: CFA635.h Dialog.h IPWidget.h LCDMonitor.h MenuCallback.h KeyEvent.h Functor.h \
+LCDMonitor.o: CFA635.h Dialog.h IPWidget.h LCDMonitor.h WidgetCallback.h KeyEvent.h Functor.h \
 	Version.h SliderWidget.h IntensityWidget.h ContrastWidget.h Wizard.h
 
 LCDConfigure.o: CFA635.h LCDConfigure.h Version.h
 
-Wizard.o: Wizard.h Dialog.h Widget.h KeyEvent.h
+MessageBox.o: Widget.h Dialog.h Label.h KeyEvent.h
+
+Wizard.o: Wizard.h Dialog.h Widget.h KeyEvent.h Button.h WidgetCallback.h
 
 Main.o: LCDMonitor.h
 

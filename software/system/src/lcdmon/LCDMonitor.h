@@ -13,6 +13,7 @@
 
 class Menu;
 class Dialog;
+class Widget;
 
 class LCDMonitor:public CFA635
 {
@@ -36,17 +37,7 @@ class LCDMonitor:public CFA635
 		void networkConfigDHCP();
 		void networkConfigStaticIP4();
 		void networkConfigApply();
-		
-		void networkConfigStaticIPv4Address();
-		void networkConfigStaticIPv4NetMask();
-		void networkConfigStaticIPv4Gateway();
-		void networkConfigStaticIPv4NameServer();
-		
-		void networkConfigStaticIPv6Address();
-		void networkConfigStaticIPv6NetMask();
-		void networkConfigStaticIPv6Gateway();
-		void networkConfigStaticIPv6NameServer();
-		
+	
 		void LCDConfig();
 		void setGPSDisplayMode();
 		void setNTPDisplayMode();
@@ -86,6 +77,7 @@ class LCDMonitor:public CFA635
 		void updateStatusLED(int,LEDState);
 		void statusLEDsOff();
 		void updateCursor(int,int);
+		void repaintWidget(Widget *,std::vector<std::string> &,bool forcePaint=false);
 		
 		bool checkAlarms();
 		bool checkGPS(int *,std::string &,bool *);

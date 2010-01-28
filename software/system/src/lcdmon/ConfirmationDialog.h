@@ -9,9 +9,6 @@ class ConfirmationDialog:public Dialog
 	
 		ConfirmationDialog(std::string,Widget *parent=NULL);
 		
-		virtual bool keyEvent(KeyEvent &);
-		virtual void paint(std::vector<std::string> &);
-		
 		
 	private:
 	

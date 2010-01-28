@@ -14,14 +14,19 @@ class Wizard:public Dialog
 		virtual void paint(std::vector<std::string> &);
 		
 		virtual void  focus(int *,int *);
+		virtual bool dirty();
 		
 		Widget *addPage(std::string);
+		
+		void nextPage();
+		void prevPage();
 		
 	private:
 	
 		std::vector<Widget *> pages;
-		std::vector<std::string> labels;
+		
 		unsigned int currentPage;
+		bool forcePaint;
 };
 
 #endif

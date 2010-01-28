@@ -15,7 +15,7 @@ class Label:public Widget
 		
 		virtual void paint(std::vector<std::string> &);
 		
-		void setText(std::string t){txt=t;}
+		void setText(std::string);
 		
 		std::string & text(){return txt;}
 		

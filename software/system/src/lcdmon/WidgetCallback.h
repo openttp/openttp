@@ -1,9 +1,9 @@
-#ifndef __MENUCALLBACK_H_
-#define __MENUCALLBACK_H_
+#ifndef __WIDGET_CALLBACK_H_
+#define __WIDGET_CALLBACK_H_
 
 #include "Functor.h"
 
-template <class TClass> class MenuCallback : public Functor
+template <class TClass> class WidgetCallback : public Functor
 {
    private:
       void (TClass::*fpt)();   // pointer to member function
@@ -13,9 +13,9 @@ template <class TClass> class MenuCallback : public Functor
 
       // constructor - takes pointer to an object and pointer to a member and stores
       // them in two private variables
-      MenuCallback(TClass* _pt2Object, void(TClass::*_fpt)())
+      WidgetCallback(TClass* _pt2Object, void(TClass::*_fpt)())
          { pt2Object = _pt2Object;  fpt=_fpt; };
-			virtual ~MenuCallback(){;}
+			virtual ~WidgetCallback(){;}
 
       // override operator "()"
       virtual void operator()()

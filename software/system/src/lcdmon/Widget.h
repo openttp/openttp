@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+class Functor;
 class KeyEvent;
 
 class Widget
@@ -30,18 +31,25 @@ class Widget
 		void setFocusWidget(bool f){focus_=f;}
 		bool contains(int,int);
 		
-		bool dirty(); // repaint required
+		virtual bool dirty(); // repaint required
 		
 	protected:
 	
-		std::vector<Widget *> children;
+		std::vector<Widget *> children; // FIXME private 
+		
+		
 		void setDirty(bool);
 		void setFocus(int xfocus,int yfocus){xfocus_=xfocus;yfocus_=yfocus;}
+		
+		void addChild(Widget *);
+		void addCallback(Functor *);
 		
 	private:
 	
 		Widget *focusWidgetBefore(Widget *);
 		Widget *focusWidgetAfter(Widget *);
+		
+		void orderChildren(std::vector<Widget *> &);
 		
 		Widget *parent_;
 		int x_,y_,width_,height_; // coordinates are all absolute
@@ -50,6 +58,9 @@ class Widget
 		int xfocus_,yfocus_;
 		
 		bool dirty_;
+	
+		std::vector<Functor *> callbacks;
+			
 };
 
 #endif

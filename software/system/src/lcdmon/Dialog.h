@@ -12,9 +12,8 @@ class Dialog:public Widget
 		Dialog(Widget *parent=NULL);
 		virtual ~Dialog();
 		
-		virtual bool keyEvent(KeyEvent &);
-		
 		int exitCode();
+		bool finished(){return finished_;}
 		
 		virtual void ok();
 		virtual void cancel();
@@ -22,11 +21,12 @@ class Dialog:public Widget
 		
 	protected:
 	
+		void setFinished(bool f){finished_=f;}
 		
 	private:
 	
 		int exitCode_;
-		
+		bool finished_;
 };
 
 #endif

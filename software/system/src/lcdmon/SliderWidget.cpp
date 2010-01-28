@@ -28,8 +28,6 @@ bool SliderWidget::keyEvent(KeyEvent &ke)
 	
 	if (!contains(ke.x(),ke.y())) return false;
 	
-	setFocusWidget(true);
-	
 	int ev=ke.event();
 	if (ev & KeyEvent::KeyRelease)
 	{
@@ -44,7 +42,7 @@ bool SliderWidget::keyEvent(KeyEvent &ke)
 			Dout(dc::trace,"SliderWidget::keyEvent value = " << val);
 			setDirty(true);
 			updateSetting();
-			setFocusWidget(true);
+			setFocusWidget(true); // shoudl be true anyway
 			return true;
 		}
 		else if ((ev & KeyEvent::KeyUp) || (ev & KeyEvent::KeyDown))

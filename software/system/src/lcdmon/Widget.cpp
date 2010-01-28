@@ -7,7 +7,7 @@
 
 #include "KeyEvent.h"
 #include "Widget.h"
-
+#include "WidgetCallback.h"
 	
 Widget::Widget(Widget *parent)
 {
@@ -26,6 +26,8 @@ Widget::~Widget()
 {
 	for (unsigned int i=0;i<children.size();i++)
 		delete children.at(i);
+	for (unsigned int i=0;i<callbacks.size();i++)
+		delete callbacks[i];	
 }
 
 bool Widget::keyEvent(KeyEvent &ke)
@@ -52,7 +54,13 @@ bool Widget::keyEvent(KeyEvent &ke)
 		}
 	}
 	
-	for (unsigned int i=0;i<children.size();i++) // check children next
+	if (currentFocusWidget) // check the focus widget first (should always be one)
+	{
+		if (currentFocusWidget->keyEvent(ke))
+			return true;
+	}
+	 
+	for (unsigned int i=0;i<children.size();i++) // check all children next
 	{
 		if (children.at(i)->keyEvent(ke))
 			return true;
@@ -61,22 +69,13 @@ bool Widget::keyEvent(KeyEvent &ke)
 	
 	// key movement may require a change of focus child widget
 
-	Dout(dc::trace,"Here !!!!");
 	
 	if (ke.event() & KeyEvent::KeyRelease )
 	{
-		if (ke.event() & KeyEvent::KeyLeft && xfocus_ > 0)
+		if (ke.event() & KeyEvent::KeyLeft)
 		{
-			xfocus_--; // this just moves us around
-		}
-		else if (ke.event() & KeyEvent::KeyRight && xfocus_ < 19)
-		{
-			xfocus_++;
-		}
-		else if (ke.event() & KeyEvent::KeyUp && yfocus_ >0)
-		{
-			//yfocus_--;
-			Dout(dc::trace,"Before !!!! " << (currentFocusWidget != NULL));
+			if (xfocus_ > 0) xfocus_--; // this just moves us around by default
+	
 			if (children.size() > 0)
 			{
 				if (currentFocusWidget)
@@ -89,10 +88,43 @@ bool Widget::keyEvent(KeyEvent &ke)
 				}
 			}	
 		}
-		else if (ke.event() & KeyEvent::KeyDown  && yfocus_ < 3)
+		else if (ke.event() & KeyEvent::KeyRight)
 		{
-			//yfocus_++;
-			Dout(dc::trace,"After !!!! " << (currentFocusWidget != NULL));
+			if (xfocus_ < 19) xfocus_++;
+			
+			if (children.size() > 0)
+			{
+				if (currentFocusWidget)
+				{
+					Widget *nextWidget;
+					if (nextWidget = focusWidgetAfter(currentFocusWidget))
+						nextWidget->setFocusWidget(true);
+					else
+						currentFocusWidget->setFocusWidget(true);
+				}
+			}	
+		}
+		else if (ke.event() & KeyEvent::KeyUp)
+		{
+			if (yfocus_ > 0) yfocus_--;
+			
+			if (children.size() > 0)
+			{
+				if (currentFocusWidget)
+				{
+					Widget *prevWidget;
+					if (prevWidget = focusWidgetBefore(currentFocusWidget))
+						prevWidget->setFocusWidget(true);
+					else
+						currentFocusWidget->setFocusWidget(true);
+				}
+			}	
+		}
+		else if (ke.event() & KeyEvent::KeyDown)
+		{
+			if (yfocus_< 19) yfocus_++;
+			
+			
 			if (children.size() > 0)
 			{
 				if (currentFocusWidget)
@@ -143,10 +175,17 @@ void  Widget::focus(int *fx,int *fy)
 		}
 	}
 	
-	// first child has focus by default
-	
-	children.at(0)->focus(fx,fy); 
-	children.at(0)->setFocusWidget(true);
+	// no winners so pick the first one
+	std::vector<Widget *> ordered;
+	orderChildren(ordered);
+	for (unsigned int i=0;i<ordered.size();i++)
+	{
+		if (ordered.at(i)->acceptsFocus())
+		{
+			ordered.at(i)->focus(fx,fy); 
+			ordered.at(i)->setFocusWidget(true);
+		}
+	}
 	
 }
 
@@ -180,6 +219,10 @@ void Widget::setDirty(bool d)
 	dirty_ = d;
 }
 
+void Widget::addCallback(Functor *cb)
+{
+	callbacks.push_back(cb);
+}
 //
 // FIXME assumes one widget per line
 //
@@ -190,19 +233,22 @@ Widget *Widget::focusWidgetBefore(Widget *w)
 	int wy = w->y();
 	int wht = w->height();
 	Dout(dc::trace," Widget::focusWidgetBefore() " <<wx << " " << wy << " " << wht);
-	if (wy > 0)
+	
+	std::vector<Widget *> ordered;
+	orderChildren(ordered);
+	for ( int i=0;i<(int) ordered.size();i++)
 	{
-		for (int nwy = wy-1;nwy>=0;nwy--)
+		Widget *c =ordered.at(i);
+		if (c==w)
 		{
-			for (unsigned int i=0;i<children.size();i++)
-			{
-				Widget *nw =children.at(i);
-				if ( nwy >= nw->y()  && nw->y()+nw->height()-1 >= nwy && children.at(i)->acceptsFocus())
-				{
-					Dout(dc::trace," Widget::focusWidgetBefore() found at " << children.at(i)->y());
-					return children.at(i);
-				}
-			}
+			Dout(dc::trace," Widget::focusWidgetBefore() match index = " << i);
+			int indx;
+			if ((i-1) >= 0)
+				indx=i-1;
+			else //(i-1 < 0)
+				indx=ordered.size()-1; //.go to last
+			Dout(dc::trace," Widget::focusWidgetBefore() focus at " << ordered.at(indx)->x() << " " << ordered.at(indx)->y());
+			return ordered.at(indx);
 		}
 	}
 	return NULL;
@@ -214,22 +260,62 @@ Widget *Widget::focusWidgetAfter(Widget *w)
 	int wy = w->y();
 	int wht = w->height();
 	Dout(dc::trace," Widget::focusWidgetAfter() " <<wx << " " << wy << " " << wht);
-	if (wy + wht<= 3)
+	
+	std::vector<Widget *> ordered;
+	orderChildren(ordered);
+	
+	for (int i=0;i<(int)ordered.size();i++)
 	{
-		for (int nwy = wy+wht ;nwy<=3;nwy++)
+		Widget *c =ordered.at(i);
+		if (c==w)
 		{
-			for (unsigned int i=0;i<children.size();i++)
-			{
-				if (children.at(i)->y()==nwy && children.at(i)->acceptsFocus())
-				{
-					Dout(dc::trace," Widget::focusWidgetAfter() found at " << children.at(i)->y());
-					return children.at(i);
-				}
-			}
+			int indx;
+			if (i+1 <(int) ordered.size())
+				indx=i+1;
+			else //i+1 >= ordered.size() 
+				indx=0; // go to first
+			Dout(dc::trace," Widget::focusWidgetBefore() focus at " << ordered.at(indx)->x() << " " << ordered.at(indx)->y());
+			return ordered.at(indx);
 		}
 	}
+	
 	return NULL;
 }
-		
+
+
+void Widget::orderChildren(std::vector<Widget *> & ordered)
+{
+	// spatially sorts children so that next focus widget can be determined
+	
+	
+	// for each line build a list of widgets on that line
+	// order that list by 'x' and then copy to the ordered list
+	
+	std::vector<Widget *> tmp;
+	Dout(dc::trace,"Widget::orderChildren() children before =" << children.size());
+	for (int j=0;j<=3;j++)
+	{
+		tmp.clear();
+		for (unsigned int w=0;w<children.size();w++)
+		{
+			if (children.at(w)->y() == j && children.at(w)->acceptsFocus())
+				tmp.push_back(children.at(w));
+		}
+		// order that list by 'x' and then copy to the ordered list
+	
+		for (int i=0;i<20;i++) // small search space so brute force
+		{
+			for (unsigned int w=0;w<tmp.size();w++)
+			{
+				if (tmp.at(w)->x()==i)
+					ordered.push_back(tmp.at(w));
+			}
+		}
+	
+	}
+
+	Dout(dc::trace,"Widget::orderChildren() children after =" << ordered.size());
+}
+
 
 
