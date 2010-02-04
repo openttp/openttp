@@ -36,7 +36,6 @@ class LCDMonitor:public CFA635
 		void networkDisable();
 		void networkConfigDHCP();
 		void networkConfigStaticIP4();
-		void networkConfigApply();
 	
 		void LCDConfig();
 		void setGPSDisplayMode();
@@ -81,7 +80,8 @@ class LCDMonitor:public CFA635
 		
 		bool checkAlarms();
 		bool checkGPS(int *,std::string &,bool *);
-		void getNTPstats(int *,int *);
+		bool detectNTPVersion();
+		void getNTPstats(int *,int *,int *);
 		
 		bool checkFile(const char *);
 		void restartNetworking();
@@ -101,6 +101,9 @@ class LCDMonitor:public CFA635
 
 		std::string bootProtocol;
 		std::string ipv4addr,ipv4nm,ipv4gw,ipv4ns;
+		
+		int NTPProtocolVersion,NTPMajorVersion,NTPMinorVersion; 
+		std::string currPacketsTag,oldPacketsTag,badPacketsTag;
 		
 		std::string status[4];
 		LEDState    statusLED[4];

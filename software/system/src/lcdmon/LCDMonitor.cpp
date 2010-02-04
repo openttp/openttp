@@ -23,6 +23,9 @@
 #include <stack>
 #include <fstream>
 #include <sstream>
+
+#include <boost/regex.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include "configurator.h"
@@ -211,6 +214,71 @@ void LCDMonitor::networkConfigStaticIP4()
 		ipv4nm =   nmw->ipAddress();
 		ipv4gw =   gww->ipAddress();
 		ipv4ns =   nsw->ipAddress();
+		
+		// make temporary files and copy across
+	
+		// network
+		string netcfg("/etc/sysconfig/network");
+		ifstream fin(netcfg.c_str());
+		string tmp;
+		getline(fin,tmp);
+		string ftmp("/tmp/network.tmp");
+		ofstream fout(ftmp.c_str());
+		while (!fin.eof())
+		{
+			if (string::npos != tmp.find("GATEWAY"))
+				fout << "GATEWAY=" << ipv4gw << endl;
+			else
+				fout << tmp << endl;
+			
+			getline(fin,tmp);
+		}
+		fin.close();
+		fout.close();
+	
+		// ifcfg-eth0
+		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
+		ifstream fin2(ifcfg.c_str());
+		getline(fin2,tmp);
+		ftmp="/tmp/ifcfg-eth0.tmp";
+		ofstream fout2(ftmp.c_str());
+		while (!fin2.eof())
+		{
+			if (string::npos != tmp.find("IPADDR"))
+				fout2 << "IPADDR=" << ipv4addr << endl;
+			else if (string::npos != tmp.find("NETMASK"))
+				fout2 << "NETMASK=" << ipv4nm << endl;
+			else
+				fout2 << tmp << endl;
+			
+			getline(fin2,tmp);
+		}
+		fin2.close();
+		fout2.close();
+	
+		// /etc/resolv.conf
+		string nscfg("/etc/resolv.conf");
+		ifstream fin3(nscfg.c_str());
+		getline(fin3,tmp);
+		ftmp="/tmp/resolv.conf.tmp";
+		ofstream fout3(ftmp.c_str());
+		bool gotIt=false; // should only be one NS defined but if someone has manually fiddled
+										// then make sure we only change the first one configured in resolv.conf
+		while (!fin3.eof())
+		{
+			if ((!gotIt) && (string::npos != tmp.find("nameserver")))
+			{
+				fout3 << "nameserver " << ipv4ns << endl;
+				gotIt=true;
+			}
+		else
+					fout3 << tmp << endl;
+			
+			getline(fin3,tmp);
+		}
+		fin3.close();
+		fout3.close();
+	
 		restartNetworking();
 	}
 	delete dlg;
@@ -228,77 +296,6 @@ void LCDMonitor::restartNetworking()
 	sleep(1);
 }
 	
-void LCDMonitor::networkConfigApply()
-{
-	clearDisplay();
-	
-	// make temporary files and copy across
-	
-	// network
-	string netcfg("/etc/sysconfig/network");
-	ifstream fin(netcfg.c_str());
-	string tmp;
-	getline(fin,tmp);
-	string ftmp("/tmp/network.tmp");
-	ofstream fout(ftmp.c_str());
-	while (!fin.eof())
-	{
-		if (string::npos != tmp.find("GATEWAY"))
-			fout << "GATEWAY=" << ipv4gw << endl;
-		else
-			fout << tmp << endl;
-			
-		getline(fin,tmp);
-	}
-	fin.close();
-	fout.close();
-	
-	// ifcfg-eth0
-	string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
-	ifstream fin2(ifcfg.c_str());
-	getline(fin2,tmp);
-	ftmp="/tmp/ifcfg-eth0.tmp";
-	ofstream fout2(ftmp.c_str());
-	while (!fin2.eof())
-	{
-		if (string::npos != tmp.find("IPADDR"))
-			fout2 << "IPADDR=" << ipv4addr << endl;
-		else if (string::npos != tmp.find("NETMASK"))
-			fout2 << "NETMASK=" << ipv4nm << endl;
-		else
-			fout2 << tmp << endl;
-			
-		getline(fin2,tmp);
-	}
-	fin2.close();
-	fout2.close();
-	
-	// /etc/resolv.conf
-	string nscfg("/etc/resolv.conf");
-	ifstream fin3(nscfg.c_str());
-	getline(fin3,tmp);
-	ftmp="/tmp/resolv.conf.tmp";
-	ofstream fout3(ftmp.c_str());
-	bool gotIt=false; // should only be one NS defined but if someone has manually fiddled
-										// then make sure we only change the first one configured in resolv.conf
-	while (!fin3.eof())
-	{
-		if ((!gotIt) && (string::npos != tmp.find("nameserver")))
-		{
-			fout3 << "nameserver " << ipv4ns << endl;
-			gotIt=true;
-		}
-		else
-			fout3 << tmp << endl;
-			
-		getline(fin3,tmp);
-	}
-	fin3.close();
-	fout3.close();
-	
-}
-
-
 void LCDMonitor::LCDConfig()
 {
 	clearDisplay();
@@ -552,12 +549,12 @@ void LCDMonitor::showStatus()
 				gettimeofday(&currNTPtrafficPoll,NULL);
 				if (currNTPtrafficPoll.tv_sec - lastNTPtrafficPoll.tv_sec < 60) break;
 			
-				int oldpkts=-1,newpkts=-1;
-				getNTPstats(&oldpkts,&newpkts);
-				if (oldpkts >=0 && newpkts >=0)
+				int oldpkts=-1,newpkts=-1,badpkts=-1;
+				getNTPstats(&oldpkts,&newpkts,&badpkts);
+				if (oldpkts >=0 && newpkts >=0 && badpkts >=0)
 				{
 					
-					currNTPPacketCount=oldpkts+newpkts;
+					currNTPPacketCount=oldpkts+newpkts+badpkts;
 					if (currNTPPacketCount < lastNTPPacketCount) // counter rollover
 					{
 						lastNTPtrafficPoll = currNTPtrafficPoll;
@@ -1001,6 +998,29 @@ void LCDMonitor::init()
 	configure();
 	
 	parseNetworkConfig();
+	
+	// this will be true for compact systems
+	NTPProtocolVersion=4;
+	NTPMajorVersion=2;
+	NTPMinorVersion=2;
+	
+	detectNTPVersion();
+	if (4==NTPProtocolVersion)
+	{
+		if (NTPMajorVersion < 2)
+		{	
+			currPacketsTag="new version packets";
+			oldPacketsTag="old version packets";
+			badPacketsTag="unknown version number";
+		}
+		else
+		{
+			currPacketsTag="current version";
+			oldPacketsTag="previous version";
+			badPacketsTag="bad version";
+		}
+	}
+
 	
 	if(Serial_Init(PORT,BAUD))
 	{
@@ -1564,7 +1584,63 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	return ret;
 }
 
-void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts)
+bool LCDMonitor::detectNTPVersion()
+{
+	// NTP versioning
+	// 
+	// pre 4-2.2.
+	// 	NTP uses A.B.C. - style release numbers.
+	// 
+	// The third (C) part of the version number can be:
+	// 
+	//    0-69 for releases on the A.B.C series.
+	//    70-79 for alpha releases of the A.B+1.0 series.
+	//    80+ for beta releases of the A.B+1.0 series.
+	// 
+	// At the moment:
+	// 
+	//    A is 4, for NTP version 4,
+	//    B is the minor release number.
+	//    C is the patch/bugfix number, and may have extra cruft in it.
+	// 
+	// Any extra cruft in the C portion of the number indicates an "interim" release. 
+	// post 4.2.2
+	// 	The syntax of a name is: Version[Point][Special][ReleaseCandidate]
+	// 
+	// where Version is A.B.C, and:
+	// 
+	//     * A is the protocol version (currently 4).
+	//     * B is the major version number.
+	//     * C is the minor version number. Even numbers are -stable releases, and odd numbers are -dev releases. 
+	// 
+	// Point is the letter p followed by an increasing number.
+	// 
+	// Special is currently only used for interim projects, and will generally be neither seen nor used by public releases.
+	// 
+	// ReleaseCandidate is the string -RC.
+	 
+	char buf[1024];
+	bool ret=false;
+	FILE *fp=popen("ntpq -c version","r"); 
+	while (fgets(buf,1023,fp) != NULL)
+	{
+		Dout(dc::trace,"LCDMonitor::detectNTPVersion() " << buf);
+		boost::regex re("^ntpq\\s+(\\d+)\\.(\\d+)\\.(\\d+).*");
+		boost::cmatch matches;
+		if (boost::regex_match(buf,matches,re))
+		{
+			NTPProtocolVersion=boost::lexical_cast<int>(matches[1]);
+			NTPMajorVersion=boost::lexical_cast<int>(matches[2]);
+			NTPMinorVersion=boost::lexical_cast<int>(matches[3]);
+			Dout(dc::trace,"LCDMonitor::detectNTPVersion() ver=" << NTPProtocolVersion << 
+				",major=" << NTPMajorVersion << ",minor=" << NTPMinorVersion << endl);
+		}
+	}
+	pclose(fp);
+	return ret;
+}
+
+void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 {
 	
 	char buf[1024];
@@ -1574,7 +1650,9 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts)
 	{
 		Dout(dc::trace,buf);
 	
-		if (strstr(buf,"new version packets"))
+		if (NTPProtocolVersion == 4)
+		
+		if (strstr(buf,currPacketsTag.c_str()))
 		{
 			char* sep = strchr(buf,':');
 			if (sep!=NULL)
@@ -1586,7 +1664,7 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts)
 				}
 			}
 		}
-		else if(strstr(buf,"old version packets"))
+		else if(strstr(buf,oldPacketsTag.c_str()))
 		{
 			char* sep = strchr(buf,':');
 			if (sep!=NULL)
@@ -1598,10 +1676,21 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts)
 				}
 			}
 		}
-		
+		else if(strstr(buf,badPacketsTag.c_str()))
+		{
+			char* sep = strchr(buf,':');
+			if (sep!=NULL)
+			{
+				if (strlen(sep) > 1)
+				{
+					sep++;
+					*badpkts=atoi(sep);
+				}
+			}
+		}
 	}
 	pclose(fp);
-	Dout(dc::trace,"getNTPstats() " << *oldpkts << " " << *newpkts);
+	Dout(dc::trace,"getNTPstats() " << *oldpkts << " " << *newpkts << " " << *badpkts);
 }
 
 bool LCDMonitor::checkFile(const char *fname)
@@ -1684,6 +1773,15 @@ void LCDMonitor::parseNetworkConfig()
 {
 	Dout(dc::trace,"LCDMonitor::parseNetworkConfig()");
 
+	//
+	// Set some defaults
+	//
+	
+	ipv4gw = "192.168.1.1";
+	ipv4nm = "255.255.255.0";
+	ipv4ns = "192.168.1.1";
+	ipv4addr="192.168.1.10";
+	
 	std::ifstream fin(networkConf.c_str());
 	if (!fin.good())
 	{
