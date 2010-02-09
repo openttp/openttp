@@ -48,7 +48,7 @@ class LCDMonitor:public CFA635
 		
 	private:
 	
-		enum LEDState {Off,RedOn,GreenOn};
+		enum LEDState {Off,RedOn,GreenOn,Unknown};
 		enum DisplayMode {GPS,NTP};
 		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
 		
