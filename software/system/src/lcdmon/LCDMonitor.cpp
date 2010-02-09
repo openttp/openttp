@@ -1621,7 +1621,7 @@ bool LCDMonitor::detectNTPVersion()
 	 
 	char buf[1024];
 	bool ret=false;
-	FILE *fp=popen("ntpq -c version","r"); 
+	FILE *fp=popen("/usr/local/bin/ntpq -c version","r"); 
 	while (fgets(buf,1023,fp) != NULL)
 	{
 		Dout(dc::trace,"LCDMonitor::detectNTPVersion() " << buf);
@@ -1645,7 +1645,7 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 	
 	char buf[1024];
 	
-	FILE *fp=popen("ntpdc -c sysstats","r");
+	FILE *fp=popen("/usr/local/bin/ntpdc -c sysstats","r");
 	while (fgets(buf,1023,fp) != NULL)
 	{
 		Dout(dc::trace,buf);
