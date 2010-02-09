@@ -698,7 +698,8 @@ void LCDMonitor::showStatus()
 			{
 				case Off: l='O';break;
 				case RedOn: l='R';break;
-				case GreenOn:l='G';break; 
+				case GreenOn:l='G';break;
+				case Unknown:l='U';break; 
 			}
 			Dout(dc::trace,l << " " << status[i].c_str());
 		}
@@ -1039,6 +1040,7 @@ void LCDMonitor::init()
 	for (int i=0;i<4;i++)
 	{
 		status[i]="";
+		statusLED[i]=Unknown;
 	}
 	
 	// use SIGALRM to detect lack of UI activity and return to status display
@@ -1454,6 +1456,7 @@ void LCDMonitor::updateStatusLED(int row,LEDState s)
 		case Off: rstate=gstate=0;break;
 		case RedOn: rstate=100;gstate=0;break;
 		case GreenOn: rstate=0;gstate=100;break;
+		case Unknown:return;
 	}
 	
 	outgoing_response.command = 34;
