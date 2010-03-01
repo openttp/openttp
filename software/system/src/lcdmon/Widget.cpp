@@ -81,7 +81,7 @@ bool Widget::keyEvent(KeyEvent &ke)
 				if (currentFocusWidget)
 				{
 					Widget *prevWidget;
-					if (prevWidget = focusWidgetBefore(currentFocusWidget))
+					if ((prevWidget = focusWidgetBefore(currentFocusWidget)))
 						prevWidget->setFocusWidget(true);
 					else
 						currentFocusWidget->setFocusWidget(true);
@@ -97,7 +97,7 @@ bool Widget::keyEvent(KeyEvent &ke)
 				if (currentFocusWidget)
 				{
 					Widget *nextWidget;
-					if (nextWidget = focusWidgetAfter(currentFocusWidget))
+					if ((nextWidget = focusWidgetAfter(currentFocusWidget)))
 						nextWidget->setFocusWidget(true);
 					else
 						currentFocusWidget->setFocusWidget(true);
@@ -113,7 +113,7 @@ bool Widget::keyEvent(KeyEvent &ke)
 				if (currentFocusWidget)
 				{
 					Widget *prevWidget;
-					if (prevWidget = focusWidgetBefore(currentFocusWidget))
+					if ((prevWidget = focusWidgetBefore(currentFocusWidget)))
 						prevWidget->setFocusWidget(true);
 					else
 						currentFocusWidget->setFocusWidget(true);
@@ -130,7 +130,7 @@ bool Widget::keyEvent(KeyEvent &ke)
 				if (currentFocusWidget)
 				{
 					Widget *nextWidget;
-					if (nextWidget = focusWidgetAfter(currentFocusWidget))
+					if ((nextWidget = focusWidgetAfter(currentFocusWidget)))
 						nextWidget->setFocusWidget(true);
 					else
 						currentFocusWidget->setFocusWidget(true);

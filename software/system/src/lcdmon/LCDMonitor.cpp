@@ -227,6 +227,7 @@ void LCDMonitor::networkConfigDHCP()
 	
 	}
 	
+	{
 	delete dlg;
 	
 	MenuItem *mi = protocolM->itemAt(midDHCP);
@@ -235,6 +236,7 @@ void LCDMonitor::networkConfigDHCP()
 	mi->setChecked(!ret);
 	
 	return;
+	}
 	
 	DIE:
 		delete dlg;
