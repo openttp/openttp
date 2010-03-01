@@ -32,6 +32,7 @@ class LCDMonitor:public CFA635
 		// callbacks for whatever - public so menu can access
 		
 		void showAlarms();
+		void showSysInfo();
 		
 		void networkDisable();
 		void networkConfigDHCP();
@@ -118,7 +119,8 @@ class LCDMonitor:public CFA635
 		std::string logFile;
 		std::string lockFile;
 		std::string alarmPath;
-
+		std::string sysInfoConf;
+		
 		std::string NTPuser,GPSCVuser;
 		
 		std::string DNSconf,networkConf,eth0Conf;

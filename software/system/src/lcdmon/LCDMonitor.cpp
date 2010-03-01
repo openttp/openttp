@@ -46,7 +46,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "1.1"
+#define LCDMONITOR_VERSION "1.2"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -125,6 +125,43 @@ void LCDMonitor::showAlarms()
 	delete mb;
 }
 
+
+void LCDMonitor::showSysInfo()
+{
+	clearDisplay();
+	
+	MessageBox *mb = new MessageBox(" "," "," "," ");
+	
+	int nline=0;
+	
+	ifstream fin(sysInfoConf.c_str());
+	if (!fin.good())
+		mb->setLine(1,"File not found");
+	else
+	{
+		string tmp;
+		
+		while (!fin.eof())
+		{	
+			getline(fin,tmp);
+			if (fin.eof())
+				break;
+			if (fin.fail())
+			{
+				mb->setLine(0," ");mb->setLine(2," ");mb->setLine(3," ");
+				mb->setLine(1,"Bad sysinfo file");
+				break;
+			}
+			mb->setLine(nline,tmp);
+			nline++;
+		}
+	}
+	
+	execDialog(mb);
+	delete mb;
+}
+
+
 void LCDMonitor::networkDisable()
 {
 	
@@ -142,10 +179,11 @@ void LCDMonitor::networkConfigDHCP()
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
 	bool ret = execDialog(dlg);
+	std::string lastError="No error";
 	if (ret)
 	{
 	
-		string ftmp("/tmp/ifcfg-eth0.tmp");
+		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
 		ofstream fout(ftmp.c_str());
 		// A minimal DHCP configuration
 		fout << "DEVICE=eth0" << endl;
@@ -155,20 +193,40 @@ void LCDMonitor::networkConfigDHCP()
 		string tmp;
 		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
 		ifstream fin(ifcfg.c_str());
-		getline(fin,tmp);
+		if (!fin.good())
+		{
+			lastError="ifcfg-eth0 not found";
+			goto DIE;
+		}
 		while (!fin.eof())
 		{
-			if (string::npos != tmp.find("HWADDR"))	
-				fout << tmp;
 			getline(fin,tmp);
+			if (fin.eof())
+				break;
+			if (fin.fail())
+			{
+				lastError="Bad ifcfg-eth0 ";
+				goto DIE;
+			}
+			if (string::npos != tmp.find("HWADDR"))	 // preserve this in case of multiple ethernet interfaces
+				fout << tmp;
 		}
+		
 		fin.close();
 		
 		fout.close();
+		int retval;
+		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str())))
+		{
+			Dout(dc::trace,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+			lastError = "Rename of tmp.ifcfg-eth0 failed";
+			goto DIE;
+		}
 		
 		restartNetworking();
 	
 	}
+	
 	delete dlg;
 	
 	MenuItem *mi = protocolM->itemAt(midDHCP);
@@ -176,6 +234,14 @@ void LCDMonitor::networkConfigDHCP()
 	mi = protocolM->itemAt(midStaticIP4);
 	mi->setChecked(!ret);
 	
+	return;
+	
+	DIE:
+		delete dlg;
+		Dout(dc::trace,"last error: "<< lastError);
+		clearDisplay();
+		updateLine(1,"Reconfig failed !");
+		sleep(2);
 }
 
 void LCDMonitor::networkConfigStaticIP4()
@@ -208,6 +274,7 @@ void LCDMonitor::networkConfigStaticIP4()
 	nsw->setFocusWidget(true);
 	
 	bool ret = execDialog(dlg);
+	std::string lastError="No error";
 	if (ret)
 	{
 		ipv4addr = ipw->ipAddress();
@@ -216,83 +283,177 @@ void LCDMonitor::networkConfigStaticIP4()
 		ipv4ns =   nsw->ipAddress();
 		
 		// make temporary files and copy across
-	
+		// note that temporay files are made in the same directory
+		// as the target because rename() does not work across devices (partitions)
 		// network
 		string netcfg("/etc/sysconfig/network");
 		ifstream fin(netcfg.c_str());
+		if (!fin.good())
+		{
+			lastError="Missing /etc/sysconfig/network";
+			goto DIE;
+		}	
+		
 		string tmp;
-		getline(fin,tmp);
-		string ftmp("/tmp/network.tmp");
+		string ftmp("/etc/sysconfig/network.tmp");
 		ofstream fout(ftmp.c_str());
+		bool gotGATEWAY=false;
 		while (!fin.eof())
 		{
+			getline(fin,tmp);
+			if (fin.eof())
+				break;
+			if (fin.fail())
+			{
+				lastError="Error in /etc/sysconfig/network";
+				goto DIE;
+			}
 			if (string::npos != tmp.find("GATEWAY"))
+			{
 				fout << "GATEWAY=" << ipv4gw << endl;
+				gotGATEWAY=true;
+			}
 			else
 				fout << tmp << endl;
 			
-			getline(fin,tmp);
 		}
+		
+		if (!gotGATEWAY)
+			fout << "GATEWAY=" << ipv4gw << endl;
+			
 		fin.close();
 		fout.close();
-	
+		
+		int retval;
+		if (0 != (retval = rename(ftmp.c_str(),netcfg.c_str())))
+		{
+			Dout(dc::trace,"Rename of " << ftmp << " to " << netcfg << " failed err = " << errno);
+			lastError="Rename of network failed";
+			goto DIE;
+		}
+		
 		// ifcfg-eth0
 		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
 		ifstream fin2(ifcfg.c_str());
-		getline(fin2,tmp);
-		ftmp="/tmp/ifcfg-eth0.tmp";
+		if (!fin2.good())
+		{
+			lastError="ifcfg-eth0 not found";
+			goto DIE;
+		}
+		ftmp="/etc/sysconfig/network-scripts/tmp.ifcfg-eth0"; // take care not to leave an ifcfg that the init scripts could pick up
 		ofstream fout2(ftmp.c_str());
+		// the existing configuration is read in and copied except for IPADDR and NETMASK
+		bool gotIPADDR=false;
+		bool gotNETMASK=false;
 		while (!fin2.eof())
 		{
+			getline(fin2,tmp);
+			if (fin2.eof())
+				break;
+			if (fin2.fail())
+			{
+				lastError="Error in ifcfg-eth0";
+				goto DIE;
+			}
 			if (string::npos != tmp.find("IPADDR"))
+			{
 				fout2 << "IPADDR=" << ipv4addr << endl;
+				gotIPADDR=true;
+			}
 			else if (string::npos != tmp.find("NETMASK"))
+			{
 				fout2 << "NETMASK=" << ipv4nm << endl;
+				gotNETMASK=true;
+			}
 			else
 				fout2 << tmp << endl;
 			
-			getline(fin2,tmp);
+			
 		}
+		if (!gotIPADDR)
+			fout2 << "IPADDR=" << ipv4addr << endl;
+		if (!gotNETMASK)
+			fout2 << "NETMASK=" << ipv4nm << endl;
+			
 		fin2.close();
 		fout2.close();
 	
+		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str())))
+		{
+			Dout(dc::trace,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+			lastError = "Rename of tmp.ifcfg-eth0 failed";
+			goto DIE;
+		}
+		
 		// /etc/resolv.conf
 		string nscfg("/etc/resolv.conf");
 		ifstream fin3(nscfg.c_str());
-		getline(fin3,tmp);
-		ftmp="/tmp/resolv.conf.tmp";
+		if (!fin3.good())
+		{
+			lastError="resolv.conf not found";
+			goto DIE;
+		}	
+		ftmp="/etc/resolv.conf.tmp";
 		ofstream fout3(ftmp.c_str());
-		bool gotIt=false; // should only be one NS defined but if someone has manually fiddled
+		bool gotNS=false; // should only be one NS defined but if someone has manually fiddled
 										// then make sure we only change the first one configured in resolv.conf
 		while (!fin3.eof())
 		{
-			if ((!gotIt) && (string::npos != tmp.find("nameserver")))
+			getline(fin3,tmp);
+			if (fin3.eof())
+				break;
+			if (fin3.fail())
+			{
+				lastError="Error in resolv.conf";
+				goto DIE;
+			}
+			if ((!gotNS) && (string::npos != tmp.find("nameserver")))
 			{
 				fout3 << "nameserver " << ipv4ns << endl;
-				gotIt=true;
+				gotNS=true;
 			}
-		else
-					fout3 << tmp << endl;
+			else
+				fout3 << tmp << endl;
 			
-			getline(fin3,tmp);
 		}
+		if (!gotNS)
+			fout3 << "nameserver " << ipv4ns << endl;
+			
 		fin3.close();
 		fout3.close();
-	
+		
+		if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str())))
+		{
+			Dout(dc::trace,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+			lastError="Rename of resolv.conf.tmp failed";
+			goto DIE;
+		}
+		
 		restartNetworking();
 	}
+	
 	delete dlg;
+	return;
+	
+	DIE:
+		delete dlg;
+		Dout(dc::trace,"last error: "<< lastError);
+		clearDisplay();
+		updateLine(1,"Reconfig failed !");
+		sleep(2);
 }
 
 void LCDMonitor::restartNetworking()
 {
 	clearDisplay();
-	updateLine(1,"  Restarting network services");
-		//runSystemCommand(ntpdRestartCommand,"networking restarted","networking restart failed");
+	updateLine(1,"Restarting network");
+	runSystemCommand("/sbin/service network restart","Restarted OK","Restart failed !");
 	sleep(1);
-	updateLine(1,"  Restarting ssh");
+	updateLine(1,"Restarting ssh");
+	runSystemCommand("/sbin/service sshd restart","Restarted OK","Restart failed !");
 	sleep(1);
-	updateLine(1,"  Restarting ntpd");
+	updateLine(1,"Restarting ntpd");
+	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
 }
 	
@@ -467,7 +628,7 @@ void LCDMonitor::reboot()
 	{
 		clearDisplay();
 		updateLine(1,"  Rebooting");
-		runSystemCommand(rebootCommand,"rebooted","reboot failed");
+		runSystemCommand(rebootCommand,"Rebooting ...","Reboot failed !");
 	}
 	delete dlg;
 }
@@ -482,7 +643,7 @@ void LCDMonitor::poweroff()
 	{
 		clearDisplay();
 		updateLine(1,"  Powering down");
-		runSystemCommand(poweroffCommand,"powering off","poweroff failed");
+		runSystemCommand(poweroffCommand,"Powering off ...","Poweroff failed !");
 	}
 	delete dlg;
 }
@@ -1104,7 +1265,7 @@ void LCDMonitor::configure()
 	DNSconf="/etc/resolv.conf";
 	networkConf="/etc/sysconfig/network";
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
-	
+	sysInfoConf="/usr/local/etc/sysinfo.conf";
 	receiverName="resolutiont";
 	alarmPath="/home/cvgps/logs/alarms";
 	rbStatusFile="/home/cvgps/logs/rb.status";
@@ -1362,6 +1523,9 @@ void LCDMonitor::makeMenu()
 			
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
 	menu->insertItem("Show alarms",cb);
+	
+	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showSysInfo);
+	menu->insertItem("Show system info",cb);
 	
 	Menu *restartM = new Menu("Restart...");
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartGPS);
@@ -1792,13 +1956,14 @@ void LCDMonitor::parseNetworkConfig()
 		log(msg);
 		return;
 	}
-	std::string tmp;
-	fin >> tmp;
+	string tmp;
 	while (!fin.eof())
 	{
+		getline(fin,tmp);
+		if (fin.eof())
+			break;
 		if (string::npos != tmp.find("GATEWAY"))
 			parseConfigEntry(tmp,ipv4gw,'=');
-		fin >> tmp;
 	}
 	fin.close();
 	
@@ -1810,10 +1975,11 @@ void LCDMonitor::parseNetworkConfig()
 		return;
 	}
 	
-	fin2 >> tmp;
 	while (!fin2.eof())
 	{
-		
+		getline(fin2,tmp);
+		if (fin2.eof())
+			break;
 		if (string::npos != tmp.find("BOOTPROTO"))
 		{
 			parseConfigEntry(tmp,bootProtocol,'=');
@@ -1826,7 +1992,6 @@ void LCDMonitor::parseNetworkConfig()
 			parseConfigEntry(tmp,ipv4addr,'=');
 		else if (string::npos != tmp.find("NETMASK"))
 			parseConfigEntry(tmp,ipv4nm,'=');
-		fin2 >> tmp;
 	}
 	fin2.close();
 	
