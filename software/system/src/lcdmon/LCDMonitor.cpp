@@ -30,6 +30,7 @@
 
 #include "configurator.h"
 
+#include "Button.h"
 #include "ConfirmationDialog.h"
 #include "ContrastWidget.h"
 #include "Dialog.h"
@@ -476,7 +477,16 @@ void LCDMonitor::LCDConfig()
 	help += " ";
 	help += 223;
 	Label *l= new Label(help,dlg);
-	l->setGeometry(0,3,20,1);
+	l->setGeometry(0,2,20,1);
+	
+	WidgetCallback<Dialog> *cb = new WidgetCallback<Dialog>(dlg,&Dialog::ok);
+	Button *b = new Button("OK",cb,dlg);
+	b->setGeometry(5,3,2,1);
+	
+	cb = new WidgetCallback<Dialog>(dlg,&Dialog::cancel);
+	b = new Button("Cancel",cb,dlg);
+	b->setGeometry(10,3,6,1);
+	
 	bool ret = execDialog(dlg);
 	if (ret)
 	{
