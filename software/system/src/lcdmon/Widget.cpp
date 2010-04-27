@@ -145,9 +145,9 @@ bool Widget::keyEvent(KeyEvent &ke)
 void Widget::paint(std::vector<std::string> &display)
 {
 	// We paint into the string ...
-	unsigned int nlines=children.size();
-	if (nlines > 4) nlines=4;
-	for (unsigned int i=0;i<nlines;i++)
+	//unsigned int nlines=children.size();
+	//if (nlines > 4) nlines=4;
+	for (unsigned int i=0;i<children.size();i++)
 	{
 		children.at(i)->paint(display);
 	}
