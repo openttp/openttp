@@ -47,7 +47,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "1.2"
+#define LCDMONITOR_VERSION "1.2.1"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -449,15 +449,29 @@ void LCDMonitor::networkConfigStaticIP4()
 void LCDMonitor::restartNetworking()
 {
 	clearDisplay();
+
 	updateLine(1,"Restarting network");
 	runSystemCommand("/sbin/service network restart","Restarted OK","Restart failed !");
 	sleep(1);
-	updateLine(1,"Restarting ssh");
-	runSystemCommand("/sbin/service sshd restart","Restarted OK","Restart failed !");
-	sleep(1);
+
+	if (serviceEnabled("S55sshd")) // don't start if disabled
+	{
+		updateLine(1,"Restarting ssh");
+		runSystemCommand("/sbin/service sshd restart","Restarted OK","Restart failed !");
+		sleep(1);
+	}
+
 	updateLine(1,"Restarting ntpd");
 	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
+
+	if (serviceEnabled("S85httpd")) // don't start if disabled
+	{
+		updateLine(1,"Restarting httpd");
+		runSystemCommand("/sbin/service httpd restart","Restarted OK","Restart failed !");
+		sleep(1);
+	}
+	
 }
 	
 void LCDMonitor::LCDConfig()
@@ -1919,6 +1933,13 @@ bool LCDMonitor::checkFile(const char *fname)
 	}
 	
 	return (retval != 0);	
+}
+
+bool LCDMonitor::serviceEnabled(const char *service)
+{
+	struct stat statbuf;
+	std::string sname = std::string("/etc/rc.d/rc3.d/") + service;
+	return (0 == stat(sname.c_str(),&statbuf));
 }
 
 bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string failmsg)

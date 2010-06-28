@@ -85,6 +85,7 @@ class LCDMonitor:public CFA635
 		void getNTPstats(int *,int *,int *);
 		
 		bool checkFile(const char *);
+		bool serviceEnabled(const char *);
 		void restartNetworking();
 		bool runSystemCommand(std::string,std::string,std::string);
 		
