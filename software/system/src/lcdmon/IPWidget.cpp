@@ -5,6 +5,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <cstdio>
 
 #include "IPWidget.h"
 #include "KeyEvent.h"

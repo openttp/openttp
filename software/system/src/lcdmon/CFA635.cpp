@@ -307,7 +307,7 @@ void CFA635::ShowReceivedPacket(void)
 //
 //
 //
-int CFA635::Serial_Init(char *devname, int baud_rate)
+int CFA635::Serial_Init(const char *devname, int baud_rate)
 {
   int
     brate;

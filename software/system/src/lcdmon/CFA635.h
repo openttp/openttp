@@ -34,7 +34,7 @@ class CFA635
 		
 	protected:
 		
-		int		Serial_Init(char *devname, int baud_rate);
+		int	Serial_Init(const char *devname, int baud_rate);
 		void	Uninit_Serial();
 		void	SendByte(unsigned char datum);
 		void	Sync_Read_Buffer(void);

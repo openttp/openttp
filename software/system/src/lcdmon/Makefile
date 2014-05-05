@@ -4,9 +4,9 @@ ETCDIR = $(INSTDIR)/etc
 GROUP = suck
 CC = g++
 DEBUGFLAG = -g
-LIBS = -L/usr/local/lib -lcwd -lconfigurator -lstdc++ -lboost_regex
+LIBS = -L/usr/local/lib -lconfigurator -lstdc++ -lboost_regex
 DEBUGFLAG = -g
-CFLAGS = -DCWDEBUG -Wall $(DEBUGFLAG) -I/usr/local/include
+CFLAGS = -Wall $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
 
 LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o \

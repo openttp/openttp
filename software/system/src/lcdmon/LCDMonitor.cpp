@@ -47,7 +47,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "1.2.1"
+#define LCDMONITOR_VERSION "1.2.2"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -1209,7 +1209,6 @@ void LCDMonitor::init()
 		}
 	}
 
-	
 	if(Serial_Init(PORT,BAUD))
 	{
 		Dout(dc::trace,"Could not open port " << PORT << " at " << BAUD << " baud.");
@@ -1217,7 +1216,7 @@ void LCDMonitor::init()
 	}
 	else
 	{
-    Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
+		Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
 	}
 	
 	/* Clear the buffer */
@@ -1843,41 +1842,42 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 	{
 		Dout(dc::trace,buf);
 	
-		if (NTPProtocolVersion == 4)
+		if (NTPProtocolVersion == 4){
 		
-		if (strstr(buf,currPacketsTag.c_str()))
-		{
-			char* sep = strchr(buf,':');
-			if (sep!=NULL)
+			if (strstr(buf,currPacketsTag.c_str()))
 			{
-				if (strlen(sep) > 1)
+				char* sep = strchr(buf,':');
+				if (sep!=NULL)
 				{
-					sep++;
-					*newpkts=atoi(sep);
+					if (strlen(sep) > 1)
+					{
+						sep++;
+						*newpkts=atoi(sep);
+					}
 				}
 			}
-		}
-		else if(strstr(buf,oldPacketsTag.c_str()))
-		{
-			char* sep = strchr(buf,':');
-			if (sep!=NULL)
+			else if(strstr(buf,oldPacketsTag.c_str()))
 			{
-				if (strlen(sep) > 1)
+				char* sep = strchr(buf,':');
+				if (sep!=NULL)
 				{
-					sep++;
-					*oldpkts=atoi(sep);
+					if (strlen(sep) > 1)
+					{
+						sep++;
+						*oldpkts=atoi(sep);
+					}
 				}
 			}
-		}
-		else if(strstr(buf,badPacketsTag.c_str()))
-		{
-			char* sep = strchr(buf,':');
-			if (sep!=NULL)
+			else if(strstr(buf,badPacketsTag.c_str()))
 			{
-				if (strlen(sep) > 1)
+				char* sep = strchr(buf,':');
+				if (sep!=NULL)
 				{
-					sep++;
-					*badpkts=atoi(sep);
+					if (strlen(sep) > 1)
+					{
+						sep++;
+						*badpkts=atoi(sep);
+					}
 				}
 			}
 		}
