@@ -67,12 +67,15 @@ install:
 	-/bin/cp ./lcdmonitor $(BINDIR)
 	-/bin/cp ./lcdconfig  $(BINDIR)
 	-/bin/cp ./lcdmonitor.conf $(ETCDIR)
+	-/bin/cp ./sysinfo.conf $(ETCDIR)
 	chown root. $(BINDIR)/lcdmonitor
 	chmod og-x  $(BINDIR)/lcdmonitor
 	chown root. $(BINDIR)/lcdconfig
 	chmod og-x  $(BINDIR)/lcdconfig
 	chown root. $(ETCDIR)/lcdmonitor.conf
 	chmod og-w  $(ETCDIR)/lcdmonitor.conf
+	chown root. $(ETCDIR)/sysinfo.conf
+        chmod og-w  $(ETCDIR)/sysinfo.conf
 
 clean:
 	rm -f $(LCDMONOBJS) $(LCDCONFIGOBJS) lcdmonitor lcdconfig
