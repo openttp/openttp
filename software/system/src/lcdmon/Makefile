@@ -75,7 +75,7 @@ install:
 	chown root. $(ETCDIR)/lcdmonitor.conf
 	chmod og-w  $(ETCDIR)/lcdmonitor.conf
 	chown root. $(ETCDIR)/sysinfo.conf
-        chmod og-w  $(ETCDIR)/sysinfo.conf
+	chmod og-w  $(ETCDIR)/sysinfo.conf
 
 clean:
 	rm -f $(LCDMONOBJS) $(LCDCONFIGOBJS) lcdmonitor lcdconfig
