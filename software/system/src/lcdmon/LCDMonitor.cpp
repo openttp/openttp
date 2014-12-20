@@ -348,6 +348,8 @@ void LCDMonitor::networkConfigStaticIP4()
 		// the existing configuration is read in and copied except for IPADDR and NETMASK
 		bool gotIPADDR=false;
 		bool gotNETMASK=false;
+		bool gotBOOTPROTO=false;
+		
 		while (!fin2.eof())
 		{
 			getline(fin2,tmp);
@@ -363,21 +365,34 @@ void LCDMonitor::networkConfigStaticIP4()
 				fout2 << "IPADDR=" << ipv4addr << endl;
 				gotIPADDR=true;
 			}
-			else if (string::npos != tmp.find("NETMASK"))
+			else if ( (string::npos != tmp.find("NETMASK")) || (string::npos != tmp.find("PREFIX")))
 			{
+				// replace NETMASK with PREFIX
+				// FIXME could do better
 				fout2 << "NETMASK=" << ipv4nm << endl;
 				gotNETMASK=true;
 			}
+			else if (string::npos != tmp.find("BOOTPROTO"))
+			{
+				fout2 << "BOOTPROTO=none" << endl; // none==static
+				gotBOOTPROTO=true;
+			}
+			else if (string::npos != tmp.find("DNS1"))
+			{
+				fout2 << "DNS1=" << ipv4ns << endl;
+				gotBOOTPROTO=true;
+			}
 			else
 				fout2 << tmp << endl;
-			
-			
 		}
+		
 		if (!gotIPADDR)
 			fout2 << "IPADDR=" << ipv4addr << endl;
 		if (!gotNETMASK)
 			fout2 << "NETMASK=" << ipv4nm << endl;
-			
+		if (!gotBOOTPROTO)
+			fout2 << "BOOTPROTO=none" << endl;
+		
 		fin2.close();
 		fout2.close();
 	
