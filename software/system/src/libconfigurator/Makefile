@@ -2,8 +2,8 @@ CC = gcc
 AR = ar clqv
 RM = rm -f
 RANLIB = ranlib
-DEFINES= -DDEBUG
-#DEFINES=
+#DEFINES= -DDEBUG
+DEFINES=
 SRCS= configfile.c hashtable.c list.c
 
 OBJS= configfile.o hashtable.o list.o
