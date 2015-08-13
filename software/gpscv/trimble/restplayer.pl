@@ -8,25 +8,57 @@ use Getopt::Std;
 use Time::HiRes qw( usleep gettimeofday);
 use TFLibrary;
 use POSIX;
-use vars qw();
+use vars qw( $opt_h );
 
 $port="/dev/ttyS2";
+
+if ($#ARGV != 4){
+	&ShowHelp();
+	exit;
+}
 
 $startMJD=$ARGV[0];
 $startTime=$ARGV[1]; # seconds into day
 $stopMJD=$ARGV[2];
 $stopTime=$ARGV[3]; # seconds into the day
+$port = $ARGV[4];
+
 $home=$ENV{HOME};
+if (-d "$home/etc")  {$configpath="$home/etc";}  else 
+	{$configpath="$home/Parameter_Files";} # backwards compatibility
 
-if (-d "$home/raw")  {$raw="$home/raw";}  else {$raw="$home/cv_rawdata";}
+# More backwards compatibility fixups
+if (-e "$configpath/cggtts.conf"){
+	$configFile=$configpath."/cggtts.conf";
+	$localMajorVersion=2;
+}
+elsif (-e "$configpath/cctf.setup"){
+	$configFile="$configpath/cctf.setup";
+	$localMajorVersion=1;
+}
+else{
+	print STDERR "No configuration file found!\n";
+	exit;
+}
+
+&Initialise($configFile);
+
+if ($localMajorVersion==1){
+	$rawpath=$Init{"data path"}; #."/$mjd".
+	$ext = $Init{"gps data extension"};
+}
+elsif ($localMajorVersion==2){
+	$rawpath=$Init{"paths:receiver data"}; # ."/$mjd".
+	$ext = $Init{"receiver:file extension"};
+}
+
+$rawpath = &FixPath( $rawpath);
 
 
-for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++) # decompress
-{
-	$infile="$raw/$mjd.rxrawdata";
+for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++){ # decompress
+	$infile=$rawpath.'/'.$mjd.$ext;
 	$zipfile=$infile.".gz";
-	if (-e $zipfile)
-	{
+	if (-e $zipfile){
 		`gunzip $zipfile`;
 		push @zipped,$infile;
 	}
@@ -37,25 +69,21 @@ print "Opening\n";
 $rx=&TFConnectSerial($port,
       (ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
        oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
-#vec($rxmask,fileno $rx,1)=1;
+
 print "Port open\n";
 	 
-for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++)
-{
+for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++){
 	$lastTime=86399;
-	if ($mjd==$stopMJD)
-	{
+	if ($mjd==$stopMJD){
 		$lastTime=$stopTime;
 	}
 	
-	$infile="$raw/$mjd.rxrawdata";
+	$infile=$rawpath.'/'.$mjd.$ext;
+	print "$infile\n";
 	open (IN,"<$infile");
 		
-	if ($mjd==$startMJD) # skip to startTime
-	{
-		
-		while ($msg=<IN>)
-		{
+	if ($mjd==$startMJD){ # skip to startTime
+		while ($msg=<IN>){
 			if ($msg =~ /^# /) { next;}
 			if ($msg =~ /^@ /) { next;}
 			($msgid,$tod,$msgdata) = split " ",$msg;
@@ -63,16 +91,13 @@ for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++)
 			$tod =~ /(\d{2}):(\d{2}):(\d{2})/;
 			unless ((defined $1) && (defined $2) && (defined $3)) {next;}
 			$tod = $1*3600 + $2*60 + $3;
-			if ($tod >= $startTime)
-			{
+			if ($tod >= $startTime){
 				last;
 			}
 		}
 	}
-	else
-	{
-		while ($msg=<IN>)
-		{
+	else{
+		while ($msg=<IN>){
 			$msg=<IN>;
 			if ($msg =~ /^# /) { next;}
 			if ($msg =~ /^@ /) { next;}
@@ -85,17 +110,15 @@ for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++)
 		}
 	}
 	
-	# don't worry about the first message
+	# Don't worry about the first message
 	$gotFAB=0;
-	while (($tod <= $lastTime) && !eof(IN))
-	{
+	while (($tod <= $lastTime) && !eof(IN)){
 		($tv_sec,$tv_usec) = gettimeofday();
 		usleep(1000000-$tv_usec);
 		print STDERR "#### $tod $tv_usec \n";
 		Translate($msgdata); # spit out wot we last got - should be the first message
 		$gotFAB=($msgdata=~/^8fab/);
-		while ($msg=<IN>)
-		{
+		while ($msg=<IN>){
 			if ($msg =~ /^# /) { next;}
 			if ($msg =~ /^@ /) { next;}
 			($msgid,$newtod,$msgdata) = split " ",$msg;
@@ -103,22 +126,18 @@ for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++)
 			$newtod =~ /(\d{2}):(\d{2}):(\d{2})/;
 			unless ((defined $1) && (defined $2) && (defined $3)) {next;}
 			$newtod = $1*3600 + $2*60 + $3;
-			if ($newtod == $tod)
-			{
-				if (($tod==86399) && ($msgdata=~/^8fab/) && ($gotFAB)) # this is a leap second
-				{
+			if ($newtod == $tod){
+				if (($tod==86399) && ($msgdata=~/^8fab/) && ($gotFAB)){ # this is a leap second
 					last; # do it again
 				}
 				
 				Translate($msgdata);
 			}
-			elsif ($newtod == $tod + 1)
-			{
+			elsif ($newtod == $tod + 1){
 				$tod=$newtod;
 				last;
 			}
-			elsif ($newtod > $tod+1)
-			{
+			elsif ($newtod > $tod+1){
 				$secstosleep = $newtod - $tod - 1;
 				sleep($secstosleep);
 				$tod=$newtod;
@@ -134,9 +153,50 @@ for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++)
 	close(IN);	
 }
 
-for ($i=0;$i<=$#zipped;$i++)
-{
+for ($i=0;$i<=$#zipped;$i++){
 	`gzip $zipped[$i]`;
+}
+
+#----------------------------------------------------------------------------
+sub Initialise 
+{
+  my $name=shift;
+  my ($err);
+  my @required=();
+  if ($localMajorVersion==1){
+		@required=( "data path","gps data extension");
+		%Init=&TFMakeHash($name,(tolower=>1));
+	}
+	elsif ($localMajorVersion==2){
+		@required=( "paths:receiver data","receiver:file extension");
+		%Init=&TFMakeHash2($name,(tolower=>1));
+	}
+ 
+	$err=0;
+	foreach (@required){
+		unless (defined $Init{$_}){
+			print STDERR "! No value for $_ given in $name\n";
+			$err=1;
+		}
+	}
+	exit if $err;
+}
+
+#----------------------------------------------------------------------------
+sub ShowHelp()
+{
+	print "Usage: $0 [-h] StartMJD StartTOD StopMJD StopTOD serial_port\n";
+	print "-h   Show this help\n";
+}
+
+#----------------------------------------------------------------------------
+sub FixPath()
+{
+	my $path=$_[0];
+	if (!($path=~/^\//)){
+		$path =$ENV{HOME}."/".$path;
+	}
+	return $path;
 }
 
 # -----------------------------------------------------------------------------------------

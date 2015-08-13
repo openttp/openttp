@@ -73,37 +73,45 @@ $LAST_RECEIVED=1;
 
 $rxTemperature="unknown";
 $rxMinorAlarms="";
- 
+
+$0=~s#.*/##;
+
 $home=$ENV{HOME};
 if (-d "$home/etc")  {$configpath="$home/etc";}  else 
-	{$configpath="$home/Parameter_Files";}
+	{$configpath="$home/Parameter_Files";} # backwards compatibility
 
 if (-d "$home/logs")  {$logpath="$home/logs";} else 
 	{$logpath="$home/Log_Files";}
+	
+# More backwards compatibility fixups
+if (-e "$configpath/cggtts.conf"){
+	$configFile=$configpath."/cggtts.conf";
+	$localMajorVersion=2;
+}
+elsif (-e "$configpath/cctf.setup"){
+	$configFile="$configpath/cctf.setup";
+	$localMajorVersion=1;
+}
+else{
+	print STDERR "No configuration file found!\n";
+	exit;
+}
 
-$0=~s#.*/##;
-$Init{version}="1.0";
-$Init{file}=$configpath."/cctf.setup";
-
-
-if(!(getopts('r')) || !(@ARGV<=2)) 
-{
+if(!(getopts('r')) || !(@ARGV<=2)) {
   select STDERR;
   print "Usage: $0 [-r] [initfile]\n";
 	print "  -r reset receiver on startup\n";
-  print "  The default initialisation file is $Init{file}\n";
+  print "  The default initialisation file is $configFile\n";
   exit;
 }
 
 # Check for an existing lock file
 $lockfile = $logpath."/rx.lock";
-if (-e $lockfile)
-{
+if (-e $lockfile){
 	open(LCK,"<$lockfile");
 	$pid = <LCK>;
 	chomp $pid;
-	if (-e "/proc/$pid")
-	{
+	if (-e "/proc/$pid"){
 		printf STDERR "Process $pid already running\n";
 		exit;
 	}
@@ -114,6 +122,30 @@ open(LCK,">$lockfile");
 print LCK $$,"\n";
 close LCK;
 
+&Initialise(@ARGV==1? $ARGV[0] : $configFile);
+$Init{version}="2.0";
+
+#Open the serial ports to the receiver
+$rxmask="";
+$port=&GetConfig($localMajorVersion,"gps port","receiver:port");
+$port="/dev/$port" unless $port=~m#/#;
+
+unless (`/usr/local/bin/lockport $port $0`==1) {
+	printf "! Could not obtain lock on $port. Exiting.\n";
+	exit;
+}
+
+#$rx=&TFConnectSerial($port,
+#    (ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
+#     oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|PARENB|PARODD|CLOCAL));
+
+$rx=&TFConnectSerial($port,
+		(ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
+			oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
+# Set up a mask which specifies this port for select polling later on
+vec($rxmask,fileno $rx,1)=1;
+print "> Port $port to Rx is open\n";
+
 #Initialise parameters
 $params[$UTC_PARAMETERS][$LAST_REQUESTED]=-1;
 $params[$UTC_PARAMETERS][$LAST_RECEIVED]=-1;
@@ -121,8 +153,8 @@ $params[$UTC_PARAMETERS][$LAST_RECEIVED]=-1;
 $params[$IONO_PARAMETERS][$LAST_REQUESTED]=-1;
 $params[$IONO_PARAMETERS][$LAST_RECEIVED]=-1;
 
-&Initialise(@ARGV==1? $ARGV[0] : $Init{file});
-$rcvrstatus=$Init{"receiver status"};
+$rcvrstatus=&GetConfig($localMajorVersion,"receiver status","receiver:status");
+$rcvrstatus=&FixPath($rcvrstatus);
 
 $now=time();
 $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
@@ -140,7 +172,9 @@ $SIG{TERM}=sub {$killed=1};
 $tstart = time;
 
 $receiverTimeout=600;
-if (defined($Init{"receiver timeout"})) {$receiverTimeout=$Init{"receiver timeout"};}
+$configReceiverTimeout=&GetConfig($localMajorVersion,"receiver timeout","receiver:timeout");
+if (defined($configReceiverTimeout)){$receiverTimeout=$configReceiverTimeout;}
+
 $lastMsg=time(); 
 
 LOOP: while (!$killed)
@@ -260,26 +294,20 @@ close OUT;
 # end of main 
 
 #----------------------------------------------------------------------------
-
 sub Initialise 
 {
   my $name=shift;
-  my @required=("gps port", 
-    "data path", "gps data extension");
+  if ($localMajorVersion == 1){
+		my @required=("gps port",  "data path", "gps data extension","receiver status","ppsOffset");
+		%Init=&TFMakeHash($name,(tolower=>1));
+	}
+	elsif($localMajorVersion == 2){
+		@required=( "paths:receiver data","receiver:file extension","receiver:port","receiver:status file","receiver:pps offset");
+		%Init=&TFMakeHash2($name,(tolower=>1));
+	}
   my ($tag,$err);
   
-  open IN,$name or die "Could not open initialisation file $name: $!";
-  while (<IN>) {
-    s/#.*//;            # delete comments
-    s/\s+$//;           # and trailing whitespace
-    if (/(.+)=(.+)/) {  # got a parameter?
-      $tag=$1;
-      $tag=~tr/A-Z/a-z/;        
-      $Init{$tag}=$2;
-    }
-  }
-
-  # check that all required information is present
+  # Check that all required information is present
   $err=0;
   foreach (@required) {
     unless (defined $Init{$_}) {
@@ -289,38 +317,54 @@ sub Initialise
   }
   exit if $err;
 
-  # open the serial ports to the receiver
-  $rxmask="";
-  $port=$Init{"gps port"};
-  unless (`/usr/local/bin/lockport $port $0`==1) {
-    printf "! Could not obtain lock on $port. Exiting.\n";
-    exit;
-  }
-  $port="/dev/$port" unless $port=~m#/#;
-  #$rx=&TFConnectSerial($port,
-  #    (ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
-  #     oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|PARENB|PARODD|CLOCAL));
+	if ($localMajorVersion == 1){
+		$Init{"data path"}=FixPath($Init{"data path"});
+		$Init{"receiver status"}=FixPath{"receiver status"};
+	}
+	elsif ($localMajorVersion == 2){
+		$Init{"paths:receiver data"}=FixPath($Init{"paths:receiver data"});
+		$Init{"receiver:status"}=FixPath($Init{"receiver:status file"});
+	}
+ 
+}# Initialise
 
-	$rx=&TFConnectSerial($port,
-      (ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
-       oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
-  # set up a mask which specifies this port for select polling later on
-  vec($rxmask,fileno $rx,1)=1;
+#-----------------------------------------------------------------------------
+sub GetConfig()
+{
+	my($ver,$v1tag,$v2tag)=@_;
+	if ($ver == 1){
+		return $Init{$v1tag};
+	}
+	elsif ($ver==2){
+		return $Init{$v2tag};
+	}
+}
 
-  print "> Port $port to Rx is open\n";
-} # Initialise
+#----------------------------------------------------------------------------
+sub FixPath()
+{
+	my $path=$_[0];
+	if (!($path=~/^\//)){
+		$path =$ENV{HOME}."/".$path;
+	}
+	return $path;
+}
 
+#-----------------------------------------------------------------------------
 sub Debug
 {
 	$now = strftime "%H:%M:%S",gmtime;
 	if ($DEBUG) {print "$now $_[0] \n";}
 }
-#-----------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------
 sub OpenDataFile
 {
   my $mjd=$_[0];
-  my $name=$Init{"data path"}.$mjd.$Init{"gps data extension"};
+  my $dataPath= &GetConfig($localMajorVersion,"data path","paths:receiver data");
+  my $dataExt= &GetConfig($localMajorVersion,"gps data extension","receiver:file extension");
+  my $name=$dataPath."/".$mjd.$dataExt;
+  
   my $old=(-e $name);
 
   open OUT,">>$name" or die "Could not write to $name";
@@ -364,7 +408,8 @@ sub ConfigureReceiver
 	# Configure for GPS aligned 1 pps and UTC time-of day in 8FAB packet
 	&SendCommand("\x8E\xA2\x01");
 	# Set the 1 pps offset
-	$ppsOffset = $Init{"ppsoffset"}/1.0E9; # convert to seconds
+	
+	$ppsOffset = &GetConfig($localMajorVersion,"ppsoffset","receiver:pps offset")/1.0E9; # convert to seconds
 	$pps=DoubleToStr($ppsOffset);
 	$biasUncertaintyThreshold ="\x43\x96\x00\x00";
 	&SendCommand("\x8E\x4a\x01\x00\x00".$pps.$biasUncertaintyThreshold);

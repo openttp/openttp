@@ -1,8 +1,12 @@
 #!/usr/bin/perl -w
 
+#
+# Extracts useful information from the raw data file
+#
+
 use Getopt::Std;
 use TFLibrary;
-use vars qw($opt_a $opt_m $opt_l $opt_L $opt_u $opt_s $opt_t $opt_v);
+use vars qw($opt_a $opt_h $opt_m $opt_l $opt_L $opt_u $opt_s $opt_t $opt_v);
 
 $SKIP=-1;
 $MSG8F=1;
@@ -12,26 +16,44 @@ $MSG47=4;
 $MSG58=5;
 
 # Parse command line
-if (!getopts('m:stlLuav')) 
-{
-  print "Usage: $0 [-m mjd] [-a] [-t] [-l] [-L] [-u] [-v]\n";
-  print "  -m mjd  MJD\n";
-	print "  -a      extract S/N for visible satellites (47)\n";
-	print "  -t      extract temperature (8FAC)\n";
-	print "  -l      extract leap second warning(8FAC)\n";
-	print "  -L      extract leap second info (5805)\n";
-	print "  -s      extract number of visible satellites\n";
-	print "  -u      extract UTC offset (8FAB)\n";
-	print "  -v      extract software versions\n";
+if (!getopts('hm:stlLuav')){
+  &ShowHelp();
   exit;
 }
+
+if ($opt_h){&ShowHelp();exit;}
 
 if ($opt_m){$mjd=$opt_m;}else{$mjd=int(time()/86400) + 40587;}
 
 $home=$ENV{HOME};
-if (-d "$home/raw")  {$raw="$home/raw";}  else {$raw="$home/cv_rawdata";}
+if (-d "$home/etc")  {$configpath="$home/etc";}  else 
+	{$configpath="$home/Parameter_Files";} # backwards compatibility
 
-$infile="$raw/$mjd.rxrawdata";
+# More backwards compatibility fixups
+if (-e "$configpath/cggtts.conf"){
+	$configFile=$configpath."/cggtts.conf";
+	$localMajorVersion=2;
+}
+elsif (-e "$configpath/cctf.setup"){
+	$configFile="$configpath/cctf.setup";
+	$localMajorVersion=1;
+}
+else{
+	print STDERR "No configuration file found!\n";
+	exit;
+}
+
+&Initialise($configFile);
+
+if ($localMajorVersion==1){
+	$infile=$Init{"data path"}."/$mjd".$Init{"gps data extension"};
+}
+elsif ($localMajorVersion==2){
+		$infile=$Init{"paths:receiver data"}."/$mjd".$Init{"receiver:file extension"};
+}
+
+$infile = &FixPath( $infile );
+
 $zipfile=$infile.".gz";
 $zipit=0;
 if (-e $zipfile)
@@ -176,6 +198,56 @@ print "\n";
 close RXDATA;
 
 if (1==$zipit) {`gzip $infile`;}
+
+#----------------------------------------------------------------------------
+sub ShowHelp()
+{
+	print "Usage: $0 [-h] [-m mjd] [-a] [-t] [-l] [-L] [-u] [-v]\n";
+  print "  -m mjd  MJD\n";
+	print "  -a      extract S/N for visible satellites (47)\n";
+	print "  -a      show this help\n";
+	print "  -t      extract temperature (8FAC)\n";
+	print "  -l      extract leap second warning(8FAC)\n";
+	print "  -L      extract leap second info (5805)\n";
+	print "  -s      extract number of visible satellites\n";
+	print "  -u      extract UTC offset (8FAB)\n";
+	print "  -v      extract software versions\n";
+}
+
+#----------------------------------------------------------------------------
+sub FixPath()
+{
+	my $path=$_[0];
+	if (!($path=~/^\//)){
+		$path =$ENV{HOME}."/".$path;
+	}
+	return $path;
+}
+
+#----------------------------------------------------------------------------
+sub Initialise 
+{
+  my $name=shift;
+  my ($err);
+  my @required=();
+  if ($localMajorVersion==1){
+		@required=( "data path","gps data extension");
+		%Init=&TFMakeHash($name,(tolower=>1));
+	}
+	elsif ($localMajorVersion==2){
+		@required=( "paths:receiver data","receiver:file extension");
+		%Init=&TFMakeHash2($name,(tolower=>1));
+	}
+ 
+	$err=0;
+	foreach (@required){
+		unless (defined $Init{$_}){
+			print STDERR "! No value for $_ given in $name\n";
+			$err=1;
+		}
+	}
+	exit if $err;
+}
 
 #-----------------------------------------------------------------------
 
