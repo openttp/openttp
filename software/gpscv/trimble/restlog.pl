@@ -179,7 +179,14 @@ $lastMsg=time();
 
 LOOP: while (!$killed)
 {
-	
+	if (time()-$lastMsg > $receiverTimeout){ # too long, so byebye
+		@_=gmtime();
+		$msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d no response from receiver\n",
+  		$_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+		printf OUT "# ".$msg;
+		goto BYEBYE;	
+  }
+  
   # see if there is text waiting
   $nfound=select $tmask=$rxmask,undef,undef,0.2;
   next unless $nfound;
@@ -188,27 +195,22 @@ LOOP: while (!$killed)
   sysread $rx,$input,$nfound,length $input;
   # look for a message in what we've accumulated
   # $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
-  if ($input=~/(\x10+)\x03/)
-	{
-    if ((length $1) & 1)
-		{
+  if ($input=~/(\x10+)\x03/){
+    if ((length $1) & 1){
       # ETX preceded by odd number of DLE: got the packet termination
       
 			$dle = substr $&,1,-1; # drop the last DLE
 			$data=$save.$`.$dle;
 			
       $first=ord substr $data,0,1;
-      if ($first!=0x10)
-			{
+      if ($first!=0x10){
         printf STDERR "! Parse error - bad packet start char 0x%02X\n",$first;
       }
-      else
-			{
+      else{
 			
         $now=time();			# got one - tag the time
 				$lastMsg=$now;
-        if ($now>=$next)
-				{
+        if ($now>=$next){
           # (this way is safer than just incrementing $mjd)
           $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
           &OpenDataFile($mjd,0);
@@ -218,8 +220,7 @@ LOOP: while (!$killed)
 					&SendCommand("\x1F");
           $next=($mjd-40587+1)*86400;	# seconds at next MJD
         }
-        if ($now>$then)
-				{
+        if ($now>$then){
           # update string version of time stamp
           @_=gmtime $now;
           $nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
@@ -233,20 +234,16 @@ LOOP: while (!$killed)
 				# available so filter out empty responses
 				$id=ord substr $data,0,1;
 				$operation = ord substr $data,1,1;	
-				if ($id == 0x58 ) # is it system data ?
-				{
-					if ($operation == 0x02)
-					{
+				if ($id == 0x58 ){ # is it system data ?
+					if ($operation == 0x02){
      				printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
 					}
 				}
-				elsif ($id == 0x8f && $operation == 0xac)
-				{
+				elsif ($id == 0x8f && $operation == 0xac){
 					&ParseSupplementalTimingPacket();
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
 				}
-				else
-				{
+				else{
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
 				}
 				
@@ -259,25 +256,13 @@ LOOP: while (!$killed)
 			}
       $save="";
     }
-    else
-		{
+    else{
       # ETX preceded by even number of DLE: DLEs "stuffed", this is packet data
       # Remove from $input for next search, but save it for later
       $save=$save.$`.$&;
     }
     $input=$';	
-  }
-	# Do all our checks
-	
-  if (time()-$lastMsg > $receiverTimeout) # it no talky-talk for too long so byebye
-  {
-		@_=gmtime();
-		$msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d no satellites visible - exiting\n",
-  		$_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
-		printf OUT "# ".$msg;
-		close OUT;
-		goto BYEBYE;	
-  }
+  }  
 
 }
 
@@ -392,8 +377,7 @@ sub SendCommand
 sub ConfigureReceiver
 {
 
-	if ($opt_r) # hard reset
-	{
+	if ($opt_r){ # hard reset
 		print OUT "# Resetting receiver\n";	
   	&SendCommand("\x1E\x4b");
 		sleep 3; # wait a bit
@@ -435,38 +419,31 @@ sub UpdateSatellites
 	# Visible satellites can be obtained from 0x6D report packet, which is
 	# automatically output
 	$id=ord substr $data,0,1;
-	if ($id == 0x6d)
-	{
+	if ($id == 0x6d){
 		
 		# $nfix = (ord substr $data,1,1) >> 4;
 		# Satellite PRNs begin at position 18
 		$n=length $data;
-		if ($n > 18)
-		{
+		if ($n > 18){
 			# mark all SVs as not visible so that non-visible SVs can be pruned
 			#print "$nowstr Tracking [ ";
-			for ($i=0;$i<=$#SVdata;$i++)
-			{
+			for ($i=0;$i<=$#SVdata;$i++){
 				$SVdata[$i][$STILLVISIBLE]=0;
 				#print " $SVdata[$i][$PRN]";
 			}
 			#print " ]\n";
-			for ($i=18;$i<$n;$i++)
-			{
+			for ($i=18;$i<$n;$i++){
 				$prn= unpack('c',substr $data,$i,1); 
 				# If the SV is being tracked then no more to do
-				for ($j=0;$j<=$#SVdata;$j++)
-				{
-					if ($SVdata[$j][$PRN] == $prn)
-					{
+				for ($j=0;$j<=$#SVdata;$j++){
+					if ($SVdata[$j][$PRN] == $prn){
 						$SVdata[$j][$STILLVISIBLE]=1;
 						$SVdata[$j][$DISAPPEARED]=-1; # reset this timer
 						last;
 					}
 				}
 				# On startup sometimes see a prn < 0
-				if ($j > $#SVdata && $prn > 0)
-				{
+				if ($j > $#SVdata && $prn > 0){
 					Debug("$prn acquired");
 					#push @SVdata, [$prn,time,-1,1]
 					$SVdata[$j][$PRN]=$prn;
@@ -481,17 +458,13 @@ sub UpdateSatellites
 			# This is only done if the satellite has not been
 			# visible for some time - satellites can drop in and out of
 			# view so we'll try to avoid excessive polling
-			for ($i=0;$i<=$#SVdata;$i++)
-			{
-				if ($SVdata[$i][$STILLVISIBLE]==0)
-				{
-					if ($SVdata[$i][$DISAPPEARED]==-1)
-					{
+			for ($i=0;$i<=$#SVdata;$i++){
+				if ($SVdata[$i][$STILLVISIBLE]==0){
+					if ($SVdata[$i][$DISAPPEARED]==-1){
 						$SVdata[$i][$DISAPPEARED]=time;
 						Debug("$SVdata[$i][$PRN] has disappeared");
 					}
-					elsif (time - $SVdata[$i][$DISAPPEARED] > $REMOVE_SV_THRESHOLD)
-					{	
+					elsif (time - $SVdata[$i][$DISAPPEARED] > $REMOVE_SV_THRESHOLD){	
 						Debug("$SVdata[$i][$PRN] removed");
 						splice @SVdata,$i,1;	
 					}	
@@ -501,8 +474,7 @@ sub UpdateSatellites
 			open(STA,">$rcvrstatus");
 			print STA "sats=$nvis\n";
 			print STA "prns=";
-			for ($i=0;$i<=$#SVdata-1;$i++)
-			{
+			for ($i=0;$i<=$#SVdata-1;$i++){
 				print STA $SVdata[$i][$PRN],",";
 			}
 			if ($nvis > 0) {print STA $SVdata[$#SVdata][$PRN];}
@@ -519,8 +491,7 @@ sub UpdateSatellites
 			#}
 			#print " ]\n";
 		}
-		else
-		{
+		else{
 			open(STA,">$rcvrstatus");
 			print STA "sats=0\n";
 			print STA "prns=\n";
@@ -538,33 +509,29 @@ sub PollEphemerides
 {
 	# Poll for ephemeris if a poll is due
 	
-	for ($i=0;$i<=$#SVdata;$i++)
-	{
-			if ($SVdata[$i][$LAST_EPHEMERIS_REQUESTED] ==-1 &&
-				time - $tstart > $COLDSTART_HOLDOFF ) #flags start up for SV
-			{
-				# Try to get an ephemeris as soon as possible after startup
+	for ($i=0;$i<=$#SVdata;$i++){
+		if ($SVdata[$i][$LAST_EPHEMERIS_REQUESTED] ==-1 &&
+			time - $tstart > $COLDSTART_HOLDOFF ){ #flags start up for SV
+			# Try to get an ephemeris as soon as possible after startup
+			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
+			Debug("Requesting ephemeris for $SVdata[$i][$PRN]");
+			$cmd="\x38\x01\x06". chr $SVdata[$i][$PRN];
+			&SendCommand($cmd);
+		}
+		elsif (time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > 30 && 
+			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $SVdata[$i][$LAST_EPHEMERIS_RECEIVED] ){
 				$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
-				Debug("Requesting ephemeris for $SVdata[$i][$PRN]");
+				Debug("Requesting ephemeris for $SVdata[$i][$PRN] again!");
 				$cmd="\x38\x01\x06". chr $SVdata[$i][$PRN];
 				&SendCommand($cmd);
-			}
-			elsif (time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > 30 && 
-				$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $SVdata[$i][$LAST_EPHEMERIS_RECEIVED] )
-			{
-				 $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
-					Debug("Requesting ephemeris for $SVdata[$i][$PRN] again!");
-					$cmd="\x38\x01\x06". chr $SVdata[$i][$PRN];
-					&SendCommand($cmd);
-			}
-			elsif (($SVdata[$i][$LAST_EPHEMERIS_RECEIVED] != -1) &&
-				(time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $EPHEMERIS_POLL_INTERVAL))
-			{
-				$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
-				Debug("Requesting ephemeris for $SVdata[$i][$PRN] cos it be stale");
-				$cmd="\x38\x01\x06". chr $SVdata[$i][$PRN];
-				&SendCommand($cmd);
-			}
+		}
+		elsif (($SVdata[$i][$LAST_EPHEMERIS_RECEIVED] != -1) &&
+			(time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $EPHEMERIS_POLL_INTERVAL)){
+			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
+			Debug("Requesting ephemeris for $SVdata[$i][$PRN] cos it be stale");
+			$cmd="\x38\x01\x06". chr $SVdata[$i][$PRN];
+			&SendCommand($cmd);
+		}
 	}
 }
 
@@ -574,8 +541,7 @@ sub PollUTCParameters
 	#Poll for UTC parameters 
 	
 	if ($params[$UTC_PARAMETERS][$LAST_REQUESTED] == -1 && 
-		time - $tstart > $COLDSTART_HOLDOFF)
-	{
+		time - $tstart > $COLDSTART_HOLDOFF){
 		# Just starting so do this ASAP
 		$params[$UTC_PARAMETERS][$LAST_REQUESTED]= time;
 		Debug("Requesting UTC parameters");
@@ -583,16 +549,14 @@ sub PollUTCParameters
 	}
 	elsif (time - $params[$UTC_PARAMETERS][$LAST_REQUESTED] > 30 &&
 		$params[$UTC_PARAMETERS][$LAST_REQUESTED] > 
-			$params[$UTC_PARAMETERS][$LAST_RECEIVED])
-	{
+			$params[$UTC_PARAMETERS][$LAST_RECEIVED]){
 		# Polled but no response
 		$params[$UTC_PARAMETERS][$LAST_REQUESTED]= time;
 		Debug("Requesting UTC parameters again!");
 		&SendCommand("\x38\x01\x05\x00");
 	}
 	elsif (($params[$UTC_PARAMETERS][$LAST_RECEIVED] != -1) &&
-		time - $params[$UTC_PARAMETERS][$LAST_REQUESTED] >  $UTC_POLL_INTERVAL)
-	{
+		time - $params[$UTC_PARAMETERS][$LAST_REQUESTED] >  $UTC_POLL_INTERVAL){
 		# Poll overdue
 		$params[$UTC_PARAMETERS][$LAST_REQUESTED]= time;
 		Debug("Requesting UTC parameters cos they be stale");
@@ -606,8 +570,7 @@ sub PollIonoParameters
 	#Poll for ionosphere parameters
 	
 	if ($params[$IONO_PARAMETERS][$LAST_REQUESTED] == -1 &&
-		time - $tstart > $COLDSTART_HOLDOFF)
-	{
+		time - $tstart > $COLDSTART_HOLDOFF){
 		# Just starting so do this ASAP
 		$params[$IONO_PARAMETERS][$LAST_REQUESTED]= time;
 		Debug("Requesting iono parameters");
@@ -615,16 +578,14 @@ sub PollIonoParameters
 	}
 	elsif (time - $params[$IONO_PARAMETERS][$LAST_REQUESTED] > 30 &&
 		$params[$IONO_PARAMETERS][$LAST_REQUESTED] > 
-			$params[$IONO_PARAMETERS][$LAST_RECEIVED])
-	{
+			$params[$IONO_PARAMETERS][$LAST_RECEIVED]){
 		# Polled but no response
 		$params[$IONO_PARAMETERS][$LAST_REQUESTED]= time;
 		Debug("Requesting iono parameters again!");
 		&SendCommand("\x38\x01\x04\x00");
 	}
 	elsif (($params[$IONO_PARAMETERS][$LAST_RECEIVED] != -1) && 
-		time - $params[$IONO_PARAMETERS][$LAST_REQUESTED] >  $IONO_POLL_INTERVAL)
-	{
+		time - $params[$IONO_PARAMETERS][$LAST_REQUESTED] >  $IONO_POLL_INTERVAL){
 		# Poll overdue
 		$params[$IONO_PARAMETERS][$LAST_REQUESTED]= time;
 		Debug("Requesting iono parameters cos they be stale");
@@ -639,27 +600,21 @@ sub ParseGPSSystemDataMessage
 	$id=ord substr $data,0,1;
 	$operation = ord substr $data,1,1;
 	
-	if ($id == 0x58 && $operation==0x02) 
-	{
+	if ($id == 0x58 && $operation==0x02) {
 		$dtype=ord substr $data,2,1;
-		if ($dtype == 0x04)  # ionosphere
-		{
+		if ($dtype == 0x04){ # ionosphere
 			Debug("Got Ionosphere msg");
 			$params[$IONO_PARAMETERS][$LAST_RECEIVED]=time;
 		}
-		elsif ($dtype==0x05) # UTC
-		{
+		elsif ($dtype==0x05){ # UTC
 			Debug("Got UTC msg");
 			$params[$UTC_PARAMETERS][$LAST_RECEIVED]=time;
 		}
-		elsif ($dtype==0x06) # ephemeris
-		{
+		elsif ($dtype==0x06){ # ephemeris
 			$prn = ord substr $data,3,1;
 			Debug("Got ephemeris msg for $prn");
-			for ($i=0;$i<=$#SVdata;$i++)
-			{
-				if ($prn == $SVdata[$i][$PRN])
-				{
+			for ($i=0;$i<=$#SVdata;$i++){
+				if ($prn == $SVdata[$i][$PRN]){
 					$SVdata[$i][$LAST_EPHEMERIS_RECEIVED]=time;
 				}
 			} 
