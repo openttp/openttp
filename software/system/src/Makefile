@@ -26,8 +26,8 @@ lockport.o: lockport.c
 
 install:
 	@ echo "Installing to ${INSTALLDIR}"
-	@ chown root. ${TARGETS}
-	@ mv ${TARGETS} ${INSTALLDIR}
+	@ cp ${TARGETS} ${INSTALLDIR}
+	@ chown root. ${INSTALLDIR}/${TARGETS}
 	
 	@ cat /etc/issue | grep Red; if [ $$? -eq 0 ]; then \
 		chown root.lock ${INSTALLDIR}/lockport; \
