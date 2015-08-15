@@ -1,16 +1,36 @@
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-/*   file name : mjd.c							     */
-/*     version : 1.4							     */
-/*        date : 20000314						     */
-/*      Author : Stephen Quigg.  ( stephen.quigg@tip.csiro.au )		     */
-/*                                                                           */
-/* > > > > > CSIRO National Measurement Laboratory, Lindfield 2070 < < < < < */
+/*
+ *
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015  Stephen Quigg, Michael J. Wouters
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
+
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /* Description : date <--> mjd conversion program			     */
 /*      Compile: cc -o mjd mjd.c -lm					     */
 /*  NOTE date can be passed to mjd by the Unix utility 'date'. The format    */
 /*       is 'date -u +" "%d" "%m" "%Y | mjd' (you may need a path for mjd)   */ 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 /* 14 03 2000 v1.4   SQ		- Fix up bug in argc checking to prevent 
 				  core dump.
 				- Added -h and -v switches.
