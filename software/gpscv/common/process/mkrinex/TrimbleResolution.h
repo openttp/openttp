@@ -36,7 +36,9 @@ class TrimbleResolution:public Receiver
 {
 	public:
 		
-		TrimbleResolution(Antenna *);
+		enum Models {ResolutionT,ResolutionSMT,Resolution360};
+		
+		TrimbleResolution(Antenna *,string);
 		virtual ~TrimbleResolution();
 	
 		virtual bool readLog(string,int);
@@ -49,6 +51,8 @@ class TrimbleResolution:public Receiver
 		int appvermajor,appverminor,appmonth,appday,appyear;
 		int corevermajor,coreverminor,coremonth,coreday,coreyear;
 	
+		int model;
+		
 };
 
 #endif

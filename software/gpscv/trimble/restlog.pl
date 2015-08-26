@@ -38,12 +38,12 @@
 #                 PRNS in rcvr_status
 #                 Bug fix. rcvr_status message empty of there are no 
 #													 satellites
-#  26-02-2009 MJW Added lockfile for interoperation with lcdmonitor
+#  26-02-2009 MJW Added lockFile for interoperation with lcdmonitor
 #  20-08-2009 MJW Version info output
 #  20-04-2010 MJW Extra status information in rx.status
 #  14-02-2012 MJW Woho ! Real bug fix. Any trailing 0x10's in a data 
 #									packet were erroneously removed
-#									
+#	 24-08-2015 MJW Cleanups; Resolution 360 compatibility added						
 
 # Improvements?
 # Use 6D for tracking visible satellites but this is not strictly correct
@@ -59,9 +59,13 @@ use TFLibrary;
 use POSIX;
 use Getopt::Std;
 use POSIX qw(strftime);
-use vars  qw($tmask $opt_r);
+use vars  qw($tmask $opt_r $opt_d $opt_h $opt_v);
 
-$DEBUG=0;
+$VERSION="2.0";
+
+$RESOLUTION_T=0;
+#$RESOLUTION_SMT=1;
+$RESOLUTION_360=2;
 
 $REMOVE_SV_THRESHOLD=600; #interval after which  a SV marked as disappeared is removed
 $COLDSTART_HOLDOFF = 0;
@@ -120,18 +124,26 @@ else{
 	exit;
 }
 
-if(!(getopts('r')) || !(@ARGV<=2)) {
+if( !(getopts('dhrv')) || ($#ARGV>=1)) {
   select STDERR;
-  print "Usage: $0 [-r] [initfile]\n";
-	print "  -r reset receiver on startup\n";
-  print "  The default initialisation file is $configFile\n";
+  ShowHelp();
   exit;
 }
 
+if ($opt_h){
+	ShowHelp();
+	exit;
+}
+
+if ($opt_v){
+	print "$0 version $VERSION\n";
+	exit;
+}
+
 # Check for an existing lock file
-$lockfile = $logpath."/rx.lock";
-if (-e $lockfile){
-	open(LCK,"<$lockfile");
+$lockFile = $logpath."/rx.lock";
+if (-e $lockFile){
+	open(LCK,"<$lockFile");
 	$pid = <LCK>;
 	chomp $pid;
 	if (-e "/proc/$pid"){
@@ -141,12 +153,28 @@ if (-e $lockfile){
 	close LCK;
 }
 
-open(LCK,">$lockfile");
+open(LCK,">$lockFile");
 print LCK $$,"\n";
 close LCK;
 
 &Initialise(@ARGV==1? $ARGV[0] : $configFile);
-$Init{version}="2.0";
+$Init{version}=$VERSION;
+
+$rxmodel=$RESOLUTION_360;
+if ($localMajorVersion == 2){
+	if ($Init{"receiver:model"} eq "Resolution T"){
+		$rxmodel=$RESOLUTION_T;
+	}
+#	elsif ($Init{"receiver:model"} eq "Resolution SMT"){
+#		$rxmodel=$RESOLUTION_SMT;
+#	}
+	elsif ($Init{"receiver:model"} eq "Resolution SMT 360"){
+		$rxmodel=$RESOLUTION_360;
+	}
+	else{
+		print "Unknown receiver model: ".$Init{"receiver:model"}."\n";
+	}
+}
 
 #Open the serial ports to the receiver
 $rxmask="";
@@ -157,10 +185,6 @@ unless (`/usr/local/bin/lockport $port $0`==1) {
 	printf "! Could not obtain lock on $port. Exiting.\n";
 	exit;
 }
-
-#$rx=&TFConnectSerial($port,
-#    (ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
-#     oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|PARENB|PARODD|CLOCAL));
 
 $rx=&TFConnectSerial($port,
 		(ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
@@ -176,8 +200,8 @@ $params[$UTC_PARAMETERS][$LAST_RECEIVED]=-1;
 $params[$IONO_PARAMETERS][$LAST_REQUESTED]=-1;
 $params[$IONO_PARAMETERS][$LAST_RECEIVED]=-1;
 
-$rcvrstatus=&GetConfig($localMajorVersion,"receiver status","receiver:status");
-$rcvrstatus=&FixPath($rcvrstatus);
+$rxStatus=&GetConfig($localMajorVersion,"receiver status","receiver:status");
+$rxStatus=&FixPath($rxStatus);
 
 $now=time();
 $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
@@ -235,7 +259,7 @@ LOOP: while (!$killed)
 				$lastMsg=$now;
         if ($now>=$next){
           # (this way is safer than just incrementing $mjd)
-          $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
+          $mjd=int($now/86400) + 40587;	
           &OpenDataFile($mjd,0);
 					# Request receiver and software versions
 					&SendCommand("\x8E\x41");
@@ -266,6 +290,12 @@ LOOP: while (!$killed)
 					&ParseSupplementalTimingPacket();
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
 				}
+				elsif ($id == 0x5a){
+					$svn= ord substr $data,1,1;
+					if ($svn <= 32){ # only want GPS at present
+						printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
+					}
+				}
 				else{
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
 				}
@@ -290,7 +320,7 @@ LOOP: while (!$killed)
 }
 
 BYEBYE:
-if (-e $lockfile) {unlink $lockfile;}
+if (-e $lockFile) {unlink $lockFile;}
 
 @_=gmtime();
 $msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d $0 killed\n",
@@ -300,6 +330,17 @@ printf OUT "# ".$msg;
 close OUT;
 
 # end of main 
+
+#
+sub ShowHelp
+{
+	print "Usage: $0 [-r] [-d] [-h] [-v] [initfile]\n";
+  print "  -d debug\n";
+  print "  -h show this help\n";
+	print "  -r reset receiver on startup\n";
+	print "  -v show version\n";
+  print "  The default initialisation file is $configFile\n";
+}
 
 #----------------------------------------------------------------------------
 sub Initialise 
@@ -313,6 +354,12 @@ sub Initialise
 		@required=( "paths:receiver data","receiver:file extension","receiver:port","receiver:status file","receiver:pps offset");
 		%Init=&TFMakeHash2($name,(tolower=>1));
 	}
+	
+	if (!%Init){
+		print "Couldn't open $name\n";
+		exit;
+  }
+  
   my ($tag,$err);
   
   # Check that all required information is present
@@ -362,7 +409,7 @@ sub FixPath()
 sub Debug
 {
 	$now = strftime "%H:%M:%S",gmtime;
-	if ($DEBUG) {print "$now $_[0] \n";}
+	if ($opt_d) {print "$now $_[0] \n";}
 }
 
 #-----------------------------------------------------------------------------
@@ -402,24 +449,28 @@ sub ConfigureReceiver
 
 	if ($opt_r){ # hard reset
 		print OUT "# Resetting receiver\n";	
-  	&SendCommand("\x1E\x4b");
+  	&SendCommand("\x1E\x4b"); #OK
 		sleep 3; # wait a bit
 	}
 	
+	# Resolution 360 - 0xBB configure receiver options
+	
 	# Turn on broadcast of timing information and automatic output packets
-	&SendCommand("\x8E\xA5\x00\x45\x00\x05");
-	#  Set up for GPS time 
+	&SendCommand("\x8E\xA5\x00\x45\x00\x05"); #OK
+
 	#  Turn on raw measurement reports nb automatic output packets must be
 	#  turned on as well
-	&SendCommand("\x35\x12\x02\x00\x01");
-	# Configure for GPS aligned 1 pps and UTC time-of day in 8FAB packet
-	&SendCommand("\x8E\xA2\x01");
-	# Set the 1 pps offset
+	&SendCommand("\x35\x12\x02\x00\x01"); #OK
 	
+	# Configure for GPS aligned 1 pps and UTC time-of day in 8FAB packet
+	&SendCommand("\x8E\xA2\x01"); #OK
+	
+	# Set the 1 pps offset
 	$ppsOffset = &GetConfig($localMajorVersion,"ppsoffset","receiver:pps offset")/1.0E9; # convert to seconds
 	$pps=DoubleToStr($ppsOffset);
 	$biasUncertaintyThreshold ="\x43\x96\x00\x00";
 	&SendCommand("\x8E\x4a\x01\x00\x00".$pps.$biasUncertaintyThreshold);
+	
 	# Request receiver information
 	
 	# Wait a bit ....
@@ -429,8 +480,8 @@ sub ConfigureReceiver
 	# This will cause a reset
 	sleep 3;
 
-	&SendCommand("\x8E\x41");
-	&SendCommand("\x8E\x42");
+	&SendCommand("\x8E\x41"); # manufacturing parameters
+	&SendCommand("\x8E\x42"); # production parameters
 	&SendCommand("\x1F");
 } # ConfigureReceiver
 
@@ -438,16 +489,19 @@ sub ConfigureReceiver
 
 sub UpdateSatellites
 {
-	my ($id,$i,$n);
+	my ($id,$i,$reqid,$svnoffset);
 	# Visible satellites can be obtained from 0x6D report packet, which is
 	# automatically output
 	$id=ord substr $data,0,1;
-	if ($id == 0x6d){
-		
-		# $nfix = (ord substr $data,1,1) >> 4;
-		# Satellite PRNs begin at position 18
+	$reqid=0x6d;
+	$svnoffset=18;
+	if ($rxmodel==$RESOLUTION_360){
+		$reqid=0x6c;
+		$svnoffset=19;
+	}
+	if ($id == $reqid ){
 		$n=length $data;
-		if ($n > 18){
+		if ($n > $svnoffset){
 			# mark all SVs as not visible so that non-visible SVs can be pruned
 			#print "$nowstr Tracking [ ";
 			for ($i=0;$i<=$#SVdata;$i++){
@@ -455,8 +509,9 @@ sub UpdateSatellites
 				#print " $SVdata[$i][$PRN]";
 			}
 			#print " ]\n";
-			for ($i=18;$i<$n;$i++){
+			for ($i=$svnoffset;$i<$n;$i++){
 				$prn= unpack('c',substr $data,$i,1); 
+				next unless ($prn <= 32); # only want GPS
 				# If the SV is being tracked then no more to do
 				for ($j=0;$j<=$#SVdata;$j++){
 					if ($SVdata[$j][$PRN] == $prn){
@@ -494,7 +549,7 @@ sub UpdateSatellites
 				}
 			}
 			$nvis=$#SVdata+1;
-			open(STA,">$rcvrstatus");
+			open(STA,">$rxStatus");
 			print STA "sats=$nvis\n";
 			print STA "prns=";
 			for ($i=0;$i<=$#SVdata-1;$i++){
@@ -515,7 +570,7 @@ sub UpdateSatellites
 			#print " ]\n";
 		}
 		else{
-			open(STA,">$rcvrstatus");
+			open(STA,">$rxStatus");
 			print STA "sats=0\n";
 			print STA "prns=\n";
 			print STA "alarms=$rxMinorAlarms\n";
@@ -685,8 +740,7 @@ sub ReverseByteOrder
 	my $start = $_[0];
 	my $stop =  $_[1];
 	my $swaps= ($stop-$start+1)/2;
-	for ($i=0;$i<$swaps;$i++)
-	{	
+	for ($i=0;$i<$swaps;$i++){	
 		$indx0=$start+$i;# save the first byte
 		$tmp0=substr $_[2], $indx0,1;
 		$indx1=$stop-$i;

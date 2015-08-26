@@ -112,7 +112,7 @@ class Receiver
 		
 		//void setProcessingInterval(int,int);
 		
-		string model;
+		string modelName;
 		string manufacturer;
 		string version1;
 		string version2;

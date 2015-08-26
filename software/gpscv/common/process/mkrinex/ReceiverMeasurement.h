@@ -37,12 +37,13 @@ class ReceiverMeasurement
 {
 	public:
 		ReceiverMeasurement()
-		{sawtooth=0.0;timeoffset=0.0;epochFlag=0;}
+		{sawtooth=0.0;timeoffset=0.0;epochFlag=0;signalLevel=0.0;}
 	
 		unsigned int gpstow;
 		unsigned int gpswn;
 		double sawtooth;
 		double timeoffset;
+		double signalLevel;
 		int epochFlag;
 		unsigned char pchh,pcmm,pcss; // time of measurement, as determined from the log time stamp
 		struct tm tmgps,tmutc;

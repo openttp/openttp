@@ -37,7 +37,7 @@ extern ostream *debugStream;
 
 Receiver::Receiver(Antenna *ant)
 {
-	model="undefined";
+	modelName="undefined";
 	manufacturer="undefined";
 	serialNumber="undefined";
 	swversion="undefined";

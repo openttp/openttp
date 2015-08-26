@@ -38,6 +38,10 @@ $MSG45=3;
 $MSG47=4;
 $MSG58=5;
 
+$RESOLUTION_T=0;
+#$RESOLUTION_SMT=1;
+$RESOLUTION_360=2;
+
 # Parse command line
 if (!getopts('hm:stlLuav')){
   &ShowHelp();
@@ -67,12 +71,29 @@ else{
 }
 
 &Initialise($configFile);
-
+$model=$RESOLUTION_360;
 if ($localMajorVersion==1){
 	$infile=$Init{"data path"}."/$mjd".$Init{"gps data extension"};
 }
 elsif ($localMajorVersion==2){
 		$infile=$Init{"paths:receiver data"}."/$mjd".$Init{"receiver:file extension"};
+		if ($Init{"receiver:model"} eq "Resolution T"){
+			$model=$RESOLUTION_T;
+		}
+#		elsif ($Init{"receiver:model"} eq "Resolution SMT"){
+#			$model=$RESOLUTION_SMT;
+#		}
+		elsif ($Init{"receiver:model"} eq "Resolution SMT 360"){
+			$model=$RESOLUTION_360;
+		}
+		else{
+			print "Unknown receiver model: ".$Init{"receiver:model"}."\n";
+		}
+}
+
+$yearOffset=2000;
+if ($model==$RESOLUTION_T){
+	$yearOffset=1900;
 }
 
 $infile = &FixPath( $infile );
@@ -176,9 +197,9 @@ while (<RXDATA>)
 		@data=unpack "C10",(pack "H*",$_[2]);
 		
 		printf "SW application version: %d.%d %4d-%02d-%02d\n",
-			$data[0],$data[1],$data[4]+1900,$data[2],$data[3];
+			$data[0],$data[1],$data[4]+$yearOffset,$data[2],$data[3];
 		printf "GPS core version:       %d.%d %4d-%02d-%02d\n",
-			$data[5],$data[6],$data[9]+1900,$data[7],$data[8];
+			$data[5],$data[6],$data[9]+$yearOffset,$data[7],$data[8];
 	}
 	elsif(($msg==$MSG47) && $opt_a)
 	{

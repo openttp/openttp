@@ -380,7 +380,7 @@ bool MakeRINEX::loadConfig()
 	configOK= configOK && setConfig(last,"receiver","manufacturer",rxManufacturer);
 	if (rxManufacturer.find("Trimble") != string::npos){
 		if (rxModel.find("Resolution") != string::npos){
-			receiver = new TrimbleResolution(antenna); 
+			receiver = new TrimbleResolution(antenna,rxModel); 
 		}
 	}
 	
@@ -389,10 +389,6 @@ bool MakeRINEX::loadConfig()
 		return false;
 	}
 	
-	receiver->model=rxModel;
-	receiver->manufacturer=rxManufacturer;
-	
-	configOK= configOK && setConfig(last,"receiver","channels",&(receiver->channels));
 	configOK= configOK && setConfig(last,"receiver","observations",stmp);
 	
 	if (stmp.find("GPS") != string::npos)
@@ -527,7 +523,7 @@ bool MakeRINEX::writeRINEXObsFile(int ver,Receiver *rx,Counter *cntr,Antenna *an
 	fprintf(fout,"%-20s%40s%-20s\n",ant->markerNumber.c_str(),"","MARKER NUMBER");
 	fprintf(fout,"%-20s%-40s%-20s\n",observer.c_str(),agency.c_str(),"OBSERVER / AGENCY");
 	fprintf(fout,"%-20s%-20s%-20s%-20s\n",
-		rx->serialNumber.c_str(),rx->model.c_str(),rx->version1.c_str(),"REC # / TYPE / VERS");
+		rx->serialNumber.c_str(),rx->modelName.c_str(),rx->version1.c_str(),"REC # / TYPE / VERS");
 	fprintf(fout,"%-20s%-20s%-20s%-20s\n",ant->antennaNumber.c_str(),ant->antennaType.c_str()," ","ANT # / TYPE");
 	fprintf(fout,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",ant->x,ant->y,ant->z," ","APPROX POSITION XYZ");
 	fprintf(fout,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",ant->deltaH,ant->deltaE,ant->deltaN," ","ANTENNA: DELTA H/E/N");
@@ -721,7 +717,7 @@ bool MakeRINEX::writeRINEXNavFile(int ver,Receiver *rx,string fname,int mjd)
 		// GPS week 1024 begins midnight 21/22 Aug 1999, MJD 51412
 		// GPS week 2048 begins midnight 6/7 Apr 2019, MJD 58580
 		int tmjd=mjd;
-		int GPSWeek=rx->utcData.WN_t;
+		int GPSWeek=rx->ephemeris[i]->week_number;
 		
 		while (tmjd>=51412) {
 			GPSWeek+=1024;
@@ -756,6 +752,7 @@ bool MakeRINEX::writeRINEXNavFile(int ver,Receiver *rx,string fname,int mjd)
 	
 		time_t tgps = tGPS0+GPSWeek*86400*7+Toc;
 		struct tm *tmgps = gmtime(&tgps);
+		
 		switch (RINEXversion)
 		{
 			case V2:

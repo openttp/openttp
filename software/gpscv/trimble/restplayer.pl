@@ -31,9 +31,26 @@ use Getopt::Std;
 use Time::HiRes qw( usleep gettimeofday);
 use TFLibrary;
 use POSIX;
-use vars qw( $opt_h );
+use vars qw( $opt_h $opt_v);
+
+$VERSION="1.0";
 
 $port="/dev/ttyS2";
+
+if (!getopts('hv')){
+	&ShowHelp();
+	exit;
+}
+
+if ($opt_h){
+	&ShowHelp();
+	exit;
+}
+
+if ($opt_v){
+	print "$0 version $VERSION\n";
+	exit;
+}
 
 if ($#ARGV != 4){
 	&ShowHelp();
@@ -76,7 +93,6 @@ elsif ($localMajorVersion==2){
 }
 
 $rawpath = &FixPath( $rawpath);
-
 
 for ($mjd=$startMJD;$mjd<=$stopMJD;$mjd++){ # decompress
 	$infile=$rawpath.'/'.$mjd.$ext;
@@ -208,8 +224,9 @@ sub Initialise
 #----------------------------------------------------------------------------
 sub ShowHelp()
 {
-	print "Usage: $0 [-h] StartMJD StartTOD StopMJD StopTOD serial_port\n";
-	print "-h   Show this help\n";
+	print "Usage: $0 [-h] [-v] StartMJD StartTOD StopMJD StopTOD serial_port\n";
+	print "-h   show this help\n";
+	print "-v   show version\n";
 }
 
 #----------------------------------------------------------------------------

@@ -49,9 +49,9 @@ extern ostream *debugStream;
 // Since we only have 2 systems with old firmware 
 // we'll make new firmware the default
 #define SAWTOOTH_MULTIPLIER 1.0 
-#define MAX_CHANNELS 12
 #define SLOPPINESS 0.99
 #define CLOCKSTEP  0.001
+#define MAX_CHANNELS 12 // max channels per constellation
 
 #define OMEGA_E_DOT 7.2921151467e-5
 #define CLIGHT 299792458.0
@@ -76,9 +76,26 @@ reversestr (
 //	public
 //		
 
-TrimbleResolution::TrimbleResolution(Antenna *ant):Receiver(ant)
+TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
 {
-	model="Resolution T";
+	modelName = m;
+	if (modelName=="Resolution T"){
+		model=ResolutionT;
+		channels = 12;
+	}
+	//else if (modelName=="Resolution SMT"){
+	//model=ResolutionSMT;
+	//channels =12;
+	//}
+	else if (modelName=="Resolution SMT 360"){
+		model=Resolution360;
+		channels=32;
+	}
+	else{
+		cerr << "Unknown receiver model: " << modelName << endl;
+		cerr << "Assuming Resolution SMT 360 " << endl;
+		model=Resolution360;
+	}
 	manufacturer="Trimble";
 	swversion="0.1";
 	constellations=Receiver::GPS;
@@ -119,6 +136,21 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	UINT8 fabss,fabmm,fabhh,fabmday,fabmon;
 	UINT16 fabyyyy;
 	
+	int yearOffset; // for version dates
+	
+	switch (model)
+	{
+		case ResolutionT:
+			yearOffset=1900;
+			break;
+		case ResolutionSMT:
+			yearOffset=2000;
+			break;
+		case Resolution360:
+			yearOffset=2000;
+			break;
+	}
+	
   if (infile.is_open()){
     while ( getline (infile,line) ){
 			linecount++;
@@ -139,6 +171,9 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 				gps.clear();
 				continue;
 			}
+			
+			// NB In the documentation for the Resolution 360, the Packet ID is now included as byte 0 so the indexing
+			// in the documentation now corresponds to what we were doing anyway (offsetting by one byte)
 			
 			if(strncmp(msg.c_str(),"45",2)==0)  // software version information report packet */
 			{
@@ -161,7 +196,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 				HexToBin((char *) msg.substr(16+2,2).c_str(),1,&cbuf);
 				coreday=cbuf;
 				HexToBin((char *) msg.substr(18+2,2).c_str(),1,&cbuf);
-				coreyear=cbuf+1900;
+				coreyear=cbuf+yearOffset;
 				stringstream ss;
 				ss << appvermajor << "." << appverminor;
 				ss << " " << appyear << "-" << appmonth << "-" << appday;
@@ -241,39 +276,44 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 			
 			if(strncmp(msg.c_str(),"5a",2)==0) // look for Raw Measurement Report (5A) 
 			{
+				
 				if (gps.size() >= MAX_CHANNELS){ // too much data - something is missing 
 					newsecond=false; // reset the state machine   
 					got8FAC=false;
 					DBGMSG(debugStream,1,"Too many 5A messages at line " << linecount);
 				}
-				HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf);
-				// Check whether we already have data for this SV. If we do
-				// something is wrong and we should abort data collection for the 
-				// current second 
-				unsigned int ichan;
-				for (ichan=0;ichan<gps.size();ichan++){
-					if (gps[ichan]->svn == cbuf)
-						break;
-				}
+				HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf); // Get SVN
+				if (cbuf > 32){  // FIXME GPS only
 				
-				if (ichan == gps.size()){
-					float fbuf;
-					HexToBin((char *) reversestr(msg.substr(18+2,4*2)).c_str(),4,(unsigned char *) &fbuf);
-					gps.push_back(new SVMeasurement(cbuf,fbuf*61.0948*1.0E-9));
-				}
-				else{
-					newsecond=false; // reset the state machine 
-					got8FAC=false;
-					gps.clear();
-					// typically get unexpected messages because of loss of data caused by polling the receiver
-					DBGMSG(debugStream,2," duplicate/unexpected SV at line "<<linecount);
+					// Check whether we already have data for this SV. If we do
+					// something is wrong and we should abort data collection for the 
+					// current second 
+					unsigned int ichan;
+					for (ichan=0;ichan<gps.size();ichan++){
+						if (gps[ichan]->svn == cbuf)
+							break;
+					}
+					
+					if (ichan == gps.size()){
+						float fbuf;
+						HexToBin((char *) reversestr(msg.substr(18+2,4*2)).c_str(),4,(unsigned char *) &fbuf);
+						gps.push_back(new SVMeasurement(cbuf,fbuf*61.0948*1.0E-9));
+					}
+					else{
+						newsecond=false; // reset the state machine 
+						got8FAC=false;
+						gps.clear();
+						// typically get unexpected messages because of loss of data caused by polling the receiver
+						DBGMSG(debugStream,2," duplicate/unexpected SV at line "<<linecount);
+					}
 				}
 			}
 		
 			if(strncmp(msg.c_str(),"8fac",4)==0){ // Secondary time message (8FAC) 
-				HexToBin((char *) reversestr(msg.substr(32+2,2*4)).c_str(),4,(unsigned char *) &rxtimeoffset);
-				HexToBin((char *) reversestr(msg.substr(120+2,2*4)).c_str(),4,(unsigned char *) &sawtooth);
-				sawtooth = sawtooth*SAWTOOTH_MULTIPLIER; /* nb this in seconds/ns according to firmware */
+				
+				HexToBin((char *) reversestr(msg.substr(2*16+2,2*4)).c_str(),4,(unsigned char *) &rxtimeoffset);
+				HexToBin((char *) reversestr(msg.substr(2*60+2,2*4)).c_str(),4,(unsigned char *) &sawtooth);
+				sawtooth = sawtooth*SAWTOOTH_MULTIPLIER; // nb this in seconds/ns according to firmware 
 				DBGMSG(debugStream,3," 8FAC bias= " << rxtimeoffset << ",sawtooth= " << sawtooth);
 				got8FAC=true;
 				continue;
