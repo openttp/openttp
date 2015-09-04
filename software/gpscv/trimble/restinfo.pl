@@ -142,6 +142,7 @@ $configReceiverTimeout=&GetConfig($localMajorVersion,"receiver timeout","receive
 if (defined($configReceiverTimeout)){$receiverTimeout=$configReceiverTimeout;}
 
 if ($rxModel == $RESOLUTION_SMT_360){
+	GetHardwareVersion();
 	GetFirmwareVersion();
 }
 
@@ -227,7 +228,6 @@ sub Debug
 }
 
 #----------------------------------------------------------------------------
-
 sub SendCommand
 {
   my $cmd=shift;
@@ -313,6 +313,28 @@ sub GetReport
 }
 
 #----------------------------------------------------------------------------
+sub GetHardwareVersion
+{
+	print "\n+++ Hardware version (0x1C-03)\n";
+	my $data = GetReport("\x1C\x03",0x1C,0x83);
+	
+	&ReverseByteOrder(2,5,$data);
+	my $serialNumber = unpack('I',substr $data,2,5);
+	print "Serial no: $serialNumber\n";
+	
+	my $day=unpack('C',substr $data,6,6);
+	my $mon=unpack('C',substr $data,7,7);
+	ReverseByteOrder(8,9,$data);
+	my $year=unpack('S',substr $data,8,9);
+	my $hr=unpack('C',substr $data,10,10);
+	print "Build time: $year-$mon-$day $hr:00\n";
+	
+	ReverseByteOrder(11,12,$data);
+	$hwCode=unpack('S',substr $data,11,12);
+	print "Hardware code: $hwCode\n";
+}
+
+#----------------------------------------------------------------------------
 sub GetFirmwareVersion
 {
 	print "\n+++ Firmware version (0x1C-01)\n";
@@ -333,7 +355,7 @@ sub GetFirmwareVersion
 
 	my $L1 = unpack('C',substr $data,10,10);
 	my $productName=substr $data,11,10+$L1;
-	print "Product name: $productName\n",
+	print "Product name: $productName\n";
 }
 
 #----------------------------------------------------------------------------
