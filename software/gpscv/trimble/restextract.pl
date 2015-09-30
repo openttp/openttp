@@ -29,7 +29,10 @@
 
 use Getopt::Std;
 use TFLibrary;
-use vars qw($opt_a $opt_h $opt_m $opt_l $opt_L $opt_u $opt_s $opt_t $opt_v);
+use vars qw($opt_a $opt_h $opt_m $opt_l $opt_L $opt_u $opt_p $opt_r $opt_s $opt_t $opt_v $opt_x);
+
+$M_PI=4*atan2(1,1);
+$CVACUUM=299792458.0;
 
 $SKIP=-1;
 $MSG8F=1;
@@ -37,20 +40,25 @@ $MSG6D=2;
 $MSG45=3;
 $MSG47=4;
 $MSG58=5;
+$MSG5A=6;
+$MSG84=7;
 
 $RESOLUTION_T=0;
 #$RESOLUTION_SMT=1;
 $RESOLUTION_360=2;
 
 # Parse command line
-if (!getopts('hm:stlLuav')){
+if (!getopts('hm:pr:stlLuavx')){
   &ShowHelp();
   exit;
 }
 
+$svn=999;
+
 if ($opt_h){&ShowHelp();exit;}
 
 if ($opt_m){$mjd=$opt_m;}else{$mjd=int(time()/86400) + 40587;}
+if ($opt_r){$svn=$opt_r;}
 
 $home=$ENV{HOME};
 if (-d "$home/etc")  {$configpath="$home/etc";}  else 
@@ -116,6 +124,8 @@ while (<RXDATA>)
 	elsif(/^45 /){$msg=$MSG45;}
 	elsif(/^47 /){$msg=$MSG47;}
 	elsif(/^58 /) {$msg=$MSG58;}
+	elsif(/^5A /) {$msg=$MSG5A;}
+	elsif(/^84 /) {$msg=$MSG84;}
 	next unless ($msg != $SKIP);
 	
   chop;
@@ -143,7 +153,7 @@ while (<RXDATA>)
 			@data=unpack "CISsC6S",(pack "H*",$_[2]);
 			if ($opt_u) {print $data[3]," ";}
 		}
-		elsif (($opt_t || $opt_l) && ($submsg eq "ac"))
+		elsif (($opt_t || $opt_l || $opt_x) && ($submsg eq "ac"))
 		{
 			$_[2]=substr $_[2],2;
 			&ReverseByteOrder(4,7,$_[2]); 
@@ -154,9 +164,9 @@ while (<RXDATA>)
 			&ReverseByteOrder(24,27,$_[2]);
 			&ReverseByteOrder(28,31,$_[2]);
 			&ReverseByteOrder(32,35,$_[2]);
-			&ReverseByteOrder(36,43,$_[2]);
-			&ReverseByteOrder(44,51,$_[2]);
-			&ReverseByteOrder(52,59,$_[2]);
+			&ReverseByteOrder(36,43,$_[2]); # lat
+			&ReverseByteOrder(44,51,$_[2]); # lon
+			&ReverseByteOrder(52,59,$_[2]); # alt
 			&ReverseByteOrder(60,63,$_[2]);
 			&ReverseByteOrder(64,67,$_[2]);
 			@data=unpack "C4IS2C4f2If2d3fI",(pack "H*",$_[2]);
@@ -164,6 +174,7 @@ while (<RXDATA>)
 				$bits = ($data[6] & (0x01 << 7)) >> 7;
 				print $bits," ";}
 			if ($opt_t) {print $data[15]," ";}
+			if ($opt_x){ printf "%04x %02x %e %e %e",$data[6],$data[7],$data[16]*180.0/$M_PI,$data[17]*180.0/$M_PI,$data[18];} 
 		}
 		elsif ($opt_v && ($submsg eq "41"))
 		{
@@ -236,7 +247,33 @@ while (<RXDATA>)
 				print " delta_t_ls=$utc[19] delta_t_lsf=$utc[24] "
 			}
 	}
-	
+	elsif(($msg==$MSG5A) && $opt_r)
+	{
+		$_[2]=substr $_[2],2;
+		&ReverseByteOrder(1,4,$_[2]);
+		&ReverseByteOrder(5,8,$_[2]);
+		&ReverseByteOrder(9,12,$_[2]);
+		&ReverseByteOrder(13,16,$_[2]);
+		&ReverseByteOrder(17,24,$_[2]);
+		@rawmeas = unpack("Cf4d",pack "H*",$_[2]);
+		if  ($svn==999){ 
+			print "\n$rawmeas[0] ",$rawmeas[3]*61.0948*1.0E-9," $rawmeas[5]";
+		}
+		elsif ($svn==$rawmeas[0]){
+			print "$rawmeas[0] ",$rawmeas[3]*61.0948*1.0E-9," $rawmeas[5]";
+		}
+	}
+	elsif(($msg==$MSG84) && $opt_p)
+	{
+		$_[2]=substr $_[2],2;
+		&ReverseByteOrder(0,7,$_[2]); # lat
+		&ReverseByteOrder(8,15,$_[2]); # lon
+		&ReverseByteOrder(16,23,$_[2]);# alt
+		&ReverseByteOrder(24,31,$_[2]); # clock bias
+		&ReverseByteOrder(32,35,$_[2]); # time of fix
+		@pos = unpack("d4f",pack "H*",$_[2]);
+		print " ",$pos[0]*180.0/$M_PI," ",$pos[1]*180.0/$M_PI," ",$pos[2]," ",$pos[3]/$CVACUUM," ",$pos[4];
+	}
 }
 print "\n";
 close RXDATA;
@@ -246,16 +283,19 @@ if (1==$zipit) {`gzip $infile`;}
 #----------------------------------------------------------------------------
 sub ShowHelp()
 {
-	print "Usage: $0 [-h] [-m mjd] [-a] [-t] [-l] [-L] [-u] [-v]\n";
+	print "Usage: $0 [-h] [-m mjd] [-a] [-r] [-t] [-l] [-L] [-u] [-v]\n";
   print "  -m mjd  MJD\n";
 	print "  -a      extract S/N for visible satellites (47)\n";
-	print "  -a      show this help\n";
-	print "  -t      extract temperature (8FAC)\n";
-	print "  -l      extract leap second warning(8FAC)\n";
-	print "  -L      extract leap second info (5805)\n";
-	print "  -s      extract number of visible satellites\n";
-	print "  -u      extract UTC offset (8FAB)\n";
-	print "  -v      extract software versions\n";
+	print "  -h      show this help\n";
+	print "  -t      temperature (8FAC)\n";
+	print "  -l      leap second warning(8FAC)\n";
+	print "  -L      leap second info (5805)\n";
+	print "  -p      position fix message\n";
+	print "  -r svn  pseudoranges (svn=999 reports all)\n";
+	print "  -s      number of visible satellites\n";
+	print "  -u      UTC offset (8FAB)\n";
+	print "  -v      software versions\n";
+	print "  -x      alarms and gps decoding status\n";
 }
 
 #----------------------------------------------------------------------------
