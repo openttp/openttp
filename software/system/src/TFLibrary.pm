@@ -52,7 +52,7 @@ package TFLibrary;
 # 22. 2.12  MJW &TFMakeHash2 merges with an optional default config file. Bug fix - chomp()
 #								instead of chop
 # 16-08-12 MJW &TFMakeHash2 removes leading whitespace from the token, comments etc
-#
+# 13-01-16  MJW &TFMakeHash2 allows values with multiple lines
 
 use Exporter;
 @ISA = qw(Exporter);
@@ -77,32 +77,59 @@ sub MakeHash
 	my ($inname,%options)=@_;
   my $infile=new FileHandle;
   my %hash=();
-  my $key;
+  my ($key,$value,$token);
 
   %options=() unless %options;
   unless (open $infile,$inname) {
 		carp "Can't open hash data file $inname: $!";
     return %hash; # which is empty
   }
-		$key="";
-		while (<$infile>) {
-			if (!/^\s*#/) { # skip comments
-				chomp;
-				s/#.*$//; # remove trailing comments
-				s/\s+$//; # remove trailing whitespace
-				s/^\s+//; # remove leading whitespace
-				next unless $_; # undefined - must have been an empty line
-				if (/^\s*\[(.+)\]/) {$key=$1}
+  
+	$token="";
+	$value="";
+	$key="";
+	
+	while (<$infile>) {
+		if (!/^\s*#/) { # skip comments
+			chomp;
+			s/#.*$//; # remove trailing comments
+			s/\s+$//; # remove trailing whitespace
+			s/^\s+//; # remove leading whitespace
+			next unless $_; # undefined - must have been an empty line
+			if (/^\s*\[(.+)\]/) {
+				if (length($value)>0){ # new key so save any running hash value
+						$hash{$token}=$value;
+						$token="";$value="";
+					}
+					$key=$1;
+				}
 				elsif (/\s*=\s*/) {
-					@_=split /\s*=\s*/; # this strips white space around the delimiter 
-					if (!($key eq "")) {$_[0] = $key.":".$_[0];}
-				} 
-				else {@_=split} # not sure why this is allowed
-				next unless @_==2;
-				$_[0]=~tr/A-Z/a-z/ if defined $options{tolower};
-				$hash{$_[0]}=$_[1];
+					if (length($value)>0){ # new token/value so save any running hash value
+						$hash{$token}=$value;
+						$token="";$value="";
+					}
+					@_=split /\s*=\s*/; # this strips white space around the delimiter
+					next unless @_==2;
+					$token = $_[0];
+					if (length($key)>0) {
+						$token = $key.":".$token;
+					}
+					$token =~ tr/A-Z/a-z/ if defined $options{tolower};
+					$value = $_[1];
+			} 
+			else{ # this is appended to the current value
+				if (length($value)>0){
+					$value .= $_;
+				}
 			}
 		}
+	}
+	
+	# Add the last token
+	if (length($value)>0){
+		$hash{$token}=$value;
+	}
+	
   close $infile;
 
   return %hash;
