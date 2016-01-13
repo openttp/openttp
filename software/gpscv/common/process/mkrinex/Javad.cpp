@@ -38,6 +38,7 @@
 #include <vector>
 
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
 
 #include "Debug.h"
@@ -360,11 +361,15 @@ bool Javad::readLog(string fname,int mjd)
 			string rxinfo = rxid.at(idx) + rxid.at(idx+1) + rxid.at(idx+2) + rxid.at(idx+3);
 			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'{'), rxinfo.end());
 			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'}'), rxinfo.end());
+			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'\"'), rxinfo.end());
 			std::vector<std::string> vals;
 			boost::split(vals, rxinfo,boost::is_any_of(","), boost::token_compress_on);
+			boost::algorithm::trim_left(vals.at(0));
 			serialNumber = vals.at(0);
 			modelName = vals.at(1);
-			DBGMSG(debugStream,3,"rx s/n " << vals.at(0));
+			boost::algorithm::trim_left(vals.at(4));
+			swversion = vals.at(4)+" "+vals.at(5)+" "+vals.at(6);
+			DBGMSG(debugStream,3,"rx s/n " << vals.at(0) << ",model " << modelName << ",sw " << swversion);
 			
 		}
 		else{
