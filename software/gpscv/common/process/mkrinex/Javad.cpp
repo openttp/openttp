@@ -30,11 +30,15 @@
 #include <cstring>
 #include <cmath>
 
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <vector>
+
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/split.hpp>
 
 #include "Debug.h"
 #include "Antenna.h"
@@ -82,7 +86,6 @@ bool Javad::readLog(string fname,int mjd)
 	string line;
 	int linecount=0;
 	bool newsecond=false;
-	bool gotrxid=false;
 	
 	string msgid,currpctime,pctime,msg,gpstime;
 	
@@ -90,6 +93,8 @@ bool Javad::readLog(string fname,int mjd)
 	UINT16 gpswn;
 	float rxtimeoffset; // single
 	float sawtooth;     // single
+	
+	vector<string> rxid;
 	
 	vector<SVMeasurement *> gps;
 	gotIonoData = false;
@@ -110,8 +115,11 @@ bool Javad::readLog(string fname,int mjd)
 			if (line.size()==0) continue; // skip empty line
 			if ('#' == line.at(0)) continue; // skip comments
 			if ('%' == line.at(0)) continue;
+		
 			if ('@' == line.at(0)){ 
-				if (!gotrxid){
+				size_t pos;
+				if (string::npos != (pos = line.find("RXID",2 )) ){
+					rxid.push_back(line.substr(pos+4,line.size()-pos-4));
 				}
 				continue;
 			}
@@ -345,6 +353,23 @@ bool Javad::readLog(string fname,int mjd)
 	}
 	infile.close();
 
+	// Extract the receiver id
+	if (rxid.size() !=0) {
+		if ((rxid.size() % 4 == 0)){
+			int idx = (rxid.size() / 4) -1;
+			string rxinfo = rxid.at(idx) + rxid.at(idx+1) + rxid.at(idx+2) + rxid.at(idx+3);
+			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'{'), rxinfo.end());
+			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'}'), rxinfo.end());
+			std::vector<std::string> vals;
+			boost::split(vals, rxinfo,boost::is_any_of(","), boost::token_compress_on);
+			serialNumber = vals.at(0);
+			modelName = vals.at(1);
+			DBGMSG(debugStream,3,"rx s/n " << vals.at(0));
+			
+		}
+		else{
+		}
+	}
 	
 	DBGMSG(debugStream,1,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,1,measurements.size() << " measurements read");
