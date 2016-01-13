@@ -40,6 +40,7 @@
 #include "Antenna.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
+#include "Javad.h"
 #include "ReceiverMeasurement.h"
 #include "Receiver.h"
 #include "MakeRINEX.h"
@@ -184,7 +185,10 @@ MakeRINEX::MakeRINEX(int argc,char **argv)
 	}
 
 	
-	loadConfig();
+	if (!loadConfig()){
+		cerr << "Configuration failed - exiting" << endl;
+		exit(EXIT_FAILURE);
+	}
 
 	
 	// Note: can't get any debugging output until the command line is parsed !
@@ -381,6 +385,11 @@ bool MakeRINEX::loadConfig()
 	if (rxManufacturer.find("Trimble") != string::npos){
 		if (rxModel.find("Resolution") != string::npos){
 			receiver = new TrimbleResolution(antenna,rxModel); 
+		}
+	}
+	else if (rxManufacturer.find("Javad") != string::npos){
+		if (rxModel.find("Javad") != string::npos){
+			receiver = new Javad(antenna,rxModel); 
 		}
 	}
 	
