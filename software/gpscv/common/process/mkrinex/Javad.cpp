@@ -198,26 +198,7 @@ bool Javad::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr(22*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &sint8buf);
 						utcData.dt_LSF=sint8buf;
 						DBGMSG(debugStream,1,"UTC parameters: dtLS=" << utcData.dtlS << ",dt_LSF=" << utcData.dt_LSF);
-						
-						//Shouldn't get leap seconds == 0
-						if (!(utcData.dtlS == 0 && utcData.dt_LSF == 0)) {
-							gotUTCdata=true;
-							
-							// Figure out when the leap second is/was scheduled; we only have the low
-							// 8 bits of the week number in WN_LSF, but we know that "the
-							// absolute value of the difference between the untruncated WN and Wlsf
-							// values shall not exceed 127" (ICD 20.3.3.5.2.4, p122)
-							int gpsWeek=int ((mjd-44244)/7);
-							int gpsSchedWeek=(gpsWeek & ~0xFF) | utcData.WN_LSF;
-							while ((gpsWeek-gpsSchedWeek)> 127) {gpsSchedWeek+=256;}
-							while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
-							int gpsSchedMJD=44244+7*gpsSchedWeek+utcData.DN;
-							// leap seconds is either tls or tlsf depending on past/future schedule
-							leapsecs=(mjd>=gpsSchedMJD? utcData.dt_LSF : utcData.dtlS);
-						}
-					}
-					else{
-						DBGMSG(debugStream,1,"Bad U) message size");
+						gotUTCdata = setCurrentLeapSeconds(mjd,utcData);
 					}
 				}
 			}
@@ -328,19 +309,7 @@ bool Javad::readLog(string fname,int mjd)
 					HexToBin((char *) msg.substr(118*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->C_is));
 						
 					DBGMSG(debugStream,3,"Ephemeris: SVN="<< (unsigned int) ed->SVN << ",toe="<< ed->t_oe << ",IODE=" << (int) ed->IODE);
-					// Check whether this is a duplicate
-					int issue;
-					for (issue=0;issue < (int) sortedGPSEphemeris[ed->SVN].size();issue++){
-						if (sortedGPSEphemeris[ed->SVN][issue]->t_oe == ed->t_oe)
-							break;
-					}
-					if (issue == (int) sortedGPSEphemeris[ed->SVN].size() || sortedGPSEphemeris[ed->SVN].size()==0){
-						ephemeris.push_back(ed);
-						sortedGPSEphemeris[ed->SVN].push_back(ed);
-					}
-					else{
-						DBGMSG(debugStream,1,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
-					}
+					addGPSEphemeris(ed);
 					continue;
 				}
 				

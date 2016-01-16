@@ -141,7 +141,8 @@ class Receiver
 		
 	protected:
 	
-		void sortGPSEphemeris();
+		bool setCurrentLeapSeconds(int,UTCData &);
+		void addGPSEphemeris(EphemerisData *);
 		
 		bool gotUTCdata,gotIonoData;
 		

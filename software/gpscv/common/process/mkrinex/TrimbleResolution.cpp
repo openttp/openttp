@@ -221,7 +221,8 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					rmeas->timeoffset=rxtimeoffset;
 					
 					
-					// Calculate the GPS date - 8fab packet is configured for UTC date
+					// 8fab packet is configured for UTC date
+					// so save this so that we can calculate GPS date later when the number of leap seconds is known
 					
 					rmeas->tmutc.tm_sec=fabss;
 					rmeas->tmutc.tm_min=fabmm;
@@ -374,23 +375,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 							HexToBin((char *) reversestr(msg.substr(39*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &utcData.DN);
 							HexToBin((char *) reversestr(msg.substr(41*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &utcData.dt_LSF);
 							DBGMSG(debugStream,1,"UTC parameters: dtLS=" << utcData.dtlS << ",dt_LSF=" << utcData.dt_LSF);
-							//Check what we got - the first message after the receiver starts is generally empty 
-							//Shouldn't get leap seconds == 0
-							if (!(utcData.dtlS == 0 && utcData.dt_LSF == 0)) {
-								gotUTCdata=true;
-								
-								// Figure out when the leap second is/was scheduled; we only have the low
-								// 8 bits of the week number in WN_LSF, but we know that "the
-								// absolute value of the difference between the untruncated WN and Wlsf
-								// values shall not exceed 127" (ICD 20.3.3.5.2.4, p122)
-								int gpsWeek=int ((mjd-44244)/7);
-								int gpsSchedWeek=(gpsWeek & ~0xFF) | utcData.WN_LSF;
-								while ((gpsWeek-gpsSchedWeek)> 127) {gpsSchedWeek+=256;}
-								while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
-								int gpsSchedMJD=44244+7*gpsSchedWeek+utcData.DN;
-								// leap seconds is either tls or tlsf depending on past/future schedule
-								leapsecs=(mjd>=gpsSchedMJD? utcData.dt_LSF : utcData.dtlS);
-							}
+							gotUTCdata = setCurrentLeapSeconds(mjd,utcData);
 					}
 					else{
 						DBGMSG(debugStream,1,"Bad 580205 message size");
@@ -436,19 +421,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					HexToBin((char *) reversestr(msg.substr(155*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->OMEGA_N));
 					HexToBin((char *) reversestr(msg.substr(163*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->ODOT_n));
 					DBGMSG(debugStream,3,"Ephemeris: SVN="<< (unsigned int) ed->SVN);
-					// Check whether this is a duplicate
-					int issue;
-					for (issue=0;issue < (int) sortedGPSEphemeris[ed->SVN].size();issue++){
-						if (sortedGPSEphemeris[ed->SVN][issue]->t_oe == ed->t_oe)
-							break;
-					}
-					if (issue == (int) sortedGPSEphemeris[ed->SVN].size() || sortedGPSEphemeris[ed->SVN].size()==0){
-						ephemeris.push_back(ed);
-						sortedGPSEphemeris[ed->SVN].push_back(ed);
-					}
-					else{
-						DBGMSG(debugStream,1,"Ephemeris: Duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
-					}
+					addGPSEphemeris(ed);
 					continue;
 				}
 				else{
@@ -477,7 +450,6 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	
 	// Fix 1 ms ambiguities/steps in the pseudo range
 	// Do this initially and then every time a step is detected
-	sortGPSEphemeris();
 	
 	for (int prn=1;prn<=32;prn++){
 		unsigned int lasttow=99999999,currtow=99999999;
