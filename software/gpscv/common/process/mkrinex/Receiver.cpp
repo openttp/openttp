@@ -55,38 +55,82 @@ Receiver::~Receiver()
 // protected
 //
 
-void Receiver::sortGPSEphemeris()
+bool Receiver::setCurrentLeapSeconds(int mjd,UTCData &utcd)
 {
-	// Assemble a sorted, chronologically ordered hash table for quick lookup of ephemeris
-	
-	// Make the hash table - SVN is hashing function
-	//for (unsigned int i=0;i<ephemeris.size();i++){
-	//	sortedGPSEphemeris[ephemeris[i]->SVN].push_back(ephemeris[i]);
-	//}
-	
-	// Lists are short so a bubble sort is fine
-	for (unsigned int sv=1;sv<=Receiver::NGPSSATS;sv++){
-		
-		int swaps=1;
-		while (swaps){
-			swaps=0;
-			for(int issue=0;issue <= (int) sortedGPSEphemeris[sv].size()-2;issue++){
-				if(sortedGPSEphemeris[sv][issue]->t_oe > sortedGPSEphemeris[sv][issue+1]->t_oe){ 	//swap them
-					EphemerisData *temp=sortedGPSEphemeris[sv][issue+1];
-					sortedGPSEphemeris[sv][issue+1]=sortedGPSEphemeris[sv][issue];
-					sortedGPSEphemeris[sv][issue]=temp;
-					swaps=1;
-				} 
-			} 
-		}
+	if (!(utcData.dtlS == 0 && utcData.dt_LSF == 0)){ 
+		// Figure out when the leap second is/was scheduled; we only have the low
+		// 8 bits of the week number in WN_LSF, but we know that "the
+		// absolute value of the difference between the untruncated WN and Wlsf
+		// values shall not exceed 127" (ICD 20.3.3.5.2.4, p122)
+		int gpsWeek=int ((mjd-44244)/7);
+		int gpsSchedWeek=(gpsWeek & ~0xFF) | utcData.WN_LSF;
+		while ((gpsWeek-gpsSchedWeek)> 127) {gpsSchedWeek+=256;}
+		while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
+		int gpsSchedMJD=44244+7*gpsSchedWeek+utcData.DN;
+		// leap seconds is either tls or tlsf depending on past/future schedule
+		leapsecs=(mjd>=gpsSchedMJD? utcData.dt_LSF : utcData.dtlS);
+		return true;
 	}
-	
-	for (unsigned int sv=1;sv<=Receiver::NGPSSATS;sv++){
-		for(int issue=0;issue < (int) sortedGPSEphemeris[sv].size();issue++){
-			DBGMSG(debugStream,1,sv << " " << sortedGPSEphemeris[sv][issue]->t_oe);
-		}
-	}
+	return false;
 }
+
+void Receiver::addGPSEphemeris(EphemerisData *ed)
+{
+	// Check whether this is a duplicate
+	int issue;
+	for (issue=0;issue < (int) sortedGPSEphemeris[ed->SVN].size();issue++){
+		if (sortedGPSEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
+			DBGMSG(debugStream,1,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
+			return;
+		}
+	}
+	
+	if (ephemeris.size()>0){
+
+		// Update the ephemeris list - this is time-ordered
+		std::vector<EphemerisData *>::iterator it;
+		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
+				DBGMSG(debugStream,1,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
+				ephemeris.insert(it,ed);
+				break;
+			}
+		}
+		
+		if (it == ephemeris.end()){ // got to end, so append
+			DBGMSG(debugStream,1,"appending " << ed->t_OC);
+			ephemeris.push_back(ed);
+		}
+		
+		// Update the ephemeris hash - 
+		if (sortedGPSEphemeris[ed->SVN].size() > 0){
+			std::vector<EphemerisData *>::iterator it;
+			for (it=sortedGPSEphemeris[ed->SVN].begin(); it<sortedGPSEphemeris[ed->SVN].end(); it++){
+				if (ed->t_OC < (*it)->t_OC){ 
+					DBGMSG(debugStream,1,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
+					sortedGPSEphemeris[ed->SVN].insert(it,ed);
+					break;
+				}
+			}
+			if (it == sortedGPSEphemeris[ed->SVN].end()){ // got to end, so append
+				DBGMSG(debugStream,1,"hash appending " << ed->t_OC);
+				sortedGPSEphemeris[ed->SVN].push_back(ed);
+			}
+		}
+		else{ // first one for this SVN
+			DBGMSG(debugStream,1,"first for svn " << (int) ed->SVN);
+			sortedGPSEphemeris[ed->SVN].push_back(ed);
+		}
+	}
+	else{ //first one
+		DBGMSG(debugStream,1,"first eph ");
+		ephemeris.push_back(ed);
+		sortedGPSEphemeris[ed->SVN].push_back(ed);
+		return;
+	}
+	
+}
+
 
 EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int wn,int tow)
 {

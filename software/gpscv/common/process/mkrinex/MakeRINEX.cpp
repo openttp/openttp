@@ -40,6 +40,8 @@
 #include "Antenna.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
+#include "Javad.h"
+#include "NVS.h"
 #include "ReceiverMeasurement.h"
 #include "Receiver.h"
 #include "MakeRINEX.h"
@@ -82,7 +84,10 @@ static struct option longOptions[] = {
 
 MakeRINEX::MakeRINEX(int argc,char **argv)
 {
+
 	init();
+	
+	
 	
 	// Process the command line options
 	// These override anything in the configuration file, default or specified
@@ -182,9 +187,11 @@ MakeRINEX::MakeRINEX(int argc,char **argv)
 			
 		}
 	}
-
 	
-	loadConfig();
+	if (!loadConfig()){
+		cerr << "Configuration failed - exiting" << endl;
+		exit(EXIT_FAILURE);
+	}
 
 	
 	// Note: can't get any debugging output until the command line is parsed !
@@ -381,6 +388,16 @@ bool MakeRINEX::loadConfig()
 	if (rxManufacturer.find("Trimble") != string::npos){
 		if (rxModel.find("Resolution") != string::npos){
 			receiver = new TrimbleResolution(antenna,rxModel); 
+		}
+	}
+	else if (rxManufacturer.find("Javad") != string::npos){
+		if (rxModel.find("Javad") != string::npos){
+			receiver = new Javad(antenna,rxModel); 
+		}
+	}
+	else if (rxManufacturer.find("NVS") != string::npos){
+		if (rxModel.find("NV08") != string::npos){
+			receiver = new NVS(antenna,rxModel); 
 		}
 	}
 	
@@ -934,6 +951,7 @@ void MakeRINEX::writeSVDiagnostics(Receiver *rx,string path)
 	FILE *fout;
 	
 	// GPS
+	
 	for (int prn=1;prn<=32;prn++){
 		ostringstream sstr;
 		sstr << path << "/G" << prn << ".dat";
