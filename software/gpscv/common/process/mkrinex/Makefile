@@ -3,43 +3,48 @@ CXX = g++
 INCLUDE = -I/usr/local/include 
 LDFLAGS= 
 LIBS= -lconfigurator
-CXXFLAGS= -Wall -DDEBUG
-OBJECTS = Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o MakeRINEX.o Javad.o TrimbleResolution.o Utility.o
+CXXFLAGS= -Wall -DDEBUG -g
+CFGFLAGS= -DNVS_INTERPOLATE
+OBJECTS = Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o MakeRINEX.o Javad.o NVS.o TrimbleResolution.o Utility.o
 
 all: $(PROGRAM)
 
 Antenna.o: Antenna.cpp Antenna.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c Antenna.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Antenna.cpp
 	
 Counter.o: Counter.cpp Counter.h CounterMeasurement.h Debug.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c Counter.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Counter.cpp
 
 GPS.o: GPS.cpp  Debug.h GPS.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c GPS.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GPS.cpp
 
 HexBin.o: HexBin.cpp HexBin.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c HexBin.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c HexBin.cpp
 
 Javad.o: Javad.cpp Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h Javad.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c Javad.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Javad.cpp
+
+NVS.o: NVS.cpp Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h NVS.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c NVS.cpp
 	
 Main.o: Main.cpp Debug.h MakeRINEX.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c Main.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Main.cpp
 
 Receiver.o: Receiver.cpp Antenna.h Debug.h Receiver.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c Receiver.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Receiver.cpp
 	
 RIN2CGGTTS.o: RIN2CGGTTS.cpp RIN2CGGTTS.h Utility.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c RIN2CGGTTS.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RIN2CGGTTS.cpp
 
-MakeRINEX.o: MakeRINEX.cpp MakeRINEX.h Antenna.h Counter.h Receiver.h SVMeasurement.h Javad.h TrimbleResolution.h Utility.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c MakeRINEX.cpp
+MakeRINEX.o: MakeRINEX.cpp MakeRINEX.h Antenna.h Counter.h Receiver.h SVMeasurement.h Javad.h NVS.h \
+	ReceiverMeasurement.h TrimbleResolution.h Utility.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c MakeRINEX.cpp
 
 TrimbleResolution.o: TrimbleResolution.cpp Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h TrimbleResolution.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c TrimbleResolution.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c TrimbleResolution.cpp
 
 Utility.o: Utility.cpp Utility.h
-	$(CXX) $(CXXFLAGS) $(INCLUDE)  -c Utility.cpp
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Utility.cpp
 	
 $(PROGRAM): $(OBJECTS)
 	$(CXX) $(LDFLAGS) -o $(PROGRAM) $(OBJECTS) $(LIBS)
