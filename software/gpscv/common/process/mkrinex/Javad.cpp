@@ -21,6 +21,10 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+//
+// Credits: the nitty gritty of this code is based on code by R. Bruce Warrington, which in turn was based on code 
+// written by Peter Fisk
+//
 
 #include <stdio.h>
 #include <cstdlib>
@@ -61,12 +65,26 @@ extern ostream *debugStream;
 #define F4 float
 #define F8 double
 
+#define MAX_CHANNELS 32
+
+// Receiver message flags
+#define AZ_MSG 0x01
+#define EL_MSG 0x02
+#define FC_MSG 0x04
+#define RC_rc_MSG 0x08
+#define SI_MSG 0x10
+#define SS_MSG 0x20
+#define TO_MSG 0x40
+#define YA_MSG 0x80
+#define ZA_MSG 0x100
+
 Javad::Javad(Antenna *ant,string m):Receiver(ant)
 {
   //model="Javad ";
 	manufacturer="Javad";
 	swversion="0.1";
 	constellations=Receiver::GPS;
+	dualFrequency=false;
 }
 
 Javad::~Javad()
@@ -86,14 +104,13 @@ bool Javad::readLog(string fname,int mjd)
 	ifstream infile (fname.c_str());
 	string line;
 	int linecount=0;
-	bool newsecond=false;
 	
 	string msgid,currpctime,pctime,msg,gpstime;
 	
 	unsigned int gpstow;
 	UINT16 gpswn;
-	float rxtimeoffset; // single
-	float sawtooth;     // single
+	F8 rxTimeOffset;
+	F4 sawtooth;  
 	
 	vector<string> rxid;
 	
@@ -103,11 +120,28 @@ bool Javad::readLog(string fname,int mjd)
 	UINT8 fabss,fabmm,fabhh,fabmday,fabmon;
 	UINT16 fabyyyy;
 	
-	U2 uint8buf;
+	U1 uint8buf;
 	I1 sint8buf;
 	I2 sint16buf;
 	I4 sint32buf;
-	U4 uint32buf;
+	U4 u4buf;
+	
+	unsigned int currMsgs=0,reqdMsgs;
+	int nSats;
+	unsigned char trackedSVs[MAX_CHANNELS];
+	unsigned char navStatus[MAX_CHANNELS];
+	unsigned char elevs[MAX_CHANNELS];
+	unsigned char azimuths[MAX_CHANNELS];
+	F8 CApr[MAX_CHANNELS];
+	unsigned char CAlockFlags[MAX_CHANNELS*2];
+	
+	I4 i4bufarray[MAX_CHANNELS];
+	F8 f8bufarray[MAX_CHANNELS];
+	
+	F8 smoothingOffset;
+	int rcCnt=0,RCcnt=0;
+	
+	reqdMsgs = AZ_MSG | EL_MSG | FC_MSG | RC_rc_MSG| SI_MSG | SS_MSG | TO_MSG | YA_MSG| ZA_MSG;
 	
   if (infile.is_open()){
     while ( getline (infile,line) ){
@@ -125,30 +159,205 @@ bool Javad::readLog(string fname,int mjd)
 				continue;
 			}
 			stringstream sstr(line);
+			
+			// Basic check on the format 
+			if ( (line.size() < 16) || // too short
+				(line.at(2) != ' ') || // missing delimiter
+				(line.at(5) != ':') || // missing delimiter
+				(line.at(8) != ':') ||
+				(line.at(11) != ' '))
+				continue;
+			
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){
 				DBGMSG(debugStream,1," bad data at line " << linecount);
-				newsecond=false; // reset the state machine
-				gps.clear();
 				continue;
 			}
 			
-// IO Ionosphere parameters
-// 0 0  u4 tot; // Time of week [s]
-// 1 4 u2 wn; // Week number (taken from the first subframe)
-// // The coefficients of a cubic equation representing
-// // the amplitude of the vertical delay
-// 2 6 f4 alpha0; // [s]
-// 3 10 f4 alpha1; // [s/semicircles]
-// 4 14 f4 alpha2; // [s/semicircles2]
-// 5 18 alpha3; // [s/semicircles3]
-// // The coefficients of a cubic equation representing
-// // the period of the model
-// 6 22 beta0; // [s]
-// 7 26 f4 beta1; // [s/semicircles]
-// 8 30 f4 beta2; // [s/semicircles2]
-// 9 34 f4 beta3; // [s/semicircles3]
-//10 38 u1 cs; // Checksum
+			// Some messages we just don't want
+			if (msgid == "NP"){
+				continue;
+			}
+			
+			// FIXME Valid checksum?
+			// If we compute a valid checksum, then checking the message size is a bit paranoid
+			//HexToBin(hexdata,count/2,rawdata);
+			//sprintf(temp,"%s%03X",command,count/2);
+			//for (i=0;i<count/2;i++) temp[i+5] = rawdata[i];
+			//if (cs(temp,count/2 + 5 - 1 ) != rawdata[count/2 - 1]) continue;
+		
+			//
+			// Messages that occur once per second
+			//
+			
+			// The Receiver Time message starts each second
+			if (msgid == "~~"){
+				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // save measurements
+					
+				}
+				
+				if (msg.size() == 5*2 ){
+					HexToBin((char *) msg.substr(0,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+				}
+				else{
+					DBGMSG(debugStream,1," bad data at line " << linecount);
+				}
+				currMsgs=0;
+				rcCnt=RCcnt=0;
+				continue;
+			}
+			
+			if(msgid=="SI"){ // Satellite Indices (SI) message
+				if (currMsgs & SI_MSG){
+					currMsgs=0; // unexpected SI message
+					rcCnt=RCcnt=0;
+					continue;
+				}
+				// Can't check the message size!
+				currMsgs |= SI_MSG;
+				nSats=(msg.size() - 2) / 2;
+				HexToBin((char *) msg.c_str(),nSats,trackedSVs);
+				continue;
+			}
+
+			if(msgid=="TO"){ // Reference Time to Receiver Time Offset (TO) message 
+				if (msg.size() == 9*2){
+					HexToBin((char *) msg.c_str(),sizeof(F8),(unsigned char *) &rxTimeOffset);
+					// Discard outliers
+					if ((fabs(rxTimeOffset)>0.001) || (fabs(rxTimeOffset)<1E-10)){
+						DBGMSG(debugStream,1," TO outlier at line " << linecount << ":" << rxTimeOffset);
+					}
+					else{
+						currMsgs |= TO_MSG;
+					}
+				}
+				else{
+					DBGMSG(debugStream,1," TO msg wrong size at line " << linecount);
+				}
+				continue;
+			}
+			
+			if(msgid=="YA"){ // smoothing offset (YA) message
+				if (msg.size() == 10*2){
+					HexToBin((char *) msg.c_str(),sizeof(F8),(unsigned char *) &smoothingOffset);
+					// Discard outliers. YA is occasionally reported as zero following a tracking glitch.
+					if ((fabs(smoothingOffset)>0.001) || (smoothingOffset==0)){
+						DBGMSG(debugStream,1," YA outlier at line " << linecount << ":" << smoothingOffset);
+					}
+					else{
+						currMsgs |= YA_MSG;
+					}
+				}
+				else{
+					DBGMSG(debugStream,1," YA msg wrong size at line " << linecount << ":" << msg.size());
+				}
+				continue;
+			}
+			
+			if(msgid=="ZA"){ // PPS offset (ZA) message
+				if (msg.size() == 5*2){
+					HexToBin((char *) msg.c_str(),sizeof(F4),(unsigned char *) &sawtooth);
+					// Discard outliers
+					if (fabs(sawtooth)> 50.0){
+						DBGMSG(debugStream,1," ZA outlier at line " << linecount << ":" << sawtooth);
+					}
+					else{
+						currMsgs |= ZA_MSG;
+					}
+				}
+				else{
+					DBGMSG(debugStream,1," ZA msg wrong size at line " << linecount);
+				}
+				continue;
+			}
+
+			// Need the SI message to parse the following messages
+			if (!(currMsgs & SI_MSG)) continue;
+			
+			if(msgid == "SS"){ //  Navigation Status (SS) message 
+				int ssnSats = (msg.size() - 4) / 2;
+				if (ssnSats == nSats){
+					HexToBin((char *) msg.c_str(),nSats,navStatus);
+					currMsgs |= SS_MSG;
+				}
+				else{
+					DBGMSG(debugStream,1," SS msg wrong size at line " << linecount << ":" << ssnSats << " " << nSats);	
+				}
+				continue;
+			}
+
+			if(msgid == "EL"){ //  Satellite Elevations (EL) message 
+				int elnSats = (msg.size() - 2) / 2;
+				if (elnSats == nSats){
+					HexToBin((char *) msg.c_str(),nSats,elevs);
+					currMsgs |= EL_MSG;
+				}
+				else{
+					DBGMSG(debugStream,1," EL msg wrong size at line " << linecount);	
+				}
+				continue;
+			}
+			
+			if(msgid == "AZ"){ //  Satellite Azimuths (AZ) message 
+				int aznSats = (msg.size() - 2) / 2;
+				if (aznSats == nSats){
+					HexToBin((char *) msg.c_str(),nSats,azimuths);
+					currMsgs |= AZ_MSG;
+				}
+				else{
+					DBGMSG(debugStream,1," AZ msg wrong size at line " << linecount);	
+				}
+				continue;
+			}
+		
+			// L1C measurements
+			if(msgid == "rc"){ // Delta C/A Pseudoranges (rc) message
+				if (RCcnt) continue; // full pseudoranges take precedence
+				int rcnSats = (msg.size() - 2) / 8;
+				if (rcnSats == nSats){
+					HexToBin((char *) msg.c_str(),nSats*sizeof(I4),(unsigned char *) (i4bufarray));
+					for (int i=0;i<nSats;i++) 
+						CApr[i] = (double)(i4bufarray[i])*1e-11 + 0.075;
+					currMsgs |= RC_rc_MSG;
+					rcCnt++;
+				}
+				else{
+					DBGMSG(debugStream,1," rc msg wrong size at line " << linecount);	
+				}
+				continue;
+			}
+
+			if(msgid == "RC"){ // Full C/A Pseudoranges (RC) message
+				int RCnSats = (msg.size() - 2) / 16;
+				if (RCnSats == nSats){
+					HexToBin((char *) msg.c_str(),nSats*sizeof(F8),(unsigned char *) (f8bufarray));
+					for (int i=0;i<nSats;i++) 
+						CApr[i] = (double) f8bufarray[i];
+					currMsgs |= RC_rc_MSG;
+					RCcnt++;
+				}
+				else{
+					DBGMSG(debugStream,1," RC msg wrong size at line " << linecount);	
+				}
+				continue;
+			}
+			
+			if(msgid == "FC"){ // F/A Signal Lock Flags (FC) message
+				int FCnSats = (msg.size() - 2) / 4;
+				if (FCnSats == nSats){
+					HexToBin((char *) msg.c_str(),nSats*sizeof(U2),(unsigned char *) (CAlockFlags));
+					currMsgs |= FC_MSG;
+				}
+				else{
+					DBGMSG(debugStream,1," FC msg wrong size at line " << linecount);	
+				}
+				continue;
+			}
+		
+			//
+			// Intermittent  messages
+			//
+			
 			if (!gotIonoData){
 				if (msgid=="IO"){
 					DBGMSG(debugStream,1,"ionosphere parameters");
@@ -167,28 +376,18 @@ bool Javad::readLog(string fname,int mjd)
 					else{
 						DBGMSG(debugStream,1,"Bad I0 message size");
 					}
+					continue;
 				}
 			}
-			
-// UO UTC parameters			
-//0 0 f8 a0; // Constant term of polynomial [s]
-//1 8 f4 a1; // First order term of polynomial [s/s]
-//2 12 u4 tot; // Reference time of week [s]
-//3 16 u2 wnt; // Reference week number []
-//4 18 i1 dtls; // Delta time due to leap seconds [s]
-//5 19 u1 dn; // 'Future' reference day number [1…7] []
-//6 20 u2 wnlsf; // 'Future' reference week number []
-//7 22 i1 dtlsf; // 'Future' delta time due to leap seconds [s]
-//8 23 u1 cs; // Checksum
-
+	
 			if (!gotUTCdata){
 				if (msgid=="UO"){
 					DBGMSG(debugStream,1,"UTC parameters");
 					if (msg.size()==24*2){
 						HexToBin((char *) msg.substr(0*2,2*sizeof(F8)).c_str(),sizeof(F8),(unsigned char *) &utcData.A0);
 						HexToBin((char *) msg.substr(8*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &utcData.A1);
-						HexToBin((char *) msg.substr(12*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &uint32buf);
-						utcData.t_ot=uint32buf;
+						HexToBin((char *) msg.substr(12*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+						utcData.t_ot=u4buf;
 						HexToBin((char *) msg.substr(16*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &utcData.WN_t);
 						HexToBin((char *) msg.substr(18*2,2*sizeof(I2)).c_str(),sizeof(I2),(unsigned char *) &utcData.dtlS);
 						HexToBin((char *) msg.substr(19*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &uint8buf);
@@ -200,67 +399,19 @@ bool Javad::readLog(string fname,int mjd)
 						DBGMSG(debugStream,1,"UTC parameters: dtLS=" << utcData.dtlS << ",dt_LSF=" << utcData.dt_LSF);
 						gotUTCdata = setCurrentLeapSeconds(mjd,utcData);
 					}
+					else{
+						DBGMSG(debugStream,1,"Bad U0 message size");
+					}
+					continue;
 				}
 			}
-			
-// GE GPS Ephemeris			
-//0 		0	u1 sv; // SV PRN number within the range [1…37]
-//1 		1	u4 tow; // Time of week [s]
-//2 		5	u1 flags; // Flags (see GPS ICD for details)[bitfield]:
-// 			// 0 - curve fit interval
-// 			// 1 - data flag for L2 P-code
-// 			// 2,3 - code on L2 channel
-// 			// 4 - anti-spoof (A-S) flag (from HOW)
-// 			// 5 - ‘Alert’ flag (from HOW)
-// 			// 6 - ephemeris was retrieved from non-volatile memory
-// 			// 7 - reserved
-// 			//===== Clock data (Subframe 1) =====
-//3 		6	i2 iodc; // Issue of data, clock []
-//4 		8	i4 toc; // Clock data reference time [s]
-//5 		12	i1 ura; // User range accuracy []
-//6 		13 	u1 healthS; // Satellite health []
-//7 		14	i2 wn; // Week number []
-//8 		16	f4 tgd; // Estimated group delay differential [s]
-//9 		20	f4 af2; // Polynomial coefficient [s/(s^2)]
-//10 		24	f4 af1; // Polynomial coefficient [s/s]
-//11 		28	f4 af0; // Polynomial coefficient [s]
-// 			//===== Ephemeris data (Subframes 2 and 3) =====
-//12 		32	i4 toe; // Ephemeris reference time [s]
-//13 		36	i2 iode; // Issue of data, ephemeris []
-// 			//--- Keplerian orbital parameters ---
-//14 		38	f8 rootA; // Square root of the semi-major axis [m^0.5]
-//15 		46	f8 ecc; // Eccentricity []
-//16 		54	f8 m0; // Mean Anomaly at reference time (wn,toe)
-// 			// [semi-circles]
-//17 		62	f8 omega0; // Longitude of ascending node of orbit plane at the
-// 			// start of week ‘wn’ [semi-circles]
-//18 		70	f8 inc0; // Inclination angle at reference time [semi-circles]
-//19 		78	f8 argPer; // Argument of perigee [semi-circles]
-// 			//--- Corrections to orbital parameters ---
-//20 		86	f4 deln; // Mean motion difference from computed value
-// 			// [semi-circle/s]
-//21 		90	f4 omegaDot; // Rate of right ascension [semi-circle/s]
-//22 		94	f4 incDot; // Rate of inclination angle [semi-circle/s]
-//23 		98	f4 crc; // Amplitude of the cosine harmonic correction term
-// 			// to the orbit radius [m]
-//24 		102	f4 crs; // Amplitude of the cosine harmonic correction term
-// 			// to the orbit radius [m]
-//25 		106	f4 cuc; // Amplitude of the cosine harmonic correction term
-// 			// to the argument of latitude [rad]
-//26 		110	f4 cus; // Amplitude of the cosine harmonic correction term
-// 			// to the argument of latitude [rad]
-//27 		114	f4 cic; // Amplitude of the cosine harmonic correction term
-// 			// to the angle of inclination [rad]
-//28 		118	f4 cis; // Amplitude of the sine harmonic correction term
-// 			// to the angle of inclination [rad]
-//29 		122	u1 cs; // Checksum
 
 			if(msgid == "GE"){  // GPS ephemeris
 				if (msg.length() == 123*2){
 					EphemerisData *ed = new EphemerisData;
  					HexToBin((char *) msg.substr(0*2,2*sizeof(UINT8)).c_str(), sizeof(UINT8),  (unsigned char *) &(ed->SVN));
-					HexToBin((char *) msg.substr(1*2,2*sizeof(UINT32)).c_str(),sizeof(UINT32), (unsigned char *) &(uint32buf));
- 					ed->t_ephem=uint32buf;
+					HexToBin((char *) msg.substr(1*2,2*sizeof(UINT32)).c_str(),sizeof(UINT32), (unsigned char *) &(u4buf));
+ 					ed->t_ephem=u4buf;
 					
 					HexToBin((char *) msg.substr(6*2,2*sizeof(SINT16)).c_str(),sizeof(SINT16), (unsigned char *) &(sint16buf));
 						ed-> IODC=sint16buf;
@@ -273,9 +424,7 @@ bool Javad::readLog(string fname,int mjd)
 					ed->week_number=(UINT16) sint16buf;
 					HexToBin((char *) msg.substr(16*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->t_GD));
 						
-						
 // 					HexToBin((char *) msg.substr(37*2+2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->SV_accuracy));
-					
 					
 					HexToBin((char *) msg.substr(20*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->a_f2));
 					HexToBin((char *) msg.substr(24*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->a_f1));
@@ -310,9 +459,12 @@ bool Javad::readLog(string fname,int mjd)
 						
 					DBGMSG(debugStream,3,"Ephemeris: SVN="<< (unsigned int) ed->SVN << ",toe="<< ed->t_oe << ",IODE=" << (int) ed->IODE);
 					addGPSEphemeris(ed);
-					continue;
+					
 				}
-				
+				else{
+					DBGMSG(debugStream,1,"Bad GE message size");
+				}
+				continue;
 			}
 			
 		}
@@ -323,6 +475,8 @@ bool Javad::readLog(string fname,int mjd)
 	}
 	infile.close();
 
+	// Post load cleanups 
+	
 	// Extract the receiver id
 	if (rxid.size() !=0) {
 		if ((rxid.size() % 4 == 0)){
