@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 #include <algorithm>
 #include <iostream>
@@ -585,10 +586,12 @@ bool MakeRINEX::writeRINEXObsFile(int ver,Receiver *rx,Counter *cntr,Antenna *an
 	while (currMeas < 86400 && obsTime <= 86400){
 		if (mpairs[currMeas]->flags==0x03){
 			ReceiverMeasurement *rm = mpairs[currMeas]->rm;
-			int tMeas=(rm->tmgps.tm_hour*3600+rm->tmgps.tm_min*60+rm->tmgps.tm_sec);
+			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
+			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
 			if (tMeas==obsTime){
 				fprintf(fout,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
-					rm->tmgps.tm_year+1900,rm->tmgps.tm_mon+1,rm->tmgps.tm_mday,rm->tmgps.tm_hour,rm->tmgps.tm_min,(double) rm->tmgps.tm_sec,
+					rm->tmGPS.tm_year+1900,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,
+					(double) (rm->tmGPS.tm_sec+rm->tmfracs),
 					" ", "GPS"," ","TIME OF FIRST OBS");
 				break;
 			}
@@ -608,14 +611,16 @@ bool MakeRINEX::writeRINEXObsFile(int ver,Receiver *rx,Counter *cntr,Antenna *an
 	while (currMeas < 86400 && obsTime <= 86400){
 		if (mpairs[currMeas]->flags==0x03){
 			ReceiverMeasurement *rm = mpairs[currMeas]->rm;
-			int tMeas=(rm->tmgps.tm_hour*3600+rm->tmgps.tm_min*60+rm->tmgps.tm_sec);
+			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
+			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
 			if (tMeas==obsTime){
 				switch (RINEXversion){
 					case V2:
 					{
-						int yy = rm->tmgps.tm_year - 100*(rm->tmgps.tm_year/100);
+						int yy = rm->tmGPS.tm_year - 100*(rm->tmGPS.tm_year/100);
 						fprintf(fout," %02d %2d %2d %2d %2d%11.7lf  %1d%3d",
-							yy,rm->tmgps.tm_mon+1,rm->tmgps.tm_mday,rm->tmgps.tm_hour,rm->tmgps.tm_min,(double) rm->tmgps.tm_sec,
+							yy,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,
+							(double) (rm->tmGPS.tm_sec+rm->tmfracs),
 							rm->epochFlag,(int) rm->gps.size());
 						
 						int svcount=0;
@@ -636,7 +641,7 @@ bool MakeRINEX::writeRINEXObsFile(int ver,Receiver *rx,Counter *cntr,Antenna *an
 					case V3:
 					{
 						fprintf(fout,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f %1d%3d%6s%15.12lf\n",
-							rm->tmgps.tm_year+1900,rm->tmgps.tm_mon+1,rm->tmgps.tm_mday,rm->tmgps.tm_hour,rm->tmgps.tm_min,(double) rm->tmgps.tm_sec,
+							rm->tmGPS.tm_year+1900,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,(double) rm->tmGPS.tm_sec,
 							rm->epochFlag,(int) rm->gps.size()," ",0.0);
 						for (unsigned int i=0;i<rm->gps.size();i++)
 							fprintf(fout,"G%2.2d%14.3lf%1i%1i\n",rm->gps[i]->svn,rm->gps[i]->meas*CVACUUM,rm->gps[i]->lli,rm->gps[i]->signal);
@@ -768,15 +773,15 @@ bool MakeRINEX::writeRINEXNavFile(int ver,Receiver *rx,string fname,int mjd)
 		int second=t;
 	
 		time_t tgps = tGPS0+GPSWeek*86400*7+Toc;
-		struct tm *tmgps = gmtime(&tgps);
+		struct tm *tmGPS = gmtime(&tgps);
 		
 		switch (RINEXversion)
 		{
 			case V2:
 			{
-				int yy = tmgps->tm_year-100*(tmgps->tm_year/100);
+				int yy = tmGPS->tm_year-100*(tmGPS->tm_year/100);
 				fprintf(fout,"%02d %02d %02d %02d %02d %02d%5.1f%19.12e%19.12e%19.12e\n",rx->ephemeris[i]->SVN,
-					yy,tmgps->tm_mon+1,tmgps->tm_mday,hour,minute,(float) second,
+					yy,tmGPS->tm_mon+1,tmGPS->tm_mday,hour,minute,(float) second,
 					rx->ephemeris[i]->a_f0,rx->ephemeris[i]->a_f1,rx->ephemeris[i]->a_f2);
 				
 				snprintf(buf,80,"%%3s%%19.12e%%19.12e%%19.12e%%19.12e\n");
@@ -786,7 +791,7 @@ bool MakeRINEX::writeRINEXNavFile(int ver,Receiver *rx,string fname,int mjd)
 			case V3:
 			{
 				fprintf(fout,"G%02d %4d %02d %02d %02d %02d %02d%19.12e%19.12e%19.12e\n",rx->ephemeris[i]->SVN,
-					tmgps->tm_year+1900,tmgps->tm_mon+1,tmgps->tm_mday,hour,minute,second,
+					tmGPS->tm_year+1900,tmGPS->tm_mon+1,tmGPS->tm_mday,hour,minute,second,
 					rx->ephemeris[i]->a_f0,rx->ephemeris[i]->a_f1,rx->ephemeris[i]->a_f2);
 				
 				snprintf(buf,80,"%%4s%%19.12e%%19.12e%%19.12e%%19.12e\n");
@@ -940,7 +945,7 @@ void MakeRINEX::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string
 			CounterMeasurement *cm= mpairs[i]->cm;
 			ReceiverMeasurement *rxm = mpairs[i]->rm;
 			int tmatch=((int) cm->hh)*3600 +  ((int) cm->mm)*60 + ((int) cm->ss);
-			fprintf(fout,"%i %g %g %g\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeoffset*1.09E-9);
+			fprintf(fout,"%i %g %g %g\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset*1.09E-9);
 		}
 	}
 	fclose(fout);
@@ -963,7 +968,7 @@ void MakeRINEX::writeSVDiagnostics(Receiver *rx,string path)
 			for (unsigned int msv=0;msv<rx->measurements[m]->gps.size();msv++){
 				SVMeasurement *svm = rx->measurements[m]->gps[msv];
 				if (svm->svn == prn){
-					int tod = rx->measurements[m]->tmutc.tm_hour*3600+ rx->measurements[m]->tmutc.tm_min*60 + rx->measurements[m]->tmutc.tm_sec;
+					int tod = rx->measurements[m]->tmUTC.tm_hour*3600+ rx->measurements[m]->tmUTC.tm_min*60 + rx->measurements[m]->tmUTC.tm_sec;
 					fprintf(fout,"%d %14.3lf \n",tod,svm->meas*CVACUUM);
 				}
 			}

@@ -80,7 +80,7 @@ void Receiver::addGPSEphemeris(EphemerisData *ed)
 	int issue;
 	for (issue=0;issue < (int) sortedGPSEphemeris[ed->SVN].size();issue++){
 		if (sortedGPSEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
-			DBGMSG(debugStream,1,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
+			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
 			return;
 		}
 	}
@@ -91,14 +91,14 @@ void Receiver::addGPSEphemeris(EphemerisData *ed)
 		std::vector<EphemerisData *>::iterator it;
 		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
 			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
-				DBGMSG(debugStream,1,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
+				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
 				ephemeris.insert(it,ed);
 				break;
 			}
 		}
 		
 		if (it == ephemeris.end()){ // got to end, so append
-			DBGMSG(debugStream,1,"appending " << ed->t_OC);
+			DBGMSG(debugStream,4,"appending " << ed->t_OC);
 			ephemeris.push_back(ed);
 		}
 		
@@ -107,23 +107,23 @@ void Receiver::addGPSEphemeris(EphemerisData *ed)
 			std::vector<EphemerisData *>::iterator it;
 			for (it=sortedGPSEphemeris[ed->SVN].begin(); it<sortedGPSEphemeris[ed->SVN].end(); it++){
 				if (ed->t_OC < (*it)->t_OC){ 
-					DBGMSG(debugStream,1,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
+					DBGMSG(debugStream,4,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
 					sortedGPSEphemeris[ed->SVN].insert(it,ed);
 					break;
 				}
 			}
 			if (it == sortedGPSEphemeris[ed->SVN].end()){ // got to end, so append
-				DBGMSG(debugStream,1,"hash appending " << ed->t_OC);
+				DBGMSG(debugStream,4,"hash appending " << ed->t_OC);
 				sortedGPSEphemeris[ed->SVN].push_back(ed);
 			}
 		}
 		else{ // first one for this SVN
-			DBGMSG(debugStream,1,"first for svn " << (int) ed->SVN);
+			DBGMSG(debugStream,4,"first for svn " << (int) ed->SVN);
 			sortedGPSEphemeris[ed->SVN].push_back(ed);
 		}
 	}
 	else{ //first one
-		DBGMSG(debugStream,1,"first eph ");
+		DBGMSG(debugStream,4,"first eph ");
 		ephemeris.push_back(ed);
 		sortedGPSEphemeris[ed->SVN].push_back(ed);
 		return;
@@ -131,6 +131,17 @@ void Receiver::addGPSEphemeris(EphemerisData *ed)
 	
 }
 
+void Receiver::deleteMeasurements(std::vector<SVMeasurement *> &meas)
+{
+	DBGMSG(debugStream,4," entries = " << meas.size());
+
+	while(! meas.empty()){
+		SVMeasurement  *tmp= meas.back();
+		delete tmp;
+		meas.pop_back();
+	}
+	DBGMSG(debugStream,4," entries left = " << meas.size());
+}
 
 EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int wn,int tow)
 {
@@ -155,7 +166,7 @@ EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int wn,int t
 		default:
 			break;
 	}
-	DBGMSG(debugStream,1,"svn="<<svn << ",tow="<<tow<<",t_oe="<< ((ed!=NULL)?(int)(ed->t_oe):-1));
+	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_oe="<< ((ed!=NULL)?(int)(ed->t_oe):-1));
 	return ed;
 }
 

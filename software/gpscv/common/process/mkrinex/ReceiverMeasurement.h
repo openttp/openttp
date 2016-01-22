@@ -28,6 +28,7 @@
 #include <time.h>
 #include <string>
 #include <vector>
+#include <boost/concept_check.hpp>
 
 using namespace std;
 
@@ -37,16 +38,17 @@ class ReceiverMeasurement
 {
 	public:
 		ReceiverMeasurement()
-		{sawtooth=0.0;timeoffset=0.0;epochFlag=0;signalLevel=0.0;}
+		{sawtooth=0.0;timeOffset=0.0;epochFlag=0;signalLevel=0.0;tmfracs=0.0;}
 	
 		unsigned int gpstow;
 		unsigned int gpswn;
 		double sawtooth;
-		double timeoffset;
+		double timeOffset;
 		double signalLevel;
 		int epochFlag;
 		unsigned char pchh,pcmm,pcss; // time of measurement, as determined from the log time stamp
-		struct tm tmgps,tmutc;
+		struct tm tmGPS,tmUTC; // time of measurement, according to the receiver
+		double tmfracs; // fractional part of time of measurement
 		
 		vector<SVMeasurement*> gps;
 		vector<SVMeasurement*> glonass;

@@ -39,7 +39,10 @@ class SVMeasurement
 		double meas;
 		unsigned char lli;
 		unsigned char signal;
-		
+#ifdef NVS_INTERPOLATE
+		double dbuf1,dbuf2;
+		unsigned int uibuf;
+#endif
 };
 
 #endif

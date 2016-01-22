@@ -45,7 +45,8 @@ class Javad:public Receiver
 	
 	private:
 	
-	
+		bool dualFrequency;
+		
 };
 
 #endif

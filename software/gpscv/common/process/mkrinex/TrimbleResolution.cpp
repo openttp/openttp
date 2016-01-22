@@ -218,18 +218,18 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					rmeas->gpstow=gpstow;
 					rmeas->gpswn=gpswn;
 					rmeas->sawtooth=sawtooth;
-					rmeas->timeoffset=rxtimeoffset;
+					rmeas->timeOffset=rxtimeoffset;
 					
 					
 					// 8fab packet is configured for UTC date
 					// so save this so that we can calculate GPS date later when the number of leap seconds is known
 					
-					rmeas->tmutc.tm_sec=fabss;
-					rmeas->tmutc.tm_min=fabmm;
-					rmeas->tmutc.tm_hour=fabhh;
-					rmeas->tmutc.tm_mday=fabmday;
-					rmeas->tmutc.tm_mon=fabmon-1;
-					rmeas->tmutc.tm_year=fabyyyy-1900;
+					rmeas->tmUTC.tm_sec=fabss;
+					rmeas->tmUTC.tm_min=fabmm;
+					rmeas->tmUTC.tm_hour=fabhh;
+					rmeas->tmUTC.tm_mday=fabmday;
+					rmeas->tmUTC.tm_mon=fabmon-1;
+					rmeas->tmUTC.tm_year=fabyyyy-1900;
 					
 					int pchh,pcmm,pcss;
 					if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
@@ -441,11 +441,11 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	// Calculate GPS time of measurements, now that the number of leap seconds is known
 	for (unsigned int i=0;i<measurements.size();i++){
 		
-		time_t tgps = mktime(&(measurements[i]->tmutc));
+		time_t tgps = mktime(&(measurements[i]->tmUTC));
 		tgps += leapsecs;
-		struct tm *tmgps = gmtime(&tgps);
-		measurements[i]->tmgps=*tmgps;
-		//printf("%02d:%02d:%02d\n",measurements[i]->tmgps.tm_hour,measurements[i]->tmgps.tm_min,measurements[i]->tmgps.tm_sec);
+		struct tm *tmGPS = gmtime(&tgps);
+		measurements[i]->tmGPS=*tmGPS;
+		//printf("%02d:%02d:%02d\n",measurements[i]->tmGPS.tm_hour,measurements[i]->tmGPS.tm_min,measurements[i]->tmGPS.tm_sec);
 	}
 	
 	// Fix 1 ms ambiguities/steps in the pseudo range

@@ -30,9 +30,9 @@
 #include <string>
 #include <vector>
 
-using namespace std;
+#include "SVMeasurement.h"
 
-class ReceiverMeasurement;
+using namespace std;
 
 typedef double DOUBLE;
 typedef float  SINGLE;
@@ -42,6 +42,8 @@ typedef unsigned short UINT16;
 typedef short SINT16;
 typedef int SINT32;
 typedef unsigned int UINT32;
+
+class ReceiverMeasurement;
 
 class IonosphereData
 {
@@ -143,6 +145,8 @@ class Receiver
 	
 		bool setCurrentLeapSeconds(int,UTCData &);
 		void addGPSEphemeris(EphemerisData *);
+		
+		void deleteMeasurements(std::vector<SVMeasurement *> &);
 		
 		bool gotUTCdata,gotIonoData;
 		
