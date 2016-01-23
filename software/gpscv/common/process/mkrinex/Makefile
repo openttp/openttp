@@ -5,7 +5,8 @@ LDFLAGS=
 LIBS= -lconfigurator
 CXXFLAGS= -Wall -DDEBUG -g
 CFGFLAGS= -DNVS_INTERPOLATE
-OBJECTS = Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o MakeRINEX.o Javad.o NVS.o TrimbleResolution.o Utility.o
+OBJECTS = Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o MakeRINEX.o ReceiverMeasurement.o \
+	Javad.o NVS.o TrimbleResolution.o Utility.o
 
 all: $(PROGRAM)
 
@@ -32,6 +33,9 @@ Main.o: Main.cpp Debug.h MakeRINEX.h
 
 Receiver.o: Receiver.cpp Antenna.h Debug.h Receiver.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Receiver.cpp
+
+ReceiverMeasurement.o: ReceiverMeasurement.cpp ReceiverMeasurement.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c ReceiverMeasurement.cpp
 	
 RIN2CGGTTS.o: RIN2CGGTTS.cpp RIN2CGGTTS.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RIN2CGGTTS.cpp

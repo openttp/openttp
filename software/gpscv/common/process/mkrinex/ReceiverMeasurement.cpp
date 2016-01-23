@@ -22,37 +22,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __RECEIVER_MEASUREMENT_H_
-#define __RECEIVER_MEASUREMENT_H_
+#include "ReceiverMeasurement.h"
 
-#include <time.h>
-#include <string>
-#include <vector>
-#include <boost/concept_check.hpp>
+#include "SVMeasurement.h"
 
-using namespace std;
-
-class SVMeasurement;
-
-class ReceiverMeasurement
+ReceiverMeasurement::ReceiverMeasurement()
 {
-	public:
-		ReceiverMeasurement();
-		~ReceiverMeasurement();
-		
-		unsigned int gpstow;
-		unsigned int gpswn;
-		double sawtooth;
-		double timeOffset;
-		double signalLevel;
-		int epochFlag;
-		unsigned char pchh,pcmm,pcss; // time of measurement, as determined from the log time stamp
-		struct tm tmGPS,tmUTC; // time of measurement, according to the receiver
-		double tmfracs; // fractional part of time of measurement
-		
-		vector<SVMeasurement*> gps;
-		vector<SVMeasurement*> glonass;
-	
-};
+	sawtooth=0.0;
+	timeOffset=0.0;
+	epochFlag=0;
+	signalLevel=0.0;
+	tmfracs=0.0;
+}
 
-#endif
+ReceiverMeasurement::~ReceiverMeasurement()
+{
+	
+	while(! gps.empty()){
+		SVMeasurement  *tmp= gps.back();
+		delete tmp;
+		gps.pop_back();
+	}
+	
+	while(! glonass.empty()){
+		SVMeasurement  *tmp= glonass.back();
+		delete tmp;
+		glonass.pop_back();
+	}
+	
+}
