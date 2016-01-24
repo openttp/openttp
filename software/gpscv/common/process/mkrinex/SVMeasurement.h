@@ -36,7 +36,7 @@ class SVMeasurement
 			signal=0;
 		}
 		unsigned char svn;
-		double meas;
+		double meas; // units are seconds (s)
 		unsigned char lli;
 		unsigned char signal;
 #ifdef NVS_INTERPOLATE

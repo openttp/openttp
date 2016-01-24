@@ -52,19 +52,12 @@ Counter::~Counter()
 	
 bool Counter::readLog(string fname)
 {
-	
-	DBGMSG(debugStream,1,"reading " << fname);
 	// Expected format is
 	// (optional) comments prefaced with
 	// and then successive measurements like
 	// HH:MM:SS reading_in_seconds
 	
-	struct stat statbuf;
-	
-	if ((0 != stat(fname.c_str(),&statbuf))){
-		DBGMSG(debugStream,1," unable to stat " << fname);
-		return false;
-	}
+	DBGMSG(debugStream,INFO,"reading " << fname);
 	
 	ifstream infile (fname.c_str());
 	string line;
@@ -77,18 +70,20 @@ bool Counter::readLog(string fname)
 			}
 			// check how much data there is - shouldn't be more than 86400 readings
 			if (measurements.size() > MAXSIZE){ //something is really wrong
-				DBGMSG(debugStream,1," data file is too large");
+				cerr << " data file is too large" << endl;
 				return false;
 			}
 		}
 	}
 	else{
-		DBGMSG(debugStream,1," unable to open " << fname);
+		cerr << " unable to open " << fname << endl;
 		return false;
 	}
 	infile.close();
-	DBGMSG(debugStream,1,"done: read " << measurements.size());
-	DBGMSG(debugStream,1,"first " << measurements.front()->timestamp());
-	DBGMSG(debugStream,1,"last " << measurements.back()->timestamp());
+	
+	DBGMSG(debugStream,INFO,"done: read " << measurements.size());
+	DBGMSG(debugStream,INFO,"first " << measurements.front()->timestamp());
+	DBGMSG(debugStream,INFO,"last " << measurements.back()->timestamp());
+	
 	return true;
 }

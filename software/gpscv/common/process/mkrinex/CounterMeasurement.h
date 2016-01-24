@@ -36,7 +36,6 @@ class CounterMeasurement
 		{
 			hh=(unsigned char)h;mm=(unsigned char)m;ss=(unsigned char)s;
 			rdg=r;
-			sawtooth=0.0;
 		}
 		string timestamp()
 		{
@@ -46,8 +45,8 @@ class CounterMeasurement
 		}
 		
 		unsigned char hh,mm,ss;
-		double rdg;
-		double sawtooth;
+		double rdg; // units are seconds (s)
+
 };
 
 #endif

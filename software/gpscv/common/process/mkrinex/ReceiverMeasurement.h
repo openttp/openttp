@@ -42,13 +42,13 @@ class ReceiverMeasurement
 		
 		unsigned int gpstow;
 		unsigned int gpswn;
-		double sawtooth;
-		double timeOffset;
+		double sawtooth; // units are seconds, ADDED to the counter measurement
+		double timeOffset; // units are seconds, stored for timing diagnostics
 		double signalLevel;
 		int epochFlag;
 		unsigned char pchh,pcmm,pcss; // time of measurement, as determined from the log time stamp
 		struct tm tmGPS,tmUTC; // time of measurement, according to the receiver
-		double tmfracs; // fractional part of time of measurement
+		double tmfracs; // fractional part of time of measurement, units ares seonds (s)
 		
 		vector<SVMeasurement*> gps;
 		vector<SVMeasurement*> glonass;

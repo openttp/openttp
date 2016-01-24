@@ -88,8 +88,6 @@ MakeRINEX::MakeRINEX(int argc,char **argv)
 
 	init();
 	
-	
-	
 	// Process the command line options
 	// These override anything in the configuration file, default or specified
 	int longIndex;
@@ -114,7 +112,6 @@ MakeRINEX::MakeRINEX(int argc,char **argv)
 						
 						case 2:
 							CGGTSComment=optarg;
-							cerr << "Got comment " << optarg  << endl;
 							break;
 						case 3:
 							{
@@ -193,12 +190,8 @@ MakeRINEX::MakeRINEX(int argc,char **argv)
 		cerr << "Configuration failed - exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
-
 	
 	// Note: can't get any debugging output until the command line is parsed !
-	
-	DBGMSG(debugStream,3,"counter path = " << counterPath << ",receiver path = " << receiverPath);
-	
 	
 }
 
@@ -213,17 +206,27 @@ void MakeRINEX::run()
 {
 	makeFilenames();
 	
-	receiver->readLog(receiverFile,MJD);
+	if (!receiver->readLog(receiverFile,MJD)){
+		cerr << "Exiting" << endl;
+		exit(EXIT_FAILURE);
+	}
 	
-	counter->readLog(counterFile);
+	if (!counter->readLog(counterFile)){
+		cerr << "Exiting" << endl;
+		exit(EXIT_FAILURE);
+	}
 
 	matchMeasurements(receiver,counter);
 	
-	if (generateNavigationFile) writeRINEXNavFile(RINEXversion,receiver,RINEXnavFile,MJD);
+	if (generateNavigationFile) 
+		writeRINEXNavFile(RINEXversion,receiver,RINEXnavFile,MJD);
 	writeRINEXObsFile(RINEXversion,receiver,counter,antenna,RINEXobsFile,MJD);
 	
-	if (timingDiagnosticsOn) writeReceiverTimingDiagnostics(receiver,counter,"timing.dat");
-	if (SVDiagnosticsOn) writeSVDiagnostics(receiver,tmpPath);
+	if (timingDiagnosticsOn) 
+		writeReceiverTimingDiagnostics(receiver,counter,"timing.dat");
+	
+	if (SVDiagnosticsOn) 
+		writeSVDiagnostics(receiver,tmpPath);
 	
 	delete receiver;
 	delete counter;
@@ -344,7 +347,7 @@ bool MakeRINEX::loadConfig()
 	// Our conventional config file format is used to maintain compatibility with existing scripts
 	ListEntry *last;
 	if (!configfile_parse_as_list(&last,configurationFile.c_str())){
-		cerr << "Failed to load the configuration file " << configurationFile << endl;
+		cerr << "Unable to open the configuration file " << configurationFile << endl;
 		return false;
 	}
 	
@@ -417,6 +420,8 @@ bool MakeRINEX::loadConfig()
 		receiver->constellations |=Receiver::BEIDOU;
 	else if (stmp.find("Galileo") != string::npos)
 		receiver->constellations |=Receiver::GALILEO;
+	
+	configOK= configOK && setConfig(last,"receiver","pps offset",&receiver->ppsOffset);
 	
 	// Delays
 	
@@ -892,7 +897,7 @@ void MakeRINEX::matchMeasurements(Receiver *rx,Counter *cntr)
 		if (tcntr>=0 && tcntr<86400){
 			if (mpairs[tcntr]->flags & 0x01){
 				mpairs[tcntr]->flags |= 0x04; // duplicate
-				DBGMSG(debugStream,1,"duplicate counter measurement " << (int) cm->hh << ":" << (int) cm->mm << ":" <<(int) cm->ss);
+				DBGMSG(debugStream,WARNING,"duplicate counter measurement " << (int) cm->hh << ":" << (int) cm->mm << ":" <<(int) cm->ss);
 			}
 			else{
 				mpairs[tcntr]->flags |= 0x01;
@@ -912,7 +917,7 @@ void MakeRINEX::matchMeasurements(Receiver *rx,Counter *cntr)
 		if (trx>=0 && trx<86400){
 			if (mpairs[trx]->flags & 0x02){
 				mpairs[trx]->flags |= 0x08; // duplicate
-				DBGMSG(debugStream,1,"duplicate receiver measurement " << (int) rxm->pchh << ":" << (int) rxm->pcmm << ":" <<(int) rxm->pcss);
+				DBGMSG(debugStream,WARNING,"duplicate receiver measurement " << (int) rxm->pchh << ":" << (int) rxm->pcmm << ":" <<(int) rxm->pcss);
 			}
 			else{
 				mpairs[trx]->flags |= 0x02;
@@ -927,7 +932,7 @@ void MakeRINEX::matchMeasurements(Receiver *rx,Counter *cntr)
 			matchcnt++;
 		}
 	}
-	DBGMSG(debugStream,1,matchcnt << " matches");
+	DBGMSG(debugStream,INFO,matchcnt << " matches");
 	
 }
 

@@ -45,6 +45,7 @@ Receiver::Receiver(Antenna *ant)
 	version2="undefined";
 	constellations=0;
 	antenna = ant;
+	ppsOffset=0;
 }
 
 Receiver::~Receiver()

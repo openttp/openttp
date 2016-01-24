@@ -86,13 +86,7 @@ NVS::~NVS()
 
 bool NVS::readLog(string fname,int mjd)
 {
-	DBGMSG(debugStream,1,"reading " << fname);	
-	struct stat statbuf;
-	
-	if ((0 != stat(fname.c_str(),&statbuf))){
-		DBGMSG(debugStream,1," unable to stat " << fname);
-		return false;
-	}
+	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
 	ifstream infile (fname.c_str());
 	string line;
@@ -130,7 +124,7 @@ bool NVS::readLog(string fname,int mjd)
 			stringstream sstr(line);
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){
-				DBGMSG(debugStream,1," bad data at line " << linecount);
+				DBGMSG(debugStream,WARNING," bad data at line " << linecount);
 				currentMsgs=0;
 				deleteMeasurements(gps);
 				continue;
@@ -180,7 +174,7 @@ bool NVS::readLog(string fname,int mjd)
 				} // if (gps.size() > 0)
 				
 				if (((msg.size()-27*2) % 30*2) != 0){
-					DBGMSG(debugStream,1,"0xf5 msg wrong size at " << linecount << " " << msg.size());
+					DBGMSG(debugStream,WARNING,"0xf5 msg wrong size at " << linecount << " " << msg.size());
 					currentMsgs=0;
 					deleteMeasurements(gps);
 					continue;
@@ -208,7 +202,7 @@ bool NVS::readLog(string fname,int mjd)
 				}
 				
 				if (gps.size() >= MAX_CHANNELS){ // too much data - something is wrong
-					DBGMSG(debugStream,1,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gps.size() << ")");
+					DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gps.size() << ")");
 					currentMsgs=0;
 					deleteMeasurements(gps);
 					continue;
@@ -227,7 +221,7 @@ bool NVS::readLog(string fname,int mjd)
 					continue;
 				}
 				else{
-					DBGMSG(debugStream,2,"0x72h msg wrong size at line "<<linecount);
+					DBGMSG(debugStream,WARNING,"0x72h msg wrong size at line "<<linecount);
 					continue;
 				}
 			}
@@ -246,7 +240,7 @@ bool NVS::readLog(string fname,int mjd)
 					currentMsgs |= MSG46;
 				}
 				else{
-					DBGMSG(debugStream,2,"0x46 msg wrong size at line "<<linecount);
+					DBGMSG(debugStream,WARNING,"0x46 msg wrong size at line "<<linecount);
 				}
 				continue;
 			}
@@ -258,7 +252,7 @@ bool NVS::readLog(string fname,int mjd)
 					currentMsgs |= MSG74;
 				}
 				else{
-					DBGMSG(debugStream,2,"0x74 msg wrong size at line "<<linecount);
+					DBGMSG(debugStream,WARNING,"0x74 msg wrong size at line "<<linecount);
 				}
 				continue;
 			}
@@ -284,7 +278,7 @@ bool NVS::readLog(string fname,int mjd)
 					}
 				}
 				else{
-					DBGMSG(debugStream,2,"0x4A msg wrong size at line "<<linecount);
+					DBGMSG(debugStream,WARNING,"0x4A msg wrong size at line "<<linecount);
 					continue;
 				}
 			}
@@ -309,7 +303,7 @@ bool NVS::readLog(string fname,int mjd)
 					}
 				}
 				else{
-					DBGMSG(debugStream,2,"0x4B msg wrong size at line "<<linecount);
+					DBGMSG(debugStream,WARNING,"0x4B msg wrong size at line "<<linecount);
 					continue;
 				}
 			}
@@ -363,30 +357,40 @@ bool NVS::readLog(string fname,int mjd)
 						
 						ed->t_ephem=0.0; // FIXME
 						
-						DBGMSG(debugStream,2,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC);
+						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC);
 						addGPSEphemeris(ed);
 						continue;
 					
 					}
 					else{
-						DBGMSG(debugStream,2,"0xF7 msg (GPS) wrong size at line "<<linecount);
+						DBGMSG(debugStream,WARNING,"0xF7 msg (GPS) wrong size at line "<<linecount);
 					}
 				}
 				else if (msg.size()==93*2){
 				}
 				else{
-					DBGMSG(debugStream,2,"0xF7 msg wrong size at line "<<linecount);
+					DBGMSG(debugStream,WARNING,"0xF7 msg wrong size at line "<<linecount);
 				}
 			}
 			
 		}
 	}
 	else{
-		DBGMSG(debugStream,1," unable to open " << fname);
+		cerr << " unable to open " << fname << endl;
 		return false;
 	}
 	infile.close();
 
+	if (!gotIonoData){
+		cerr << "No 4A (ionosphere) message found" << endl;
+		return false;
+	}
+	
+	if (!gotUTCdata){
+		cerr << "No 4B (UTC) message found" << endl;
+		return false;
+	}
+	
 	#ifdef NVS_INTERPOLATE
 	vector<SVMeasurement *> track;
 	for (int prn=1;prn<=32;prn++){
@@ -406,8 +410,8 @@ bool NVS::readLog(string fname,int mjd)
 	
 		if (track.size() < 3) continue;
 		
-		int trackStart=0;
-		int trackStop=0;
+		unsigned int trackStart=0;
+		unsigned int trackStop=0;
 		// Run through tracks, looking for contiguous tracks
 		for (unsigned int t=1;t<track.size()-1;t++){
 			if ((track.at(t+1)->uibuf - track.at(t)->uibuf > 10) || (t == track.size()-2)){ // FIXME to be tweaked 
@@ -464,10 +468,10 @@ bool NVS::readLog(string fname,int mjd)
 	
 	#endif
 
+	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
+	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
+	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");
 	
-	DBGMSG(debugStream,1,"done: read " << linecount << " lines");
-	DBGMSG(debugStream,1,measurements.size() << " measurements read");
-	DBGMSG(debugStream,1,ephemeris.size() << " ephemeris entries read");
 	return true;
 	
 }

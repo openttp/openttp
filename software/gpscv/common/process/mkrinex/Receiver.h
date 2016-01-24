@@ -129,6 +129,8 @@ class Receiver
 		
 		int leapsecs;
 		
+		int ppsOffset; // 1 pps offset, in nanoseconds
+		
 		virtual bool readLog(string,int){return true;} // must be reimplemented
 		
 		IonosphereData ionoData;

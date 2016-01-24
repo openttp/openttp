@@ -27,10 +27,14 @@
 
 extern int verbosity;
 
+#define INFO    1
+#define WARNING 2
+#define TRACE 3
+
 // NB null stream indicates debugging off
 #ifdef DEBUG
 	#define DBGMSG( os, v, msg ) \
-  if (NULL != os && v<=verbosity) (*os) << __FILE__ << "(" << __LINE__ << ") " << __FUNCTION__ << " " \
+  if (NULL != os && v<=verbosity) (*os) << __FILE__ << "(" << __LINE__ << ") " << __FUNCTION__ << "() " \
        << msg << std::endl
 #else
 	#define DBGMSG( os, msg ) 

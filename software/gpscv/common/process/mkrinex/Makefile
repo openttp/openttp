@@ -40,7 +40,7 @@ ReceiverMeasurement.o: ReceiverMeasurement.cpp ReceiverMeasurement.h
 RIN2CGGTTS.o: RIN2CGGTTS.cpp RIN2CGGTTS.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RIN2CGGTTS.cpp
 
-MakeRINEX.o: MakeRINEX.cpp MakeRINEX.h Antenna.h Counter.h Receiver.h SVMeasurement.h Javad.h NVS.h \
+MakeRINEX.o: MakeRINEX.cpp MakeRINEX.h Antenna.h Counter.h Debug.h Receiver.h SVMeasurement.h Javad.h NVS.h \
 	ReceiverMeasurement.h TrimbleResolution.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c MakeRINEX.cpp
 
