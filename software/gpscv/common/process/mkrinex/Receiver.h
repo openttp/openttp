@@ -29,6 +29,7 @@
 
 #include <string>
 #include <vector>
+#include <boost/iterator/iterator_concepts.hpp>
 
 #include "SVMeasurement.h"
 
@@ -149,6 +150,7 @@ class Receiver
 		void addGPSEphemeris(EphemerisData *);
 		
 		void deleteMeasurements(std::vector<SVMeasurement *> &);
+		void interpolateMeasurements(std::vector<ReceiverMeasurement *> &);
 		
 		bool gotUTCdata,gotIonoData;
 		

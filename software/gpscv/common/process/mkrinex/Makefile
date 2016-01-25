@@ -4,7 +4,7 @@ INCLUDE = -I/usr/local/include
 LDFLAGS= 
 LIBS= -lconfigurator
 CXXFLAGS= -Wall -DDEBUG -g
-CFGFLAGS= -DNVS_INTERPOLATE
+CFGFLAGS= 
 OBJECTS = Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o MakeRINEX.o ReceiverMeasurement.o \
 	Javad.o NVS.o TrimbleResolution.o Utility.o
 
@@ -31,7 +31,7 @@ NVS.o: NVS.cpp Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h
 Main.o: Main.cpp Debug.h MakeRINEX.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Main.cpp
 
-Receiver.o: Receiver.cpp Antenna.h Debug.h Receiver.h
+Receiver.o: Receiver.cpp Antenna.h Debug.h Receiver.h ReceiverMeasurement.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Receiver.cpp
 
 ReceiverMeasurement.o: ReceiverMeasurement.cpp ReceiverMeasurement.h

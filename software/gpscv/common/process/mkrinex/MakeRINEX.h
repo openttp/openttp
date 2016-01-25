@@ -106,8 +106,8 @@ class MakeRINEX
 		int RINEXversion;
 		string homeDir;
 		string configurationFile;
-		string counterPath,counterFile;
-		string receiverPath,receiverFile;
+		string counterPath,counterExtension,counterFile;
+		string receiverPath,receiverExtension,receiverFile;
 		string RINEXPath,RINEXnavFile,RINEXobsFile;
 		string timingDiagnosticsFile;
 		string processingLog;

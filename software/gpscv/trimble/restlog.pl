@@ -378,7 +378,7 @@ sub Initialise
 	}
 	elsif ($localMajorVersion == 2){
 		$Init{"paths:receiver data"}=FixPath($Init{"paths:receiver data"});
-		$Init{"receiver:status"}=FixPath($Init{"receiver:status file"});
+		$Init{"receiver:status file"}=FixPath($Init{"receiver:status file"});
 	}
  
 }# Initialise

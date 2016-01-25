@@ -224,35 +224,52 @@ bool Javad::readLog(string fname,int mjd)
 							rmeas->pcmm=pcmm;
 							rmeas->pcss=pcss;
 							
-							int igpsTOD = gpsTOD/1000;
-							int hh = (int) (igpsTOD/3600);
-							int mm = (int) (igpsTOD - hh*3600)/60;
-						
-							rmeas->tmGPS.tm_sec= igpsTOD - hh*3600 - mm*60;
-							rmeas->tmGPS.tm_min= mm;
-							rmeas->tmGPS.tm_hour=hh ;
-							rmeas->tmGPS.tm_mday=RDdd;
-							rmeas->tmGPS.tm_mon=RDmm-1;
-							rmeas->tmGPS.tm_year=RDyyyy-1900;
-							rmeas->tmGPS.tm_isdst=0;
-					
-							// YA and TO messages can roll over at different times - handle this case
-							// Typically, the difference between the smoothed and receiver time offsets is <= 1 ns
-							if ((smoothingOffset - rxTimeOffset)> 5e-4) smoothingOffset-=1e-3;
-							if ((smoothingOffset - rxTimeOffset)<-5e-4) smoothingOffset+=1e-3;
-			
-							rmeas->sawtooth=sawtooth-(smoothingOffset-rxTimeOffset); // added to the counter measurement
-							rmeas->timeOffset = rxTimeOffset;
+							// One more check
+							if ((gpsTOD/1000.0+rxTimeOffset) > -0.1 && (gpsTOD/1000.0+rxTimeOffset < 86400.1)){
+								int igpsTOD = gpsTOD/1000;
+								int hh = (int) (igpsTOD/3600);
+								int mm = (int) (igpsTOD - hh*3600)/60;
 							
-							// All OK
-							measurements.push_back(rmeas);
-							DBGMSG(debugStream,TRACE,rmeas->gps.size() << " measurements at "  << (int) gpsTOD << " "
-								<< hh << ":" << mm << ":" << (int) rmeas->tmGPS.tm_sec << " (GPS), " 
-								<< pchh << ":" << pcmm << ":" << pcss << " (PC)");
+								rmeas->tmGPS.tm_sec= igpsTOD - hh*3600 - mm*60;
+								rmeas->tmGPS.tm_min= mm;
+								rmeas->tmGPS.tm_hour=hh ;
+								rmeas->tmGPS.tm_mday=RDdd;
+								rmeas->tmGPS.tm_mon=RDmm-1;
+								rmeas->tmGPS.tm_year=RDyyyy-1900;
+								rmeas->tmGPS.tm_isdst=0;
+								
+								rmeas->tmfracs = rxTimeOffset;
+								
+								// The time offset can be negative so have to account for rollovers
+// 								time_t ttGPS = (time_t)(mktime(&(rmeas->tmGPS)) + rxTimeOffset);
+// 								struct tm *tmGPS = gmtime(&ttGPS);
+// 								rmeas->tmGPS=*tmGPS;
+// 								rmeas->tmfracs = rxTimeOffset;
+// 								if (rmeas->tmfracs < 0)
+// 									rmeas->tmfracs += 1.0;
+								
+								// YA and TO messages can roll over at different times - handle this case
+								// Typically, the difference between the smoothed and receiver time offsets is <= 1 ns
+								if ((smoothingOffset - rxTimeOffset)> 5e-4) smoothingOffset-=1e-3;
+								if ((smoothingOffset - rxTimeOffset)<-5e-4) smoothingOffset+=1e-3;
+				
+								rmeas->sawtooth=sawtooth-(smoothingOffset-rxTimeOffset); // added to the counter measurement
+								rmeas->timeOffset = rxTimeOffset; // just used for diagnostics
+								
+								// All OK
+								measurements.push_back(rmeas);
+								DBGMSG(debugStream,TRACE,rmeas->gps.size() << " measurements at "  << (int) gpsTOD << " "
+									<< hh << ":" << mm << ":" << (int) rmeas->tmGPS.tm_sec << " (GPS), " 
+									<< pchh << ":" << pcmm << ":" << pcss << " (PC)");
+							}
+							else{
+								errorCount++;
+								DBGMSG(debugStream,WARNING,"GPS TOD out of range at " << pchh << ":" << pcmm << ":" << pcss << " (PC)");
+							}
 						}
 						else{
 							errorCount++;
-							DBGMSG(debugStream,WARNING,"Bad PC time " << currpctime);	
+							DBGMSG(debugStream,WARNING,"Unreadable PC time " << currpctime);	
 						}
 					}
 					else{
@@ -311,7 +328,7 @@ bool Javad::readLog(string fname,int mjd)
 				if (msg.size() == 9*2){
 					HexToBin((char *) msg.c_str(),sizeof(F8),(unsigned char *) &rxTimeOffset);
 					// Discard outliers
-					if ((fabs(rxTimeOffset)>0.001) || (fabs(rxTimeOffset)<1E-10)){
+					if ((fabs(rxTimeOffset)>0.001) || (fabs(rxTimeOffset)<1E-10)){ 
 						badMeasurements++;
 						DBGMSG(debugStream,WARNING," TO outlier at line " << linecount << ":" << rxTimeOffset);
 					}
@@ -591,6 +608,8 @@ bool Javad::readLog(string fname,int mjd)
 	}
 	
 	// Post load cleanups 
+	
+	interpolateMeasurements(measurements);
 	
 	// Calculate UTC time of measurements, now that the number of leap seconds is known
 	for (unsigned int i=0;i<measurements.size();i++){

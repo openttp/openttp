@@ -39,10 +39,10 @@ class SVMeasurement
 		double meas; // units are seconds (s)
 		unsigned char lli;
 		unsigned char signal;
-#ifdef NVS_INTERPOLATE
-		double dbuf1,dbuf2;
+
+		double dbuf1,dbuf2; // FIXME used as temporaries when interpolating. Remove eventually.
 		unsigned int uibuf;
-#endif
+		
 };
 
 #endif

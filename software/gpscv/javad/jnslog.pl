@@ -132,7 +132,7 @@ $input="";
 $killed=0;
 $SIG{TERM}=sub {$killed=1};
 
-$statusFile = $Init{"receiver:status"};
+$statusFile = $Init{"receiver:status file"};
 
 LOOP: while (!$killed) {
 	# See if there is text waiting
@@ -287,12 +287,22 @@ sub ShowHelp
   print "  The default configuration file is $configFile\n";
 }
 
+#----------------------------------------------------------------------------
+sub FixPath()
+{
+	my $path=$_[0];
+	if (!($path=~/^\//)){
+		$path =$ENV{HOME}."/".$path;
+	}
+	return $path;
+}
+
 #-----------------------------------------------------------------------------
 
 sub Initialise {
 	my $name=shift;
-	my @required=("receiver:pps offset", "receiver:elevation mask", "receiver:serial port", 
-		"paths:receiver data", "files:receiver messages","receiver:status","receiver:configuration");
+	my @required=("receiver:pps offset", "receiver:elevation mask", "receiver:port","receiver:status file",
+		"paths:receiver data", "receiver:file extension","receiver:configuration");
 	my $err;
   
 	%Init=&TFMakeHash2($name,(tolower=>1));
@@ -308,12 +318,15 @@ sub Initialise {
 	}
 	exit if $err;
 
+	$Init{"receiver:status file"} = &FixPath($Init{"receiver:status file"});
+	$Init{"paths:receiver data"}= &FixPath($Init{"paths:receiver data"});
+	
 	# For some reason, the constant B115200 is not picked up properly?
 	# Following line comes from termbits.ph 
 	# eval 'sub B115200 () {0010002;}' unless defined(&B115200);
 
 	# Open the serial port to the receiver
-	$port=$Init{"receiver:serial port"};
+	$port=$Init{"receiver:port"};
 	unless (`/usr/local/bin/lockport -p $$ $port $0`==1) {
 		printf "! Could not obtain lock on $port. Exiting.\n";
 		exit;
@@ -363,7 +376,7 @@ sub GetFixedPositionCommands {
 
 sub OpenDataFile {
 	my $mjd=$_[0];
-	my $name=$Init{"data path"}.$mjd.$Init{"gps data extension"};
+	my $name=$Init{"paths:receiver data"}."/".$mjd.".".$Init{"receiver:file extension"};
 	my $old=(-e $name);
 
 	open OUT,">>$name" or die "Could not write to $name";

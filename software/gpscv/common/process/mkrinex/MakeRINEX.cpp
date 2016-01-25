@@ -296,7 +296,9 @@ void MakeRINEX::init()
 	
 	configurationFile = homeDir+"/etc/cggtts.conf";
 	counterPath = homeDir+"/raw";
+	counterExtension= "tic";
 	receiverPath= homeDir+"/raw";
+	receiverExtension="rx";
 	RINEXPath=homeDir+"/rinex";
 	tmpPath=homeDir+"/tmp";
 	
@@ -313,11 +315,11 @@ void  MakeRINEX::makeFilenames()
 	timingDiagnosticsFile=ss.str();
 	
 	ostringstream ss2;
-	ss2 << counterPath << "/" << MJD << ".cvtime";
+	ss2 << counterPath << "/" << MJD << "." << counterExtension;
 	counterFile=ss2.str();
 	
 	ostringstream ss3;
-	ss3 << receiverPath << "/" << MJD << ".rxrawdata";
+	ss3 << receiverPath << "/" << MJD << "." << receiverExtension;
 	receiverFile = ss3.str();
 	
 	ostringstream ss4;
@@ -423,6 +425,11 @@ bool MakeRINEX::loadConfig()
 	
 	configOK= configOK && setConfig(last,"receiver","pps offset",&receiver->ppsOffset);
 	
+	configOK= configOK && setConfig(last,"receiver","file extension",receiverExtension);
+	
+	// Counter
+	configOK= configOK && setConfig(last,"counter","file extension",counterExtension);
+	
 	// Delays
 	
 	configOK= configOK && setConfig(last,"delays","C1 internal",&C1InternalDelay);
@@ -430,7 +437,6 @@ bool MakeRINEX::loadConfig()
 	configOK= configOK && setConfig(last,"delays","reference cable",&refCableDelay);
 	
 	// Paths FIXME
-	
 
 	string path="";	
 	configOK = configOK && setConfig(last,"paths","rinex",path);
@@ -950,7 +956,7 @@ void MakeRINEX::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string
 			CounterMeasurement *cm= mpairs[i]->cm;
 			ReceiverMeasurement *rxm = mpairs[i]->rm;
 			int tmatch=((int) cm->hh)*3600 +  ((int) cm->mm)*60 + ((int) cm->ss);
-			fprintf(fout,"%i %g %g %g\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset*1.09E-9);
+			fprintf(fout,"%i %g %g %g\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset);
 		}
 	}
 	fclose(fout);

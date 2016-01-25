@@ -64,14 +64,6 @@ typedef long double FP80   ; // WARNING 80 bits on x86 but 64 bits on ARM
 #define MSG74 0x04
 #define MSGF5 0x08
 
-#ifdef NVS_INTERPOLATE
-static double LagrangeInterpolation(double x,double x1, double y1,double x2,double y2,double x3,double y3){
-	return y1*(x-x2)*(x-x3)/((x1-x2)*(x1-x3)) + 
-				 y2*(x-x1)*(x-x3)/((x2-x1)*(x2-x3)) +
-				 y3*(x-x1)*(x-x2)/((x3-x1)*(x3-x2)) ;
-}
-#endif 
-
 NVS::NVS(Antenna *ant,string m):Receiver(ant)
 {
 	modelName=m;
@@ -391,82 +383,7 @@ bool NVS::readLog(string fname,int mjd)
 		return false;
 	}
 	
-	#ifdef NVS_INTERPOLATE
-	vector<SVMeasurement *> track;
-	for (int prn=1;prn<=32;prn++){
-		track.clear();
-		for (unsigned int m=0;m<measurements.size();m++){
-			for (unsigned int svm=0; svm < measurements.at(m)->gps.size();svm++){
-				if ((prn == measurements.at(m)->gps.at(svm)->svn)){
-					measurements.at(m)->gps.at(svm)->uibuf= mktime(&(measurements.at(m)->tmGPS));
-					measurements.at(m)->gps.at(svm)->dbuf2=measurements.at(m)->tmfracs;
-					track.push_back(measurements.at(m)->gps.at(svm));
-					break;
-				}
-			}
-		}
-		
-		// Now interpolate the measurements
-	
-		if (track.size() < 3) continue;
-		
-		unsigned int trackStart=0;
-		unsigned int trackStop=0;
-		// Run through tracks, looking for contiguous tracks
-		for (unsigned int t=1;t<track.size()-1;t++){
-			if ((track.at(t+1)->uibuf - track.at(t)->uibuf > 10) || (t == track.size()-2)){ // FIXME to be tweaked 
-				trackStop=t;
-				if ((t == track.size()-2) && (track.at(t+1)->uibuf - track.at(t)->uibuf < 10) ) trackStop++; // get the last one
-						
-				DBGMSG(debugStream,1,"Track:" <<prn<< " " << " " << track.size() << " " << trackStart << "->" << trackStop );
-				// First point
-				unsigned int tgps1 = track.at(trackStart)->uibuf;
-				unsigned int tgps2 = track.at(trackStart+1)->uibuf;
-				unsigned int tgps3 = track.at(trackStart+2)->uibuf;
-				track.at(trackStart)->dbuf1 = LagrangeInterpolation(trackStart,
-													track.at(trackStart)->dbuf2,track.at(trackStart)->meas,
-						tgps2-tgps1 + track.at(trackStart+1)->dbuf2,track.at(trackStart+1)->meas,
-						tgps3-tgps1 + track.at(trackStart+2)->dbuf2,track.at(trackStart+2)->meas);
-				
-				for (unsigned int i=trackStart+1;i<trackStop-1;i++){
-					tgps1 = track.at(i-1)->uibuf;
-					tgps2 = track.at(i)->uibuf;
-					tgps3 = track.at(i+1)->uibuf;
-					track.at(i)->dbuf1 = LagrangeInterpolation(tgps2-tgps1,
-													track.at(i-1)->dbuf2,track.at(i-1)->meas,
-						tgps2-tgps1 + track.at(i)->dbuf2,track.at(i)->meas,
-						tgps3-tgps1 + track.at(i+1)->dbuf2,track.at(i+1)->meas);
-				}
-				
-				tgps1 = track.at(trackStop-2)->uibuf;
-				tgps2 = track.at(trackStop-1)->uibuf;
-				tgps3 = track.at(trackStop)->uibuf;
-				track.at(trackStop)->dbuf1 = LagrangeInterpolation(tgps3-tgps1,
-													track.at(trackStop-2)->dbuf2,track.at(trackStop-2)->meas,
-						tgps2-tgps1  + track.at(trackStop-1)->dbuf2,track.at(trackStop-1)->meas,
-						tgps3-tgps1 + track.at(trackStop)->dbuf2,track.at(trackStop)->meas);
-				
-				trackStart = t+1;
-				
-			}
-		}
-	
-		for (unsigned int i=0;i<track.size()-1;i++){
-			double tmp=track.at(i)->meas;
-			track.at(i)->meas=track.at(i)->dbuf1;
-			track.at(i)->dbuf1=tmp;
-			DBGMSG(debugStream,3,prn << " " << (track.at(i)->meas - track.at(i)->dbuf1)*1.0E9);
-		}
-		
-	}
-	
-	track.clear();
-	
-	for (unsigned int i=0;i<measurements.size();i++){
-		measurements.at(i)->tmfracs=0;
-	}
-	
-	#endif
+	interpolateMeasurements(measurements);
 
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
