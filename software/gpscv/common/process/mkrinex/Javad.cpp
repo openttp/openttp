@@ -69,15 +69,19 @@ extern ostream *debugStream;
 // Receiver message flags
 #define AZ_MSG 0x01
 #define EL_MSG 0x02
-#define FC_MSG 0x04
-#define RC_rc_MSG 0x08
-#define RD_MSG 0x10
-#define RT_MSG 0x20
-#define SI_MSG 0x40
-#define SS_MSG 0x80
-#define TO_MSG 0x100
-#define YA_MSG 0x200
-#define ZA_MSG 0x400
+#define F1_MSG 0x04
+#define F2_MSG 0x08
+#define FC_MSG 0x10
+#define R1_r1_1R_1r_MSG 0x20
+#define R2_r2_2R_2r_MSG 0x40
+#define RC_rc_MSG 0x80
+#define RD_MSG 0x100
+#define RT_MSG 0x200
+#define SI_MSG 0x400
+#define SS_MSG 0x800
+#define TO_MSG 0x1000
+#define YA_MSG 0x2000
+#define ZA_MSG 0x4000
 
 Javad::Javad(Antenna *ant,string m):Receiver(ant)
 {
@@ -127,18 +131,31 @@ bool Javad::readLog(string fname,int mjd)
 	unsigned char azimuths[MAX_CHANNELS];
 	F8 CApr[MAX_CHANNELS];
 	unsigned char CAlockFlags[MAX_CHANNELS*2];
+	F8 P1pr[MAX_CHANNELS];
+	F8 relP1pr[MAX_CHANNELS];
+	unsigned char P1lockFlags[MAX_CHANNELS*2];
+	F8 P2pr[MAX_CHANNELS];
+	F8 relP2pr[MAX_CHANNELS];
+	unsigned char P2lockFlags[MAX_CHANNELS*2];
 	
+	I2 i2bufarray[MAX_CHANNELS];
 	I4 i4bufarray[MAX_CHANNELS];
+	F4 f4bufarray[MAX_CHANNELS];
 	F8 f8bufarray[MAX_CHANNELS];
 	
 	F8 smoothingOffset;
-	int rcCnt=0,RCcnt=0;
+	int rcCnt=0,RCcnt=0; 
+	int R1cnt=0,r1Cnt=0,m1RCnt=0,m1rCnt=0;
+	int R2cnt=0,r2Cnt=0,m2RCnt=0,m2rCnt=0;
 	unsigned int errorCount=0,badMeasurements=0;
 	U2 RDyyyy;
 	U1 RDmm,RDdd;
 	
 	reqdMsgs = AZ_MSG | EL_MSG | FC_MSG | RC_rc_MSG| RT_MSG | SI_MSG | SS_MSG | TO_MSG | YA_MSG| ZA_MSG;
+	if (dualFrequency)
+		reqdMsgs |= R1_r1_1R_1r_MSG | R2_r2_2R_2r_MSG | F1_MSG | F2_MSG;
 	
+
   if (infile.is_open()){
     while ( getline (infile,line) ){
 			linecount++;
@@ -196,6 +213,20 @@ bool Javad::readLog(string fname,int mjd)
 			if(msgid=="RD"){ // Receiver Date (RD) message 
 				
 				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // Save measurements
+					
+					if (!(dualFrequency &&
+						(R1cnt<=1) && (r1Cnt<=1) && (m1RCnt<=1) && (m1rCnt<=1) &&
+						(R2cnt<=1) && (r2Cnt<=1) && (m2RCnt<=1) && (m2rCnt<=1)))
+					{
+						DBGMSG(debugStream,INFO,"Too many P1/2 messages");
+						pctime=currpctime;
+						currMsgs=0;
+						rcCnt=RCcnt=0;
+						R1cnt=r1Cnt=m1RCnt=m1rCnt=0;
+						R2cnt=r2Cnt=m2RCnt=m2rCnt=0;
+						continue;
+					}
+					
 					ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 					
 					for (unsigned int chan=0; chan < nSats; chan++){
@@ -294,7 +325,8 @@ bool Javad::readLog(string fname,int mjd)
 				pctime=currpctime;
 				currMsgs=0;
 				rcCnt=RCcnt=0;
-				
+				R1cnt=r1Cnt=m1RCnt=m1rCnt=0;
+				R2cnt=r2Cnt=m2RCnt=m2rCnt=0;
 				continue;
 			}
 			
@@ -315,6 +347,8 @@ bool Javad::readLog(string fname,int mjd)
 				if (currMsgs & SI_MSG){
 					currMsgs=0; // unexpected SI message
 					rcCnt=RCcnt=0;
+					R1cnt=r1Cnt=m1RCnt=m1rCnt=0;
+					R2cnt=r2Cnt=m2RCnt=m2rCnt=0;
 					continue;
 				}
 				// Can't check the message size!
@@ -473,6 +507,170 @@ bool Javad::readLog(string fname,int mjd)
 				}
 				continue;
 			}
+		
+			// P1 & P2 messages 
+			if (dualFrequency){
+
+				// Four pseudorange messages for each signal
+				if(msgid == "R1"){ // Full P1 pseudorange (R1) message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F8));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F8),(unsigned char *) (f8bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							P1pr[i] = (double) f8bufarray[i];
+						currMsgs |= R1_r1_1R_1r_MSG;
+						R1cnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," R1 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "r1"){ // Short P1 pseudoranges (r1) message
+					if (R1cnt) continue; // full pseudoranges take precedence
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I4));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(I4),(unsigned char *) (i4bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							P1pr[i] = (double)(i4bufarray[i])*1e-11 + 0.075;
+						currMsgs |= R1_r1_1R_1r_MSG;
+						r1Cnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," r1 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "1R"){ // Relative P1 pseudoranges (1R) message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F4));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F4),(unsigned char *) (f4bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							relP1pr[i] = (double) f4bufarray[i];
+						currMsgs |= R1_r1_1R_1r_MSG;
+						m1RCnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," 1R msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "1r"){ // Short relative P1 pseudoranges (1r) message
+					if (m1RCnt) continue; // full relative pseudoranges take precedence
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I2));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(I2),(unsigned char *) (i2bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							relP1pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
+						currMsgs |= R1_r1_1R_1r_MSG;
+						m1rCnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," 1r msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "R2"){ // Full P2 pseudorange (R2) message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F8));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F8),(unsigned char *) (f8bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							P2pr[i] = (double) f8bufarray[i];
+						currMsgs |= R2_r2_2R_2r_MSG;
+						R2cnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," R2 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "r2"){ // Short P2 pseudoranges (r2) message
+					if (R2cnt) continue; // full pseudoranges take precedence
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I4));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(I4),(unsigned char *) (i4bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							P2pr[i] = (double)(i4bufarray[i])*1e-11 + 0.075;
+						currMsgs |= R2_r2_2R_2r_MSG;
+						r2Cnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," r2 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "2R"){ // Relative P2 pseudoranges (2R) message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F4));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F4),(unsigned char *) (f4bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							relP2pr[i] = (double) f4bufarray[i];
+						currMsgs |= R2_r2_2R_2r_MSG;
+						m2RCnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," 2R msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "2r"){ // Short relative P2 pseudoranges (2r) message
+					if (m2RCnt) continue; // full delta pseudoranges take precedence
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I2));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(I2),(unsigned char *) (i2bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							relP2pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
+						currMsgs |= R2_r2_2R_2r_MSG;
+						m2rCnt++;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," 2r msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "F1"){ // P1 Lock Flags (F1) message
+					unsigned int msgSats = (msg.size() - 2) /(2*sizeof(U2));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(U2),(unsigned char *) (P1lockFlags));
+						currMsgs |= F1_MSG;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," F1 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+			
+				if(msgid == "F2"){ // P2 Lock Flags (F2) message
+					unsigned int msgSats = (msg.size() - 2) /(2*sizeof(U2));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(U2),(unsigned char *) (P2lockFlags));
+						currMsgs |= F2_MSG;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," F2 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+			} // if dualFrequency
 		
 			//
 			// Intermittent  messages - parse last
@@ -646,7 +844,7 @@ bool Javad::readLog(string fname,int mjd)
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");
 	DBGMSG(debugStream,INFO,errorCount << " errors in input file");
-	DBGMSG(debugStream,INFO,badMeasurements  << " bad measurements in input file");
+	DBGMSG(debugStream,INFO,badMeasurements  << " measurements rejected in input file");
 	return true;
 	
 }
