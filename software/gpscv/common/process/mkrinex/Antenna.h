@@ -43,7 +43,7 @@ class Antenna
 		string antennaType;
 		double x,y,z;
 		double deltaH,deltaE,deltaN;
-		
+		string frame;
 };
 
 #endif

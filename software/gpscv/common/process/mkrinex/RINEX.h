@@ -2,7 +2,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015  Michael J. Wouters
+// Copyright (c) 2016  Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,16 +22,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "Antenna.h"
+#ifndef __RINEX_H_
+#define __RINEX_H_
 
-Antenna::Antenna()
+#include <string>
+
+class Antenna;
+class Counter;
+class MeasurementPair;
+class Receiver;
+
+using namespace std;
+
+class RINEX
 {
-	markerName="MNAME";
-	markerNumber="MNUM";
-	markerType="MTYPE";
-	antennaNumber="ANUM";
-	antennaType="ATYPE";
-	x=y=z=0.0;
-	deltaH=deltaE=deltaN=0.0;
-	frame="REFFRAME";
-}
+	
+	public:
+		
+		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
+		
+		RINEX(Antenna *,Counter *,Receiver *);
+		bool writeObservationFile(int ver,string fname,int mjd,int interval,MeasurementPair **mpairs);
+		bool writeNavigationFile(int ver,string fname,int mjd);
+		
+		string observer;
+		string agency;
+		
+	private:
+		
+		void init();
+		
+		Antenna *ant;
+		Counter *cntr;
+		Receiver *rx;
+		
+};
+
+#endif

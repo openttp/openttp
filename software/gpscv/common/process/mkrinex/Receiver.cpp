@@ -53,6 +53,7 @@ Receiver::Receiver(Antenna *ant)
 	constellations=0;
 	antenna = ant;
 	ppsOffset=0;
+	commissionYYYY=1999;
 }
 
 Receiver::~Receiver()

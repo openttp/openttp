@@ -36,6 +36,8 @@
 #define MKRINEX_VERSION "0.1.0"
 #define MKRINEX_CONFIG "mkrinex.conf"
 
+#define CVACUUM 299792458
+
 using namespace std;
 
 class Antenna;
@@ -43,31 +45,16 @@ class Counter;
 class Receiver;
 class CounterMeasurement;
 class ReceiverMeasurement;
-
-class MeasurementPair
-{
-	public:
-		MeasurementPair()
-		{
-			flags=0;
-			cm=NULL;
-			rm=NULL;
-		}
-		
-		char flags;
-		CounterMeasurement *cm;
-		ReceiverMeasurement *rm;
-};
+class MeasurementPair;
 
 class MakeRINEX
 {
 	public:
-	
-		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
 		
 		MakeRINEX(int argc,char **argv);
 		~MakeRINEX();
 		
+		string name(){return appName;}
 		void setMJD(int);
 		void run();
 		
@@ -83,21 +70,25 @@ class MakeRINEX
 		bool setConfig(ListEntry *,const char *,const char *,double *);
 		bool setConfig(ListEntry *,const char *,const char *,int *);
 		
-		bool writeRINEXObsFile(int,Receiver *,Counter *,Antenna *,string,int);
-		bool writeRINEXNavFile(int,Receiver *,string,int);
 		bool writeRIN2CGGTTSParamFile(Receiver *,Antenna *,string);
 		
 		void matchMeasurements(Receiver *,Counter *);
 		void writeReceiverTimingDiagnostics(Receiver *,Counter *,string);
 		void writeSVDiagnostics(Receiver *,string);
 		
+		string appName;
+		
 		Antenna *antenna;
 		Receiver *receiver;
 		Counter *counter;
 		
+		string CGGTTSref;
+		string CGGTTScomment;
+		string CGGTTSlab;
+		int CGGTTSversion;
+		
 		string observer;
 		string agency;
-		string CGGTSComment;
 		
 		double antCableDelay,refCableDelay,C1InternalDelay;
 		

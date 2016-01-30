@@ -2,7 +2,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015  Michael J. Wouters
+// Copyright (c) 2016  Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,16 +22,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "Antenna.h"
+#ifndef __MEASUREMENT_PAIR_H_
+#define __MEASUREMENT_PAIR_H_
 
-Antenna::Antenna()
+class MeasurementPair
 {
-	markerName="MNAME";
-	markerNumber="MNUM";
-	markerType="MTYPE";
-	antennaNumber="ANUM";
-	antennaType="ATYPE";
-	x=y=z=0.0;
-	deltaH=deltaE=deltaN=0.0;
-	frame="REFFRAME";
-}
+	public:
+		MeasurementPair()
+		{
+			flags=0;
+			cm=NULL;
+			rm=NULL;
+		}
+		
+		char flags;
+		CounterMeasurement *cm;
+		ReceiverMeasurement *rm;
+};
+
+#endif

@@ -127,7 +127,7 @@ class Receiver
 		
 		int constellations;
 		int channels;
-		
+		int commissionYYYY; // yaer of commissioning, used in CGGTTS files
 		int leapsecs;
 		
 		int ppsOffset; // 1 pps offset, in nanoseconds
