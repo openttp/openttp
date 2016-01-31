@@ -31,4 +31,5 @@
 		bool satxyz(EphemerisData *ed,double t,double *Ek,double x[3]);
 		double sattime(EphemerisData *ed,double Ek,double tsv,double toc);
 	}
+
 #endif

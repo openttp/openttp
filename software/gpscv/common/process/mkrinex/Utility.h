@@ -30,5 +30,6 @@
 namespace Utility{
 	std::string trim(std::string const&); 
 	void MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday);
+	bool linearFit(double [],double[],int,double[]);
 }
 #endif

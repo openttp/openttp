@@ -38,6 +38,7 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <configurator.h>
 
@@ -77,6 +78,9 @@ static struct option longOptions[] = {
 		{0,         			0,0,  0 }
 };
 
+using boost::lexical_cast;
+using boost::bad_lexical_cast;
+		
 //
 //	Public
 //
@@ -204,12 +208,6 @@ void MakeRINEX::run()
 {
 	makeFilenames();
 	
-	CGGTTS cggtts(antenna,counter,receiver);
-	cggtts.ref=CGGTTSref;
-	cggtts.lab=CGGTTSlab;
-	cggtts.comment=CGGTTScomment;
-	cggtts.writeObservationFile(CGGTTS::V1,"test.cctf",MJD,mpairs);
-	
 	if (!receiver->readLog(receiverFile,MJD)){
 		cerr << "Exiting" << endl;
 		exit(EXIT_FAILURE);
@@ -221,6 +219,21 @@ void MakeRINEX::run()
 	}
 
 	matchMeasurements(receiver,counter);
+	
+	// FIXME Fold the counter/timer measurements (plus sawtooth correction) in now
+	
+	CGGTTS cggtts(antenna,counter,receiver);
+	cggtts.ref=CGGTTSref;
+	cggtts.lab=CGGTTSlab;
+	cggtts.comment=CGGTTScomment;
+	cggtts.revDateYYYY=CGGTTSRevDateYYYY;
+	cggtts.revDateMM=CGGTTSRevDateMM;
+	cggtts.revDateDD=CGGTTSRevDateDD;
+	cggtts.cabDly=antCableDelay;
+	cggtts.intDly=C1InternalDelay; // FIXME
+	cggtts.refDly=refCableDelay;
+	
+	cggtts.writeObservationFile(CGGTTS::V2E,Receiver::GPS,"test.cctf",MJD,mpairs);
 	
 	RINEX rnx(antenna,counter,receiver);
 	rnx.agency = agency;
@@ -243,7 +256,7 @@ void MakeRINEX::run()
 
 void MakeRINEX::showHelp()
 {
-	cout << endl << APP_NAME << " version " << MKRINEX_VERSION << endl;
+	cout << endl << APP_NAME << " version " << APP_VERSION << endl;
 	cout << "Usage: " << APP_NAME << " [options]" << endl;
 	cout << "Available options are" << endl;
 	cout << "--configuration <file> full path to the configuration file" << endl;
@@ -261,8 +274,8 @@ void MakeRINEX::showHelp()
 
 void MakeRINEX::showVersion()
 {
-	cout << APP_NAME <<  " version " << MKRINEX_VERSION << endl;
-	cout << "Written by " << AUTHORS << endl;
+	cout << APP_NAME <<  " version " << APP_VERSION << endl;
+	cout << "Written by " << APP_AUTHORS << endl;
 	cout << "This ain't no stinkin' Perl script!" << endl;
 }
 
@@ -379,8 +392,21 @@ bool MakeRINEX::loadConfig()
 	configOK= configOK && setConfig(last,"cggtts","comments",CGGTTScomment);
 	configOK= configOK && setConfig(last,"cggtts","revision date",stmp);
 	std::vector<std::string> vals;
-	boost::split(vals, stmp,boost::is_any_of(":"), boost::token_compress_on);
-			
+	boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
+	if (vals.size()==3){
+		try{
+			CGGTTSRevDateYYYY=lexical_cast<int>(vals.at(0));
+			CGGTTSRevDateMM=lexical_cast<int>(vals.at(1));
+			CGGTTSRevDateDD=lexical_cast<short>(vals.at(2));
+		}
+    catch(const bad_lexical_cast &){
+			cerr << "Blart" << endl;
+    }
+	}
+	else{
+		cerr << "Syntax error in [CGGTTS] revision date - should be YYYY-MM-DD" << endl;
+	}
+	
 	// RINEX generation
 	configOK= configOK && setConfig(last,"rinex","version",&itmp);
 	switch (itmp)

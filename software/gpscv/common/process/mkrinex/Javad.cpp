@@ -214,9 +214,9 @@ bool Javad::readLog(string fname,int mjd)
 				
 				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // Save measurements
 					
-					if (!(dualFrequency &&
-						(R1cnt<=1) && (r1Cnt<=1) && (m1RCnt<=1) && (m1rCnt<=1) &&
-						(R2cnt<=1) && (r2Cnt<=1) && (m2RCnt<=1) && (m2rCnt<=1)))
+					if ((dualFrequency &&
+						!((R1cnt<=1) && (r1Cnt<=1) && (m1RCnt<=1) && (m1rCnt<=1) &&
+						(R2cnt<=1) && (r2Cnt<=1) && (m2RCnt<=1) && (m2rCnt<=1))))
 					{
 						DBGMSG(debugStream,INFO,"Too many P1/2 messages");
 						pctime=currpctime;

@@ -52,3 +52,7 @@ void Utility::MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday)
 	*yday = utc->tm_yday+1;
 }
 
+bool Utility::linearFit(double x[], double y[],int n,double results[])
+{
+	return true;
+}

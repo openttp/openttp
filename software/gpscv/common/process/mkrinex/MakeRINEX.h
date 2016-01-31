@@ -32,9 +32,9 @@
 #include <configurator.h>
 
 #define APP_NAME "mkrinex"
-#define AUTHORS "Michael Wouters"
-#define MKRINEX_VERSION "0.1.0"
-#define MKRINEX_CONFIG "mkrinex.conf"
+#define APP_AUTHORS "Michael Wouters"
+#define APP_VERSION "0.1.0"
+#define APP_CONFIG "mkrinex.conf"
 
 #define CVACUUM 299792458
 
@@ -54,7 +54,6 @@ class MakeRINEX
 		MakeRINEX(int argc,char **argv);
 		~MakeRINEX();
 		
-		string name(){return appName;}
 		void setMJD(int);
 		void run();
 		
@@ -86,6 +85,8 @@ class MakeRINEX
 		string CGGTTScomment;
 		string CGGTTSlab;
 		int CGGTTSversion;
+		int CGGTTSRevDateYYYY,CGGTTSRevDateMM,CGGTTSRevDateDD;
+		
 		
 		string observer;
 		string agency;

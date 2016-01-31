@@ -87,14 +87,14 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 		case V2:
 		{
 			strftime(buf,80,"%d-%b-%y %T",tgmt);
-			fprintf(fout,"%-20s%-20s%-20s%-20s\n",app->name().c_str(),agency.c_str(),buf,"PGM / RUN BY / DATE");
+			fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			break;
 		}
 		case V3:
 		{
 			snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
 					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
-			fprintf(fout,"%-20s%-20s%-20s%-20s\n",app->name().c_str(),agency.c_str(),buf,"PGM / RUN BY / DATE");
+			fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			break;
 		}
 		default:break;
@@ -261,7 +261,7 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 		case V2:
 		{
 			strftime(buf,80,"%d-%b-%y %T",tgmt);
-			fprintf(fout,"%-20s%-20s%-20s%-20s\n",app->name().c_str(),agency.c_str(),buf,"PGM / RUN BY / DATE");
+			fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			fprintf(fout,"%2s%12.4e%12.4e%12.4e%12.4e%10s%-20s\n","",
 				rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,"","ION ALPHA");
 			fprintf(fout,"%2s%12.4e%12.4e%12.4e%12.4e%10s%-20s\n","",
@@ -274,7 +274,7 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 		{
 			snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
 					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
-			fprintf(fout,"%-20s%-20s%-20s%-20s\n",app->name().c_str(),agency.c_str(),buf,"PGM / RUN BY / DATE");
+			fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			fprintf(fout,"GPSA %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
 					rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,"","IONOSPHERIC CORR");
 			fprintf(fout,"GPSB %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",

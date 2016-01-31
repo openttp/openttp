@@ -26,6 +26,7 @@
 #define __CGGTTS_H_
 
 #include <string>
+#include <boost/concept_check.hpp>
 
 class Antenna;
 class Counter;
@@ -42,19 +43,21 @@ class CGGTTS
 		enum CGGTTSVERSIONS {V1=0, V2E=2}; // used as array indices too ..
 		
 		CGGTTS(Antenna *,Counter *,Receiver *);
-		bool writeObservationFile(int ver,string fname,int mjd,MeasurementPair **mpairs);
+		bool writeObservationFile(int ver,int GNSSconst,string fname,int mjd,MeasurementPair **mpairs);
 	
 		string ref;
 		string lab;
 		string comment;
 		
 		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated
+		double intDly,cabDly,refDly;
+		bool quadFits;
 		
 	private:
 		
 		void init();
 		
-		void writeV1(FILE *);
+		void writeHeader(int ver,FILE *fout);
 		int checkSum(char *);
 		
 		Antenna *ant;
