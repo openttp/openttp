@@ -157,6 +157,7 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 	// FIXME This uses Lagrange interpolation to estimate the pseudorange at tmfracs=0
 	// Possibly, this method can be removed in the future
 	
+	// For each SV, build up a list of all measurements for the day
 	vector<SVMeasurement *> track;
 	for (int prn=1;prn<=32;prn++){
 		track.clear();
@@ -177,7 +178,8 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 		
 		unsigned int trackStart=0;
 		unsigned int trackStop=0;
-		// Run through tracks, looking for contiguous tracks
+		// Run through tracks, looking for contiguous tracks : if the break is more than 10 a new track is assumed
+		// A quadratic is fitted so we the point either side of a point is needed.
 		for (unsigned int t=1;t<track.size()-1;t++){
 			if ((track.at(t+1)->uibuf - track.at(t)->uibuf > 10) || (t == track.size()-2)){ // FIXME to be tweaked 
 				trackStop=t;
@@ -193,7 +195,7 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 						tgps2-tgps1 + track.at(trackStart+1)->dbuf2,track.at(trackStart+1)->meas,
 						tgps3-tgps1 + track.at(trackStart+2)->dbuf2,track.at(trackStart+2)->meas);
 				
-				for (unsigned int i=trackStart+1;i<trackStop-1;i++){
+				for (unsigned int i=trackStart+1;i<=trackStop-1;i++){
 					tgps1 = track.at(i-1)->uibuf;
 					tgps2 = track.at(i)->uibuf;
 					tgps3 = track.at(i+1)->uibuf;
@@ -202,7 +204,7 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 						tgps2-tgps1 + track.at(i)->dbuf2,track.at(i)->meas,
 						tgps3-tgps1 + track.at(i+1)->dbuf2,track.at(i+1)->meas);
 				}
-				
+				// Last point
 				tgps1 = track.at(trackStop-2)->uibuf;
 				tgps2 = track.at(trackStop-1)->uibuf;
 				tgps3 = track.at(trackStop)->uibuf;
@@ -216,7 +218,8 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 			}
 		}
 	
-		for (unsigned int i=0;i<track.size()-1;i++){
+		// Update all measurements with the interpolated value
+		for (unsigned int i=0;i<track.size();i++){
 			double tmp=track.at(i)->meas;
 			track.at(i)->meas=track.at(i)->dbuf1;
 			track.at(i)->dbuf1=tmp;
@@ -234,7 +237,7 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 }
 
 
-EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int wn,int tow)
+EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 {
 	EphemerisData *ed = NULL;
 	double dt,tmpdt;
