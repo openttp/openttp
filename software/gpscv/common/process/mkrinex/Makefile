@@ -8,7 +8,7 @@ CFGFLAGS=
 OBJECTS = Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o MakeRINEX.o ReceiverMeasurement.o \
 	CGGTTS.o RINEX.o \
 	Javad.o NVS.o TrimbleResolution.o \
-	Utility.o
+	Troposphere.o Utility.o
 
 all: $(PROGRAM)
 
@@ -55,6 +55,9 @@ RINEX.o: RINEX.cpp RINEX.h Debug.h Antenna.h Counter.h Receiver.h MakeRINEX.h Me
 TrimbleResolution.o: TrimbleResolution.cpp Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h TrimbleResolution.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c TrimbleResolution.cpp
 
+Troposphere.o: Troposphere.cpp Troposphere.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Troposphere.cpp
+	
 Utility.o: Utility.cpp Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Utility.cpp
 	

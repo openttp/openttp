@@ -2,7 +2,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015  Michael J. Wouters
+// Copyright (c) 2015  Michael J. Wouters, Malcolm Lawn
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -81,3 +81,55 @@ double GPS::sattime(EphemerisData *ed,double Ek,double tsv,double toc)
 	double trel= F*ed->e*ed->sqrtA*sin(Ek);
 	return tsv+ed->a_f0 + ed->a_f1*(tsv - toc) + ed->a_f2*(tsv - toc)*(tsv - toc)+trel;
 }
+
+#undef F
+
+double GPS::ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
+	float alpha0,float alpha1,float alpha2,float alpha3,
+	float beta0,float beta1,float beta2,float beta3)
+{
+	// Model as per IS-GPS-200H pg 126 (Klobuchar model)
+	double psi, phi_i,lambda_i, t, phi_m, PER, x, F, Tiono, phi_u;
+	double lambda_u, AMP;
+	double pi=3.141592654;
+	
+	az = az/180.0; // satellite azimuth in semi-circles
+	elev = elev/180.0; // satellite elevation in semi-circles
+
+	phi_u = lat/180.0; // phi-u user geodetic latitude (semi-circles) 
+	lambda_u = longitude/180.0; // lambda-u user geodetic longitude (semi-circles)
+
+	psi = 0.0137/(elev + 0.11) - 0.022;
+
+	phi_i = phi_u + psi*cos(az*pi);
+
+	if(phi_i > 0.416){phi_i = 0.416;}
+	if(phi_i < -0.416){phi_i = -0.416;}
+	
+	lambda_i = lambda_u + (psi*sin(az*pi)/cos(phi_i*pi));
+
+	t = 4.32e4 * lambda_i + GPSt;
+
+	while (t >= 86400) {t -=86400;}
+	while (t < 0) {t +=86400;}
+
+	phi_m = phi_i + 0.064*cos((lambda_i - 1.617)*pi); // units of lambda_i are semicircles, hence factor of pi
+
+	PER = beta0 + beta1*phi_m + beta2*pow(phi_m,2) + beta3*pow(phi_m,3);
+	if(PER < 72000){PER = 72000;}
+
+	x = 2*pi*(t - 50400)/PER ;
+
+	AMP = alpha0 + alpha1*phi_m + alpha2*pow(phi_m,2) + alpha3*pow(phi_m,3);
+	if(AMP < 0){AMP = 0;}
+
+	F = 1+16*pow((0.53 - elev),3);
+
+	if(fabs(x) < 1.57)
+		Tiono = F*(5e-9 + AMP*(1 - pow(x,2)/2 + pow(x,4)/24));
+	else
+		Tiono = F*5e-9;
+
+	return(Tiono*1e9);
+
+} // ionnodelay

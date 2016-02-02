@@ -2,7 +2,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2014  Michael J. Wouters
+// Copyright (c) 2016  Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,17 +22,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __GPS_H_
-#define __GPS_H_
+#ifndef __TROPOSPHERE_H_
+#define __TROPOSPHERE_H_
 
-	class EphemerisData;
-	
-	namespace GPS {
-		bool satxyz(EphemerisData *ed,double t,double *Ek,double x[3]);
-		double sattime(EphemerisData *ed,double Ek,double tsv,double toc);
-		double ionoDelay(double az, double elev, double latitude, double longitude, double GPSt,
-			float alpha0,float alpha1,float alpha2,float alpha3,
-			float beta0,float beta1,float beta2,float beta3);
-	}
+namespace Troposphere
+{
+	double delayModel(double elev, double height);
+}
 
 #endif

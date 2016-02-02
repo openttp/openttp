@@ -1,8 +1,9 @@
+
 //
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2014  Michael J. Wouters
+// Copyright (c) 2016  Malcolm Lawn, Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,17 +23,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __GPS_H_
-#define __GPS_H_
+#include <cmath>
+#include "Troposphere.h"
 
-	class EphemerisData;
+double Troposphere::delayModel(double elev, double height)
+{
+
+	// elev   = satellite elevation angle in degrees
+	// height = height of GPS antenna above sea level in metres
+
+	float Ns = 324.8; // surface refractivity at mean sea level
+	float el,deltaN,deltaR, R, f;
+	double c = 299792458; 
 	
-	namespace GPS {
-		bool satxyz(EphemerisData *ed,double t,double *Ek,double x[3]);
-		double sattime(EphemerisData *ed,double Ek,double tsv,double toc);
-		double ionoDelay(double az, double elev, double latitude, double longitude, double GPSt,
-			float alpha0,float alpha1,float alpha2,float alpha3,
-			float beta0,float beta1,float beta2,float beta3);
-	}
+	// Convert elev to radians
+	el = elev * M_PI/180; //satellite elevation in radians 
 
-#endif
+	height = height/1000; // convert height in metres to kilometres
+
+	if(elev < 90) {
+		f = 1/(sin(el) + 0.00143/(tan(el) + 0.0455));}
+	else {f=1.0;}
+
+	deltaN =-7.32*exp(0.005577*Ns);
+
+	deltaR = (Ns + 0.5*deltaN - Ns*height - 
+			0.5*deltaN*pow(height,2) + 1430 + 732 )*0.001;
+
+	R = f*deltaR; // range error caused by troposphere
+
+	return(R/c * 1e9); // time delay (in ns) 
+
+}
