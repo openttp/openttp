@@ -165,6 +165,7 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 			for (unsigned int svm=0; svm < meas.at(m)->gps.size();svm++){
 				if ((prn == meas.at(m)->gps.at(svm)->svn)){
 					meas.at(m)->gps.at(svm)->uibuf= mktime(&(meas.at(m)->tmGPS));
+					// FIXME initialise dbuf1? That way if data are patchy, at least we put in something roughly right ..
 					meas.at(m)->gps.at(svm)->dbuf2=meas.at(m)->tmfracs;
 					track.push_back(meas.at(m)->gps.at(svm));
 					break;

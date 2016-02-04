@@ -25,15 +25,18 @@
 #ifndef __SV_MEASUREMENT_H_
 #define __SV_MEASUREMENT_H_
 
+class ReceiverMeasurement;
+
 class SVMeasurement
 {
 	public:
-		SVMeasurement(unsigned char n,double m)
+		SVMeasurement(unsigned char n,double m,ReceiverMeasurement *rxm)
 		{
 			svn=n;
 			meas=m;
 			lli=0;
 			signal=0;
+			rm=rxm;
 		}
 		unsigned char svn;
 		double meas; // units are seconds (s)
@@ -43,6 +46,7 @@ class SVMeasurement
 		double dbuf1,dbuf2; // FIXME used as temporaries when interpolating. Remove eventually.
 		unsigned int uibuf;
 		
+		ReceiverMeasurement *rm; // allows us to get at data common to each SV
 };
 
 #endif

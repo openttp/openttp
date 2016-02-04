@@ -237,6 +237,8 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 						rmeas->pcmm=pcmm;
 						rmeas->pcss=pcss;
 					}
+					for (unsigned int i=0;i<gps.size();i++)
+						gps.at(i)->rm=rmeas;
 					rmeas->gps=gps;
 					// correct all code measurements for the receiver time offset here
 					for (unsigned int sv=0;sv < gps.size(); sv++){ // FIXME GPS only
@@ -298,7 +300,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					if (ichan == gps.size()){
 						float fbuf;
 						HexToBin((char *) reversestr(msg.substr(18+2,4*2)).c_str(),4,(unsigned char *) &fbuf);
-						gps.push_back(new SVMeasurement(cbuf,fbuf*61.0948*1.0E-9));
+						gps.push_back(new SVMeasurement(cbuf,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
 					}
 					else{
 						newsecond=false; // reset the state machine 
@@ -495,7 +497,7 @@ bool TrimbleResolution::resolveMsAmbiguity(ReceiverMeasurement *rxm, SVMeasureme
 	*corr=0.0;
 	bool ok=false;
 	// find closest ephemeris entry
-	EphemerisData *ed = nearestEphemeris(Receiver::GPS,svm->svn,rxm->gpswn,rxm->gpstow);
+	EphemerisData *ed = nearestEphemeris(Receiver::GPS,svm->svn,rxm->gpstow);
 	if (ed != NULL){
 		double x[3],Ek;
 		
@@ -521,7 +523,7 @@ bool TrimbleResolution::resolveMsAmbiguity(ReceiverMeasurement *rxm, SVMeasureme
 		double tk = gpssvt - clockCorrection;
 		
 		double range,ms,svdist,svrange,ax,ay,az;
-		if (GPS::satxyz(ed,tk,&Ek,x)){
+		if (GPS::satXYZ(ed,tk,&Ek,x)){
 			double trel =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
 			range = svm->meas + clockCorrection + trel - ed->t_GD;
 			// Correction for Earth rotation (Sagnac) (ICD 20.3.3.4.3.4)

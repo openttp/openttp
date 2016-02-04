@@ -2,7 +2,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015  Michael J. Wouters
+// Copyright (c) 2015  Peter Fisk, Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -86,3 +86,29 @@ bool Utility::linearFit(double x[], double y[],int n,double xinterp,double *yint
 	
 	return true;
 }
+
+void Utility::ECEFtoLatLonH(double X, double Y, double Z, 
+	double *lat, double *lon, double *ht)
+{
+	// Parameters for WGS84 ellipsoid
+	double a = 6378137.00; // semi-major axis
+	double inverse_flattening = 298.257223563;
+	double latitude,longitude;
+	double p=sqrt(X*X + Y*Y);
+	double r=sqrt(p*p + Z*Z);
+	double f=1/inverse_flattening;
+	double esq=2*f-f*f;
+	double u=atan(Z/p * (1-f+esq*a/r));
+
+	longitude = atan(Y/X);
+	latitude = atan2(Z*(1-f) + esq * a * pow(sin(u),3) ,
+		(1-f)*(p  - esq * a * pow(cos(u),3)));
+	*ht = p*cos(latitude) + Z*sin(latitude) - 
+			a*sqrt(1-esq* pow(sin(latitude),2));
+
+	// Convert to degrees
+	*lat=latitude*57.29577951308;
+	*lon=longitude*57.29577951308;
+	if(*lon < 0) *lon += 180;
+	return;
+} 

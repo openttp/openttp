@@ -24,17 +24,29 @@
 
 #include <cmath>
 
+#include "Antenna.h"
 #include "Debug.h"
 #include "GPS.h"
+#include "MakeRINEX.h"
 #include "Receiver.h"
+#include "ReceiverMeasurement.h"
+#include "SVMeasurement.h"
+#include "Troposphere.h"
 
 #define MU 3.986005e14 // WGS 84 value of the earth's gravitational constant for GPS USER
 #define OMEGA_E_DOT 7.2921151467e-5
 #define F -4.442807633e-10
 #define MAX_ITERATIONS 10 // for solution of the Kepler equation
 
+extern MakeRINEX *app;
+extern ostream *debugStream;
+extern string   debugFileName;
+extern ofstream debugLog;
+extern int verbosity;
 
-bool GPS::satxyz(EphemerisData *ed,double t,double *Ek,double x[3])
+#define CLIGHT 299792458.0
+
+bool GPS::satXYZ(EphemerisData *ed,double t,double *Ek,double x[3])
 {
 	// t is GPS system time at time of transmission
 	
@@ -71,7 +83,7 @@ bool GPS::satxyz(EphemerisData *ed,double t,double *Ek,double x[3])
 	x[0] = xkprime*cos(omegak) - ykprime*cos(ik)*sin(omegak);
 	x[1] = xkprime*sin(omegak) + ykprime*cos(ik)*cos(omegak);
 	x[2] = ykprime*sin(ik);
-	
+
 	return true;
 }
 
@@ -89,6 +101,7 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 	float beta0,float beta1,float beta2,float beta3)
 {
 	// Model as per IS-GPS-200H pg 126 (Klobuchar model)
+	// nb GPSt is forced into the range [0,86400]
 	double psi, phi_i,lambda_i, t, phi_m, PER, x, F, Tiono, phi_u;
 	double lambda_u, AMP;
 	double pi=3.141592654;
@@ -110,8 +123,8 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 	t = 4.32e4 * lambda_i + GPSt;
 
-	while (t >= 86400) {t -=86400;}
-	while (t < 0) {t +=86400;}
+	while (t >= 86400) {t -=86400;} // FIXME
+	while (t < 0) {t +=86400;}      // FIXME
 
 	phi_m = phi_i + 0.064*cos((lambda_i - 1.617)*pi); // units of lambda_i are semicircles, hence factor of pi
 
@@ -133,3 +146,83 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 	return(Tiono*1e9);
 
 } // ionnodelay
+
+bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMeasurement *svm, Antenna *ant,
+	double *corr,double *iono,double *tropo,
+	double *azimuth,double *elevation,int *ioe){
+	
+	*corr=0.0;
+	bool ok=false;
+	// find closest ephemeris entry
+	EphemerisData *ed = rx->nearestEphemeris(Receiver::GPS,svm->svn,rxm->gpstow);
+	if (ed != NULL){
+		double x[3],Ek;
+		
+		*ioe=ed->IODE;
+		
+		int igpslt = rxm->gpstow; // take integer part of GPS local time (but it's integer anyway ...) 
+		int gpsDayOfWeek = igpslt/86400; 
+		//  if it is near the end of the day and toc->hour is < 6, then the ephemeris is from the next day.
+		int tmpgpslt = igpslt % 86400;
+		double toc=ed->t_OC; // toc is clock data reference time
+		int tocDay=(int) toc/86400;
+		toc-=86400*tocDay;
+		int tocHour=(int) toc/3600;
+		toc-=3600*tocHour;
+		int tocMinute=(int) toc/60;
+		toc-=60*tocMinute;
+		int tocSecond=toc;
+		if (tmpgpslt >= (86400 - 6*3600) && (tocHour < 6))
+			  gpsDayOfWeek++;
+		toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
+	
+		// Calculate clock corrections (ICD 20.3.3.3.3.1)
+		double gpssvt= rxm->gpstow - svm->meas;
+		double clockCorrection = ed->a_f0 + ed->a_f1*(gpssvt - toc) + ed->a_f2*(gpssvt - toc)*(gpssvt - toc); // SV PRN code phase offset
+		double tk = gpssvt - clockCorrection;
+		
+		double range,ms,svdist,svrange,ax,ay,az;
+		if (GPS::satXYZ(ed,tk,&Ek,x)){
+			double trel =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
+			range = svm->meas + clockCorrection + trel - ed->t_GD;
+			// Sagnac correction (ICD 20.3.3.4.3.4)
+			ax = ant->x - OMEGA_E_DOT * ant->y * range;
+			ay = ant->y + OMEGA_E_DOT * ant->x * range;
+			az = ant->z ;
+			
+			svrange= (svm->meas+clockCorrection) * CLIGHT;
+			svdist = sqrt( (x[0]-ax)*(x[0]-ax) + (x[1]-ay)*(x[1]-ay) + (x[2]-az)*(x[2]-az));
+			double err  = (svrange - svdist);
+			ms   = (int)((-err/CLIGHT *1000)+0.5)/1000.0;
+			*corr = ms;
+			
+				// Azimuth and elevation of SV
+			double R=sqrt(ant->x*ant->x+ant->y*ant->y+ant->z*ant->z); 
+			double p=sqrt(ant->x*ant->x+ant->y*ant->y);
+			*elevation = 57.296*asin((ant->x*(x[0] - ant->x) + ant->y*(x[1] - ant->y) + ant->z*(x[2] - ant->z))/(R*svdist));
+			*azimuth = 57.296 * atan2( (-(x[0] - ant->x)*ant->y +(x[1] - ant->y)*ant->x) * R,	 
+								-(x[0] - ant->x)*ant->x*ant->z -(x[1] - ant->y)*ant->y*ant->z +(x[2] - ant->z)*p*p);
+
+			if(*azimuth < 0) *azimuth += 360;
+			*tropo = Troposphere::delayModel(*elevation,ant->height);
+			
+			*iono = ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,rxm->gpstow,
+				rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,
+				rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3);
+			
+			ok=true;
+		}
+		else{
+			DBGMSG(debugStream,verbosity,"Failed");
+			ok=false;
+		}	
+	}
+	else{
+		ok=false;
+	}
+		
+	return ok;
+		
+}
+
+#undef CLIGHT

@@ -44,6 +44,9 @@ class Antenna
 		double x,y,z;
 		double deltaH,deltaE,deltaN;
 		string frame;
+		
+		double latitude,longitude,height; // these are calculated from (x,y,z)
+		
 };
 
 #endif

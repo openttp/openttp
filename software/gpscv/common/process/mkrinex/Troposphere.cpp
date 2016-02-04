@@ -28,10 +28,11 @@
 
 double Troposphere::delayModel(double elev, double height)
 {
-
+	
 	// elev   = satellite elevation angle in degrees
 	// height = height of GPS antenna above sea level in metres
-
+	// result in ns
+	
 	float Ns = 324.8; // surface refractivity at mean sea level
 	float el,deltaN,deltaR, R, f;
 	double c = 299792458; 
@@ -52,6 +53,6 @@ double Troposphere::delayModel(double elev, double height)
 
 	R = f*deltaR; // range error caused by troposphere
 
-	return(R/c * 1e9); // time delay (in ns) 
+	return(R/c * 1e9); 
 
 }

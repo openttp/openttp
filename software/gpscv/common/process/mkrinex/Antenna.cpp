@@ -23,6 +23,7 @@
 // THE SOFTWARE.
 
 #include "Antenna.h"
+#include "Utility.h"
 
 Antenna::Antenna()
 {

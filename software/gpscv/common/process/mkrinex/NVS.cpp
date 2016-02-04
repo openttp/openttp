@@ -159,7 +159,8 @@ bool NVS::readLog(string fname,int mjd)
 						rmeas->tmGPS=*tmGPS;
 						
 						rmeas->tmfracs = tmeasUTC/1000.0 - int(tmeasUTC/1000.0);
-						
+						for (unsigned int i=0;i<gps.size();i++)
+							gps.at(i)->rm=rmeas;
 						rmeas->gps=gps;
 						gps.clear(); // don't delete - we only made a shallow copy!
 					}
@@ -189,7 +190,7 @@ bool NVS::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr((55+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&flags);
 						// FIXME use flags to filter measurements 
 						//DBGMSG(debugStream,2,"svn "<< (int) svn << " pr " << dbuf << " flags " << (int) flags);
-						gps.push_back(new SVMeasurement(svn,fp64buf*1.0E-3)); // convert from ms
+						gps.push_back(new SVMeasurement(svn,fp64buf*1.0E-3,NULL)); // ReceiverMeasurement not known yet; convert from ms
 					}
 				}
 				

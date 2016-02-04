@@ -437,6 +437,9 @@ bool MakeRINEX::loadConfig()
 	configOK= configOK && setConfig(last,"antenna","delta n",&(antenna->deltaN));
 	configOK= configOK && setConfig(last,"antenna","frame",antenna->frame);
 	
+	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z,
+		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
+	
 	// Receiver
 	//configOK= configOK && setConfig(last,"antenna","marker name",antenna->markerName);
 	string rxModel,rxManufacturer;

@@ -140,7 +140,7 @@ class Receiver
 		vector<EphemerisData *> ephemeris;
 		
 		vector<EphemerisData *> sortedGPSEphemeris[NGPSSATS+1];
-		EphemerisData *nearestEphemeris(int,int,int,int);
+		EphemerisData *nearestEphemeris(int,int,int);
 		
 		Antenna *antenna;
 		

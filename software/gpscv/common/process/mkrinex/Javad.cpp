@@ -244,7 +244,7 @@ bool Javad::readLog(string fname,int mjd)
 							badMeasurements++;
 							continue;
 						}
-						SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],CApr[chan]-rxTimeOffset); // pseudorange is corrected for rx offset 
+						SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 						rmeas->gps.push_back(svm);
 					}
 					
@@ -268,7 +268,8 @@ bool Javad::readLog(string fname,int mjd)
 								rmeas->tmGPS.tm_mon=RDmm-1;
 								rmeas->tmGPS.tm_year=RDyyyy-1900;
 								rmeas->tmGPS.tm_isdst=0;
-								
+								mktime(&(rmeas->tmGPS)); // this sets wday (note: TZ=UTC enforced in Main.cpp) so DST stays correct
+								rmeas->gpstow = 86400*rmeas->tmGPS.tm_wday+igpsTOD;
 								rmeas->tmfracs = rxTimeOffset;
 								
 								// The time offset can be negative so have to account for rollovers
