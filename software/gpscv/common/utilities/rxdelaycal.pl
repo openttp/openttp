@@ -31,7 +31,7 @@
 # 12-10-2004 MJW First VERSION
 # 19-10-2004 MJW Seems to work ...
 # 28-08-2015 MJW Many changes to tidy this up and work with rin2cggts-produced files
-#
+# 05-02-2016 MJW More flexible handling of data paths added
 
 
 use POSIX qw(strftime);
@@ -40,7 +40,7 @@ use Getopt::Std;
 use subs qw(MyPrint);
 use vars qw($opt_c $opt_d $opt_h $opt_i $opt_r $opt_s $opt_t $opt_v);
 
-$VERSION = "2.0";
+$VERSION = "2.0.1";
 
 $MINTRACKLENGTH=750;
 $DSGMAX=200;
@@ -118,7 +118,23 @@ $svn=-1;
 if ($#ARGV==4){
 	$svn=$ARGV[4];
 }
-open LOG, ">$refrx.$calrx.report.txt";
+
+@refrxpath = split /\//,$refrx;
+if ($#refrxpath>=0){
+	$refrxname=$refrxpath[$#refrxpath];
+}
+else{
+	$refrxname=$refrx;
+}
+
+@calrxpath = split /\//,$calrx;
+if ($#calrxpath>=0){
+	$calrxname=$calrxpath[$#calrxpath];
+}
+else{
+	$calrxname=$calrx;
+}
+open LOG, ">$refrxname.$calrxname.report.txt";
 
 MyPrint "$VERSION\n\n";
 MyPrint "Run " . (strftime "%a %b %e %H:%M:%S %Y", gmtime)."\n\n";
@@ -156,8 +172,8 @@ for ($i=$startMJD;$i<=$stopMJD;$i++){
 	MyPrint "\tINT= $caldelay[$CCTFINTDLY] CAB= $caldelay[$CCTFCABDLY] REF= $caldelay[$CCTFREFDLY]\n";	
 }
 
-MyPrint "\nREF ($refrx) contains ".($refdf?"dual":"single")." frequency data\n";
-MyPrint   "CAL ($calrx) contains ".($caldf?"dual":"single")." frequency data\n";
+MyPrint "\nREF ($refrxname) contains ".($refdf?"dual":"single")." frequency data\n";
+MyPrint   "CAL ($calrxname) contains ".($caldf?"dual":"single")." frequency data\n";
 
 if ($opt_c){
 	if ($opt_c =~/model/){
@@ -188,13 +204,13 @@ if ($opt_r){
 }
 
 # Dump REFGPS data for later plotting
-open(OUT, ">$refrx.refgps.all.txt");
+open(OUT, ">$refrxname.ref.refgps.all.txt"); # just in case names are the same, use "ref" in name
 for ($i=0;$i<$#ref;$i++){
 	print OUT "$ref[$i][$MJD] $ref[$i][$STTIME] $ref[$i][$REFGPS]\n";
 }
 close(OUT);
 
-open(OUT, ">$calrx.refgps.all.txt");
+open(OUT, ">$calrxname.cal.refgps.all.txt");
 for ($i=0;$i<$#ref;$i++){
 	print OUT "$ref[$i][$MJD] $ref[$i][$STTIME] $ref[$i][$REFGPS]\n";
 }
@@ -452,11 +468,11 @@ MyPrint "slope $B1 ps/day SD $sB1 ps/day\n";
 MyPrint "RMS of residuals $rms ns\n";
 MyPrint "\n###########################################################\n";
 
-print "Report in $refrx.$calrx.report.txt\n";
-print "Plots in $refrx.$calrx.ps\n";
+print "Report in $refrxname.$calrxname.report.txt\n";
+print "Plots in $refrxname.$calrxname.ps\n";
 
 # Dump stuff for plotting
-open(OUT, ">$refrx.$calrx.matches.txt");
+open(OUT, ">$refrxname.$calrxname.matches.txt");
 for ($i=0;$i<=$#matches;$i++){
 	print OUT "$matches[$i][0] $matches[$i][1] $matches[$i][2] $matches[$i][3]\n"; 
 }
@@ -465,7 +481,7 @@ close OUT;
 $tlast = int($matches[0][0]*86400);
 $nav=0;
 $av=0;
-open(OUT, ">$refrx.$calrx.av.matches.txt");
+open(OUT, ">$refrxname.$calrxname.av.matches.txt");
 for ($i=0;$i<=$#matches;$i++){
 	if (int($matches[$i][0]*86400) == $tlast){
 		$nav++;
@@ -495,7 +511,7 @@ $ystep = (1.0-2.0*$ym)/$nr;
 
 open(OUT, ">plotcmds.gnuplot");
 print OUT "set terminal postscript portrait dashed \"Helvetica\" 10\n";
-print OUT "set output \"$refrx.$calrx.ps\"\n";
+print OUT "set output \"$refrxname.$calrxname.ps\"\n";
 print OUT "set multiplot\n";
 print OUT "set nolabel\n";
 print OUT "set size   $xstep, $ystep\n";
@@ -506,21 +522,21 @@ print OUT "set format y \"%g\"\n";
 print OUT "set nokey\n";
 print OUT "set timestamp\n";
 
-print OUT "set title \"$refrx filtered tracks\"\n";
+print OUT "set title \"REF:$refrxname filtered tracks\"\n";
 $x0=$xm;
 $y0=$ym;
 print OUT "set origin $x0 , $y0\n";
-print OUT "plot \"$refrx.$calrx.matches.txt\" using 1:2 with points pt 6 ps 0.5\n";
+print OUT "plot \"$refrxname.$calrxname.matches.txt\" using 1:2 with points pt 6 ps 0.5\n";
 
-print OUT "set title \"$calrx filtered tracks\"\n";
+print OUT "set title \"CAL:$calrxname filtered tracks\"\n";
 $y0 +=$ystep;
 print OUT "set origin $x0 , $y0\n";
-print OUT "plot \"$refrx.$calrx.matches.txt\" using 1:3 with points pt 6 ps 0.5\n";
+print OUT "plot \"$refrxname.$calrxname.matches.txt\" using 1:3 with points pt 6 ps 0.5\n";
 
-print OUT "set title \"REF($refrx) - CAL($calrx) (filtered)\"\n";
+print OUT "set title \"REF($refrxname) - CAL($calrxname) (filtered)\"\n";
 $y0 +=$ystep;
 print OUT "set origin $x0 , $y0\n";
-print OUT "plot \"$refrx.$calrx.matches.txt\" using 1:4 with points pt 6 ps 0.5,\"$refrx.$calrx.av.matches.txt\" using 1:2 with lines\n";
+print OUT "plot \"$refrxname.$calrxname.matches.txt\" using 1:4 with points pt 6 ps 0.5,\"$refrxname.$calrxname.av.matches.txt\" using 1:2 with lines\n";
 
 close OUT;
 
