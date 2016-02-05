@@ -148,10 +148,10 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 } // ionnodelay
 
 bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMeasurement *svm, Antenna *ant,
-	double *corr,double *iono,double *tropo,
+	double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 	double *azimuth,double *elevation,int *ioe){
 	
-	*corr=0.0;
+	*refsyscorr=*refsvcorr=0.0;
 	bool ok=false;
 	// find closest ephemeris entry
 	EphemerisData *ed = rx->nearestEphemeris(Receiver::GPS,svm->svn,rxm->gpstow);
@@ -183,8 +183,8 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 		
 		double range,ms,svdist,svrange,ax,ay,az;
 		if (GPS::satXYZ(ed,tk,&Ek,x)){
-			double trel =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
-			range = svm->meas + clockCorrection + trel - ed->t_GD;
+			double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
+			range = svm->meas + clockCorrection + relativisticCorrection - ed->t_GD;
 			// Sagnac correction (ICD 20.3.3.4.3.4)
 			ax = ant->x - OMEGA_E_DOT * ant->y * range;
 			ay = ant->y + OMEGA_E_DOT * ant->x * range;
@@ -193,10 +193,8 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 			svrange= (svm->meas+clockCorrection) * CLIGHT;
 			svdist = sqrt( (x[0]-ax)*(x[0]-ax) + (x[1]-ay)*(x[1]-ay) + (x[2]-az)*(x[2]-az));
 			double err  = (svrange - svdist);
-			ms   = (int)((-err/CLIGHT *1000)+0.5)/1000.0;
-			*corr = ms;
 			
-				// Azimuth and elevation of SV
+			// Azimuth and elevation of SV
 			double R=sqrt(ant->x*ant->x+ant->y*ant->y+ant->z*ant->z); 
 			double p=sqrt(ant->x*ant->x+ant->y*ant->y);
 			*elevation = 57.296*asin((ant->x*(x[0] - ant->x) + ant->y*(x[1] - ant->y) + ant->z*(x[2] - ant->z))/(R*svdist));
@@ -204,16 +202,26 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 								-(x[0] - ant->x)*ant->x*ant->z -(x[1] - ant->y)*ant->y*ant->z +(x[2] - ant->z)*p*p);
 
 			if(*azimuth < 0) *azimuth += 360;
-			*tropo = Troposphere::delayModel(*elevation,ant->height);
 			
-			*iono = ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,rxm->gpstow,
-				rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,
-				rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3);
+			if(fabs(err/CLIGHT) < 1000.0e-9){
 			
-			ok=true;
+				*refsyscorr=(clockCorrection + relativisticCorrection - ed->t_GD - svdist/CLIGHT)*1.0E9;
+				*refsvcorr =(                  relativisticCorrection - ed->t_GD - svdist/CLIGHT)*1.0E9;
+									
+				*tropo = Troposphere::delayModel(*elevation,ant->height);
+				
+				*iono = ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,rxm->gpstow,
+					rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,
+					rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3);
+				
+				ok=true;
+			}
+			else{
+				DBGMSG(debugStream,WARNING,"Error too big : " << 1.0E9*fabs(err/CLIGHT) << "ns");
+			}
 		}
 		else{
-			DBGMSG(debugStream,verbosity,"Failed");
+			DBGMSG(debugStream,WARNING,"Failed");
 			ok=false;
 		}	
 	}

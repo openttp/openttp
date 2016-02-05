@@ -147,13 +147,15 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
-						double corr,iono,tropo,az,el;
-						if (GPS::getPseudorangeCorrections(rx,rxmt,svtrk[sv].at(t),ant,&corr,&iono,&tropo,&az,&el,&ioe)){
+						double refsyscorr,refsvcorr,iono,tropo,az,el;
+						if (GPS::getPseudorangeCorrections(rx,rxmt,svtrk[sv].at(t),ant,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
 							svel[npts]=el;
 							mdtr[npts]=tropo;
 							mdio[npts]=iono;
+							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo;
+							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo;
 							npts++;
 						}
 						tsearch += 30;
@@ -183,9 +185,16 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 				mdtrtc=rint(mdtrtc*10);
 				mdtrm=rint(mdtrm*10000);
 				
-				double refsvtc,refsvm;
+				double refsvtc,refsvc,refsvm,refsvresid;
+				Utility::linearFit(tutc,refsv,npts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
+				refsvtc=rint(refsvtc*10);
+				refsvm=rint(refsvm*10000);
 				
-				double refsystc=0,refsysm=0,refsysresid=0;
+				double refsystc,refsysc,refsysm,refsysresid;
+				Utility::linearFit(tutc,refsys,npts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
+				refsystc=rint(refsystc*10);
+				refsysm=rint(refsysm*10000);
+				refsysresid=rint(refsysresid*10);
 				
 				double mdiotc,mdioc,mdiom,mdioresid;
 				Utility::linearFit(tutc,mdio,npts,tc,&mdiotc,&mdtrc,&mdiom,&mdioresid);
