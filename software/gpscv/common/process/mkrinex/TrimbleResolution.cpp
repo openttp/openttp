@@ -36,8 +36,8 @@
 #include <sstream>
 #include <vector>
 
-#include "Debug.h"
 #include "Antenna.h"
+#include "Debug.h"
 #include "GPS.h"
 #include "HexBin.h"
 #include "ReceiverMeasurement.h"

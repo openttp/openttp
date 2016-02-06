@@ -42,18 +42,18 @@
 
 #include <configurator.h>
 
-#include "Debug.h"
 #include "Antenna.h"
 #include "CGGTTS.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
+#include "Debug.h"
 #include "Javad.h"
-#include "NVS.h"
-#include "ReceiverMeasurement.h"
-#include "Receiver.h"
-#include "RINEX.h"
-#include "MakeRINEX.h"
+#include "MakeTimeTransferFile.h"
 #include "MeasurementPair.h"
+#include "NVS.h"
+#include "Receiver.h"
+#include "ReceiverMeasurement.h"
+#include "RINEX.h"
 #include "SVMeasurement.h"
 #include "TrimbleResolution.h"
 #include "Utility.h"
@@ -85,7 +85,7 @@ using boost::bad_lexical_cast;
 //	Public
 //
 
-MakeRINEX::MakeRINEX(int argc,char **argv)
+MakeTimeTransferFile::MakeTimeTransferFile(int argc,char **argv)
 {
 
 	init();
@@ -197,14 +197,14 @@ MakeRINEX::MakeRINEX(int argc,char **argv)
 	
 }
 
-MakeRINEX::~MakeRINEX()
+MakeTimeTransferFile::~MakeTimeTransferFile()
 {
 	for (unsigned int i =0;i<86400;i++)
 		delete mpairs[i];
 	delete[] mpairs;
 }
 
-void MakeRINEX::run()
+void MakeTimeTransferFile::run()
 {
 	makeFilenames();
 	
@@ -254,7 +254,7 @@ void MakeRINEX::run()
 	delete antenna;
 }
 
-void MakeRINEX::showHelp()
+void MakeTimeTransferFile::showHelp()
 {
 	cout << endl << APP_NAME << " version " << APP_VERSION << endl;
 	cout << "Usage: " << APP_NAME << " [options]" << endl;
@@ -272,7 +272,7 @@ void MakeRINEX::showHelp()
 	cout << "--version              print version" << endl;
 }
 
-void MakeRINEX::showVersion()
+void MakeTimeTransferFile::showVersion()
 {
 	cout << APP_NAME <<  " version " << APP_VERSION << endl;
 	cout << "Written by " << APP_AUTHORS << endl;
@@ -284,7 +284,7 @@ void MakeRINEX::showVersion()
 //	Private
 //	
 
-void MakeRINEX::init()
+void MakeTimeTransferFile::init()
 {
 	pid = getpid();
 	
@@ -336,7 +336,7 @@ void MakeRINEX::init()
 
 }
 
-void  MakeRINEX::makeFilenames()
+void  MakeTimeTransferFile::makeFilenames()
 {
 	ostringstream ss;
 	ss << "./" << "timing." << pid << "." << MJD << ".dat";  
@@ -372,7 +372,7 @@ void  MakeRINEX::makeFilenames()
 	
 }
 
-bool MakeRINEX::loadConfig()
+bool MakeTimeTransferFile::loadConfig()
 {
 	// Our conventional config file format is used to maintain compatibility with existing scripts
 	ListEntry *last;
@@ -527,7 +527,7 @@ bool MakeRINEX::loadConfig()
 	return configOK;
 }
 
-bool MakeRINEX::setConfig(ListEntry *last,const char *section,const char *token,string &val)
+bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,string &val)
 {
 	char *stmp;
 	if (list_get_string(last,section,token,&stmp)){
@@ -539,7 +539,7 @@ bool MakeRINEX::setConfig(ListEntry *last,const char *section,const char *token,
 	return false;
 }
 
-bool MakeRINEX::setConfig(ListEntry *last,const char *section,const char *token,double *val)
+bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,double *val)
 {
 	double dtmp;
 	if (list_get_double(last,section,token,&dtmp)){
@@ -551,7 +551,7 @@ bool MakeRINEX::setConfig(ListEntry *last,const char *section,const char *token,
 	return false;
 }
 
-bool MakeRINEX::setConfig(ListEntry *last,const char *section,const char *token,int *val)
+bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,int *val)
 {
 	int itmp;
 	if (list_get_int(last,section,token,&itmp)){
@@ -563,7 +563,7 @@ bool MakeRINEX::setConfig(ListEntry *last,const char *section,const char *token,
 	return false;
 }
 
-bool MakeRINEX::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fname)
+bool MakeTimeTransferFile::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fname)
 {
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
@@ -608,7 +608,7 @@ bool MakeRINEX::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fnam
 	return true;
 }
 
-void MakeRINEX::matchMeasurements(Receiver *rx,Counter *cntr)
+void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 {
 	if (cntr->measurements.size() == 0 || rx->measurements.size()==0)
 		return;
@@ -667,7 +667,7 @@ void MakeRINEX::matchMeasurements(Receiver *rx,Counter *cntr)
 	
 }
 
-void MakeRINEX::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string fname)
+void MakeTimeTransferFile::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string fname)
 {
 	FILE *fout;
 	
@@ -687,7 +687,7 @@ void MakeRINEX::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string
 	fclose(fout);
 }
 
-void MakeRINEX::writeSVDiagnostics(Receiver *rx,string path)
+void MakeTimeTransferFile::writeSVDiagnostics(Receiver *rx,string path)
 {
 	FILE *fout;
 	

@@ -22,8 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __MAKE_RINEX_H_
-#define __MAKE_RINEX_H_
+#ifndef __MAKE_TIME_TRANSFER_FILE_H_
+#define __MAKE_TIME_TRANSFER_FILE_H_
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -31,10 +31,10 @@
 #include <string>
 #include <configurator.h>
 
-#define APP_NAME "mkrinex"
+#define APP_NAME "mktimetx"
 #define APP_AUTHORS "Michael Wouters"
 #define APP_VERSION "0.1.0"
-#define APP_CONFIG "mkrinex.conf"
+#define APP_CONFIG "mktimetx.conf"
 
 #define CVACUUM 299792458
 
@@ -47,12 +47,12 @@ class CounterMeasurement;
 class ReceiverMeasurement;
 class MeasurementPair;
 
-class MakeRINEX
+class MakeTimeTransferFile
 {
 	public:
 		
-		MakeRINEX(int argc,char **argv);
-		~MakeRINEX();
+		MakeTimeTransferFile(int argc,char **argv);
+		~MakeTimeTransferFile();
 		
 		void setMJD(int);
 		void run();

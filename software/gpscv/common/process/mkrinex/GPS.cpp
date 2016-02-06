@@ -27,7 +27,7 @@
 #include "Antenna.h"
 #include "Debug.h"
 #include "GPS.h"
-#include "MakeRINEX.h"
+#include "MakeTimeTransferFile.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
@@ -38,7 +38,7 @@
 #define F -4.442807633e-10
 #define MAX_ITERATIONS 10 // for solution of the Kepler equation
 
-extern MakeRINEX *app;
+extern MakeTimeTransferFile *app;
 extern ostream *debugStream;
 extern string   debugFileName;
 extern ofstream debugLog;
@@ -181,7 +181,7 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 		double clockCorrection = ed->a_f0 + ed->a_f1*(gpssvt - toc) + ed->a_f2*(gpssvt - toc)*(gpssvt - toc); // SV PRN code phase offset
 		double tk = gpssvt - clockCorrection;
 		
-		double range,ms,svdist,svrange,ax,ay,az;
+		double range,svdist,svrange,ax,ay,az;
 		if (GPS::satXYZ(ed,tk,&Ek,x)){
 			double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
 			range = svm->meas + clockCorrection + relativisticCorrection - ed->t_GD;

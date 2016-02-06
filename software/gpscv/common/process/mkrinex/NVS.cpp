@@ -37,13 +37,13 @@
 #include <vector>
 #include <boost/concept_check.hpp>
 
-#include "Debug.h"
 #include "Antenna.h"
+#include "Debug.h"
 #include "GPS.h"
 #include "HexBin.h"
+#include "NVS.h"
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
-#include "NVS.h"
 
 extern ostream *debugStream;
 

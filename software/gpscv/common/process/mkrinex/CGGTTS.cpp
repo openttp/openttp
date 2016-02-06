@@ -29,24 +29,19 @@
 #include <iostream>
 #include <algorithm>
 
-#include "Debug.h"
-
-#include "MakeRINEX.h"
-
 #include "Antenna.h"
 #include "CGGTTS.h"
 #include "Counter.h"
+#include "Debug.h"
 #include "GPS.h"
+#include "MakeTimeTransferFile.h"
 #include "MeasurementPair.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "Utility.h"
 
-extern MakeRINEX *app;
+extern MakeTimeTransferFile *app;
 extern ostream *debugStream;
-extern string   debugFileName;
-extern ofstream debugLog;
-extern int verbosity;
 
 #define NTRACKS 89
 #define MAXSV   32 // per constellation 

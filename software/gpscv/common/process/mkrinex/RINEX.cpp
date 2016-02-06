@@ -25,22 +25,17 @@
 #include <cmath>
 #include <cstdio>
 
-#include "Debug.h"
-
-#include "MakeRINEX.h"
-
 #include "Antenna.h"
 #include "Counter.h"
+#include "Debug.h"
+#include "MakeTimeTransferFile.h"
 #include "MeasurementPair.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "RINEX.h"
 
-extern MakeRINEX *app;
+extern MakeTimeTransferFile *app;
 extern ostream *debugStream;
-extern string   debugFileName;
-extern ofstream debugLog;
-extern int verbosity;
 
 const char * RINEXVersionName[]= {"2.11","3.02"};
 

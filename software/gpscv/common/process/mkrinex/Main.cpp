@@ -42,14 +42,14 @@
 #include <string>
 
 #include "Debug.h"
-#include "MakeRINEX.h"
+#include "MakeTimeTransferFile.h"
 
 ostream *debugStream;
 string   debugFileName;
 ofstream debugLog;
 int verbosity=1;
 
-MakeRINEX *app;
+MakeTimeTransferFile *app;
 
 int main(
 	int argc,
@@ -62,7 +62,7 @@ int main(
 	
 	debugStream= NULL;
 	
-	MakeRINEX *app = new MakeRINEX(argc,argv);
+	MakeTimeTransferFile *app = new MakeTimeTransferFile(argc,argv);
 	app->run();
 	
 	return EXIT_SUCCESS;
