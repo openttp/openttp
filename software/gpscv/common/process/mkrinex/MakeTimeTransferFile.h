@@ -32,7 +32,7 @@
 #include <configurator.h>
 
 #define APP_NAME "mktimetx"
-#define APP_AUTHORS "Michael Wouters"
+#define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Malcolm Lawn"
 #define APP_VERSION "0.1.0"
 #define APP_CONFIG "mktimetx.conf"
 
@@ -62,12 +62,14 @@ class MakeTimeTransferFile
 		
 	private:
 	
+		enum CGGTTSNamingConvention {Plain,BIPM};
+		
 		void init();
 		void makeFilenames();
 		bool loadConfig();
-		bool setConfig(ListEntry *,const char *,const char *,string &);
-		bool setConfig(ListEntry *,const char *,const char *,double *);
-		bool setConfig(ListEntry *,const char *,const char *,int *);
+		bool setConfig(ListEntry *,const char *,const char *,string &,bool required=true);
+		bool setConfig(ListEntry *,const char *,const char *,double *,bool required=true);
+		bool setConfig(ListEntry *,const char *,const char *,int *,bool required=true);
 		
 		bool writeRIN2CGGTTSParamFile(Receiver *,Antenna *,string);
 		
@@ -84,9 +86,13 @@ class MakeTimeTransferFile
 		string CGGTTSref;
 		string CGGTTScomment;
 		string CGGTTSlab;
+		string CGGTTSreceiverID; // two letter code
+		string CGGTTSlabCode;    // two letter code
+		
 		int CGGTTSversion;
 		int CGGTTSRevDateYYYY,CGGTTSRevDateMM,CGGTTSRevDateDD;
-		
+		int CGGTTSminTrackLength;
+		double CGGTTSminElevation, CGGTTSmaxDSG;
 		
 		string observer;
 		string agency;
@@ -101,6 +107,8 @@ class MakeTimeTransferFile
 		string counterPath,counterExtension,counterFile;
 		string receiverPath,receiverExtension,receiverFile;
 		string RINEXPath,RINEXnavFile,RINEXobsFile;
+		string CGGTTSPath,CGGTTSFile;
+		int CGGTTSnamingConvention;
 		string timingDiagnosticsFile;
 		string processingLog;
 		string tmpPath;

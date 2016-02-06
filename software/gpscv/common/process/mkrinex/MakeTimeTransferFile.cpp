@@ -232,8 +232,11 @@ void MakeTimeTransferFile::run()
 	cggtts.cabDly=antCableDelay;
 	cggtts.intDly=C1InternalDelay; // FIXME
 	cggtts.refDly=refCableDelay;
+	cggtts.minElevation=CGGTTSminElevation;
+	cggtts.maxDSG = CGGTTSmaxDSG;
+	cggtts.minTrackLength=CGGTTSminTrackLength;
 	
-	cggtts.writeObservationFile(CGGTTS::V2E,Receiver::GPS,"test.cctf",MJD,mpairs);
+	cggtts.writeObservationFile(CGGTTSversion,Receiver::GPS,CGGTTSFile,MJD,mpairs);
 	
 	RINEX rnx(antenna,counter,receiver);
 	rnx.agency = agency;
@@ -301,6 +304,9 @@ void MakeTimeTransferFile::init()
 	CGGTTScomment="NONE";
 	CGGTTSref="REF";
 	CGGTTSlab="KAOS";
+	CGGTTSminElevation=10.0;
+	CGGTTSmaxDSG=10.0;
+	CGGTTSminTrackLength=390;
 	
 	observer="Time and Frequency";
 	agency="NMIx";
@@ -322,12 +328,14 @@ void MakeTimeTransferFile::init()
 		homeDir=penv;
 	}
 	
-	configurationFile = homeDir+"/etc/cggtts.conf";
+	configurationFile = homeDir+"/etc/mktimetx.conf";
 	counterPath = homeDir+"/raw";
 	counterExtension= "tic";
 	receiverPath= homeDir+"/raw";
 	receiverExtension="rx";
 	RINEXPath=homeDir+"/rinex";
+	CGGTTSPath=homeDir+"/cggtts";
+	CGGTTSnamingConvention=Plain;
 	tmpPath=homeDir+"/tmp";
 	
 	mpairs= new MeasurementPair*[86400];
@@ -361,14 +369,26 @@ void  MakeTimeTransferFile::makeFilenames()
 	ostringstream ss5;
 	// this is ugly but C++ stream manipulators are even uglier
 	char fname[16];
-	sprintf(fname,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
+	snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
 	ss5 << RINEXPath << "/" << fname; // at least no problem with length of RINEXPath
 	RINEXnavFile=ss5.str();
 	
 	ostringstream ss6;
-	sprintf(fname,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
+	snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
 	ss6 << RINEXPath << "/" << fname;
 	RINEXobsFile=ss6.str();
+	
+	ostringstream ss7;
+	if (CGGTTSnamingConvention == Plain)
+		ss7 << CGGTTSPath << "/" << MJD << ".cctf";
+	else if (CGGTTSnamingConvention == BIPM){
+		snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
+		if (receiver->dualFrequency)
+			ss7 << CGGTTSPath << "/" << "G" << "Z" << CGGTTSlabCode << CGGTTSreceiverID << fname;
+		else
+			ss7 << CGGTTSPath << "/" << "G" << "M" << CGGTTSlabCode << CGGTTSreceiverID << fname;
+	}
+	CGGTTSFile=ss7.str();
 	
 }
 
@@ -387,9 +407,28 @@ bool MakeTimeTransferFile::loadConfig()
 	
 	// CGGTTS generation
 	configOK= configOK && setConfig(last,"cggtts","version",stmp);
+	boost::to_upper(stmp);
+	if (stmp=="V1")
+		CGGTTSversion=CGGTTS::V1;
+	else if (stmp=="V2E")
+		CGGTTSversion=CGGTTS::V2E;
 	configOK= configOK && setConfig(last,"cggtts","reference",CGGTTSref);
 	configOK= configOK && setConfig(last,"cggtts","lab",CGGTTSlab);
 	configOK= configOK && setConfig(last,"cggtts","comments",CGGTTScomment);
+	configOK= configOK && setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength);
+	configOK= configOK && setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG);
+	configOK= configOK && setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation);
+	configOK= configOK && setConfig(last,"cggtts","naming convention",stmp);
+	boost::to_upper(stmp);
+	if (stmp == "BIPM")
+		CGGTTSnamingConvention = BIPM;
+	else if (stmp=="PLAIN")
+		CGGTTSnamingConvention = Plain;
+	if (CGGTTSnamingConvention == BIPM){
+		configOK= configOK && setConfig(last,"cggtts","lab id",CGGTTSlabCode);
+		configOK= configOK && setConfig(last,"cggtts","receiver id",CGGTTSreceiverID);
+	}
+	
 	configOK= configOK && setConfig(last,"cggtts","revision date",stmp);
 	std::vector<std::string> vals;
 	boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
@@ -480,7 +519,11 @@ bool MakeTimeTransferFile::loadConfig()
 	configOK= configOK && setConfig(last,"receiver","pps offset",&receiver->ppsOffset);
 	configOK= configOK && setConfig(last,"receiver","channels",&receiver->channels);
 	configOK= configOK && setConfig(last,"receiver","file extension",receiverExtension);
+	configOK= configOK && setConfig(last,"receiver","dual frequency",stmp);
+	boost::to_upper(stmp);
+	receiver->dualFrequency=(stmp=="YES");
 	
+		
 	// Counter
 	configOK= configOK && setConfig(last,"counter","file extension",counterExtension);
 	
@@ -495,10 +538,10 @@ bool MakeTimeTransferFile::loadConfig()
 	string path="";	
 	configOK = configOK && setConfig(last,"paths","rinex",path);
 	if (path.size() > 0){
-		if (path.at(0) == '/')
+		if (path.at(0) == '/') // path is assumed to be absolute if it has a leading '/'
 			RINEXPath = path;
 		else 
-			RINEXPath=homeDir+"/"+path;
+			RINEXPath=homeDir+"/"+path; // otherwise relative to the user's home directory
 	}
 	path="";
 	configOK = configOK && setConfig(last,"paths","receiver data",path);
@@ -524,10 +567,19 @@ bool MakeTimeTransferFile::loadConfig()
 		else 
 			tmpPath=homeDir+"/"+path;
 	}
+	path="";
+	configOK = configOK && setConfig(last,"paths","cggtts",path);
+	if (path.size() > 0){
+		if (path.at(0) == '/')
+			CGGTTSPath = path;
+		else 
+			CGGTTSPath=homeDir+"/"+path;
+	}
+	
 	return configOK;
 }
 
-bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,string &val)
+bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,string &val,bool required)
 {
 	char *stmp;
 	if (list_get_string(last,section,token,&stmp)){
@@ -539,7 +591,7 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 	return false;
 }
 
-bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,double *val)
+bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,double *val,bool required)
 {
 	double dtmp;
 	if (list_get_double(last,section,token,&dtmp)){
@@ -551,7 +603,7 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 	return false;
 }
 
-bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,int *val)
+bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,int *val,bool required)
 {
 	int itmp;
 	if (list_get_int(last,section,token,&itmp)){

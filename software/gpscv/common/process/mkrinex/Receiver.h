@@ -125,6 +125,7 @@ class Receiver
 		
 		string swversion;
 		
+		bool dualFrequency;
 		int constellations;
 		int channels;
 		int commissionYYYY; // yaer of commissioning, used in CGGTTS files

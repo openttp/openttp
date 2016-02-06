@@ -38,7 +38,7 @@ use POSIX qw(strftime);
 use Getopt::Std;
 
 use subs qw(MyPrint);
-use vars qw($opt_c $opt_d $opt_h $opt_i $opt_r $opt_s $opt_t $opt_v);
+use vars qw($opt_c $opt_d $opt_h $opt_i $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
 
 $VERSION = "2.0.1";
 
@@ -67,7 +67,7 @@ $REFDIFF=$REFGPS;
 
 $0=~s#.*/##; # strip path from executable name
 
-if (!getopts('c:d:e:hir:st:v')){
+if (!getopts('c:d:e:hir:st:vx:y:')){
 	ShowHelp();	
 	exit;
 }
@@ -102,6 +102,10 @@ if ($opt_i){
 	$USEIONO=0;
 }
 
+$refrxext = "cctf";
+$calrxext = "cctf";
+if ($opt_x){$refrxext = $opt_x;}
+if ($opt_y){$calrxext = $opt_y;}
 
 if ($#ARGV == 3){
 	$refrx  =   $ARGV[0];
@@ -161,19 +165,19 @@ $caldf = 1; # cal is dual frequency ?
 
 # Read CCTF files
 for ($i=$startMJD;$i<=$stopMJD;$i++){
-	@d=ReadCCTF($refrx,$i);
+	@d=ReadCCTF($refrx,$i,$refrxext);
 	($refdelay[$CCTFINTDLY],$refdelay[$CCTFCABDLY],$refdelay[$CCTFREFDLY],$refdf)=splice @d,$#d-3; 
 	push @ref,@d;
 	MyPrint "\tINT= $refdelay[$CCTFINTDLY] CAB= $refdelay[$CCTFCABDLY] REF= $refdelay[$CCTFREFDLY]\n"; 
 	
-	@d=ReadCCTF($calrx,$i);
+	@d=ReadCCTF($calrx,$i,$calrxext);
 	($caldelay[$CCTFINTDLY],$caldelay[$CCTFCABDLY],$caldelay[$CCTFREFDLY],$caldf)=splice @d,$#d-3;	
 	push @cal,@d;
 	MyPrint "\tINT= $caldelay[$CCTFINTDLY] CAB= $caldelay[$CCTFCABDLY] REF= $caldelay[$CCTFREFDLY]\n";	
 }
 
-MyPrint "\nREF ($refrxname) contains ".($refdf?"dual":"single")." frequency data\n";
-MyPrint   "CAL ($calrxname) contains ".($caldf?"dual":"single")." frequency data\n";
+MyPrint "\nREF  contains ".($refdf?"dual":"single")." frequency data\n";
+MyPrint   "CAL  contains ".($caldf?"dual":"single")." frequency data\n";
 
 if ($opt_c){
 	if ($opt_c =~/model/){
@@ -555,6 +559,8 @@ sub ShowHelp
 	print "-r  <val> set ionospheric correction used for REF receiver\n";
 	print "-s        use REFSV instead of REFGPS\n";
 	print "-t  <val> set mininimum track length (default = $MINTRACKLENGTH s)\n";
+	print "-x  <val> file extension for reference   receiver (default = cctf)\n";
+	print "-y  <val> file extension for calibration receiver (default = cctf)\n";
 	print "-v        show version\n";
 }
 
@@ -569,7 +575,8 @@ sub ReadCCTF
 	
 	$rcvr=$_[0];
 	$mjd =$_[1];
-	$f = "$rcvr/$mjd.cctf";
+	$rxext=$_[2];
+	$f = "$rcvr/$mjd.$rxext";
 	
 	if (-e $f){
 		MyPrint "Read $f\n";

@@ -54,6 +54,7 @@ Receiver::Receiver(Antenna *ant)
 	antenna = ant;
 	ppsOffset=0;
 	commissionYYYY=1999;
+	dualFrequency=false;
 }
 
 Receiver::~Receiver()

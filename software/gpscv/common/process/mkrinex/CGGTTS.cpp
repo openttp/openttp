@@ -124,9 +124,11 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 		double mdtr[52];
 		double mdio[52];
 		double tutc[52];
-		double tgps[52];
 		double svaz[52];
 		double svel[52];
+		
+		int fitInterval=30; // length of fitting interval 
+		if (quadFits) fitInterval=15;
 		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
 			if (svtrk[sv].size() > 0){
@@ -165,54 +167,57 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 					}
 				}
 				
-				double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
-				
-				double aztc,azc,azm,azresid;
-				Utility::linearFit(tutc,svaz,npts,tc,&aztc,&azc,&azm,&azresid);
-				aztc=rint(aztc*10);
-				
-				double eltc,elc,elm,elresid;
-				Utility::linearFit(tutc,svel,npts,tc,&eltc,&elc,&elm,&elresid);
-				eltc=rint(eltc*10);
-				
-				double mdtrtc,mdtrc,mdtrm,mdtrresid;
-				Utility::linearFit(tutc,mdtr,npts,tc,&mdtrtc,&mdtrc,&mdtrm,&mdtrresid);
-				mdtrtc=rint(mdtrtc*10);
-				mdtrm=rint(mdtrm*10000);
-				
-				double refsvtc,refsvc,refsvm,refsvresid;
-				Utility::linearFit(tutc,refsv,npts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
-				refsvtc=rint(refsvtc*10);
-				refsvm=rint(refsvm*10000);
-				
-				double refsystc,refsysc,refsysm,refsysresid;
-				Utility::linearFit(tutc,refsys,npts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
-				refsystc=rint(refsystc*10);
-				refsysm=rint(refsysm*10000);
-				refsysresid=rint(refsysresid*10);
-				
-				double mdiotc,mdioc,mdiom,mdioresid;
-				Utility::linearFit(tutc,mdio,npts,tc,&mdiotc,&mdtrc,&mdiom,&mdioresid);
-				mdiotc=rint(mdiotc*10);
-				mdiom=rint(mdiom*10000);
-				
-				// Ready to output
-				
-				char sout[141];
-				switch (ver){
-					case V1:
-						fprintf(fout, " %02i FF %5i %02i%02i00 %4i %4i %4i\n",(int) sv,mjd,hh,mm,
-										npts*30,(int) eltc,(int) aztc
-						);
-						break;
-					case V2E:
-						sprintf(sout,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSScode.c_str(),sv,"FF",mjd,hh,mm,
-										npts*30,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
-										ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,"L1C");
-						fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
-						break;
-				}
-				
+				if (npts*fitInterval >= minTrackLength){
+					double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
+					
+					double aztc,azc,azm,azresid;
+					Utility::linearFit(tutc,svaz,npts,tc,&aztc,&azc,&azm,&azresid);
+					aztc=rint(aztc*10);
+					
+					double eltc,elc,elm,elresid;
+					Utility::linearFit(tutc,svel,npts,tc,&eltc,&elc,&elm,&elresid);
+					eltc=rint(eltc*10);
+					
+					double mdtrtc,mdtrc,mdtrm,mdtrresid;
+					Utility::linearFit(tutc,mdtr,npts,tc,&mdtrtc,&mdtrc,&mdtrm,&mdtrresid);
+					mdtrtc=rint(mdtrtc*10);
+					mdtrm=rint(mdtrm*10000);
+					
+					double refsvtc,refsvc,refsvm,refsvresid;
+					Utility::linearFit(tutc,refsv,npts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
+					refsvtc=rint(refsvtc*10);
+					refsvm=rint(refsvm*10000);
+					
+					double refsystc,refsysc,refsysm,refsysresid;
+					Utility::linearFit(tutc,refsys,npts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
+					refsystc=rint(refsystc*10);
+					refsysm=rint(refsysm*10000);
+					refsysresid=rint(refsysresid*10);
+					
+					double mdiotc,mdioc,mdiom,mdioresid;
+					Utility::linearFit(tutc,mdio,npts,tc,&mdiotc,&mdtrc,&mdiom,&mdioresid);
+					mdiotc=rint(mdiotc*10);
+					mdiom=rint(mdiom*10000);
+					
+					// Ready to output
+					if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 
+						char sout[155]; // V2E
+						switch (ver){
+							case V1:
+								snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
+												npts*fitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
+												ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
+								fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
+								break;
+							case V2E:
+								snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSScode.c_str(),sv,"FF",mjd,hh,mm,
+												npts*fitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
+												ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,"L1C");
+								fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
+								break;
+						} // switch
+					} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
+				} // if (npts*fitInterval >= minTrackLength)
 			}
 		}
 		
@@ -239,6 +244,9 @@ void CGGTTS::init()
 	comment="";
 	intDly=cabDly=refDly=0.0;
 	quadFits=false;
+	minTrackLength=390;
+	minElevation=10.0;
+	maxDSG=100.0;
 }
 		
 void CGGTTS::writeHeader(int ver,FILE *fout)

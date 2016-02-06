@@ -53,6 +53,10 @@ class CGGTTS
 		double intDly,cabDly,refDly;
 		bool quadFits;
 		
+		int minTrackLength; // in seconds
+		double minElevation; // in degrees
+		double maxDSG; // in ns
+		
 	private:
 		
 		void init();
