@@ -38,7 +38,7 @@ use POSIX qw(strftime);
 use Getopt::Std;
 
 use subs qw(MyPrint);
-use vars qw($opt_c $opt_d $opt_h $opt_i $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
+use vars qw($opt_c $opt_d $opt_h $opt_i $opt_m $opt_n $opt_p $opt_q $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
 
 $VERSION = "2.0.1";
 
@@ -67,7 +67,7 @@ $REFDIFF=$REFGPS;
 
 $0=~s#.*/##; # strip path from executable name
 
-if (!getopts('c:d:e:hir:st:vx:y:')){
+if (!getopts('c:d:e:him:n:p:q:r:st:vx:y:')){
 	ShowHelp();	
 	exit;
 }
@@ -123,24 +123,21 @@ if ($#ARGV==4){
 	$svn=$ARGV[4];
 }
 
-@refrxpath = split /\//,$refrx;
-if ($#refrxpath>=0){
-	$refrxname=$refrxpath[$#refrxpath];
-}
-else{
-	$refrxname=$refrx;
-}
+$refrxname="ref";
+if ($opt_m){$refrxname = $opt_m;}
 
-@calrxpath = split /\//,$calrx;
-if ($#calrxpath>=0){
-	$calrxname=$calrxpath[$#calrxpath];
-}
-else{
-	$calrxname=$calrx;
-}
+$calrxname="cal";
+if ($opt_n){$calrxname = $opt_n;}
+
+$refrxprefix="";
+if ($opt_p){$refrxprefix=$opt_p;}
+
+$calrxprefix="";
+if ($opt_q){$calrxprefix=$opt_q;}
+
 open LOG, ">$refrxname.$calrxname.report.txt";
 
-MyPrint "$VERSION\n\n";
+MyPrint "$0 version $VERSION\n\n";
 MyPrint "Run " . (strftime "%a %b %e %H:%M:%S %Y", gmtime)."\n\n";
 
 MyPrint "Mininimum track length = $MINTRACKLENGTH\n";
@@ -165,12 +162,12 @@ $caldf = 1; # cal is dual frequency ?
 
 # Read CCTF files
 for ($i=$startMJD;$i<=$stopMJD;$i++){
-	@d=ReadCCTF($refrx,$i,$refrxext);
+	@d=ReadCCTF($refrx,$i,$refrxprefix,$refrxext);
 	($refdelay[$CCTFINTDLY],$refdelay[$CCTFCABDLY],$refdelay[$CCTFREFDLY],$refdf)=splice @d,$#d-3; 
 	push @ref,@d;
 	MyPrint "\tINT= $refdelay[$CCTFINTDLY] CAB= $refdelay[$CCTFCABDLY] REF= $refdelay[$CCTFREFDLY]\n"; 
 	
-	@d=ReadCCTF($calrx,$i,$calrxext);
+	@d=ReadCCTF($calrx,$i,$calrxprefix,$calrxext);
 	($caldelay[$CCTFINTDLY],$caldelay[$CCTFCABDLY],$caldelay[$CCTFREFDLY],$caldf)=splice @d,$#d-3;	
 	push @cal,@d;
 	MyPrint "\tINT= $caldelay[$CCTFINTDLY] CAB= $caldelay[$CCTFCABDLY] REF= $caldelay[$CCTFREFDLY]\n";	
@@ -208,13 +205,13 @@ if ($opt_r){
 }
 
 # Dump REFGPS data for later plotting
-open(OUT, ">$refrxname.ref.refgps.all.txt"); # just in case names are the same, use "ref" in name
+open(OUT, ">$refrxname.refgps.all.txt"); 
 for ($i=0;$i<$#ref;$i++){
 	print OUT "$ref[$i][$MJD] $ref[$i][$STTIME] $ref[$i][$REFGPS]\n";
 }
 close(OUT);
 
-open(OUT, ">$calrxname.cal.refgps.all.txt");
+open(OUT, ">$calrxname.refgps.all.txt");
 for ($i=0;$i<$#ref;$i++){
 	print OUT "$ref[$i][$MJD] $ref[$i][$STTIME] $ref[$i][$REFGPS]\n";
 }
@@ -277,7 +274,6 @@ MyPrint "\t-->$badsrsv bad SRSV\n";
 MyPrint "\t-->$baddsg bad DSG\n";
 MyPrint "\t-->$badelev bad elevation\n";
 if ($refdf){
-	
 	MyPrint "\t-->$badmsio bad MSIO\n";
 	MyPrint "\t-->$badsmsi bad SMSI\n";
 	MyPrint "\t-->$badisg bad ISG\n";
@@ -473,7 +469,11 @@ MyPrint "RMS of residuals $rms ns\n";
 MyPrint "\n###########################################################\n";
 
 print "Report in $refrxname.$calrxname.report.txt\n";
-print "Plots in $refrxname.$calrxname.ps\n";
+if (`which gnuplot` eq ""){
+	print "Can't find gnuplot so skipping plots\n";
+	close LOG;
+	exit;
+}
 
 # Dump stuff for plotting
 open(OUT, ">$refrxname.$calrxname.matches.txt");
@@ -545,23 +545,34 @@ print OUT "plot \"$refrxname.$calrxname.matches.txt\" using 1:4 with points pt 6
 close OUT;
 
 `gnuplot  plotcmds.gnuplot`;
+print "Plots in $refrxname.$calrxname.ps\n";
+
 close LOG;
 
 # ------------------------------------------------------------------------
 sub ShowHelp
 {
-	print "Usage: $0 [-hv] [-c <modeled|measured>] [-d <val>] [-e <val>] [-r <modeled|measured>] [-s] [-t <val>] ref_rx_directory cal_rx_directory start_MJD stop_MJD\n\n";
-	print "-c  <val> set ionospheric correction used for CAL receiver\n";
+	print "Usage: $0 [options] ref_rx_directory cal_rx_directory start_MJD stop_MJD\n\n";
+	print "-c  <modeled|measured> set ionospheric correction used for CAL receiver\n";
 	print "-d  <val> set maximum DSG (default=". $DSGMAX/10.0. " ns)\n";
 	print "-e  <val> set elevation mask (default = $ELEVMASK degrees)\n";
 	print "-h        show this help\n";
 	print "-i        remove ionosphere correction (zero baseline data)\n";
-	print "-r  <val> set ionospheric correction used for REF receiver\n";
+	print "-m  <val> name to use for REF receiver in output (default = \"ref\")\n";
+	print "-n  <val> name to use for CAL receiver in output (default = \"cal\")\n";
+	print "-p  <val> prefix to use for constructing REF file name\n";
+	print "-q  <val> prefix to use for constructing CAL file name\n";
+	print "-r  <modeled|measured> set ionospheric correction used for REF receiver\n";
 	print "-s        use REFSV instead of REFGPS\n";
 	print "-t  <val> set mininimum track length (default = $MINTRACKLENGTH s)\n";
 	print "-x  <val> file extension for reference   receiver (default = cctf)\n";
 	print "-y  <val> file extension for calibration receiver (default = cctf)\n";
 	print "-v        show version\n";
+	print "\n";
+	print "Example: simple use: files are named eg 57402.cctf and in the refdata and caldata directories\n";
+	print "		rxdelaycal refdata caldata 57402 57403\n";
+	print "Example: reference files are named according to the BIPM convention\n";
+	print "		rxdelaycal -p GMAU01 refdata caldata 57402 57403\n";
 }
 
 # ------------------------------------------------------------------------
@@ -575,44 +586,56 @@ sub ReadCCTF
 	
 	$rcvr=$_[0];
 	$mjd =$_[1];
-	$rxext=$_[2];
-	$f = "$rcvr/$mjd.$rxext";
+	$rxprefix=$_[2];
+	$rxext=$_[3];
 	
-	if (-e $f){
-		MyPrint "Read $f\n";
-		open (IN,"<$f");
-		while ($line=<IN>)  # Parse header
-		{
-			last if ($line=~/hhmmss/);
-			if ($line =~ /PRN CL  MJD  STTIME/){
-			  $df=$line =~ /MSIO/;
-			}
-			elsif ($line=~/INT DLY/){
-				@parms=split " ",$line;
-				$intDly=$parms[3];
-				$gotIntDly=1;
-			}
-			elsif ($line=~/CAB DLY/){
-				@parms=split " ",$line;
-				$cabDly=$parms[3];
-				$gotCabDly=1;
-			}
-			elsif ($line=~/REF DLY/){
-				@parms=split " ",$line;
-				$refDly=$parms[3];
-				$gotRefDly=1;
-			}
-		}
-		if (!$gotIntDly && !$gotCabDly && !$gotRefDly){
-			print "Unable to get delays from $mjd.$rcvr\n";
-			exit;
-		}
-		while (<IN>){
-			@parms=split " ",$_;
-			push @data,[@parms]; # assume it's valid :-)
-		}
-		close(IN);
+	$f = "$rcvr/$rxprefix$mjd.$rxext"; 
+	if (!-e $f){ # try BIPM style name - $rxext is ignored 
+		$mjdYY=int($mjd/1000);
+		$mjdXXX=$mjd % 1000;
+		$f = "$rcvr/$rxprefix$mjdYY.$mjdXXX";
 	}
+	
+	if (!-e $f){
+		print "Unable to open either $rcvr/$rxprefix$mjd.$rxext or $f\n"; 
+		exit(1);
+	}
+	
+	MyPrint "Read $f\n";
+	open (IN,"<$f");
+	while ($line=<IN>)  # Parse header
+	{
+		last if ($line=~/hhmmss/);
+		if ($line =~ /PRN CL  MJD  STTIME/){
+			$df=$line =~ /MSIO/;
+		}
+		elsif ($line=~/INT DLY/){
+			@parms=split " ",$line;
+			$intDly=$parms[3];
+			$gotIntDly=1;
+		}
+		elsif ($line=~/CAB DLY/){
+			@parms=split " ",$line;
+			$cabDly=$parms[3];
+			$gotCabDly=1;
+		}
+		elsif ($line=~/REF DLY/){
+			@parms=split " ",$line;
+			$refDly=$parms[3];
+			$gotRefDly=1;
+		}
+	}
+	if (!$gotIntDly && !$gotCabDly && !$gotRefDly){
+		print "Unable to get delays from $mjd.$rcvr\n";
+		exit;
+	}
+	while (<IN>){
+		@parms=split " ",$_;
+		$parms[0] =~ s/[GR]//;
+		push @data,[@parms]; # assume it's valid :-)
+	}
+	close(IN);
+	
 	return (@data,$intDly,$cabDly,$refDly,$df);
 }
 
