@@ -34,7 +34,7 @@
 #define APP_NAME "mktimetx"
 #define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Malcolm Lawn"
 #define APP_VERSION "0.1.0"
-#define APP_CONFIG "mktimetx.conf"
+#define APP_CONFIG "gpscv.conf"
 
 #define CVACUUM 299792458
 

@@ -362,7 +362,7 @@ sub InstallFromSource
 {
 	Log ("\nCompiling the processing software ...\n",$ECHO);
 	
-	$out = `cd common/process/mkrinex && make clean && make 2>&1 && cd ../../..`;
+	$out = `cd common/process/mktimetx && make clean && make 2>&1 && cd ../../..`;
 	if ($opt_t) {print $out;}
 	if ($? >> 8){
 		Log ("\nSoftware compilation failed :-(\n",$ECHO);
@@ -370,7 +370,7 @@ sub InstallFromSource
 	}
 
 	Log("\nInstalling processing software ...\n",$ECHO);
-	Install("common/process/mkrinex/*",$PROCESS);
+	Install("common/process/mktimetx/*",$PROCESS);
 	
 	Log("\nInstalling configuration files in $CONFIGS\n",$ECHO);
 	Install("common/etc/*",$CONFIGS);
