@@ -174,25 +174,31 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 			}
 		}
 		
-		// Now interpolate the meas
-	
+		// Now interpolate the measurements
+		
 		if (track.size() < 3) continue;
 		
 		unsigned int trackStart=0;
 		unsigned int trackStop=0;
 		// Run through tracks, looking for contiguous tracks : if the break is more than 10 a new track is assumed
-		// A quadratic is fitted so we the point either side of a point is needed.
+		// A quadratic is fitted so  the point either side of a point is needed.
 		for (unsigned int t=1;t<track.size()-1;t++){
-			if ((track.at(t+1)->uibuf - track.at(t)->uibuf > 10) || (t == track.size()-2)){ // FIXME to be tweaked 
+			// Fine a break
+			if ((track.at(t+1)->uibuf - track.at(t)->uibuf > 10) || (t == track.size()-2)){ // FIXME threshold to be tweaked 
 				trackStop=t;
 				if ((t == track.size()-2) && (track.at(t+1)->uibuf - track.at(t)->uibuf < 10) ) trackStop++; // get the last one
 						
 				DBGMSG(debugStream,TRACE,"Track:" <<prn<< " " << " " << track.size() << " " << trackStart << "->" << trackStop );
+				// Check that there are enough points for a quadratic fit, now that trackStop is defined
+				if (trackStop-trackStart <2){
+					trackStart=t+1;
+					continue;
+				}
 				// First point
 				unsigned int tgps1 = track.at(trackStart)->uibuf;
 				unsigned int tgps2 = track.at(trackStart+1)->uibuf;
 				unsigned int tgps3 = track.at(trackStart+2)->uibuf;
-				track.at(trackStart)->dbuf1 = LagrangeInterpolation(trackStart,
+				track.at(trackStart)->dbuf1 = LagrangeInterpolation(0,
 													track.at(trackStart)->dbuf2,track.at(trackStart)->meas,
 						tgps2-tgps1 + track.at(trackStart+1)->dbuf2,track.at(trackStart+1)->meas,
 						tgps3-tgps1 + track.at(trackStart+2)->dbuf2,track.at(trackStart+2)->meas);
@@ -225,13 +231,13 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 			double tmp=track.at(i)->meas;
 			track.at(i)->meas=track.at(i)->dbuf1;
 			track.at(i)->dbuf1=tmp;
-			DBGMSG(debugStream,TRACE,prn << " " << (track.at(i)->meas - track.at(i)->dbuf1)*1.0E9);
+			DBGMSG(debugStream,TRACE,prn << " " << i << " " << track.at(i)->uibuf << " " << track.at(i)->dbuf1 << " " << (track.at(i)->meas - track.at(i)->dbuf1)*1.0E9);
 		}
 		
 	}
 	
 	track.clear();
-	
+	// Zero the fractional part of the measurement time
 	for (unsigned int i=0;i<meas.size();i++){
 		meas.at(i)->tmfracs=0;
 	}
