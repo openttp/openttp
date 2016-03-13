@@ -23,6 +23,7 @@
 // THE SOFTWARE.
 
 #include <cmath>
+#include <iostream>
 #include <ostream>
 
 #include "Debug.h"
@@ -51,14 +52,27 @@ Receiver::Receiver(Antenna *ant)
 	version1="undefined";
 	version2="undefined";
 	constellations=0;
+	channels=12;
 	antenna = ant;
 	ppsOffset=0;
 	commissionYYYY=1999;
 	dualFrequency=false;
+	codes=C1;
 }
 
 Receiver::~Receiver()
 {
+}
+
+unsigned int Receiver::memoryUsage()
+{
+	unsigned int mem=0;
+	for (unsigned int m=0;m<measurements.size();m++){
+		mem += measurements.at(m)->memoryUsage();
+	}
+	mem += measurements.size()*sizeof(ReceiverMeasurement *);
+	
+	return mem;
 }
 
 //

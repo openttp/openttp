@@ -44,6 +44,8 @@ class Counter
 		
 		vector<CounterMeasurement *> measurements;
 	
+		unsigned int memoryUsage();
+		
 };
 
 #endif

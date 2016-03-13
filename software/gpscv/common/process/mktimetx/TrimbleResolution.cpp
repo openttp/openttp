@@ -81,7 +81,7 @@ TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
 	modelName = m;
 	if (modelName=="Resolution T"){
 		model=ResolutionT;
-		channels = 12;
+		channels = 12; // pg.39 of manual
 	}
 	//else if (modelName=="Resolution SMT"){
 	//model=ResolutionSMT;
@@ -99,6 +99,7 @@ TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
 	manufacturer="Trimble";
 	swversion="0.1";
 	constellations=Receiver::GPS;
+	codes=C1;
 }
 
 TrimbleResolution::~TrimbleResolution()

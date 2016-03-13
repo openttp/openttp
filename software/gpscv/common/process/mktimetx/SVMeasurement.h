@@ -47,6 +47,8 @@ class SVMeasurement
 		unsigned int uibuf;
 		
 		ReceiverMeasurement *rm; // allows us to get at data common to each SV
+		
+		unsigned int memoryUsage(){return sizeof(*this);}
 };
 
 #endif

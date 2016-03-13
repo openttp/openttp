@@ -1,8 +1,7 @@
 //
-//
 // The MIT License (MIT)
 //
-// Copyright (c) 2015  Michael J. Wouters
+// Copyright (c) 2016 Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,40 +21,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __RECEIVER_MEASUREMENT_H_
-#define __RECEIVER_MEASUREMENT_H_
+#include <cstdio>
+#include <cmath>
+#include "Timer.h"
 
-#include <time.h>
-#include <string>
-#include <vector>
-#include <boost/concept_check.hpp>
-
-using namespace std;
-
-class SVMeasurement;
-
-class ReceiverMeasurement
+Timer::Timer()
 {
-	public:
-		ReceiverMeasurement();
-		~ReceiverMeasurement();
-		
-		unsigned int gpstow;
-		unsigned int gpswn;
-		double sawtooth; // units are seconds, ADDED to the counter measurement
-		double timeOffset; // units are seconds, stored for timing diagnostics
-		double signalLevel;
-		int epochFlag;
-		unsigned char pchh,pcmm,pcss; // time of measurement, as determined from the log time stamp
-		struct tm tmGPS,tmUTC; // time of measurement, according to the receiver. tmGPS is mostly used but sometimes we get UTC for the receiver TOM
-													 // and have to convert to GPS later when the number of leap seconds are known
-		double tmfracs; // fractional part of time of measurement, units are seconds (s) - must be +ve
-		
-		vector<SVMeasurement*> gps;
-		vector<SVMeasurement*> glonass;
-	
-		unsigned int memoryUsage();
-		
-};
+}
 
-#endif
+void Timer::start()
+{
+	gettimeofday(&tvstart,NULL);
+}
+
+void Timer::stop()
+{
+	gettimeofday(&tvstop,NULL);
+}
+
+double Timer::elapsedTime(int unit)
+{
+	double t = (tvstop.tv_sec-tvstart.tv_sec) + (tvstop.tv_usec-tvstart.tv_usec)/1.0E6;
+	switch (unit){
+		case USECS: t*= 1000000;break;
+		case MSECS: t*= 1000;break;
+		case SECS: break;
+	}
+	return t;
+}

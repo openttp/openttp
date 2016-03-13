@@ -109,13 +109,17 @@ class Receiver
 {
 	public:
 		
-		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08};
+		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08,QZS=0x10};
+		enum Code {C1=0x01,P1=0x02,P2=0x04,E1=0x08,B1=0x10};
+		
 		enum {NGPSSATS=32};
 		
 		Receiver(Antenna *);
 		virtual ~Receiver();
 		
 		//void setProcessingInterval(int,int);
+		
+		virtual unsigned int memoryUsage();
 		
 		string modelName;
 		string manufacturer;
@@ -127,8 +131,9 @@ class Receiver
 		
 		bool dualFrequency;
 		int constellations;
+		int codes;
 		int channels;
-		int commissionYYYY; // yaer of commissioning, used in CGGTTS files
+		int commissionYYYY; // year of commissioning, used in CGGTTS files
 		int leapsecs;
 		
 		int ppsOffset; // 1 pps offset, in nanoseconds

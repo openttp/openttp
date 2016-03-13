@@ -8,14 +8,14 @@ CFGFLAGS=
 OBJECTS = Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o MakeTimeTransferFile.o ReceiverMeasurement.o \
 	CGGTTS.o RINEX.o \
 	Javad.o NVS.o TrimbleResolution.o \
-	Troposphere.o Utility.o
+	Timer.o Troposphere.o Utility.o
 
 all: $(PROGRAM)
 
 Antenna.o: Antenna.cpp Antenna.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Antenna.cpp
 	
-Counter.o: Counter.cpp Counter.h CounterMeasurement.h Debug.h
+Counter.o: Counter.cpp Counter.h CounterMeasurement.h Debug.h Timer.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Counter.cpp
 
 CGGTTS.o : CGGTTS.cpp CGGTTS.h  Antenna.h Counter.h Debug.h GPS.h MakeTimeTransferFile.h MeasurementPair.h Receiver.h  ReceiverMeasurement.h Utility.h
@@ -27,7 +27,8 @@ GPS.o: GPS.cpp  Antenna.h Debug.h GPS.h MakeTimeTransferFile.h Receiver.h Receiv
 HexBin.o: HexBin.cpp HexBin.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c HexBin.cpp
 
-Javad.o: Javad.cpp Antenna.h Debug.h GPS.h HexBin.h Javad.h Receiver.h ReceiverMeasurement.h SVMeasurement.h 
+Javad.o: Javad.cpp Antenna.h Debug.h GPS.h HexBin.h Javad.h Receiver.h ReceiverMeasurement.h SVMeasurement.h \
+	Timer.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Javad.cpp
 
 NVS.o: NVS.cpp Antenna.h Debug.h GPS.h HexBin.h NVS.h Receiver.h ReceiverMeasurement.h SVMeasurement.h 
@@ -47,11 +48,14 @@ RIN2CGGTTS.o: RIN2CGGTTS.cpp RIN2CGGTTS.h Utility.h
 
 MakeTimeTransferFile.o: MakeTimeTransferFile.cpp  Antenna.h CGGTTS.h Counter.h CounterMeasurement.h Debug.h  \
 	Javad.h MakeTimeTransferFile.h  MeasurementPair.h   NVS.h Receiver.h ReceiverMeasurement.h \
-	RINEX.h SVMeasurement.h  TrimbleResolution.h Utility.h
+	RINEX.h SVMeasurement.h  Timer.h TrimbleResolution.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c MakeTimeTransferFile.cpp
 
 RINEX.o: RINEX.cpp  Antenna.h Counter.h Debug.h  MakeTimeTransferFile.h MeasurementPair.h Receiver.h ReceiverMeasurement.h RINEX.h 
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RINEX.cpp
+
+Timer.o: Timer.cpp Timer.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Timer.cpp
 
 TrimbleResolution.o: TrimbleResolution.cpp Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h TrimbleResolution.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c TrimbleResolution.cpp

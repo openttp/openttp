@@ -70,6 +70,15 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 	manufacturer="NVS";
 	swversion="0.1";
 	constellations=Receiver::GPS;
+	codes=C1;
+	channels=32;
+	if (modelName == "NV08C-CSM"){
+		// For the future
+	}
+	else{
+		cerr << "Unknown receiver model: " << modelName << endl;
+		cerr << "Assuming NV08C-CSM" << endl;
+	}
 }
 
 NVS::~NVS()

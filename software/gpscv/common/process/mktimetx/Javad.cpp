@@ -51,6 +51,7 @@
 #include "Javad.h"
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
+#include "Timer.h"
 
 extern ostream *debugStream;
 
@@ -85,11 +86,22 @@ extern ostream *debugStream;
 
 Javad::Javad(Antenna *ant,string m):Receiver(ant)
 {
-  //model="Javad ";
+  modelName=m;
 	manufacturer="Javad";
 	swversion="0.1";
 	constellations=Receiver::GPS;
 	dualFrequency=false;
+	codes=C1;
+	channels=32;
+	if (modelName=="HE_GD"){
+		dualFrequency=true;
+		codes = C1 | P1 | P2;
+	}
+	else{
+		cerr << "Unknown receiver model: " << modelName << endl;
+		cerr << "Assuming generic single frequency receiver " << endl;
+		modelName="generic";
+	}
 }
 
 Javad::~Javad()
@@ -98,6 +110,10 @@ Javad::~Javad()
 
 bool Javad::readLog(string fname,int mjd)
 {
+	Timer timer;
+	
+	timer.start();
+	
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
 	
@@ -147,7 +163,7 @@ bool Javad::readLog(string fname,int mjd)
 	int rcCnt=0,RCcnt=0; 
 	int R1cnt=0,r1Cnt=0,m1RCnt=0,m1rCnt=0;
 	int R2cnt=0,r2Cnt=0,m2RCnt=0,m2rCnt=0;
-	unsigned int errorCount=0,badMeasurements=0;
+	unsigned int errorCount=0,badMeasurements=0,numSVmeasurements=0;
 	U2 RDyyyy;
 	U1 RDmm,RDdd;
 	
@@ -228,7 +244,7 @@ bool Javad::readLog(string fname,int mjd)
 					}
 					
 					ReceiverMeasurement *rmeas = new ReceiverMeasurement();
-					
+					numSVmeasurements += nSats;
 					for (unsigned int chan=0; chan < nSats; chan++){
 						
 						// Check that PLLs are locked for each channel before we use the data
@@ -841,11 +857,14 @@ bool Javad::readLog(string fname,int mjd)
 		}
 	}
 	
+	timer.stop();
+	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");
 	DBGMSG(debugStream,INFO,errorCount << " errors in input file");
-	DBGMSG(debugStream,INFO,badMeasurements  << " measurements rejected in input file");
+	DBGMSG(debugStream,INFO,badMeasurements  << " SV measurements rejected in input file");
+	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
 	return true;
 	
 }

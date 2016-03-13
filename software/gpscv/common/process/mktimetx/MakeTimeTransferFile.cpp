@@ -55,6 +55,7 @@
 #include "ReceiverMeasurement.h"
 #include "RINEX.h"
 #include "SVMeasurement.h"
+#include "Timer.h"
 #include "TrimbleResolution.h"
 #include "Utility.h"
 
@@ -206,6 +207,9 @@ MakeTimeTransferFile::~MakeTimeTransferFile()
 
 void MakeTimeTransferFile::run()
 {
+	Timer timer;
+	timer.start();
+	
 	makeFilenames();
 	
 	if (!receiver->readLog(receiverFile,MJD)){
@@ -252,6 +256,17 @@ void MakeTimeTransferFile::run()
 	if (SVDiagnosticsOn) 
 		writeSVDiagnostics(receiver,tmpPath);
 	
+	// Memory usage statistics
+	unsigned int rxMem=receiver->memoryUsage();
+	unsigned int ctMem=counter->memoryUsage();
+	
+	timer.stop();
+	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
+	
+	DBGMSG(debugStream,INFO,"receiver data memory usage: " << rxMem << " bytes");
+	DBGMSG(debugStream,INFO,"counter data memory usage: " << ctMem << " bytes");
+	DBGMSG(debugStream,INFO,"total memory usage: " << rxMem + ctMem << " bytes");
+	
 	delete receiver;
 	delete counter;
 	delete antenna;
@@ -269,7 +284,7 @@ void MakeTimeTransferFile::showHelp()
 	cout << "-h,--help              print this help message" << endl;
 	cout << "-m <n>                 set the mjd" << endl;
 	cout << "--receiver-path <path> path to GNSS receiver logs" << endl;
-	cout << "--sv-diagnostics   		write SV diagnostics files" << endl;
+	cout << "--sv-diagnostics       write SV diagnostics files" << endl;
 	cout << "--timing-diagnostics   write receiver timing diagnostics file" << endl;
 	cout << "--verbosity <n>        set debugging verbosity" << endl;
 	cout << "--version              print version" << endl;
@@ -328,7 +343,7 @@ void MakeTimeTransferFile::init()
 		homeDir=penv;
 	}
 	
-	configurationFile = homeDir+"/etc/mktimetx.conf";
+	configurationFile = homeDir+"/etc/gpscv.conf";
 	counterPath = homeDir+"/raw";
 	counterExtension= "tic";
 	receiverPath= homeDir+"/raw";
@@ -485,19 +500,13 @@ bool MakeTimeTransferFile::loadConfig()
 	configOK= configOK && setConfig(last,"receiver","model",rxModel);
 	configOK= configOK && setConfig(last,"receiver","manufacturer",rxManufacturer);
 	if (rxManufacturer.find("Trimble") != string::npos){
-		if (rxModel.find("Resolution") != string::npos){
-			receiver = new TrimbleResolution(antenna,rxModel); 
-		}
+		receiver = new TrimbleResolution(antenna,rxModel); 
 	}
 	else if (rxManufacturer.find("Javad") != string::npos){
-		if (rxModel.find("Javad") != string::npos){
-			receiver = new Javad(antenna,rxModel); 
-		}
+		receiver = new Javad(antenna,rxModel); 
 	}
 	else if (rxManufacturer.find("NVS") != string::npos){
-		if (rxModel.find("NV08") != string::npos){
-			receiver = new NVS(antenna,rxModel); 
-		}
+		receiver = new NVS(antenna,rxModel); 
 	}
 	
 	if (NULL==receiver){ // bail out
@@ -517,13 +526,8 @@ bool MakeTimeTransferFile::loadConfig()
 		receiver->constellations |=Receiver::GALILEO;
 	
 	configOK= configOK && setConfig(last,"receiver","pps offset",&receiver->ppsOffset);
-	configOK= configOK && setConfig(last,"receiver","channels",&receiver->channels);
 	configOK= configOK && setConfig(last,"receiver","file extension",receiverExtension);
-	configOK= configOK && setConfig(last,"receiver","dual frequency",stmp);
-	boost::to_upper(stmp);
-	receiver->dualFrequency=(stmp=="YES");
 	
-		
 	// Counter
 	configOK= configOK && setConfig(last,"counter","file extension",counterExtension);
 	

@@ -33,7 +33,7 @@
 #include "Counter.h"
 #include "CounterMeasurement.h"
 #include "Debug.h"
-
+#include "Timer.h"
 
 #define MAXSIZE 90000
 
@@ -56,6 +56,9 @@ bool Counter::readLog(string fname)
 	// (optional) comments prefaced with
 	// and then successive measurements like
 	// HH:MM:SS reading_in_seconds
+	
+	Timer timer;
+	timer.start();
 	
 	DBGMSG(debugStream,INFO,"reading " << fname);
 	
@@ -80,10 +83,18 @@ bool Counter::readLog(string fname)
 		return false;
 	}
 	infile.close();
+	timer.stop();
 	
 	DBGMSG(debugStream,INFO,"done: read " << measurements.size());
 	DBGMSG(debugStream,INFO,"first " << measurements.front()->timestamp());
 	DBGMSG(debugStream,INFO,"last " << measurements.back()->timestamp());
-	
+	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
 	return true;
+}
+
+unsigned int Counter::memoryUsage()
+{
+	unsigned int mem=0;
+	mem+= measurements.size()*(sizeof(CounterMeasurement *) + sizeof(CounterMeasurement));
+	return mem+sizeof(*this);
 }
