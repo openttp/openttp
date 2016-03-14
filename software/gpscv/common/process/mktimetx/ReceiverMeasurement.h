@@ -51,7 +51,7 @@ class ReceiverMeasurement
 													 // and have to convert to GPS later when the number of leap seconds are known
 		double tmfracs; // fractional part of time of measurement, units are seconds (s) - must be +ve
 		
-		vector<SVMeasurement*> gps;
+		vector<SVMeasurement*> gps,gpsP1,gpsP2;
 		vector<SVMeasurement*> glonass;
 	
 		unsigned int memoryUsage();

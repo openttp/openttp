@@ -29,6 +29,9 @@
 #include <unistd.h>
        
 #include <string>
+#include <vector>
+
+#include <boost/concept_check.hpp>
 #include <configurator.h>
 
 #define APP_NAME "mktimetx"
@@ -46,6 +49,17 @@ class Receiver;
 class CounterMeasurement;
 class ReceiverMeasurement;
 class MeasurementPair;
+
+class CGGTTSOutput{
+	public:
+		CGGTTSOutput();
+		CGGTTSOutput(int constellation,int code,string path):
+			constellation(constellation),code(code),path(path){};
+		
+		int constellation;
+		int code;
+		string path;
+};
 
 class MakeTimeTransferFile
 {
@@ -65,7 +79,10 @@ class MakeTimeTransferFile
 		enum CGGTTSNamingConvention {Plain,BIPM};
 		
 		void init();
-		void makeFilenames();
+		string relativeToAbsolutePath(string);
+		void   makeFilenames();
+		string makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD);
+		
 		bool loadConfig();
 		bool setConfig(ListEntry *,const char *,const char *,string &,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,double *,bool required=true);
@@ -82,6 +99,9 @@ class MakeTimeTransferFile
 		Antenna *antenna;
 		Receiver *receiver;
 		Counter *counter;
+		
+		bool createCGGTTS,createRINEX;
+		vector<CGGTTSOutput> CGGTTSoutputs;
 		
 		string CGGTTSref;
 		string CGGTTScomment;
@@ -107,7 +127,7 @@ class MakeTimeTransferFile
 		string counterPath,counterExtension,counterFile;
 		string receiverPath,receiverExtension,receiverFile;
 		string RINEXPath,RINEXnavFile,RINEXobsFile;
-		string CGGTTSPath,CGGTTSFile;
+		string CGGTTSPath;
 		int CGGTTSnamingConvention;
 		string timingDiagnosticsFile;
 		string processingLog;

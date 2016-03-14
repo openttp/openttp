@@ -222,33 +222,46 @@ void MakeTimeTransferFile::run()
 		exit(EXIT_FAILURE);
 	}
 
-	matchMeasurements(receiver,counter);
+	// Each system+code generates a  CGGTTS file
+	if (createCGGTTS){
+		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
+			DBGMSG(debugStream,INFO,"generating CGGTTS for constellation " << 
+				CGGTTSoutputs.at(i).constellation << "+ code " << CGGTTSoutputs.at(i).code);
+				
+			matchMeasurements(receiver,counter);
+			
+		// FIXME Fold the counter/timer measurements (plus sawtooth correction) in now
+		
+			CGGTTS cggtts(antenna,counter,receiver);
+			cggtts.ref=CGGTTSref;
+			cggtts.lab=CGGTTSlab;
+			cggtts.comment=CGGTTScomment;
+			cggtts.revDateYYYY=CGGTTSRevDateYYYY;
+			cggtts.revDateMM=CGGTTSRevDateMM;
+			cggtts.revDateDD=CGGTTSRevDateDD;
+			cggtts.cabDly=antCableDelay;
+			cggtts.intDly=C1InternalDelay; // FIXME
+			cggtts.refDly=refCableDelay;
+			cggtts.minElevation=CGGTTSminElevation;
+			cggtts.maxDSG = CGGTTSmaxDSG;
+			cggtts.minTrackLength=CGGTTSminTrackLength;
+			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
+			cggtts.writeObservationFile(CGGTTSversion,CGGTTSoutputs.at(i).constellation,CGGTTSfile,MJD,mpairs);
+		}
+	} // if createCGGTTS
 	
-	// FIXME Fold the counter/timer measurements (plus sawtooth correction) in now
 	
-	CGGTTS cggtts(antenna,counter,receiver);
-	cggtts.ref=CGGTTSref;
-	cggtts.lab=CGGTTSlab;
-	cggtts.comment=CGGTTScomment;
-	cggtts.revDateYYYY=CGGTTSRevDateYYYY;
-	cggtts.revDateMM=CGGTTSRevDateMM;
-	cggtts.revDateDD=CGGTTSRevDateDD;
-	cggtts.cabDly=antCableDelay;
-	cggtts.intDly=C1InternalDelay; // FIXME
-	cggtts.refDly=refCableDelay;
-	cggtts.minElevation=CGGTTSminElevation;
-	cggtts.maxDSG = CGGTTSmaxDSG;
-	cggtts.minTrackLength=CGGTTSminTrackLength;
+	// Only one RINEX file per GNSS system is created
 	
-	cggtts.writeObservationFile(CGGTTSversion,Receiver::GPS,CGGTTSFile,MJD,mpairs);
-	
-	RINEX rnx(antenna,counter,receiver);
-	rnx.agency = agency;
-	rnx.observer=observer;
-	
-	if (generateNavigationFile) 
-		rnx.writeNavigationFile(RINEXversion,RINEXnavFile,MJD);
-	rnx.writeObservationFile(RINEXversion,RINEXobsFile,MJD,interval,mpairs);
+	if (createRINEX){
+		RINEX rnx(antenna,counter,receiver);
+		rnx.agency = agency;
+		rnx.observer=observer;
+		
+		if (generateNavigationFile) 
+			rnx.writeNavigationFile(RINEXversion,RINEXnavFile,MJD);
+		rnx.writeObservationFile(RINEXversion,RINEXobsFile,MJD,interval,mpairs);
+	}
 	
 	if (timingDiagnosticsOn) 
 		writeReceiverTimingDiagnostics(receiver,counter,"timing.dat");
@@ -297,7 +310,6 @@ void MakeTimeTransferFile::showVersion()
 	cout << "This ain't no stinkin' Perl script!" << endl;
 }
 
-
 //	
 //	Private
 //	
@@ -312,6 +324,8 @@ void MakeTimeTransferFile::init()
 	counter = new Counter();
 	// defer instantiating the receiver until we know what kind is configured
 	receiver = NULL;
+	
+	createCGGTTS=createRINEX=true;
 	
 	RINEXversion=RINEX::V2;
 	
@@ -359,6 +373,18 @@ void MakeTimeTransferFile::init()
 
 }
 
+string MakeTimeTransferFile::relativeToAbsolutePath(string path)
+{
+	string absPath=path;
+	if (path.size() > 0){ 
+		if (path.at(0) == '/')
+			absPath = path;
+		else 
+			absPath=homeDir+"/"+path;
+	}
+	return absPath;
+}
+
 void  MakeTimeTransferFile::makeFilenames()
 {
 	ostringstream ss;
@@ -393,18 +419,27 @@ void  MakeTimeTransferFile::makeFilenames()
 	ss6 << RINEXPath << "/" << fname;
 	RINEXobsFile=ss6.str();
 	
-	ostringstream ss7;
+}
+
+string MakeTimeTransferFile::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
+	ostringstream ss;
+	char fname[16];
 	if (CGGTTSnamingConvention == Plain)
-		ss7 << CGGTTSPath << "/" << MJD << ".cctf";
+		ss << cggtts.path << "/" << MJD << ".cctf";
 	else if (CGGTTSnamingConvention == BIPM){
 		snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
-		if (receiver->dualFrequency)
-			ss7 << CGGTTSPath << "/" << "G" << "Z" << CGGTTSlabCode << CGGTTSreceiverID << fname;
-		else
-			ss7 << CGGTTSPath << "/" << "G" << "M" << CGGTTSlabCode << CGGTTSreceiverID << fname;
+		string constellation;
+		switch (cggtts.constellation){
+			case Receiver::GPS:constellation="G";break;
+			case Receiver::GLONASS:constellation="R";break;
+			case Receiver::BEIDOU:constellation="E";break;
+			case Receiver::GALILEO:constellation="C";break;
+			case Receiver::QZSS:constellation="J";break;
+		}
+		// FIXME single frequency observation files only
+		ss << cggtts.path << "/" << constellation << "M" << CGGTTSlabCode << CGGTTSreceiverID << fname;
 	}
-	CGGTTSFile=ss7.str();
-	
+	return ss.str();
 }
 
 bool MakeTimeTransferFile::loadConfig()
@@ -412,8 +447,8 @@ bool MakeTimeTransferFile::loadConfig()
 	// Our conventional config file format is used to maintain compatibility with existing scripts
 	ListEntry *last;
 	if (!configfile_parse_as_list(&last,configurationFile.c_str())){
-		cerr << "Unable to open the configuration file " << configurationFile << endl;
-		return false;
+		cerr << "Unable to open the configuration file " << configurationFile << " - exiting" << endl;
+		exit(EXIT_FAILURE);
 	}
 	
 	bool configOK=true;
@@ -421,63 +456,132 @@ bool MakeTimeTransferFile::loadConfig()
 	string stmp;
 	
 	// CGGTTS generation
-	configOK= configOK && setConfig(last,"cggtts","version",stmp);
-	boost::to_upper(stmp);
-	if (stmp=="V1")
-		CGGTTSversion=CGGTTS::V1;
-	else if (stmp=="V2E")
-		CGGTTSversion=CGGTTS::V2E;
-	configOK= configOK && setConfig(last,"cggtts","reference",CGGTTSref);
-	configOK= configOK && setConfig(last,"cggtts","lab",CGGTTSlab);
-	configOK= configOK && setConfig(last,"cggtts","comments",CGGTTScomment);
-	configOK= configOK && setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength);
-	configOK= configOK && setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG);
-	configOK= configOK && setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation);
-	configOK= configOK && setConfig(last,"cggtts","naming convention",stmp);
-	boost::to_upper(stmp);
-	if (stmp == "BIPM")
-		CGGTTSnamingConvention = BIPM;
-	else if (stmp=="PLAIN")
-		CGGTTSnamingConvention = Plain;
-	if (CGGTTSnamingConvention == BIPM){
-		configOK= configOK && setConfig(last,"cggtts","lab id",CGGTTSlabCode);
-		configOK= configOK && setConfig(last,"cggtts","receiver id",CGGTTSreceiverID);
+	if (setConfig(last,"cggtts","create",stmp,false)){
+		boost::to_upper(stmp);
+		if (stmp=="NO")
+			createCGGTTS=false;
 	}
 	
-	configOK= configOK && setConfig(last,"cggtts","revision date",stmp);
-	std::vector<std::string> vals;
-	boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
-	if (vals.size()==3){
-		try{
-			CGGTTSRevDateYYYY=lexical_cast<int>(vals.at(0));
-			CGGTTSRevDateMM=lexical_cast<int>(vals.at(1));
-			CGGTTSRevDateDD=lexical_cast<short>(vals.at(2));
+	if (createCGGTTS){
+		if (setConfig(last,"cggtts","outputs",stmp)){
+			std::vector<std::string> configs;
+			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
+			int constellation=0,code=0;
+			for (unsigned int i=0;i<configs.size();i++){
+				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp)){
+					boost::to_upper(stmp);
+					if (stmp == "GPS")
+						constellation = Receiver::GPS;
+					else if (stmp == "GLONASS")
+						constellation = Receiver::GLONASS;
+					else if (stmp=="BEIDOU")
+						constellation = Receiver::BEIDOU;
+					else if (stmp=="GALILEO")
+						constellation = Receiver::GALILEO;
+					else if (stmp=="QZSS")
+						constellation = Receiver::QZSS;
+					else{
+						cerr << "unknown constellation " << stmp << " in [" << configs.at(i) << "]" << endl;
+						continue;
+					}
+				}
+				if (setConfig(last,configs.at(i).c_str(),"code",stmp)){
+					boost::to_upper(stmp);
+					if (stmp=="C1")
+						code=Receiver::C1;
+					else if (stmp=="P1")
+						code=Receiver::P1;
+					else if (stmp=="P2")
+						code=Receiver::P2;
+					else if (stmp=="B1")
+						code=Receiver::B1;
+					else if (stmp=="E1")
+						code=Receiver::E1;
+					else{
+						cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << endl;
+						continue;
+					}
+				}
+				if (setConfig(last,configs.at(i).c_str(),"path",stmp)){ // got everything
+					// FIXME check compatibility of constellation+code
+					stmp=relativeToAbsolutePath(stmp);
+					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp));
+				}
+			} // for
+		} // if setConfig
+		
+		configOK= configOK && setConfig(last,"cggtts","version",stmp);
+		boost::to_upper(stmp);
+		if (stmp=="V1")
+			CGGTTSversion=CGGTTS::V1;
+		else if (stmp=="V2E")
+			CGGTTSversion=CGGTTS::V2E;
+		else{
+			cerr << "unknown CGGTTS version " << stmp << endl;
 		}
-    catch(const bad_lexical_cast &){
-			cerr << "Blart" << endl;
-    }
-	}
-	else{
-		cerr << "Syntax error in [CGGTTS] revision date - should be YYYY-MM-DD" << endl;
+		configOK= configOK && setConfig(last,"cggtts","reference",CGGTTSref);
+		configOK= configOK && setConfig(last,"cggtts","lab",CGGTTSlab);
+		configOK= configOK && setConfig(last,"cggtts","comments",CGGTTScomment);
+		configOK= configOK && setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength);
+		configOK= configOK && setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG);
+		configOK= configOK && setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation);
+		configOK= configOK && setConfig(last,"cggtts","naming convention",stmp);
+		boost::to_upper(stmp);
+		if (stmp == "BIPM"){
+			CGGTTSnamingConvention = BIPM;
+			cerr << "BIPM" << endl;
+		}
+		else if (stmp=="PLAIN")
+			CGGTTSnamingConvention = Plain;
+		if (CGGTTSnamingConvention == BIPM){
+			configOK= configOK && setConfig(last,"cggtts","lab id",CGGTTSlabCode);
+			configOK= configOK && setConfig(last,"cggtts","receiver id",CGGTTSreceiverID);
+		}
+		
+		configOK= configOK && setConfig(last,"cggtts","revision date",stmp);
+		std::vector<std::string> vals;
+		boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
+		if (vals.size()==3){
+			try{
+				CGGTTSRevDateYYYY=lexical_cast<int>(vals.at(0));
+				CGGTTSRevDateMM=lexical_cast<int>(vals.at(1));
+				CGGTTSRevDateDD=lexical_cast<short>(vals.at(2));
+			}
+			catch(const bad_lexical_cast &){
+				cerr << "Blart" << endl;
+			}
+		}
+		else{
+			cerr << "Syntax error in [CGGTTS] revision date - " << stmp << " should be YYYY-MM-DD " << endl;
+		}
 	}
 	
 	// RINEX generation
-	configOK= configOK && setConfig(last,"rinex","version",&itmp);
-	switch (itmp)
-	{
-		case 2:RINEXversion=RINEX::V2;break;
-		case 3:RINEXversion=RINEX::V3;break;
-		default:configOK=false;
+	if (setConfig(last,"rinex","create",stmp)){
+		boost::to_upper(stmp);
+		if (stmp=="NO")
+			createRINEX=false;
 	}
-	configOK= configOK && setConfig(last,"rinex","observer",observer);
-	if (observer=="user"){
-		char *uenv;
-		if ((uenv = getenv("USER")))
-			observer=uenv;
+	
+	if (createRINEX){
+		configOK= configOK && setConfig(last,"rinex","version",&itmp);
+		switch (itmp)
+		{
+			case 2:RINEXversion=RINEX::V2;break;
+			case 3:RINEXversion=RINEX::V3;break;
+			default:configOK=false;
+		}
+		configOK= configOK && setConfig(last,"rinex","observer",observer);
+		if (observer=="user"){
+			char *uenv;
+			if ((uenv = getenv("USER")))
+				observer=uenv;
+		}
+		configOK= configOK && setConfig(last,"rinex","agency",agency);
 	}
-	configOK= configOK && setConfig(last,"rinex","agency",agency);
 	
 	// Antenna
+	configOK=true;
 	configOK= configOK && setConfig(last,"antenna","marker name",antenna->markerName);
 	configOK= configOK && setConfig(last,"antenna","marker number",antenna->markerNumber);
 	configOK= configOK && setConfig(last,"antenna","marker type",antenna->markerType);
@@ -486,18 +590,21 @@ bool MakeTimeTransferFile::loadConfig()
 	configOK= configOK && setConfig(last,"antenna","x",&(antenna->x));
 	configOK= configOK && setConfig(last,"antenna","y",&(antenna->y));
 	configOK= configOK && setConfig(last,"antenna","z",&(antenna->z));
-	configOK= configOK && setConfig(last,"antenna","delta h",&(antenna->deltaH));
-	configOK= configOK && setConfig(last,"antenna","delta e",&(antenna->deltaE));
-	configOK= configOK && setConfig(last,"antenna","delta n",&(antenna->deltaN));
+	configOK= configOK && setConfig(last,"antenna","delta h",&(antenna->deltaH),false);
+	configOK= configOK && setConfig(last,"antenna","delta e",&(antenna->deltaE),false);
+	configOK= configOK && setConfig(last,"antenna","delta n",&(antenna->deltaN),false);
 	configOK= configOK && setConfig(last,"antenna","frame",antenna->frame);
-	
+	if (!configOK){
+		cerr << "Error in antenna configuration - exiting" << endl;
+		exit(EXIT_FAILURE);
+	}
 	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z,
 		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
 	
 	// Receiver
 	//configOK= configOK && setConfig(last,"antenna","marker name",antenna->markerName);
 	string rxModel,rxManufacturer;
-	configOK= configOK && setConfig(last,"receiver","model",rxModel);
+	setConfig(last,"receiver","model",rxModel);
 	configOK= configOK && setConfig(last,"receiver","manufacturer",rxManufacturer);
 	if (rxManufacturer.find("Trimble") != string::npos){
 		receiver = new TrimbleResolution(antenna,rxModel); 
@@ -510,76 +617,66 @@ bool MakeTimeTransferFile::loadConfig()
 	}
 	
 	if (NULL==receiver){ // bail out
-		cerr << "A valid receiver model/manufacturer has not been configured" << endl;
-		return false;
+		cerr << "A valid receiver model/manufacturer has not been configured - exiting" << endl;
+		exit(EXIT_FAILURE);
 	}
 	
-	configOK= configOK && setConfig(last,"receiver","observations",stmp);
-	
-	if (stmp.find("GPS") != string::npos)
-		receiver->constellations |=Receiver::GPS;
-	else if (stmp.find("GLONASS") != string::npos)
-		receiver->constellations |=Receiver::GLONASS;
-	else if (stmp.find("BeiDou") != string::npos)
-		receiver->constellations |=Receiver::BEIDOU;
-	else if (stmp.find("Galileo") != string::npos)
-		receiver->constellations |=Receiver::GALILEO;
-	
-	configOK= configOK && setConfig(last,"receiver","pps offset",&receiver->ppsOffset);
-	configOK= configOK && setConfig(last,"receiver","file extension",receiverExtension);
+	if (setConfig(last,"receiver","observations",stmp)){
+		boost::to_upper(stmp);
+		if (stmp.find("GPS") != string::npos)
+			receiver->constellations |=Receiver::GPS;
+		if (stmp.find("GLONASS") != string::npos)
+			receiver->constellations |=Receiver::GLONASS;
+		if (stmp.find("BEIDOU") != string::npos)
+			receiver->constellations |=Receiver::BEIDOU;
+		if (stmp.find("GALILEO") != string::npos)
+			receiver->constellations |=Receiver::GALILEO;
+		if (stmp.find("QZSS") != string::npos)
+			receiver->constellations |=Receiver::QZSS;
+	}
+	setConfig(last,"receiver","pps offset",&receiver->ppsOffset);
+	setConfig(last,"receiver","file extension",receiverExtension);
 	
 	// Counter
-	configOK= configOK && setConfig(last,"counter","file extension",counterExtension);
+	setConfig(last,"counter","file extension",counterExtension);
 	
 	// Delays
-	
-	configOK= configOK && setConfig(last,"delays","C1 internal",&C1InternalDelay);
-	configOK= configOK && setConfig(last,"delays","antenna cable",&antCableDelay);
-	configOK= configOK && setConfig(last,"delays","reference cable",&refCableDelay);
+	setConfig(last,"delays","C1 internal",&C1InternalDelay);
+	setConfig(last,"delays","antenna cable",&antCableDelay);
+	setConfig(last,"delays","reference cable",&refCableDelay);
 	
 	// Paths FIXME
 
 	string path="";	
-	configOK = configOK && setConfig(last,"paths","rinex",path);
-	if (path.size() > 0){
-		if (path.at(0) == '/') // path is assumed to be absolute if it has a leading '/'
-			RINEXPath = path;
-		else 
-			RINEXPath=homeDir+"/"+path; // otherwise relative to the user's home directory
-	}
-	path="";
-	configOK = configOK && setConfig(last,"paths","receiver data",path);
-	if (path.size() > 0){
-		if (path.at(0) == '/')
-			receiverPath = path;
-		else 
-			receiverPath=homeDir+"/"+path;
-	}
-	path="";
-	configOK = configOK && setConfig(last,"paths","counter data",path);
-	if (path.size() > 0){
-		if (path.at(0) == '/')
-			counterPath = path;
-		else 
-			counterPath=homeDir+"/"+path;
-	}
-	path="";
-	configOK = configOK && setConfig(last,"paths","tmp",path);
-	if (path.size() > 0){
-		if (path.at(0) == '/')
-			tmpPath = path;
-		else 
-			tmpPath=homeDir+"/"+path;
-	}
-	path="";
-	configOK = configOK && setConfig(last,"paths","cggtts",path);
-	if (path.size() > 0){
-		if (path.at(0) == '/')
-			CGGTTSPath = path;
-		else 
-			CGGTTSPath=homeDir+"/"+path;
-	}
+	if (setConfig(last,"paths","rinex",path))
+		RINEXPath=relativeToAbsolutePath(path);
 	
+	path="";
+	if (setConfig(last,"paths","receiver data",path))
+		receiverPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","counter data",path))
+		counterPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","tmp",path))
+		tmpPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","cggtts",path))
+		CGGTTSPath=relativeToAbsolutePath(path);
+	
+	// Set the defaults that require configuration information
+	if (createCGGTTS && CGGTTSoutputs.empty()){
+		DBGMSG(debugStream,INFO, "creating default CGGTTS outputs");
+		if (receiver->constellations & Receiver::GPS){
+			CGGTTSoutputs.push_back(CGGTTSOutput(Receiver::GPS,Receiver::C1,CGGTTSPath));
+		}
+		if (receiver->constellations & Receiver::GLONASS){
+			CGGTTSoutputs.push_back(CGGTTSOutput(Receiver::GLONASS,Receiver::C1,CGGTTSPath));
+		}
+	}
 	return configOK;
 }
 
