@@ -452,18 +452,21 @@ bool MakeTimeTransferFile::loadConfig()
 	}
 	
 	bool configOK=true;
+	bool configResult;
 	int itmp=2;
 	string stmp;
 	
 	// CGGTTS generation
-	if (setConfig(last,"cggtts","create",stmp,false)){
+	if ((configResult=setConfig(last,"cggtts","create",stmp,false))){
 		boost::to_upper(stmp);
-		if (stmp=="NO")
+		if (stmp=="NO"){
 			createCGGTTS=false;
+		}
 	}
+	configOK = configOK && configResult;
 	
 	if (createCGGTTS){
-		if (setConfig(last,"cggtts","outputs",stmp)){
+		if ((configResult=setConfig(last,"cggtts","outputs",stmp,false))){
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
@@ -482,6 +485,7 @@ bool MakeTimeTransferFile::loadConfig()
 						constellation = Receiver::QZSS;
 					else{
 						cerr << "unknown constellation " << stmp << " in [" << configs.at(i) << "]" << endl;
+						configOK=false;
 						continue;
 					}
 				}
@@ -499,6 +503,7 @@ bool MakeTimeTransferFile::loadConfig()
 						code=Receiver::E1;
 					else{
 						cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << endl;
+						configOK=false;
 						continue;
 					}
 				}
@@ -507,121 +512,151 @@ bool MakeTimeTransferFile::loadConfig()
 					stmp=relativeToAbsolutePath(stmp);
 					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp));
 				}
+				else{
+					configOK=false;
+				}
 			} // for
 		} // if setConfig
 		
-		configOK= configOK && setConfig(last,"cggtts","version",stmp);
-		boost::to_upper(stmp);
-		if (stmp=="V1")
-			CGGTTSversion=CGGTTS::V1;
-		else if (stmp=="V2E")
-			CGGTTSversion=CGGTTS::V2E;
+		if (setConfig(last,"cggtts","version",stmp,false)){
+			boost::to_upper(stmp);
+			if (stmp=="V1")
+				CGGTTSversion=CGGTTS::V1;
+			else if (stmp=="V2E")
+				CGGTTSversion=CGGTTS::V2E;
+			else{
+				cerr << "unknown CGGTTS version " << stmp << endl;
+				configOK=false;
+			}
+		}
 		else{
-			cerr << "unknown CGGTTS version " << stmp << endl;
-		}
-		configOK= configOK && setConfig(last,"cggtts","reference",CGGTTSref);
-		configOK= configOK && setConfig(last,"cggtts","lab",CGGTTSlab);
-		configOK= configOK && setConfig(last,"cggtts","comments",CGGTTScomment);
-		configOK= configOK && setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength);
-		configOK= configOK && setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG);
-		configOK= configOK && setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation);
-		configOK= configOK && setConfig(last,"cggtts","naming convention",stmp);
-		boost::to_upper(stmp);
-		if (stmp == "BIPM"){
-			CGGTTSnamingConvention = BIPM;
-			cerr << "BIPM" << endl;
-		}
-		else if (stmp=="PLAIN")
-			CGGTTSnamingConvention = Plain;
-		if (CGGTTSnamingConvention == BIPM){
-			configOK= configOK && setConfig(last,"cggtts","lab id",CGGTTSlabCode);
-			configOK= configOK && setConfig(last,"cggtts","receiver id",CGGTTSreceiverID);
+			configOK=false;
 		}
 		
-		configOK= configOK && setConfig(last,"cggtts","revision date",stmp);
-		std::vector<std::string> vals;
-		boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
-		if (vals.size()==3){
-			try{
-				CGGTTSRevDateYYYY=lexical_cast<int>(vals.at(0));
-				CGGTTSRevDateMM=lexical_cast<int>(vals.at(1));
-				CGGTTSRevDateDD=lexical_cast<short>(vals.at(2));
+		if (!setConfig(last,"cggtts","reference",CGGTTSref)) configOK=false;
+		if (!setConfig(last,"cggtts","lab",CGGTTSlab)) configOK=false;
+		if (!setConfig(last,"cggtts","comments",CGGTTScomment,false)) configOK=false;
+		if (!setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength,false)) configOK=false;
+		if (!setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG,false)) configOK=false;
+		if (!setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation,false)) configOK=false;
+		if (setConfig(last,"cggtts","naming convention",stmp,false)){
+			boost::to_upper(stmp);
+			if (stmp == "BIPM")
+				CGGTTSnamingConvention = BIPM;
+			else if (stmp=="PLAIN")
+				CGGTTSnamingConvention = Plain;
+			else{
+				cerr << "unknown value for cggtts::naming convention " << endl;
+				configOK=false;
 			}
-			catch(const bad_lexical_cast &){
-				cerr << "Blart" << endl;
+			if (CGGTTSnamingConvention == BIPM){
+				if (!setConfig(last,"cggtts","lab id",CGGTTSlabCode)) configOK=false;
+				if (!setConfig(last,"cggtts","receiver id",CGGTTSreceiverID)) configOK=false;
+			}
+		}
+		
+		if (setConfig(last,"cggtts","revision date",stmp)){
+			std::vector<std::string> vals;
+			boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
+			if (vals.size()==3){
+				try{
+					CGGTTSRevDateYYYY=lexical_cast<int>(vals.at(0));
+					CGGTTSRevDateMM=lexical_cast<int>(vals.at(1));
+					CGGTTSRevDateDD=lexical_cast<short>(vals.at(2));
+				}
+				catch(const bad_lexical_cast &){
+					cerr << "Couldn't parse cggtts::revision date = " << stmp << endl;
+					configOK=false;
+				}
+			}
+			else{
+				cerr << "Syntax error in [CGGTTS] revision date - " << stmp << " should be YYYY-MM-DD " << endl;
+				configOK=false;
 			}
 		}
 		else{
-			cerr << "Syntax error in [CGGTTS] revision date - " << stmp << " should be YYYY-MM-DD " << endl;
+			configOK=false;
 		}
 	}
 	
 	// RINEX generation
-	if (setConfig(last,"rinex","create",stmp)){
+	if (setConfig(last,"rinex","create",stmp,false)){
 		boost::to_upper(stmp);
 		if (stmp=="NO")
 			createRINEX=false;
 	}
+	else{
+		configOK=false;
+	}
 	
 	if (createRINEX){
-		configOK= configOK && setConfig(last,"rinex","version",&itmp);
-		switch (itmp)
-		{
-			case 2:RINEXversion=RINEX::V2;break;
-			case 3:RINEXversion=RINEX::V3;break;
-			default:configOK=false;
+		if (setConfig(last,"rinex","version",&itmp)){
+			switch (itmp)
+			{
+				case 2:RINEXversion=RINEX::V2;break;
+				case 3:RINEXversion=RINEX::V3;break;
+				default:configOK=false;
+			}
 		}
-		configOK= configOK && setConfig(last,"rinex","observer",observer);
-		if (observer=="user"){
-			char *uenv;
-			if ((uenv = getenv("USER")))
-				observer=uenv;
+		else{
+			configOK=false;
 		}
-		configOK= configOK && setConfig(last,"rinex","agency",agency);
+		
+		if (setConfig(last,"rinex","observer",observer)){
+			if (observer=="user"){
+				char *uenv;
+				if ((uenv = getenv("USER")))
+					observer=uenv;
+			}
+		}
+		else{
+			configOK=false;
+		}
+		if (!setConfig(last,"rinex","agency",agency)) configOK=false;
 	}
 	
 	// Antenna
-	configOK=true;
-	configOK= configOK && setConfig(last,"antenna","marker name",antenna->markerName);
-	configOK= configOK && setConfig(last,"antenna","marker number",antenna->markerNumber);
-	configOK= configOK && setConfig(last,"antenna","marker type",antenna->markerType);
-	configOK= configOK && setConfig(last,"antenna","antenna number",antenna->antennaNumber);
-	configOK= configOK && setConfig(last,"antenna","antenna type",antenna->antennaType);
-	configOK= configOK && setConfig(last,"antenna","x",&(antenna->x));
-	configOK= configOK && setConfig(last,"antenna","y",&(antenna->y));
-	configOK= configOK && setConfig(last,"antenna","z",&(antenna->z));
-	configOK= configOK && setConfig(last,"antenna","delta h",&(antenna->deltaH),false);
-	configOK= configOK && setConfig(last,"antenna","delta e",&(antenna->deltaE),false);
-	configOK= configOK && setConfig(last,"antenna","delta n",&(antenna->deltaN),false);
-	configOK= configOK && setConfig(last,"antenna","frame",antenna->frame);
-	if (!configOK){
-		cerr << "Error in antenna configuration - exiting" << endl;
-		exit(EXIT_FAILURE);
-	}
+	if (!setConfig(last,"antenna","marker name",antenna->markerName)) configOK=false;
+	if (!setConfig(last,"antenna","marker number",antenna->markerNumber)) configOK=false;
+	if (!setConfig(last,"antenna","marker type",antenna->markerType)) configOK=false;
+	if (!setConfig(last,"antenna","antenna number",antenna->antennaNumber)) configOK=false;
+	if (!setConfig(last,"antenna","antenna type",antenna->antennaType)) configOK=false;
+	if (!setConfig(last,"antenna","x",&(antenna->x))) configOK=false;
+	if (!setConfig(last,"antenna","y",&(antenna->y))) configOK=false;
+	if (!setConfig(last,"antenna","z",&(antenna->z))) configOK=false;
+	if (!setConfig(last,"antenna","delta h",&(antenna->deltaH),false)) configOK=false;
+	if (!setConfig(last,"antenna","delta e",&(antenna->deltaE),false)) configOK=false;
+	if (!setConfig(last,"antenna","delta n",&(antenna->deltaN),false)) configOK=false;
+	if (!setConfig(last,"antenna","frame",antenna->frame)) configOK=false;
+
 	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z,
 		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
 	
 	// Receiver
-	//configOK= configOK && setConfig(last,"antenna","marker name",antenna->markerName);
+
 	string rxModel,rxManufacturer;
-	setConfig(last,"receiver","model",rxModel);
-	configOK= configOK && setConfig(last,"receiver","manufacturer",rxManufacturer);
-	if (rxManufacturer.find("Trimble") != string::npos){
-		receiver = new TrimbleResolution(antenna,rxModel); 
-	}
-	else if (rxManufacturer.find("Javad") != string::npos){
-		receiver = new Javad(antenna,rxModel); 
-	}
-	else if (rxManufacturer.find("NVS") != string::npos){
-		receiver = new NVS(antenna,rxModel); 
+	if (!setConfig(last,"receiver","model",rxModel)) configOK=false;
+	if ((configResult = setConfig(last,"receiver","manufacturer",rxManufacturer))){
+		if (rxManufacturer.find("Trimble") != string::npos){
+			receiver = new TrimbleResolution(antenna,rxModel); 
+		}
+		else if (rxManufacturer.find("Javad") != string::npos){
+			receiver = new Javad(antenna,rxModel); 
+		}
+		else if (rxManufacturer.find("NVS") != string::npos){
+			receiver = new NVS(antenna,rxModel); 
+		}
+		else{
+			cerr << "Unknown receiver manufacturer " << rxManufacturer << endl;
+		}
 	}
 	
-	if (NULL==receiver){ // bail out
+	if (NULL==receiver){ // bail out, since no receiver object
 		cerr << "A valid receiver model/manufacturer has not been configured - exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
 	
-	if (setConfig(last,"receiver","observations",stmp)){
+	if (setConfig(last,"receiver","observations",stmp,false)){
 		boost::to_upper(stmp);
 		if (stmp.find("GPS") != string::npos)
 			receiver->constellations |=Receiver::GPS;
@@ -634,18 +669,21 @@ bool MakeTimeTransferFile::loadConfig()
 		if (stmp.find("QZSS") != string::npos)
 			receiver->constellations |=Receiver::QZSS;
 	}
-	setConfig(last,"receiver","pps offset",&receiver->ppsOffset);
-	setConfig(last,"receiver","file extension",receiverExtension);
+	else
+		configOK=false;
+	
+	if (!setConfig(last,"receiver","pps offset",&receiver->ppsOffset)) configOK=false;
+	if (!setConfig(last,"receiver","file extension",receiverExtension,false)) configOK=false;
 	
 	// Counter
-	setConfig(last,"counter","file extension",counterExtension);
+	if (!setConfig(last,"counter","file extension",counterExtension,false)) configOK=false;
 	
 	// Delays
-	setConfig(last,"delays","C1 internal",&C1InternalDelay);
-	setConfig(last,"delays","antenna cable",&antCableDelay);
-	setConfig(last,"delays","reference cable",&refCableDelay);
+	if (!setConfig(last,"delays","C1 internal",&C1InternalDelay)) configOK=false;
+	if (!setConfig(last,"delays","antenna cable",&antCableDelay)) configOK=false;
+	if (!setConfig(last,"delays","reference cable",&refCableDelay)) configOK=false;
 	
-	// Paths FIXME
+	// Paths
 
 	string path="";	
 	if (setConfig(last,"paths","rinex",path))
@@ -685,11 +723,19 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 	char *stmp;
 	if (list_get_string(last,section,token,&stmp)){
 		val=stmp;
-		return true;
 	}
-	else
-		cerr << "Missing parameter/bad value for " << section << "::" << token << endl;
-	return false;
+	else{
+		int err = config_file_get_last_error(NULL,0);
+		if (err==TokenNotFound && required){
+			cerr << "Missing entry for " << section << "::" << token << endl;
+			return false;
+		}
+		else if (err==ParseFailed){
+			cerr << "Syntax error in " << section << "::" << token << endl;
+			return false;
+		}
+	}
+	return true;
 }
 
 bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,double *val,bool required)
@@ -699,9 +745,18 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 		*val=dtmp;
 		return true;
 	}
-	else
-		cerr << "Missing parameter/bad value for " << section << "::" << token << endl;
-	return false;
+	else{
+		int err = config_file_get_last_error(NULL,0);
+		if (err==TokenNotFound && required){
+			cerr << "Missing entry for " << section << "::" << token << endl;
+			return false;
+		}
+		else if (err==ParseFailed){
+			cerr << "Syntax error in " << section << "::" << token << endl;
+			return false;
+		}
+	}
+	return true;
 }
 
 bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,int *val,bool required)
@@ -711,9 +766,18 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 		*val=itmp;
 		return true;
 	}
-	else
-		cerr << "Missing parameter/bad value for " << section << "::" << token << endl;
-	return false;
+	else{
+		int err = config_file_get_last_error(NULL,0);
+		if (err==TokenNotFound && required){
+			cerr << "Missing entry for " << section << "::" << token << endl;
+			return false;
+		}
+		else if (err==ParseFailed){
+			cerr << "Syntax error in " << section << "::" << token << endl;
+			return false;
+		}
+	}
+	return true;
 }
 
 bool MakeTimeTransferFile::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fname)
