@@ -72,6 +72,16 @@ lowercase(
 }
 
 int 
+config_file_get_last_error(
+	char *buf,
+	int buflen)
+{
+	if (buf != NULL)
+		errtostr(lastError,buf,buflen);
+	return lastError;
+}
+
+int 
 	configfile_update(
 	const char *section,
 	const char *token,

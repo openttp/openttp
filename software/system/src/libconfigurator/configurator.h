@@ -98,6 +98,7 @@ int					list_get_string_value(ListEntry *first,const char *section,const char * 
 /* End of deprecated functions */
 
 int configfile_parse_as_list(ListEntry **first,const char *filename);
+int config_file_get_last_error(char *buf,int buflen);
 
 /* Generic bits */
 int  configfile_update(const char *section,const char *token,const char *value,const char *filename);
