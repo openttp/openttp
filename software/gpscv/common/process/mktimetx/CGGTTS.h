@@ -43,7 +43,7 @@ class CGGTTS
 		enum CGGTTSVERSIONS {V1=0, V2E=2}; // used as array indices too ..
 		
 		CGGTTS(Antenna *,Counter *,Receiver *);
-		bool writeObservationFile(int ver,int GNSSconst,string fname,int mjd,MeasurementPair **mpairs);
+		bool writeObservationFile(int ver,int constellation,int code,string fname,int mjd,MeasurementPair **mpairs);
 	
 		string ref;
 		string lab;

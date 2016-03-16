@@ -81,7 +81,9 @@ static struct option longOptions[] = {
 
 using boost::lexical_cast;
 using boost::bad_lexical_cast;
-		
+
+#define MPAIRS_SIZE 86400
+
 //
 //	Public
 //
@@ -200,7 +202,7 @@ MakeTimeTransferFile::MakeTimeTransferFile(int argc,char **argv)
 
 MakeTimeTransferFile::~MakeTimeTransferFile()
 {
-	for (unsigned int i =0;i<86400;i++)
+	for (unsigned int i =0;i<MPAIRS_SIZE;i++)
 		delete mpairs[i];
 	delete[] mpairs;
 }
@@ -222,15 +224,13 @@ void MakeTimeTransferFile::run()
 		exit(EXIT_FAILURE);
 	}
 
+	matchMeasurements(receiver,counter); // only do this once
+	
 	// Each system+code generates a  CGGTTS file
 	if (createCGGTTS){
 		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
-			DBGMSG(debugStream,INFO,"generating CGGTTS for constellation " << 
-				CGGTTSoutputs.at(i).constellation << "+ code " << CGGTTSoutputs.at(i).code);
-				
-			matchMeasurements(receiver,counter);
 			
-		// FIXME Fold the counter/timer measurements (plus sawtooth correction) in now
+		  // FIXME Fold the counter/timer measurements (plus sawtooth correction) in now
 		
 			CGGTTS cggtts(antenna,counter,receiver);
 			cggtts.ref=CGGTTSref;
@@ -246,7 +246,8 @@ void MakeTimeTransferFile::run()
 			cggtts.maxDSG = CGGTTSmaxDSG;
 			cggtts.minTrackLength=CGGTTSminTrackLength;
 			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
-			cggtts.writeObservationFile(CGGTTSversion,CGGTTSoutputs.at(i).constellation,CGGTTSfile,MJD,mpairs);
+			cggtts.writeObservationFile(CGGTTSversion,
+				CGGTTSoutputs.at(i).constellation,CGGTTSoutputs.at(i).code,CGGTTSfile,MJD,mpairs);
 		}
 	} // if createCGGTTS
 	
@@ -367,8 +368,8 @@ void MakeTimeTransferFile::init()
 	CGGTTSnamingConvention=Plain;
 	tmpPath=homeDir+"/tmp";
 	
-	mpairs= new MeasurementPair*[86400];
-	for (int i=0;i<86400;i++)
+	mpairs= new MeasurementPair*[MPAIRS_SIZE];
+	for (int i=0;i<MPAIRS_SIZE;i++)
 		mpairs[i]=new MeasurementPair();
 
 }
@@ -830,7 +831,6 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 	if (cntr->measurements.size() == 0 || rx->measurements.size()==0)
 		return;
 
-
 	// Instead of a complicated search, use an array that records whether the required measurements exist for 
 	// each second. This approach:
 	// (1) Flags gaps in either record
@@ -838,7 +838,11 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 	// (3) Allows the PC clock to step back (as might happen on a reboot, and ntpd has not synced up yet).
 	//     In this case, data between from the (previous) time of the step to before the step is discarded.
 	
-	
+	// Clear the array each time its called
+	for (int i=0;i<MPAIRS_SIZE;i++){ 
+		mpairs[i]->flags=0;
+	}
+		
 	for (unsigned int i=0;i<cntr->measurements.size();i++){
 		CounterMeasurement *cm= cntr->measurements[i];
 		int tcntr=((int) cm->hh)*3600 +  ((int) cm->mm)*60 + ((int) cm->ss);
@@ -862,7 +866,7 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 	for (unsigned int i=0;i<rx->measurements.size();i++){
 		ReceiverMeasurement *rxm = rx->measurements[i];
 		int trx=((int) rxm->pchh)*3600 +  ((int) rxm->pcmm)*60 + ((int) rxm->pcss);
-		if (trx>=0 && trx<86400){
+		if (trx>=0 && trx<MPAIRS_SIZE){
 			if (mpairs[trx]->flags & 0x02){
 				mpairs[trx]->flags |= 0x08; // duplicate
 				DBGMSG(debugStream,WARNING,"duplicate receiver measurement " << (int) rxm->pchh << ":" << (int) rxm->pcmm << ":" <<(int) rxm->pcss);
@@ -875,7 +879,7 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 	}
 	
 	int matchcnt=0;
-	for (unsigned int i=0;i<86400;i++){
+	for (unsigned int i=0;i<MPAIRS_SIZE;i++){
 		if (mpairs[i]->flags == 0x03){
 			matchcnt++;
 		}
@@ -893,7 +897,7 @@ void MakeTimeTransferFile::writeReceiverTimingDiagnostics(Receiver *rx,Counter *
 		return;
 	}
 	
-	for (unsigned int i=0;i<86400;i++){
+	for (unsigned int i=0;i<MPAIRS_SIZE;i++){
 		if (mpairs[i]->flags == 0x03){
 			CounterMeasurement *cm= mpairs[i]->cm;
 			ReceiverMeasurement *rxm = mpairs[i]->rm;

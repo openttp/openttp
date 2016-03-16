@@ -145,11 +145,14 @@ bool Javad::readLog(string fname,int mjd)
 	unsigned char navStatus[MAX_CHANNELS];
 	unsigned char elevs[MAX_CHANNELS];
 	unsigned char azimuths[MAX_CHANNELS];
+	
 	F8 CApr[MAX_CHANNELS];
 	unsigned char CAlockFlags[MAX_CHANNELS*2];
+	
 	F8 P1pr[MAX_CHANNELS];
 	F8 relP1pr[MAX_CHANNELS];
 	unsigned char P1lockFlags[MAX_CHANNELS*2];
+	
 	F8 P2pr[MAX_CHANNELS];
 	F8 relP2pr[MAX_CHANNELS];
 	unsigned char P2lockFlags[MAX_CHANNELS*2];
@@ -163,7 +166,7 @@ bool Javad::readLog(string fname,int mjd)
 	int rcCnt=0,RCcnt=0; 
 	int R1cnt=0,r1Cnt=0,m1RCnt=0,m1rCnt=0;
 	int R2cnt=0,r2Cnt=0,m2RCnt=0,m2rCnt=0;
-	unsigned int errorCount=0,badMeasurements=0,numSVmeasurements=0;
+	unsigned int errorCount=0,badC1Measurements=0,badP1Measurements=0,badP2Measurements=0,numSVmeasurements=0;
 	U2 RDyyyy;
 	U1 RDmm,RDdd;
 	
@@ -228,7 +231,7 @@ bool Javad::readLog(string fname,int mjd)
 			
 			if(msgid=="RD"){ // Receiver Date (RD) message 
 				
-				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // Save measurements
+				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // save measurements
 					
 					if ((dualFrequency &&
 						!((R1cnt<=1) && (r1Cnt<=1) && (m1RCnt<=1) && (m1rCnt<=1) &&
@@ -245,23 +248,67 @@ bool Javad::readLog(string fname,int mjd)
 					
 					ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 					numSVmeasurements += nSats;
+					
+					// For each tracked satellite, get the pseudorange for each code
 					for (unsigned int chan=0; chan < nSats; chan++){
 						
-						// Check that PLLs are locked for each channel before we use the data
-						if (CAlockFlags[chan*2] != 83){
-							DBGMSG(debugStream,WARNING," C/A unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
-							badMeasurements++;
-							continue;
-						}
+						if (codes & C1){
+							bool ok=true;
+							// Check that PLLs are locked for each channel before we use the data
+							if (CAlockFlags[chan*2] != 83){
+								DBGMSG(debugStream,WARNING," C/A unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
+								badC1Measurements++;
+								ok=false;
+							}
+							
+							// Simple sanity check in case pseudoranges or the receiver time offset are wild
+							if (((CApr[chan]-rxTimeOffset)<0.05) || ((CApr[chan]-rxTimeOffset)>0.10)){
+								DBGMSG(debugStream,WARNING," C/A pseudorange too large at line " << linecount << "(" << CApr[chan]-rxTimeOffset << ")");
+								if (ok) badC1Measurements++; // don't count it twice
+								ok=false;
+							}
+							
+							if (ok){
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								rmeas->gps.push_back(svm);
+							}
+							
+						} // if codes & C1
 						
-						// Simple sanity check in case pseudoranges or the receiver time offset are wild
-						if (((CApr[chan]-rxTimeOffset)<0.05) || ((CApr[chan]-rxTimeOffset)>0.10)){
-							DBGMSG(debugStream,WARNING," C/A pseudorange too large at line " << linecount << "(" << CApr[chan]-rxTimeOffset << ")");
-							badMeasurements++;
-							continue;
-						}
-						SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
-						rmeas->gps.push_back(svm);
+						if (codes & P1){
+							bool ok=true;
+							if (P1lockFlags[chan*2] != 83){
+								DBGMSG(debugStream,WARNING," P1 unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
+								badP1Measurements++;
+								ok=false;
+							}
+							
+							// FIXME no sanity check
+							
+							if (ok){
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],P1pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								rmeas->gpsP1.push_back(svm);
+							}
+							
+						} // if codes & P1	
+							
+						if (codes & P2){
+							bool ok = true;
+							if (P2lockFlags[chan*2] != 83){
+								DBGMSG(debugStream,WARNING," P2 unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
+								badP2Measurements++;
+								ok=false;
+							}	
+							
+							// FIXME no sanity check
+							
+							if (ok){
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],P2pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								rmeas->gpsP2.push_back(svm);
+							}
+							
+						} // if codes & P2
+						
 					}
 					
 					if (rmeas->gps.size() > 0){
@@ -380,7 +427,7 @@ bool Javad::readLog(string fname,int mjd)
 					HexToBin((char *) msg.c_str(),sizeof(F8),(unsigned char *) &rxTimeOffset);
 					// Discard outliers
 					if ((fabs(rxTimeOffset)>0.001) || (fabs(rxTimeOffset)<1E-10)){ 
-						badMeasurements++;
+						badC1Measurements++;
 						DBGMSG(debugStream,WARNING," TO outlier at line " << linecount << ":" << rxTimeOffset);
 					}
 					else{
@@ -400,7 +447,7 @@ bool Javad::readLog(string fname,int mjd)
 					HexToBin((char *) msg.c_str(),sizeof(F8),(unsigned char *) &smoothingOffset);
 					// Discard outliers. YA is occasionally reported as zero following a tracking glitch.
 					if ((fabs(smoothingOffset)>0.001) || (smoothingOffset==0)){
-						badMeasurements++;
+						badC1Measurements++;
 						DBGMSG(debugStream,WARNING," YA outlier at line " << linecount << ":" << smoothingOffset);
 					}
 					else{
@@ -420,7 +467,7 @@ bool Javad::readLog(string fname,int mjd)
 					HexToBin((char *) msg.c_str(),sizeof(F4),(unsigned char *) &sawtooth); // units are ns
 					// Discard outliers
 					if (fabs(sawtooth)> 50.0){
-						badMeasurements++;
+						badC1Measurements++;
 						DBGMSG(debugStream,WARNING," ZA outlier at line " << linecount << ":" << sawtooth);
 					}
 					else{
@@ -863,7 +910,15 @@ bool Javad::readLog(string fname,int mjd)
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");
 	DBGMSG(debugStream,INFO,errorCount << " errors in input file");
-	DBGMSG(debugStream,INFO,badMeasurements  << " SV measurements rejected in input file");
+	if (codes & C1){
+		DBGMSG(debugStream,INFO,badC1Measurements  << " SV C1 measurements rejected");
+	}
+	if (codes & P1){
+		DBGMSG(debugStream,INFO,badP1Measurements  << " SV P1 measurements rejected");
+	}
+	if (codes & P2){
+		DBGMSG(debugStream,INFO,badP2Measurements  << " SV P2 measurements rejected");
+	}
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
 	return true;
 	

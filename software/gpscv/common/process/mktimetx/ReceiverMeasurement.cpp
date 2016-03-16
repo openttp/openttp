@@ -57,6 +57,12 @@ unsigned int ReceiverMeasurement::memoryUsage(){
 	for (unsigned int i=0;i<gps.size();i++){
 		mem+=gps.at(i)->memoryUsage();
 	}
+	for (unsigned int i=0;i<gpsP1.size();i++){
+		mem+=gpsP1.at(i)->memoryUsage();
+	}
+	for (unsigned int i=0;i<gpsP2.size();i++){
+		mem+=gpsP2.at(i)->memoryUsage();
+	}
 	for (unsigned int i=0;i<glonass.size();i++){
 		mem+=glonass.at(i)->memoryUsage();
 	}

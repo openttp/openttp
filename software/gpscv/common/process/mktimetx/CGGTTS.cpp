@@ -58,7 +58,7 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,MeasurementPair **mpairs)
+bool CGGTTS::writeObservationFile(int ver,int constellation, int code,string fname,int mjd,MeasurementPair **mpairs)
 {
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
@@ -92,10 +92,21 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 		ntracks++;
 	}
 
+	// Constellation/code identifiers as per V2E
+	string GNSSconst;
 	string GNSScode;
-	switch (GNSSconst){
-		case Receiver::GPS:GNSScode="G";break;// FIXME GPS only
+	switch (constellation){
+		case Receiver::GPS:
+			GNSSconst="G";
+			switch (code){
+				case Receiver::C1:GNSScode="L1C";break;
+				case Receiver::P1:GNSScode="L1P";break;
+				case Receiver::P2:GNSScode="L2P";break;
+				default:break;
+			}
+			break;// FIXME GPS only
 		//case Receiver::GLONASS:GNSScode="R";break;
+		default:break;
 	}
 	
 	// Use a fixed array of vectors so that we can use the index as a hash for the SVN. Memory is cheap
@@ -108,13 +119,35 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 		// Matched measurement pairs can be looked up without a search since the index is TOD
 		// FIXME Sanity check post-match would be prudent
 		for (int m=trackStart;m<=trackStop;m++){
+			
 			if ((mpairs[m]->flags==0x03)){
 				ReceiverMeasurement *rm = mpairs[m]->rm;
-				for (unsigned int sv=0;sv<rm->gps.size();sv++){ // FIXME GPS only
-					svtrk[rm->gps.at(sv)->svn].push_back(rm->gps.at(sv));
-				}
-			}
+				switch (constellation){
+					case Receiver::GPS:
+						switch (code){
+							case Receiver::C1:{
+								for (unsigned int sv=0;sv<rm->gps.size();sv++) 
+									svtrk[rm->gps.at(sv)->svn].push_back(rm->gps.at(sv));
+								break;
+							}
+							case Receiver::P1:{
+								for (unsigned int sv=0;sv<rm->gpsP1.size();sv++) 
+									svtrk[rm->gpsP1.at(sv)->svn].push_back(rm->gpsP1.at(sv));
+								break;
+							}
+							case Receiver::P2:{
+								for (unsigned int sv=0;sv<rm->gpsP2.size();sv++) 
+									svtrk[rm->gpsP2.at(sv)->svn].push_back(rm->gpsP2.at(sv));
+								break;
+							}
+							default:break;
+						}// switch (code) 
+					break;
+					
+				}// switch constellation
+			} // if
 		}
+		
 		
 		int hh = schedule[i] / 60;
 		int mm = schedule[i] % 60;
@@ -145,6 +178,7 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
 						double refsyscorr,refsvcorr,iono,tropo,az,el;
+						// FIXME MDIO needs to change for L2
 						if (GPS::getPseudorangeCorrections(rx,rxmt,svtrk[sv].at(t),ant,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
@@ -210,9 +244,9 @@ bool CGGTTS::writeObservationFile(int ver,int GNSSconst, string fname,int mjd,Me
 								fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
 								break;
 							case V2E:
-								snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSScode.c_str(),sv,"FF",mjd,hh,mm,
+								snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSconst.c_str(),sv,"FF",mjd,hh,mm,
 												npts*fitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
-												ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,"L1C");
+												ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,GNSScode.c_str());
 								fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
 								break;
 						} // switch
