@@ -2,17 +2,17 @@ PROGRAM = okcounterd
 CXX = g++
 INCLUDE = 
 LDFLAGS= 
-LIBS= -lpthread -lokFrontPanel -ldl
+LIBS= -lpthread -ldl -lusb-1.0
 CXXFLAGS= -Wall 
-DEFINES= -DDEBUG -DOKFRONTPANEL
-OBJECTS = OKCounterD.o Client.o Main.o Server.o
+DEFINES= -DDEBUG -DOPENOK2
+OBJECTS = OKCounterD.o Client.o Main.o Server.o OpenOK.o
 
 .SUFFIXES: .o .cpp
 
 all: $(PROGRAM)
 
 $(OBJECTS): %.o:%.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDE) $(DEFINES)  -c $<
+	$(CXX) $(CXXFLAGS) $(INCLUDE) $(DEFINES) -c $<
 
 $(PROGRAM): $(OBJECTS)
 	$(CXX) $(LDFLAGS) -o $(PROGRAM) $(OBJECTS) $(LIBS)

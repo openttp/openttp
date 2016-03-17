@@ -62,7 +62,6 @@ void OKCounterD::showHelp()
 	cout << "-d <file> Turn on debugging to <file> (use 'stderr' for output to stderr)" << endl;
 	cout << "-h print this help message" << endl;
 	cout << "-v print version" << endl;
-
 } 
 
 void OKCounterD::showVersion()
@@ -91,11 +90,6 @@ void OKCounterD::run()
 	for (;;){
 		usleep(10000);
 		measurements.clear();
-		//measurements.push_back(1);
-		//measurements.push_back((int) tv.tv_sec);
-		//measurements.push_back((int) tv.tv_usec);
-		//measurements.push_back(999);
-		
 		xem->UpdateTriggerOuts();
 		int triggered=0;
 		int bitmask=0x01;
@@ -156,8 +150,13 @@ bool OKCounterD::initializeFPGA(string bitfile)
 {
 	
 	// Open the first XEM - try all board types.
+#ifdef OKFRONTPANEL
 	xem = new okCFrontPanel;
 	if (okCFrontPanel::NoError != xem->OpenBySerial()) {
+#else
+	xem = new OpenOK;
+	if (OpenOK::NoError != xem->OpenBySerial()) {
+#endif
 		delete xem;
 		cerr << "Device could not be opened.  Is one connected?" << endl;
 		return false;
@@ -172,9 +171,13 @@ bool OKCounterD::initializeFPGA(string bitfile)
 	DBGMSG(debugStream, "Device serial number:" << xem->GetSerialNumber());
 	DBGMSG(debugStream, "Device ID: " << xem->GetDeviceID());
 	
-	// Download the configuration file.
+	// Download the configuration file, if one has been specified on the command line
 	if (!bitfile.empty()){
+#ifdef OKFRONTPANEL
 		if (okCFrontPanel::NoError != xem->ConfigureFPGA(bitfile.c_str())) {
+#else
+		if (OpenOK::NoError != xem->ConfigureFPGA(bitfile.c_str())) {
+#endif
 			cerr << "FPGA configuration failed";
 			delete xem;
 			return false;

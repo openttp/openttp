@@ -28,11 +28,15 @@
 
 #include <string>
 
-#include <okFrontPanelDLL.h>
+#ifdef OKFRONTPANEL
+	#include <okFrontPanelDLL.h>
+#else
+	#include "OpenOK.h"
+#endif 
 
 #define APP_NAME "okcounterd"
 #define AUTHOR "Michael Wouters"
-#define OKCOUNTERD_VERSION "0.1.0"
+#define OKCOUNTERD_VERSION "0.2.0"
 #define OKCOUNTERD_CONFIG "/usr/local/etc/okcounterd.conf"
 
 using namespace std;
@@ -60,8 +64,11 @@ private:
 	
 		void init();
 		bool dbgOn;
-		
+#ifdef OKFRONTPANEL
 		okCFrontPanel *xem;
+#else
+		OpenOK *xem;
+#endif
 		Server *server;
 		long port;
 		

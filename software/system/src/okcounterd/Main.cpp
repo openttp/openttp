@@ -162,11 +162,13 @@ int main(
 		exit(EXIT_FAILURE);
 	}
 	
+#ifdef OKFRONTPANEL
 	if (false == okFrontPanelDLL_LoadLib("/usr/local/lib/libokFrontPanel.so")) {
 		syslog(LOG_ERR,"FrontPanel DLL could not be loaded");
 		return(EXIT_FAILURE);
 	}
-	
+#endif
+
 	app->initializeFPGA("");	
 	app->run();
 
