@@ -55,7 +55,7 @@ int main(
 	char **argv)
 {
 	
-	char c;
+	int opt;
 	FILE *str;
 	pid_t pid;
 	
@@ -65,9 +65,9 @@ int main(
 	OKCounterD *app = new OKCounterD(argc,argv);
 	
 	// Process the command line options
-	while ((c=getopt(argc,argv,"d:hv")) != EOF)
+	while ((opt=getopt(argc,argv,"d:hv")) != -1)
 	{
-		switch(c)
+		switch(opt)
 		{
 			case 'd':	// enable debugging 
 				{
