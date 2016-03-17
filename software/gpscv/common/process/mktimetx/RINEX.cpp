@@ -104,34 +104,57 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 	fprintf(fout,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",ant->x,ant->y,ant->z," ","APPROX POSITION XYZ");
 	fprintf(fout,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",ant->deltaH,ant->deltaE,ant->deltaN," ","ANTENNA: DELTA H/E/N");
 	
-	int nobs = 0;
-	string obsTypes="";
-	if (rx->constellations & Receiver::GPS) {
-		nobs++;
-		obsTypes = "    C1";
-	}
-	if (rx->constellations & Receiver::GLONASS) {
-		nobs++;
-		obsTypes = "    C1";
-	}
-	if (rx->constellations & Receiver::GALILEO) {
-		nobs++;
-		obsTypes += "    C5"; 
-	}
-	if (rx->constellations & Receiver::BEIDOU) {
-		// FIXME observation types undefined ...
-		nobs++;
-	}
 	
 	switch (ver){
 		case V2:
 		{
+			int nobs=0;
+			string obsTypes="";
+			if (rx->constellations & Receiver::GPS) {
+				if (rx->codes & Receiver::C1){
+					nobs++;
+					obsTypes += "    C1";
+				}
+				if (rx->codes & Receiver::P1){
+					nobs++;
+					obsTypes += "    P1";
+				}
+				if (rx->codes & Receiver::P2){
+					nobs++;
+					obsTypes += "    P2";
+				}
+			}
+			if (rx->constellations & Receiver::GLONASS) {
+				if ( (string::npos == obsTypes.find("C1") ) ){  // if C1 not there
+					obsTypes = "    C1" + obsTypes;
+					nobs++;
+				}
+			}
+			// V2 doesn't support other constellations
+			// max of 3 observation descriptors so don't exceed the maximum of 9 on the line
 			fprintf(fout,"%6d%-54s%-20s\n",nobs,obsTypes.c_str(),"# / TYPES OF OBSERV");
 			break;
 		}
 		case V3:
 		{
-			fprintf(fout,"%1s  %3d %3s%50s%-20s\n","G",1,"C1C"," ","SYS / # / OBS TYPES"); // FIXME
+			int nobs=0;
+			string obsTypes="";
+			if (rx->constellations & Receiver::GPS) {
+				if (rx->codes & Receiver::C1){
+					nobs++;
+					obsTypes += " C1C";
+				}
+				if (rx->codes & Receiver::P1){
+					nobs++;
+					obsTypes += " C1P";
+				}
+				if (rx->codes & Receiver::P2){
+					nobs++;
+					obsTypes += " C2P";
+				}
+				// max of 3 observation descriptors so don't exceed the maximum of 13 on the line
+				fprintf(fout,"%1s  %3d%54s%-20s\n","G",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES"); 
+			}
 			break;
 		}
 		default:break;
@@ -181,19 +204,74 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 							(double) (rm->tmGPS.tm_sec+rm->tmfracs),
 							rm->epochFlag,(int) rm->gps.size());
 						
+						// determine all svns, noting that we may not have all measurements for all observation types
+						vector<int> svns;
+						
+						for (unsigned int sv=0;sv<rm->gps.size();sv++)
+							svns.push_back(rm->gps[sv]->svn);
+						
+						for (unsigned int sv=0;sv<rm->gpsP1.size();sv++){
+							if (!(std::find(svns.begin(), svns.end(),rm->gpsP1[sv]->svn ) != svns.end()))
+								svns.push_back(rm->gpsP1[sv]->svn);
+						}
+						for (unsigned int sv=0;sv<rm->gpsP2.size();sv++){
+							if (!(std::find(svns.begin(), svns.end(),rm->gpsP2[sv]->svn ) != svns.end()))
+								svns.push_back(rm->gpsP2[sv]->svn);
+						}
+							
 						int svcount=0;
-						int nsv = rm->gps.size();
-						for (unsigned int sv=0;sv<rm->gps.size();sv++){
+						int nsv = svns.size();
+						
+						// FIXME GPS only
+						for (unsigned int sv=0;sv<svns.size();sv++){
 							svcount++;
-							fprintf(fout,"G%02d",rm->gps[sv]->svn);
+							fprintf(fout,"G%02d",svns[sv]);
 							if ((nsv > 12) && ((svcount % 12)==1)){ // more to do so start a new line
 								fprintf(fout,"\n%32s","");
 							}
 						}
 						fprintf(fout,"\n"); // CHECK does this work OK when there are no observations
-						
-						for (unsigned int sv=0;sv<rm->gps.size();sv++)
-							fprintf(fout,"%14.3lf%1i%1i\n",rm->gps[sv]->meas*CVACUUM,rm->gps[sv]->lli,rm->gps[sv]->signal);
+					
+						for (unsigned int sv=0;sv<svns.size();sv++){
+							// Order is C1,P1,P2
+							if (rx->codes & Receiver::C1){
+								bool foundit=false;
+								for (unsigned int svc=0;svc<rm->gps.size();svc++){
+									if (rm->gps[svc]->svn == svns[sv]){
+										fprintf(fout,"%14.3lf%1i%1i",rm->gps[svc]->meas*CVACUUM,rm->gps[svc]->lli,rm->gps[svc]->signal);
+										foundit=true;
+										break;
+									}
+								}
+								if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+							}
+							
+							if (rx->codes & Receiver::P1){
+								bool foundit=false;
+								for (unsigned int svc=0;svc<rm->gpsP1.size();svc++){
+									if (rm->gpsP1[svc]->svn == svns[sv]){
+										fprintf(fout,"%14.3lf%1i%1i",rm->gpsP1[svc]->meas*CVACUUM,rm->gpsP1[svc]->lli,rm->gpsP1[svc]->signal);
+										foundit=true;
+										break;
+									}
+								}
+								if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+							}
+							
+							if (rx->codes & Receiver::P2){
+								bool foundit=false;
+								for (unsigned int svc=0;svc<rm->gpsP2.size();svc++){
+									if (rm->gpsP2[svc]->svn == svns[sv]){
+										fprintf(fout,"%14.3lf%1i%1i",rm->gpsP2[svc]->meas*CVACUUM,rm->gpsP2[svc]->lli,rm->gpsP2[svc]->signal);
+										foundit=true;
+										break;
+									}
+								}
+								if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+							}
+							
+							fprintf(fout,"\n");
+						}
 						break;
 					}
 					case V3:
