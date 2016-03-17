@@ -1,0 +1,166 @@
+#!/usr/bin/perl -w
+
+# Logging script for Opal Kelly XEM6001, via okcounterd
+# Derived from get_counter_data_prs10
+# Modification history
+# 2015-06-09 MJW Initial version 0.1
+#
+
+use POSIX;
+use Getopt::Std;
+use IO::Socket;
+use TFLibrary;
+
+use vars qw($opt_d $opt_h $opt_v);
+
+$VERSION="0.1";
+$AUTHOR="Michael Wouters";
+$HOME=$ENV{HOME};
+
+$alarmTimeout = 120; # SIGAARLM timout 
+
+# Check command line
+if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
+$0=~s#.*/##;					# then strip it
+
+if (!(getopts('dhv')) || $opt_h){
+	&ShowHelp();
+	exit;
+}
+
+if ($opt_v){
+	print "$0 version $VERSION\n";
+	print "Written by $AUTHOR\n";
+	exit;
+}
+
+if ($#ARGV==-1){ # setup filename is required
+	&ShowHelp();
+	exit;
+}
+
+# Check the lock file
+$lockfile="$HOME/logs/counter.lock";
+if (-e $lockfile){
+	open(IN,"<$lockfile");
+	@info = split ' ',<IN>;
+	close IN;
+	Debug("$info[0] $info[1]");
+	$running = kill 0,$info[1];
+	if ($running){
+		Debug("already running ($info[1])");
+		exit;
+	}
+	else{
+		open(OUT,">$lockfile");
+		print OUT "$0 $$\n"; 
+		close OUT;
+	}
+}
+else{
+	open(OUT,">$lockfile");
+	print OUT "$0 $$\n"; 
+	close OUT;
+}
+
+# Read the config file
+$filename=$ARGV[0];
+unless ($filename=~m#/#) {$filename=$path.$filename}
+
+%Init = &TFMakeHash($filename,(tolower=>1));
+
+# Check we got the info we need from the setup file
+@check=("okcounter port","okcounter channel","data path","counter data extension");
+foreach (@check) {
+  $tag=$_;
+  $tag=~tr/A-Z/a-z/;	
+  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $filename")}
+}
+
+$port = $Init{"okcounter port"};
+$chan = $Init{"okcounter channel"};
+
+# Other initialisation
+unless ($Init{"data path"}=~m#/$#) {$Init{"data path"}.="/"}
+
+# set up a timeout in case we get stuck 
+$SIG{ALRM} = sub {ErrorExit("Timed out - exiting.")};
+alarm $alarmTimeout;
+
+# catch kill signal so we can log that we were killed
+$SIG{TERM} = sub {ErrorExit("Received SIGTERM - exiting.")};
+
+$sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
+unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
+
+$oldmjd=0;
+while (1) 
+{
+	
+	# Get MJD and time
+	$tt=time();
+	$mjd=int($tt / 86400)+40587;
+	($sec,$min,$hour)=gmtime($tt);
+
+	# Check for new day and create new filename if necessary
+	if ($mjd!=$oldmjd) {
+		$oldmjd=$mjd;
+		$file_out=$Init{"data path"} . $mjd . $Init{"counter data extension"};
+	}
+
+	$msg = <$sock>;
+	alarm $alarmTimeout; # reset timeout since we have some data
+	
+	Debug($msg);
+	@dfields = split ' ',$msg;
+	if ($#dfields == 3){
+		if ($chan == $dfields[0]){
+			$time=sprintf("%02d:%02d:%02d",$hour,$min,$sec);
+			$data = $dfields[3];
+			if (open OUT,">>$file_out")
+			{
+				if ($data > 5.0E8) {$data-=1.0E9;}
+				print OUT $time,"  ",$data*1.0E-9,"\n";
+				close OUT;
+			}
+		}
+	}
+
+}
+
+close $sock;
+
+print "Unexpected termination\n";
+
+
+# End of main program
+#-----------------------------------------------------------------------
+
+sub ShowHelp{
+	print "Usage: $0 [-dhv] filename\n";
+  print "\t-d turn on debugging\n";
+  print "\t-h show this help\n";
+  print "\t-v print version\n";
+  print "\t<filename> is the name of the setup file\n";
+}
+#-----------------------------------------------------------------------
+
+sub ErrorExit {
+  my $message=shift;
+  @_=gmtime(time());
+  printf "%02d/%02d/%02d %02d:%02d:%02d $message\n",
+    $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+  exit;
+}
+
+# -------------------------------------------------------------------------
+sub Debug
+{
+	if ($opt_d)
+	{
+		($sec,$min,$hour)=gmtime(time());
+		printf STDERR "%02d:%02d:%02d $_[0]\n",$hour,$min,$sec;
+	}
+}
+
+
