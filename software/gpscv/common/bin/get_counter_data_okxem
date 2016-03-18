@@ -116,6 +116,8 @@ $SIG{TERM} = sub {ErrorExit("Received SIGTERM - exiting.")};
 $sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
 unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
 
+$sock->send("LISTEN"); # tell okcounterd we are just listening politely
+
 $oldmjd=0;
 while (1) 
 {

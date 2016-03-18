@@ -67,6 +67,12 @@ void OKCounterD::showHelp()
 void OKCounterD::showVersion()
 {
 	cout << APP_NAME <<  " version " << OKCOUNTERD_VERSION << endl;
+	cout << "Compiled against ";
+#ifdef OKFRONTPANEL
+	cout << " okFrontPanel" << endl;
+#else 
+	cout << " OpenOK2" << endl;
+#endif
 	cout << "Written by " << AUTHOR << endl;
 	cout << "This ain't no stinkin' Perl script!" << endl;
 }
@@ -77,13 +83,11 @@ void OKCounterD::run()
 	
 	vector<int> measurements;
 	
-	DBGMSG(debugStream,"Hello");
-	
-	server = new Server(this,port);
+	server = new Server(this,port); // start the Server thread
 	server->go();
 	
-	DBGMSG(debugStream,"Hello");
-				 
+	DBGMSG(debugStream,"server started");
+	
 	xem->UpdateTriggerOuts();
 	xem->UpdateWireOuts();
 	
@@ -133,6 +137,23 @@ void OKCounterD::log(string msg)
 	cout << msg << endl;
 }
 
+void OKCounterD::setOutputPPSSource(int src)
+{
+	DBGMSG(debugStream,"Setting output PPS source " << src);
+}
+
+void OKCounterD::setGPIOEnable(bool en)
+{
+	DBGMSG(debugStream,"Setting GPIO enable " << (en? "ON" : "OFF"));
+}
+
+string OKCounterD::getConfiguration()
+{
+	string ret = "PPSSOURCE 1 GPIO 1";
+	return ret;
+}
+
+		
 //
 // private members
 //
