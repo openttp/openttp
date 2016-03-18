@@ -155,7 +155,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 					obsTypes += " C2P";
 				}
 				// max of 3 observation descriptors so don't exceed the maximum of 13 on the line
-				fprintf(fout,"%1s  %3d%54s%-20s\n","G",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES"); 
+				fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES"); // FIXME GPS only
 			}
 			break;
 		}
@@ -197,6 +197,23 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
 			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
 			if (tMeas==obsTime){
+				
+				// determine all svns, noting that we may not have all measurements for all observation types
+				vector<int> svns;
+				
+				for (unsigned int sv=0;sv<rm->gps.size();sv++)
+					svns.push_back(rm->gps[sv]->svn);
+				
+				for (unsigned int sv=0;sv<rm->gpsP1.size();sv++){
+					if (!(std::find(svns.begin(), svns.end(),rm->gpsP1[sv]->svn ) != svns.end()))
+						svns.push_back(rm->gpsP1[sv]->svn);
+				}
+				for (unsigned int sv=0;sv<rm->gpsP2.size();sv++){
+					if (!(std::find(svns.begin(), svns.end(),rm->gpsP2[sv]->svn ) != svns.end()))
+						svns.push_back(rm->gpsP2[sv]->svn);
+				}
+				
+				// Record header
 				switch (ver){
 					case V2:
 					{
@@ -204,23 +221,8 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 						fprintf(fout," %02d %2d %2d %2d %2d%11.7lf  %1d%3d",
 							yy,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,
 							(double) (rm->tmGPS.tm_sec+rm->tmfracs),
-							rm->epochFlag,(int) rm->gps.size());
-						
-						// determine all svns, noting that we may not have all measurements for all observation types
-						vector<int> svns;
-						
-						for (unsigned int sv=0;sv<rm->gps.size();sv++)
-							svns.push_back(rm->gps[sv]->svn);
-						
-						for (unsigned int sv=0;sv<rm->gpsP1.size();sv++){
-							if (!(std::find(svns.begin(), svns.end(),rm->gpsP1[sv]->svn ) != svns.end()))
-								svns.push_back(rm->gpsP1[sv]->svn);
-						}
-						for (unsigned int sv=0;sv<rm->gpsP2.size();sv++){
-							if (!(std::find(svns.begin(), svns.end(),rm->gpsP2[sv]->svn ) != svns.end()))
-								svns.push_back(rm->gpsP2[sv]->svn);
-						}
-							
+							rm->epochFlag,(int) svns.size());
+			
 						int svcount=0;
 						int nsv = svns.size();
 						
@@ -228,64 +230,69 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 						for (unsigned int sv=0;sv<svns.size();sv++){
 							svcount++;
 							fprintf(fout,"G%02d",svns[sv]);
-							if ((nsv > 12) && ((svcount % 12)==1)){ // more to do so start a new line
+							if ((nsv > 12) && ((svcount % 12)==1)){ // more to do, so start a new line
 								fprintf(fout,"\n%32s","");
 							}
 						}
 						fprintf(fout,"\n"); // CHECK does this work OK when there are no observations
-					
-						for (unsigned int sv=0;sv<svns.size();sv++){
-							// Order is C1,P1,P2
-							if (rx->codes & Receiver::C1){
-								bool foundit=false;
-								for (unsigned int svc=0;svc<rm->gps.size();svc++){
-									if (rm->gps[svc]->svn == svns[sv]){
-										fprintf(fout,"%14.3lf%1i%1i",rm->gps[svc]->meas*CVACUUM,rm->gps[svc]->lli,rm->gps[svc]->signal);
-										foundit=true;
-										break;
-									}
-								}
-								if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
-							}
-							
-							if (rx->codes & Receiver::P1){
-								bool foundit=false;
-								for (unsigned int svc=0;svc<rm->gpsP1.size();svc++){
-									if (rm->gpsP1[svc]->svn == svns[sv]){
-										fprintf(fout,"%14.3lf%1i%1i",rm->gpsP1[svc]->meas*CVACUUM,rm->gpsP1[svc]->lli,rm->gpsP1[svc]->signal);
-										foundit=true;
-										break;
-									}
-								}
-								if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
-							}
-							
-							if (rx->codes & Receiver::P2){
-								bool foundit=false;
-								for (unsigned int svc=0;svc<rm->gpsP2.size();svc++){
-									if (rm->gpsP2[svc]->svn == svns[sv]){
-										fprintf(fout,"%14.3lf%1i%1i",rm->gpsP2[svc]->meas*CVACUUM,rm->gpsP2[svc]->lli,rm->gpsP2[svc]->signal);
-										foundit=true;
-										break;
-									}
-								}
-								if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
-							}
-							
-							fprintf(fout,"\n");
-						}
 						break;
 					}
 					case V3:
 					{
 						fprintf(fout,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f %1d%3d%6s%15.12lf\n",
 							rm->tmGPS.tm_year+1900,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,(double) rm->tmGPS.tm_sec,
-							rm->epochFlag,(int) rm->gps.size()," ",0.0);
-						for (unsigned int i=0;i<rm->gps.size();i++)
-							fprintf(fout,"G%2.2d%14.3lf%1i%1i\n",rm->gps[i]->svn,rm->gps[i]->meas*CVACUUM,rm->gps[i]->lli,rm->gps[i]->signal);
+							rm->epochFlag,(int) svns.size()," ",0.0);
+						
 					} // case V3
 				} // switch (RINEXversion)
 				
+				// SV measurements
+				for (unsigned int sv=0;sv<svns.size();sv++){
+					
+					if (ver == V3)
+						fprintf(fout,"G%2.2d",svns[sv]);
+					
+					// Order is C1,P1,P2
+					
+					if (rx->codes & Receiver::C1){
+						bool foundit=false;
+						for (unsigned int svc=0;svc<rm->gps.size();svc++){
+							if (rm->gps[svc]->svn == svns[sv]){
+								fprintf(fout,"%14.3lf%1i%1i",rm->gps[svc]->meas*CVACUUM,rm->gps[svc]->lli,rm->gps[svc]->signal);
+								foundit=true;
+								break;
+							}
+						}
+						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+					}
+					
+					if (rx->codes & Receiver::P1){
+						bool foundit=false;
+						for (unsigned int svc=0;svc<rm->gpsP1.size();svc++){
+							if (rm->gpsP1[svc]->svn == svns[sv]){
+								fprintf(fout,"%14.3lf%1i%1i",rm->gpsP1[svc]->meas*CVACUUM,rm->gpsP1[svc]->lli,rm->gpsP1[svc]->signal);
+								foundit=true;
+								break;
+							}
+						}
+						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+					}
+					
+					if (rx->codes & Receiver::P2){
+						bool foundit=false;
+						for (unsigned int svc=0;svc<rm->gpsP2.size();svc++){
+							if (rm->gpsP2[svc]->svn == svns[sv]){
+								fprintf(fout,"%14.3lf%1i%1i",rm->gpsP2[svc]->meas*CVACUUM,rm->gpsP2[svc]->lli,rm->gpsP2[svc]->signal);
+								foundit=true;
+								break;
+							}
+						}
+						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+					}
+					
+					fprintf(fout,"\n");
+				}
+						
 				obsTime+=interval;
 				currMeas++;
 			}
