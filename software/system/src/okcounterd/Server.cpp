@@ -187,9 +187,37 @@ bool Server::init()
 
 bool Server::processRequest(int socketfd)
 {
-	Client *client = new Client(this,socketfd);
-	clients.push_back(client);
-	client->go();
+	// Two requests:
+	// LISTEN to counter readings
+	// CONFIGURE the counter
+	long ret;
+	static char buffer[BUFSIZE+1]; 
+
+	ret =read(socketfd,buffer,BUFSIZE); 	// read HTTP request in one go 
+	if(ret == 0 || ret == -1) {	// read failure
+		//app->log("failed to read client request");
+		return false;
+	}
+	if(ret > 0 && ret < BUFSIZE)	// return code is valid chars 
+		buffer[ret]=0;		// terminate the buffer 
+	else buffer[0]=0;
+	
+	if(NULL != strstr(buffer,"CONFIGURE") ){
+		DBGMSG(debugStream,"CONFIGURE");
+		// done so close the connection
+		if (-1==shutdown(socketfd,SHUT_RDWR)){
+			app->log("ERROR in shutdown()");
+		}
+		if (-1==close(socketfd)){
+			app->log("ERROR in close()");
+		}
+	}
+	else if(NULL != strstr(buffer,"LISTEN") ){ 
+		DBGMSG(debugStream,"LISTEN");
+		Client *client = new Client(this,socketfd);
+		clients.push_back(client);
+		client->go();
+	}
 	return true;
 }
 

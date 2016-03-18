@@ -35,7 +35,7 @@
 #endif 
 
 #define APP_NAME "okcounterd"
-#define AUTHOR "Michael Wouters"
+#define AUTHOR "Michael Wouters, Louis Marais"
 #define OKCOUNTERD_VERSION "0.2.0"
 #define OKCOUNTERD_CONFIG "/usr/local/etc/okcounterd.conf"
 

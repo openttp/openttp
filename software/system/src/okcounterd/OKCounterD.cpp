@@ -67,6 +67,12 @@ void OKCounterD::showHelp()
 void OKCounterD::showVersion()
 {
 	cout << APP_NAME <<  " version " << OKCOUNTERD_VERSION << endl;
+	cout << "Compiled against ";
+#ifdef OKFRONTPANEL
+	cout << " okFrontPanel" << endl;
+#else 
+	cout << " OpenOK2" << endl;
+#endif
 	cout << "Written by " << AUTHOR << endl;
 	cout << "This ain't no stinkin' Perl script!" << endl;
 }
@@ -77,13 +83,11 @@ void OKCounterD::run()
 	
 	vector<int> measurements;
 	
-	DBGMSG(debugStream,"Hello");
-	
-	server = new Server(this,port);
+	server = new Server(this,port); // start the Server thread
 	server->go();
 	
-	DBGMSG(debugStream,"Hello");
-				 
+	DBGMSG(debugStream,"server started");
+	
 	xem->UpdateTriggerOuts();
 	xem->UpdateWireOuts();
 	

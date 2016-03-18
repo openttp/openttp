@@ -1,11 +1,12 @@
 PROGRAM = okcounterd
 CXX = g++
-INCLUDE = 
+INCLUDE = -I../OpenOK2
 LDFLAGS= 
 LIBS= -lpthread -ldl -lusb-1.0
 CXXFLAGS= -Wall 
-DEFINES= -DDEBUG -DOPENOK2
+DEFINES= -DDEBUG -DOPENOK2 
 OBJECTS = OKCounterD.o Client.o Main.o Server.o OpenOK.o
+VPATH = ./:../OpenOK2
 
 .SUFFIXES: .o .cpp
 
