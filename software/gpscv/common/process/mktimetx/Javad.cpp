@@ -283,7 +283,8 @@ bool Javad::readLog(string fname,int mjd)
 								ok=false;
 							}
 							
-							// FIXME no sanity check
+							// FIXME better sanity check
+							ok = ok && !isnan(P1pr[chan]);
 							
 							if (ok){
 								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],P1pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
@@ -300,18 +301,20 @@ bool Javad::readLog(string fname,int mjd)
 								ok=false;
 							}	
 							
-							// FIXME no sanity check
+							// FIXME better sanity check
+							ok = ok && !isnan(P2pr[chan]);
 							
 							if (ok){
 								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],P2pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								rmeas->gpsP2.push_back(svm);
 							}
 							
+
 						} // if codes & P2
 						
 					}
 					
-					if (rmeas->gps.size() > 0){
+					if (rmeas->gps.size() > 0){ // FIXME check other codes
 						int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
 							rmeas->pchh=pchh;
