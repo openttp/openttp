@@ -87,13 +87,13 @@ $port = $Init{"okcounter port"};
 $sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
 unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
 
-if ($opt_g){
+if (defined $opt_g){
 	if ($opt_g eq '0' || $opt_g eq '1'){
 		$cmd = "CONFIGURE GPIO $opt_g";
 		Debug(($opt_g ? "Enabling" : "Disabling")." the GPIO ");
 		Debug("Sending $cmd\n");
 		$sock->send($cmd);
-		sleep(3);
+		sleep(1);
 	}
 	else{
 		print "Invalid value for option -g: $opt_g\n";
@@ -102,13 +102,13 @@ if ($opt_g){
 	}
 }
 
-if ($opt_o){
+if (defined $opt_o){
 	if ($opt_o >=1 && $opt_o <=6){
 		Debug("Setting the counter output pps source");
 		$cmd = "CONFIGURE PPSSOURCE $opt_o";
 		Debug("Sending $cmd\n");
 		$sock->send($cmd);
-		sleep(3);
+		sleep(1);
 	}
 	else{
 		print "Invalid value for option -o: $opt_g\n";
@@ -117,13 +117,13 @@ if ($opt_o){
 	}
 }
 
-if ($opt_q){
+if (defined $opt_q){
 	Debug("Querying the counter configuration");
 	$cmd = "QUERY CONFIGURATION";
 	Debug("Sending $cmd\n");
 	$sock->send($cmd);
-	$sock->recv($response,12);
-	sleep(3);
+	$sock->recv($response,64);
+	sleep(1);
 	print "Configuration: $response \n";
 }
 

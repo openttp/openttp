@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <cstdio>
 
 #include <iostream>
 #include <sstream>
@@ -207,10 +208,14 @@ bool Server::processRequest(int socketfd)
 	if (NULL != strstr(buffer,"CONFIGURE") ){
 		DBGMSG(debugStream,"received " << buffer);
 		if (NULL != strstr(buffer,"PPSSOURCE")){
-			
+			int src;
+			sscanf(buffer,"%*s%*s%i",&src);
+			app->setOutputPPSSource(src);
 		}
 		else if (NULL != strstr(buffer,"GPIO")){
-			
+			int en;
+			sscanf(buffer,"%*s%*s%i",&en);
+			app->setGPIOEnable((en==1));
 		}
 		else{
 			DBGMSG(debugStream,"unknown command");
@@ -226,8 +231,8 @@ bool Server::processRequest(int socketfd)
 	}
 	else if (NULL != strstr(buffer,"QUERY CONFIGURATION") ){
 		DBGMSG(debugStream,"received " << buffer);
-		strcpy(buffer,"PPSOUT GPIO");
-		int nwritten = write(socketfd,buffer,strlen(buffer)); // FIXME more robust
+		string cfg = app->getConfiguration();
+		int nwritten = write(socketfd,cfg.c_str(),cfg.size()); // FIXME more robust
 		DBGMSG(debugStream,"sent " << nwritten);
 		sleep(1); // wait a bit
 		// done so close the connection

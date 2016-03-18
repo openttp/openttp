@@ -137,6 +137,23 @@ void OKCounterD::log(string msg)
 	cout << msg << endl;
 }
 
+void OKCounterD::setOutputPPSSource(int src)
+{
+	DBGMSG(debugStream,"Setting output PPS source " << src);
+}
+
+void OKCounterD::setGPIOEnable(bool en)
+{
+	DBGMSG(debugStream,"Setting GPIO enable " << (en? "ON" : "OFF"));
+}
+
+string OKCounterD::getConfiguration()
+{
+	string ret = "PPSSOURCE 1 GPIO 1";
+	return ret;
+}
+
+		
 //
 // private members
 //

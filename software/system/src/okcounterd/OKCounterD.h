@@ -60,6 +60,10 @@ class OKCounterD
 		
 		void log(string);
 		
+		void setOutputPPSSource(int);
+		void setGPIOEnable(bool);
+		string getConfiguration();
+		
 private:
 	
 		void init();
