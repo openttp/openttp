@@ -1,0 +1,36 @@
+%%  export TEXINPUTS=.:/home/mjw/src/manuals/common:
+
+\documentclass[11pt,a4paper,openany,oneside]{book}
+
+\usepackage{hyperref} 
+
+\begin{titlepage}
+
+\begin{center}
+{\Huge OpenTTP developer's guide}
+\end{center}
+
+\vspace*{4cm}
+\begin{center}
+Version 1.0
+\end{center}
+
+\begin{center}
+Copyright 2016 OpenTTP
+\end{center}
+
+\end{titlepage}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+
+%% ****************************************************************************************
+\chapter{mtimetx}
+%% ****************************************************************************************
+
+\input{srcs/mktimetx.tex}
+
+\end{document}
+
