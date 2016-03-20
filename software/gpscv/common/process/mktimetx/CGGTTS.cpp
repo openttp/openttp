@@ -58,7 +58,7 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-bool CGGTTS::writeObservationFile(int ver,int constellation, int code,string fname,int mjd,MeasurementPair **mpairs)
+bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 {
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
@@ -66,7 +66,7 @@ bool CGGTTS::writeObservationFile(int ver,int constellation, int code,string fna
 		return false;
 	}
 	
-	writeHeader(ver,fout);
+	writeHeader(fout);
 	
 	// Generate the observation schedule as per DefraignePetit2015 pg3
 
@@ -276,6 +276,7 @@ void CGGTTS::init()
 	ref="";
 	lab="";
 	comment="";
+	calID="";
 	intDly=cabDly=refDly=0.0;
 	quadFits=false;
 	minTrackLength=390;
@@ -283,7 +284,7 @@ void CGGTTS::init()
 	maxDSG=100.0;
 }
 		
-void CGGTTS::writeHeader(int ver,FILE *fout)
+void CGGTTS::writeHeader(FILE *fout)
 {
 #define MAXCHARS 128
 	int cksum=0;
@@ -346,7 +347,34 @@ void CGGTTS::writeHeader(int ver,FILE *fout)
 	cksum += checkSum(buf);
 	fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly);
+	switch (ver){
+		case V1:
+		{
+			snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly);
+			break;
+		}
+		case V2E:
+		{
+			string cons;
+			switch (constellation){
+				case Receiver::BEIDOU:cons="BDS";break;
+				case Receiver::GALILEO:cons="GAL";break;
+				case Receiver::GLONASS:cons="GLO";break;
+				case Receiver::GPS:cons="GPS";break;
+				case Receiver::QZSS:cons="QZSS";break;
+			}
+			string code1;
+			switch (code){
+				case Receiver::B1:code1="B1";break;
+				case Receiver::C1:code1="C1";break;
+				case Receiver::E1:code1="E1";break;
+				case Receiver::P1:code1="P1";break;
+				case Receiver::P2:code1="P2";break;
+			}
+			snprintf(buf,MAXCHARS,"INT DLY = %.1f ns %s %s     CAL_ID = %s",intDly,cons.c_str(),code1.c_str(),calID.c_str());
+			break;
+		}
+	}
 	cksum += checkSum(buf);
 	fprintf(fout,"%s\n",buf);
 	

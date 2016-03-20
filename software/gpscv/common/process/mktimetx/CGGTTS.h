@@ -43,11 +43,16 @@ class CGGTTS
 		enum CGGTTSVERSIONS {V1=0, V2E=2}; // used as array indices too ..
 		
 		CGGTTS(Antenna *,Counter *,Receiver *);
-		bool writeObservationFile(int ver,int constellation,int code,string fname,int mjd,MeasurementPair **mpairs);
+		bool writeObservationFile(string fname,int mjd,MeasurementPair **mpairs);
 	
 		string ref;
 		string lab;
 		string comment;
+		string calID; // for V2E only
+		
+		int ver;
+		int constellation; // V2E
+		int code;          // V2E
 		
 		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated
 		double intDly,cabDly,refDly;
@@ -61,7 +66,7 @@ class CGGTTS
 		
 		void init();
 		
-		void writeHeader(int ver,FILE *fout);
+		void writeHeader(FILE *fout);
 		int checkSum(char *);
 		
 		Antenna *ant;

@@ -240,14 +240,17 @@ void MakeTimeTransferFile::run()
 			cggtts.revDateMM=CGGTTSRevDateMM;
 			cggtts.revDateDD=CGGTTSRevDateDD;
 			cggtts.cabDly=antCableDelay;
-			cggtts.intDly=C1InternalDelay; // FIXME
+			cggtts.intDly=CGGTTSoutputs.at(i).internalDelay;
 			cggtts.refDly=refCableDelay;
 			cggtts.minElevation=CGGTTSminElevation;
 			cggtts.maxDSG = CGGTTSmaxDSG;
 			cggtts.minTrackLength=CGGTTSminTrackLength;
+			cggtts.ver=CGGTTSversion;
+			cggtts.constellation=CGGTTSoutputs.at(i).constellation;
+			cggtts.code=CGGTTSoutputs.at(i).code;
+			cggtts.calID=CGGTTSoutputs.at(i).calID;
 			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
-			cggtts.writeObservationFile(CGGTTSversion,
-				CGGTTSoutputs.at(i).constellation,CGGTTSoutputs.at(i).code,CGGTTSfile,MJD,mpairs);
+			cggtts.writeObservationFile(CGGTTSfile,MJD,mpairs);
 		}
 	} // if createCGGTTS
 	
@@ -342,7 +345,6 @@ void MakeTimeTransferFile::init()
 	agency="NMIx";
 	
 	refCableDelay=0.0;
-	C1InternalDelay=0.0;
 	antCableDelay=0.0;
 	
 	interval=30;
@@ -467,11 +469,12 @@ bool MakeTimeTransferFile::loadConfig()
 	configOK = configOK && configResult;
 	
 	if (createCGGTTS){
-		if ((configResult=setConfig(last,"cggtts","outputs",stmp,false))){
+		if ((configResult=setConfig(last,"cggtts","outputs",stmp))){
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
 			for (unsigned int i=0;i<configs.size();i++){
+				string calID="";
 				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp)){
 					boost::to_upper(stmp);
 					if (stmp == "GPS")
@@ -508,10 +511,16 @@ bool MakeTimeTransferFile::loadConfig()
 						continue;
 					}
 				}
+				setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,false);
+				double intdly=0.0;
+				if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly)){
+					configOK=false;
+					continue;
+				}
 				if (setConfig(last,configs.at(i).c_str(),"path",stmp)){ // got everything
 					// FIXME check compatibility of constellation+code
 					stmp=relativeToAbsolutePath(stmp);
-					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp));
+					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly));
 				}
 				else{
 					configOK=false;
@@ -680,7 +689,7 @@ bool MakeTimeTransferFile::loadConfig()
 	if (!setConfig(last,"counter","file extension",counterExtension,false)) configOK=false;
 	
 	// Delays
-	if (!setConfig(last,"delays","C1 internal",&C1InternalDelay)) configOK=false;
+	//if (!setConfig(last,"delays","internal",&internalDelay)) configOK=false;
 	if (!setConfig(last,"delays","antenna cable",&antCableDelay)) configOK=false;
 	if (!setConfig(last,"delays","reference cable",&refCableDelay)) configOK=false;
 	
@@ -706,16 +715,6 @@ bool MakeTimeTransferFile::loadConfig()
 	if (setConfig(last,"paths","cggtts",path))
 		CGGTTSPath=relativeToAbsolutePath(path);
 	
-	// Set the defaults that require configuration information
-	if (createCGGTTS && CGGTTSoutputs.empty()){
-		DBGMSG(debugStream,INFO, "creating default CGGTTS outputs");
-		if (receiver->constellations & Receiver::GPS){
-			CGGTTSoutputs.push_back(CGGTTSOutput(Receiver::GPS,Receiver::C1,CGGTTSPath));
-		}
-		if (receiver->constellations & Receiver::GLONASS){
-			CGGTTSoutputs.push_back(CGGTTSOutput(Receiver::GLONASS,Receiver::C1,CGGTTSPath));
-		}
-	}
 	return configOK;
 }
 
@@ -807,12 +806,12 @@ bool MakeTimeTransferFile::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, 
 	
 	fprintf(fout,"REF\n");
 	
-	fprintf(fout,"INT DELAY P1 XR+XS (in ns)\n");
+	fprintf(fout,"INT DELAY P1 XR+XS (in ns)\n");  // FIXME multiple problems here
 	fprintf(fout,"0.0\n");
 	fprintf(fout,"INT DELAY P2 XR+XS (in ns)\n");
 	fprintf(fout,"0.0\n");
 	fprintf(fout,"INT DELAY C1 XR+XS (in ns)\n");
-	fprintf(fout,"%11.1lf\n",C1InternalDelay);
+	fprintf(fout,"%11.1lf\n",0.0);
 	fprintf(fout,"ANT CAB DELAY (in ns)\n");
 	fprintf(fout,"%11.1lf",antCableDelay);
 	fprintf(fout,"CLOCK CAB DELAY XP+XO (in ns)\n");

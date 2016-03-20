@@ -53,12 +53,15 @@ class MeasurementPair;
 class CGGTTSOutput{
 	public:
 		CGGTTSOutput();
-		CGGTTSOutput(int constellation,int code,string path):
-			constellation(constellation),code(code),path(path){};
+		CGGTTSOutput(int constellation,int code,string path,string calID,double internalDelay):
+			constellation(constellation),code(code),path(path),
+			calID(calID),internalDelay(internalDelay){};
 		
 		int constellation;
 		int code;
 		string path;
+		string calID;
+		double internalDelay;
 };
 
 class MakeTimeTransferFile
@@ -117,7 +120,7 @@ class MakeTimeTransferFile
 		string observer;
 		string agency;
 		
-		double antCableDelay,refCableDelay,C1InternalDelay;
+		double antCableDelay,refCableDelay;
 		
 		int MJD;
 		int interval;
