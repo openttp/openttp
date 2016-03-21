@@ -27,7 +27,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-     
+#include <errno.h>
+
 #include <sstream>
 #include <cstring>
 
@@ -71,9 +72,30 @@ void Client::sendData(vector< int >&data)
 		msg += ss.str();
 	}
 	DBGMSG(debugStream,msg);
-
-	write(socketfd,msg.c_str(),strlen(msg.c_str())); // FIXME more robust
 	
+	int nw,nEINTR=0;
+	int nleft = msg.size();
+	const char* pbuf=msg.c_str();
+	
+	while (nleft > 0){
+		if (( nw = write(socketfd,pbuf,nleft)) <= 0){
+			if (errno==EINTR){ // interrupted by signal
+				nw=0;
+				nEINTR++;
+				if (10==nEINTR){
+					DBGMSG(debugStream, "too many interrrupts - write() aborted");
+					return;
+				}
+			}
+			else{
+				DBGMSG(debugStream, strerror(errno));
+				return;
+			}
+		}
+		DBGMSG(debugStream, "wrote " << nw);
+		nleft -=nw;
+		pbuf += nw;
+	}	
 }
 
 void Client::doWork()

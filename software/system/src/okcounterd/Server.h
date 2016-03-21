@@ -49,6 +49,7 @@ class Server:public Thread
 
 		bool init();
 		bool processRequest(int);
+		void writeBuffer(string,int);
 		
 		OKCounterD *app;
 		long port,listenfd;

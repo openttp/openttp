@@ -89,8 +89,21 @@ void OKCounterD::run()
 	DBGMSG(debugStream,"server started");
 	
 	xem->UpdateTriggerOuts();
+	
+	// system control register
+  // bits 2->0 : selection of output 1 pps source  
+  // bit  3    : enable external I/O on GPIO pin
+	xem->SetWireInValue(epSysControl,0x0f);
+	xem->UpdateWireIns();
 	xem->UpdateWireOuts();
 	
+	// bit 2->0: pps out source
+	// bit 3   : GPIO enabled
+	// bit 4   : DCM locked
+	unsigned int sysStatus=xem->GetWireOutValue(epSysStatus) & 0xffff;
+	DBGMSG(debugStream,"Status: " << "PPS OUT=" << (sysStatus & 0x07) << 
+		" GPIO_EN=" << ((sysStatus &0x08)>>3) << " DCM_LOCK=" << ((sysStatus & 0x10)>>4));
+
 	for (;;){
 		usleep(10000);
 		measurements.clear();
@@ -140,17 +153,28 @@ void OKCounterD::log(string msg)
 void OKCounterD::setOutputPPSSource(int src)
 {
 	DBGMSG(debugStream,"Setting output PPS source " << src);
+  // bits 2->0 : selection of output 1 pps source   
+	xem->SetWireInValue(epSysControl,src & 0x07,0x07);
+	xem->UpdateWireIns();
 }
 
 void OKCounterD::setGPIOEnable(bool en)
 {
 	DBGMSG(debugStream,"Setting GPIO enable " << (en? "ON" : "OFF"));
+	 // bit  3    : enable external I/O on GPIO pin
+	unsigned int enb = en ? 0x08 : 0x00;
+	xem->SetWireInValue(epSysControl,enb,0x08);
+	xem->UpdateWireIns();
 }
 
 string OKCounterD::getConfiguration()
-{
-	string ret = "PPSSOURCE 1 GPIO 1";
-	return ret;
+{ 
+	xem->UpdateWireOuts();
+	unsigned int sysStatus=xem->GetWireOutValue(epSysStatus) & 0xffff;
+	ostringstream ss;
+	ss << "PPS OUT=" << (sysStatus & 0x07) <<" GPIO_EN=" << ((sysStatus &0x08)>>3) << " DCM_LOCK=" << ((sysStatus & 0x10)>>4);
+	DBGMSG(debugStream,"Status: " << ss.str());
+	return ss.str();
 }
 
 		
@@ -165,6 +189,8 @@ void OKCounterD::init()
 	port=21577;
 	server=NULL;
 	channelMask=0xffff;
+	epSysControl=0x00;
+	epSysStatus=0x2c;
 }
 
 bool OKCounterD::initializeFPGA(string bitfile)

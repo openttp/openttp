@@ -77,6 +77,8 @@ private:
 		long port;
 		
 		unsigned int channelMask;
+		unsigned int epSysControl;
+		unsigned int epSysStatus;
 };
 
 #endif

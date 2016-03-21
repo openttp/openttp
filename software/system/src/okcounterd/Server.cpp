@@ -196,7 +196,7 @@ bool Server::processRequest(int socketfd)
 	long ret;
 	static char buffer[BUFSIZE+1]; 
 
-	ret =read(socketfd,buffer,BUFSIZE); 	// read HTTP request in one go 
+	ret =read(socketfd,buffer,BUFSIZE); 	// read request in one go 
 	if(ret == 0 || ret == -1) {	// read failure
 		//app->log("failed to read client request");
 		return false;
@@ -232,8 +232,7 @@ bool Server::processRequest(int socketfd)
 	else if (NULL != strstr(buffer,"QUERY CONFIGURATION") ){
 		DBGMSG(debugStream,"received " << buffer);
 		string cfg = app->getConfiguration();
-		int nwritten = write(socketfd,cfg.c_str(),cfg.size()); // FIXME more robust
-		DBGMSG(debugStream,"sent " << nwritten);
+		writeBuffer(cfg,socketfd);
 		sleep(1); // wait a bit
 		// done so close the connection
 		if (-1==shutdown(socketfd,SHUT_RDWR)){
@@ -252,3 +251,31 @@ bool Server::processRequest(int socketfd)
 	return true;
 }
 
+void Server::writeBuffer(string msg,int socketfd){
+	
+	int nw,nEINTR=0;
+	int nleft = msg.size();
+	const char* pbuf=msg.c_str();
+	
+	while (nleft > 0){
+		if (( nw = write(socketfd,pbuf,nleft)) <= 0){
+			if (errno==EINTR){ // interrupted by signal
+				nw=0;
+				nEINTR++;
+				if (10==nEINTR){
+					DBGMSG(debugStream, "too many interrrupts - write() aborted");
+					return;
+				}
+			}
+			else{
+				DBGMSG(debugStream, strerror(errno));
+				return;
+			}
+		}
+		DBGMSG(debugStream, "wrote " << nw);
+		nleft -=nw;
+		pbuf += nw;
+	}	
+}
+
+	
