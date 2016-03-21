@@ -4105,7 +4105,8 @@ OpenOK::ErrorCode OpenOK::SetWireInValue( int epAddr, unsigned long val, unsigne
     if ( ( epAddr < 0x00 ) || ( epAddr > 0x1F ) ) {
         return RangeAddressError;
     }
-    m_wireIns[ 2 * epAddr] = val & mask;
+    //                          clear bits being modified    OR   bits to be set                  
+    m_wireIns[ 2 * epAddr] = (m_wireIns[ 2 * epAddr] & ~mask) | (val & mask); 
 
     return NoError;
 }
