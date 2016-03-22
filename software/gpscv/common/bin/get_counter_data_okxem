@@ -25,8 +25,10 @@
 
 # Logging script for Opal Kelly XEM6001, via okcounterd
 # Derived from get_counter_data_prs10
+#
 # Modification history
 # 2015-06-09 MJW Initial version 0.1
+# 2016-03-21 MJW Remove requirement for configuration file
 #
 
 use POSIX;
@@ -34,11 +36,10 @@ use Getopt::Std;
 use IO::Socket;
 use TFLibrary;
 
-use vars qw($opt_d $opt_h $opt_v);
+use vars qw($opt_c $opt_d $opt_h $opt_v);
 
-$VERSION="0.1";
+$VERSION="0.1.0";
 $AUTHOR="Michael Wouters";
-$HOME=$ENV{HOME};
 
 $alarmTimeout = 120; # SIGAARLM timout 
 
@@ -46,7 +47,7 @@ $alarmTimeout = 120; # SIGAARLM timout
 if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
 $0=~s#.*/##;					# then strip it
 
-if (!(getopts('dhv')) || $opt_h){
+if (!(getopts('c:dhv')) || $opt_h){
 	&ShowHelp();
 	exit;
 }
@@ -57,13 +58,33 @@ if ($opt_v){
 	exit;
 }
 
-if ($#ARGV==-1){ # setup filename is required
-	&ShowHelp();
-	exit;
+$home=$ENV{HOME};
+if (-d "$home/etc")  {
+	$configpath="$home/etc";
+}
+else 
+{	
+	ErrorExit("No ~/etc directory found!\n");
+} 
+
+if (-d "$home/logs")  {
+	$logpath="$home/logs";
+} 
+else{
+	ErrorExit("No ~/logs directory found!\n");
+}
+
+$configFile=$configpath."/cggtts.conf";
+if (defined $opt_c){
+	$configFile=$opt_c;
+}
+
+if (!(-e $configFile)){
+	ErrorExit("A configuration file was not found!\n");
 }
 
 # Check the lock file
-$lockfile="$HOME/logs/counter.lock";
+$lockfile="$logpath/counter.lock";
 if (-e $lockfile){
 	open(IN,"<$lockfile");
 	@info = split ' ',<IN>;
@@ -71,8 +92,7 @@ if (-e $lockfile){
 	Debug("$info[0] $info[1]");
 	$running = kill 0,$info[1];
 	if ($running){
-		Debug("already running ($info[1])");
-		exit;
+		ErrorExit("already running ($info[1])");
 	}
 	else{
 		open(OUT,">$lockfile");
@@ -86,18 +106,14 @@ else{
 	close OUT;
 }
 
-# Read the config file
-$filename=$ARGV[0];
-unless ($filename=~m#/#) {$filename=$path.$filename}
+%Init = &TFMakeHash($configFile,(tolower=>1));
 
-%Init = &TFMakeHash($filename,(tolower=>1));
-
-# Check we got the info we need from the setup file
+# Check we got the info we need from the config file
 @check=("okcounter port","okcounter channel","data path","counter data extension");
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
-  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $filename")}
+  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
 }
 
 $port = $Init{"okcounter port"};
@@ -150,23 +166,21 @@ while (1)
 			}
 		}
 	}
-
 }
 
 close $sock;
 
 print "Unexpected termination\n";
 
-
 # End of main program
 #-----------------------------------------------------------------------
 
 sub ShowHelp{
-	print "Usage: $0 [-dhv] filename\n";
+	print "Usage: $0 [OPTION] ...\n";
+	print "\t-c <config> specify alternate configuration file\n";
   print "\t-d turn on debugging\n";
   print "\t-h show this help\n";
   print "\t-v print version\n";
-  print "\t<filename> is the name of the setup file\n";
 }
 #-----------------------------------------------------------------------
 
