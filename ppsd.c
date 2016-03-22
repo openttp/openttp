@@ -215,7 +215,7 @@ main(
 {
 
 	Tppsd ppsd;
-	char c;
+	int c;
 	FILE *str;
 	pid_t pid;
 	
@@ -233,7 +233,7 @@ main(
 	PPSDReadConfig(&ppsd,PPSD_CONFIG);
 	
 	/* Process the command line options */
-	while ((c=getopt(argc,argv,"dhvo:")) != EOF)
+	while ((c=getopt(argc,argv,"dhvo:")) != -1)
 	{
 		switch(c)
 		{
