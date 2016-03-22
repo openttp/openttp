@@ -3,7 +3,8 @@ CC = gcc
 INCLUDE = 
 LDFLAGS= 
 LIBS= 
-CFLAGS= -Wall -O
+# CFLAGS= -Wall -O -DUSE_PARALLEL_PORT
+CFLAGS= -Wall -O -DUSE_SIO8186x
 OBJECTS = ppsd.o
 
 .SUFFIXES: .o .c

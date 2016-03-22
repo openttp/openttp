@@ -53,10 +53,6 @@
 #define TRUE 1
 #define FALSE 0
 
-// #define USE_PARALLEL_PORT
-
-#define USE_SIO8186x
-
 /* Globals */
 static int debugOn=0;
 
