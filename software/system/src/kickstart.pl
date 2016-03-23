@@ -32,15 +32,16 @@
 # 02-08-2002 MJW pedantic filter run over code
 #                processes with /usr/bin/perl -w now recognised
 # 30-06-2009 MJW Path fixups
- 
+# 23-03-2016 MJW Pipe stdout & stderr from a process to its own file, rather than a common file.
+#
 my $home=$ENV{HOME};
 
 if (-d "$home/logs") {$logpath="$home/logs";}    else {$logpath="$home/Log_Files";}
 if (-d "$home/etc")  {$configpath="$home/etc";}  else {$configpath="$home/Parameter_Files";}
 my $configfile ="$configpath/kickstart.conf";
-my $checkpath="$logpath/kickstart";
+my $checkpath="$logpath/kickstart.";
 my $logfile=  "$logpath/kickstart.log";
-my $outfile=  "$logpath/kickstart.out";
+my $outfile;
 
 my @targets;
  
@@ -95,6 +96,7 @@ for ($i=0;$i<$nprocs;$i++){
 		$message.="\n";
 		if (open LOG,">>$logfile") {print LOG $message; close LOG}
 		else {print "! Could not open log file $logfile\n",$message}
+		$outfile="$logpath/$target.log";
 		if (open LOG,">>$outfile") {print LOG $message; close LOG}
 		else {print "! Could not open log file $outfile\n",$message}
 		`nohup $targets[$i][1] >>$outfile 2>&1 &`;

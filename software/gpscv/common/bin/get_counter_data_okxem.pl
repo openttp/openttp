@@ -74,7 +74,7 @@ else{
 	ErrorExit("No ~/logs directory found!\n");
 }
 
-$configFile=$configpath."/cggtts.conf";
+$configFile=$configpath."/gpscv.conf";
 if (defined $opt_c){
 	$configFile=$opt_c;
 }
@@ -106,21 +106,21 @@ else{
 	close OUT;
 }
 
-%Init = &TFMakeHash($configFile,(tolower=>1));
+%Init = &TFMakeHash2($configFile,(tolower=>1));
 
 # Check we got the info we need from the config file
-@check=("okcounter port","okcounter channel","data path","counter data extension");
+@check=("counter:okxem port","counter:okxem channel","paths:counter data","counter:file extension");
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
   unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
 }
 
-$port = $Init{"okcounter port"};
-$chan = $Init{"okcounter channel"};
+$port = $Init{"counter:okxem port"};
+$chan = $Init{"counter:okxem channel"};
 
 # Other initialisation
-unless ($Init{"data path"}=~m#/$#) {$Init{"data path"}.="/"}
+unless ($Init{"paths:counter data"}=~m#/$#) {$Init{"paths:counter data"}.="/"}
 
 # set up a timeout in case we get stuck 
 $SIG{ALRM} = sub {ErrorExit("Timed out - exiting.")};
@@ -135,6 +135,11 @@ unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not r
 $sock->send("LISTEN"); # tell okcounterd we are just listening politely
 
 $oldmjd=0;
+$ctrext = $Init{"counter:file extension"};
+if (!($ctrext =~ /^\./)){ # do we need a period ?
+	$ctrext = ".".$ctrext;
+}
+		
 while (1) 
 {
 	
@@ -146,7 +151,7 @@ while (1)
 	# Check for new day and create new filename if necessary
 	if ($mjd!=$oldmjd) {
 		$oldmjd=$mjd;
-		$file_out=$Init{"data path"} . $mjd . $Init{"counter data extension"};
+		$file_out=$Init{"paths:counter data"} . $mjd . $ctrext;
 	}
 
 	$msg = <$sock>;
