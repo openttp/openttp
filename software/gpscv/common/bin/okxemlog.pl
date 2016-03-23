@@ -84,7 +84,7 @@ if (!(-e $configFile)){
 }
 
 # Check the lock file
-$lockfile="$logpath/counter.lock";
+$lockfile="$logpath/okxem.lock";
 if (-e $lockfile){
 	open(IN,"<$lockfile");
 	@info = split ' ',<IN>;
@@ -123,11 +123,11 @@ $chan = $Init{"counter:okxem channel"};
 unless ($Init{"paths:counter data"}=~m#/$#) {$Init{"paths:counter data"}.="/"}
 
 # set up a timeout in case we get stuck 
-$SIG{ALRM} = sub {ErrorExit("Timed out - exiting.")};
+$SIG{ALRM} = sub {unlink $lockfile; ErrorExit("Timed out - exiting.")};
 alarm $alarmTimeout;
 
 # catch kill signal so we can log that we were killed
-$SIG{TERM} = sub {ErrorExit("Received SIGTERM - exiting.")};
+$SIG{TERM} = sub {unlink $lockfile; ErrorExit("Received SIGTERM - exiting.")};
 
 $sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
 unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
@@ -142,7 +142,6 @@ if (!($ctrext =~ /^\./)){ # do we need a period ?
 		
 while (1) 
 {
-	
 	# Get MJD and time
 	$tt=time();
 	$mjd=int($tt / 86400)+40587;
@@ -174,6 +173,7 @@ while (1)
 }
 
 close $sock;
+unlink $lockfile;
 
 print "Unexpected termination\n";
 
