@@ -139,7 +139,15 @@ $ctrext = $Init{"counter:file extension"};
 if (!($ctrext =~ /^\./)){ # do we need a period ?
 	$ctrext = ".".$ctrext;
 }
-		
+
+$path = $Init{"paths:counter data"};
+if (!($path=~/^\//)){ #not an absolute path
+	$path = "$home/$path";
+}
+if (!($path=~/\/$/)){ #not an absolute path
+	$path .= "/";
+}
+
 while (1) 
 {
 	# Get MJD and time
@@ -150,7 +158,7 @@ while (1)
 	# Check for new day and create new filename if necessary
 	if ($mjd!=$oldmjd) {
 		$oldmjd=$mjd;
-		$file_out=$Init{"paths:counter data"} . $mjd . $ctrext;
+		$file_out=$path . $mjd . $ctrext;
 	}
 
 	$msg = <$sock>;
