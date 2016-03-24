@@ -59,7 +59,7 @@ use TFLibrary;
 use POSIX;
 use Getopt::Std;
 use POSIX qw(strftime);
-use vars  qw($tmask $opt_r $opt_d $opt_h $opt_v);
+use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
 $VERSION="2.0";
 
@@ -109,25 +109,43 @@ if (-d "$home/etc")  {$configpath="$home/etc";}  else
 
 if (-d "$home/logs")  {$logpath="$home/logs";} else 
 	{$logpath="$home/Log_Files";}
-	
-# More backwards compatibility fixups
-if (-e "$configpath/cggtts.conf"){
-	$configFile=$configpath."/cggtts.conf";
-	$localMajorVersion=2;
-}
-elsif (-e "$configpath/cctf.setup"){
-	$configFile="$configpath/cctf.setup";
-	$localMajorVersion=1;
-}
-else{
-	print STDERR "No configuration file found!\n";
-	exit;
-}
 
-if( !(getopts('dhrv')) || ($#ARGV>=1)) {
+if( !(getopts('c:dhrv')) || ($#ARGV>=1)) {
   select STDERR;
   ShowHelp();
   exit;
+}
+
+# More backwards compatibility fixups
+if (defined $opt_c){
+	$configFile=$opt_c;
+	if (!(-e $configFile)){
+		print STDERR "The configuration file $configFile was not found!\n";
+		exit;
+	}
+	# Need to determine local major version
+	if ($configFile =~ /\.setup$/){
+		$localMajorVersion=1;
+	}
+	elsif ($configFile =~ /\.conf$/){
+		$localMajorVersion=2;
+	}
+	else{
+		print STDERR "Unable to determine the $configFile version, sorry. Is it .setup or .conf ?\n";
+		exit;
+	}
+}
+elsif (-e "$configpath/gpscv.conf"){
+		$configFile=$configpath."/gpscv.conf";
+		$localMajorVersion=2;
+}
+elsif (-e "$configpath/cctf.setup"){
+		$configFile="$configpath/cctf.setup";
+		$localMajorVersion=1;
+}
+else{
+		print STDERR "No configuration file was found!\n";
+		exit;
 }
 
 if ($opt_h){
@@ -141,23 +159,28 @@ if ($opt_v){
 }
 
 # Check for an existing lock file
-$lockFile = $logpath."/rx.lock";
+$lockFile = $logpath."/rest.lock";
 if (-e $lockFile){
 	open(LCK,"<$lockFile");
-	$pid = <LCK>;
-	chomp $pid;
-	if (-e "/proc/$pid"){
-		printf STDERR "Process $pid already running\n";
+	@info = split ' ', <LCK>;
+	close LCK;
+	if (-e "/proc/$info[1]"){
+		printf STDERR "Process $info[1] already running\n";
 		exit;
 	}
+	else{
+		open(LCK,">$lockFile");
+		print LCK "$0 $$\n";
+		close LCK;
+	}
+}
+else{
+	open(LCK,">$lockFile");
+	print LCK "$0 $$\n";
 	close LCK;
 }
 
-open(LCK,">$lockFile");
-print LCK $$,"\n";
-close LCK;
-
-&Initialise(@ARGV==1? $ARGV[0] : $configFile);
+&Initialise($configFile);
 $Init{version}=$VERSION;
 
 $rxmodel=$RESOLUTION_360;
@@ -200,7 +223,7 @@ $params[$UTC_PARAMETERS][$LAST_RECEIVED]=-1;
 $params[$IONO_PARAMETERS][$LAST_REQUESTED]=-1;
 $params[$IONO_PARAMETERS][$LAST_RECEIVED]=-1;
 
-$rxStatus=&GetConfig($localMajorVersion,"receiver status","receiver:status");
+$rxStatus=&GetConfig($localMajorVersion,"receiver status","receiver:status file");
 $rxStatus=&FixPath($rxStatus);
 
 $now=time();
@@ -214,6 +237,7 @@ $then=0;
 $input="";
 $save="";
 $killed=0;
+
 $SIG{TERM}=sub {$killed=1};
 
 $tstart = time;
@@ -334,12 +358,13 @@ close OUT;
 #
 sub ShowHelp
 {
-	print "Usage: $0 [-r] [-d] [-h] [-v] [initfile]\n";
+	print "Usage: $0 [OPTIONS] ..\n";
+	print "  -c <file> set configuration file\n";
   print "  -d debug\n";
   print "  -h show this help\n";
 	print "  -r reset receiver on startup\n";
 	print "  -v show version\n";
-  print "  The default initialisation file is $configFile\n";
+  print "  The default configuration file is $configFile\n";
 }
 
 #----------------------------------------------------------------------------
@@ -416,11 +441,22 @@ sub Debug
 sub OpenDataFile
 {
   my $mjd=$_[0];
-  my $dataPath= &GetConfig($localMajorVersion,"data path","paths:receiver data");
-  my $dataExt= &GetConfig($localMajorVersion,"gps data extension","receiver:file extension");
-  my $name=$dataPath."/".$mjd.$dataExt;
-  
-  my $old=(-e $name);
+
+	# Fixup path and extension if needed
+	my $ext = &GetConfig($localMajorVersion,"gps data extension","receiver:file extension");;
+	if (!($ext =~ /^\./)){ # do we need a period ?
+		$ext = ".".$ext;
+	}
+
+	my $path = &GetConfig($localMajorVersion,"data path","paths:receiver data");;
+	if (!($path=~/\/$/)){ #add / if needed
+		$path .= "/";
+	}
+
+  my $name=$path.$mjd.$ext;
+  my $old=(-e $name); # already there ? May have restarted logging.
+
+	Debug("Opening $name");
 
   open OUT,">>$name" or die "Could not write to $name";
   select OUT;
@@ -431,6 +467,7 @@ sub OpenDataFile
     ($old? "Appending to" : "Beginning new");
   printf "\@ MJD=%d\n",$mjd;
   select STDOUT;
+
 } # OpenDataFile
 
 #----------------------------------------------------------------------------
