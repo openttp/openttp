@@ -32,6 +32,7 @@
 #
 
 use POSIX;
+use Errno;
 use Getopt::Std;
 use IO::Socket;
 use TFLibrary;
@@ -122,15 +123,15 @@ $chan = $Init{"counter:okxem channel"};
 # Other initialisation
 unless ($Init{"paths:counter data"}=~m#/$#) {$Init{"paths:counter data"}.="/"}
 
+$sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
+unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
+
 # set up a timeout in case we get stuck 
-$SIG{ALRM} = sub {unlink $lockfile; ErrorExit("Timed out - exiting.")};
+$SIG{ALRM} = sub {close $sock; unlink $lockfile; ErrorExit("Timed out - exiting.")};
 alarm $alarmTimeout;
 
 # catch kill signal so we can log that we were killed
-$SIG{TERM} = sub {unlink $lockfile; ErrorExit("Received SIGTERM - exiting.")};
-
-$sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
-unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
+$SIG{TERM} = sub {close $sock;unlink $lockfile; ErrorExit("Received SIGTERM - exiting.")};
 
 $sock->send("LISTEN"); # tell okcounterd we are just listening politely
 
@@ -162,6 +163,16 @@ while (1)
 	}
 
 	$msg = <$sock>;
+	if (!(defined $msg)){ # connection may have closed in an unorderly way
+		if ($!{EINTR}){ # interrupted system call is recoverable
+			next;
+		}
+		else{
+			close $sock;
+			unlink $lockfile;
+			ErrorExit("Remote connection closed - exiting.");
+		}
+	}
 	alarm $alarmTimeout; # reset timeout since we have some data
 	
 	Debug($msg);
