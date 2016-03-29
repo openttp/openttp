@@ -84,8 +84,19 @@ if (!(-e $configFile)){
 	ErrorExit("A configuration file was not found!\n");
 }
 
+%Init = &TFMakeHash2($configFile,(tolower=>1));
+
+# Check we got the info we need from the config file
+@check=("counter:okxem port","counter:okxem channel","paths:counter data","counter:file extension","counter:lock file");
+foreach (@check) {
+  $tag=$_;
+  $tag=~tr/A-Z/a-z/;	
+  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
+}
+
 # Check the lock file
-$lockfile="$logpath/okxem.lock";
+$lockfile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logpath);
+
 if (-e $lockfile){
 	open(IN,"<$lockfile");
 	@info = split ' ',<IN>;
@@ -105,16 +116,6 @@ else{
 	open(OUT,">$lockfile");
 	print OUT "$0 $$\n"; 
 	close OUT;
-}
-
-%Init = &TFMakeHash2($configFile,(tolower=>1));
-
-# Check we got the info we need from the config file
-@check=("counter:okxem port","counter:okxem channel","paths:counter data","counter:file extension");
-foreach (@check) {
-  $tag=$_;
-  $tag=~tr/A-Z/a-z/;	
-  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
 }
 
 $port = $Init{"counter:okxem port"};
@@ -141,13 +142,7 @@ if (!($ctrext =~ /^\./)){ # do we need a period ?
 	$ctrext = ".".$ctrext;
 }
 
-$path = $Init{"paths:counter data"};
-if (!($path=~/^\//)){ #not an absolute path
-	$path = "$home/$path";
-}
-if (!($path=~/\/$/)){ #not an absolute path
-	$path .= "/";
-}
+$dataPath = TFMakeAbsolutePath($Init{"paths:counter data"});
 
 while (1) 
 {
@@ -159,7 +154,7 @@ while (1)
 	# Check for new day and create new filename if necessary
 	if ($mjd!=$oldmjd) {
 		$oldmjd=$mjd;
-		$file_out=$path . $mjd . $ctrext;
+		$file_out=$dataPath . $mjd . $ctrext;
 	}
 
 	$msg = <$sock>;
