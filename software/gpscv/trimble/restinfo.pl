@@ -51,8 +51,8 @@ if (-d "$home/logs")  {$logpath="$home/logs";} else
 	{$logpath="$home/Log_Files";}
 	
 # More backwards compatibility fixups
-if (-e "$configpath/cggtts.conf"){
-	$configFile=$configpath."/cggtts.conf";
+if (-e "$configpath/gpscv.conf"){
+	$configFile=$configpath."/gpscv.conf";
 	$localMajorVersion=2;
 }
 elsif (-e "$configpath/cctf.setup"){
@@ -81,7 +81,7 @@ if ($opt_h){
 }
 
 # Check for an existing lock file
-$lockFile = $logpath."/rx.lock";
+$lockFile = $logpath."/rest.lock";
 if (-e $lockFile){
 	open(LCK,"<$lockFile");
 	$pid = <LCK>;
@@ -159,7 +159,7 @@ if (-e $lockFile) {unlink $lockFile;}
 #----------------------------------------------------------------------------
 sub ShowHelp
 {
-	print "Usage: $0 [-h] [-d] [-v] [initfile]\n";
+	print "Usage: $0 [OPTIONS ...] [initfile]\n";
 	print "  -d debug\n";
 	print "  -h show this help\n";
 	print "  -v show version\n";
