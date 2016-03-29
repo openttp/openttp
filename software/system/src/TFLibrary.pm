@@ -64,6 +64,7 @@ use Exporter;
   TFMJD TFMJDRange TFParseMonth TFTimeStamp
   TFConnectSerial TFPortInUse TFHPCounterCommand TFMicro488Command
   TFLock TFUnlock TFTestLock
+  TFMakeAbsoluteFilePath TFMakeAbsolutePath
 );
 
 use Carp;
@@ -581,6 +582,33 @@ sub TFTestLock {
 
   return $result;
 } # TFTestLock
+
+#----------------------------------------------------------------------------
+sub TFMakeAbsoluteFilePath {
+	my ($fname,$homedir,$defaultpath)=@_;
+	$ret = $fname;
+	if ($fname=~/^\//){
+		# absolute path already - nothing to do
+	}
+	elsif ($fname=~/\//){ # relative to HOME
+		$ret = $homedir."/".$fname;
+	}
+	else{
+		# No path so add the default path
+		$ret = $defaultpath. "/" . $fname;
+	}
+	return $ret;
+}
+
+#----------------------------------------------------------------------------
+sub TFMakeAbsolutePath {
+	my ($path,$rootpath)=@_;
+	if (!($path=~/^\//)){
+		$path =$rootpath."/".$path;
+	}
+	return $path;
+}
+
 
 #----------------------------------------------------------------------------
 
