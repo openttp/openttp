@@ -142,7 +142,7 @@ if (!($ctrext =~ /^\./)){ # do we need a period ?
 	$ctrext = ".".$ctrext;
 }
 
-$dataPath = TFMakeAbsolutePath($Init{"paths:counter data"});
+$dataPath = TFMakeAbsolutePath($Init{"paths:counter data"},$home);
 
 while (1) 
 {
