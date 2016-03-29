@@ -49,7 +49,7 @@ Client::Client(Server *s,int fd)
 {
 	ostringstream ss;
 	ss << fd;
-	threadID = ss.str();
+	threadID = "client"+ ss.str();
 	
 	socketfd=fd;
 	channelMask=0;
@@ -109,20 +109,20 @@ void Client::doWork()
 			DBGMSG(debugStream,threadID << ":" << msgbuf);
 			// Expected input is of the form mask=N
 		}
+		int serror=errno; // save the errorno since subsequent system calls will overwrite it
 		if (0==nread){
-			DBGMSG(debugStream,"connection " << threadID << " closed by client");
-			stopRequested=true;
+			DBGMSG(debugStream,"connection " << threadID << " closed by remote");
 			close(socketfd);
-			server->notifyClose(this); 
+			stopRequested=true;
 		}
 		else if (-1==nread){
-			DBGMSG(debugStream,"recv error: " << threadID << " closed");
-			stopRequested=true;
+			DBGMSG(debugStream,"recv error : " << strerror(serror) << " " << threadID << " closed");
 			close(socketfd);
-			server->notifyClose(this);
+			stopRequested=true;
 		}
 	}
-	// if stop has been requested by Server, then we don't notify it
+	DBGMSG(debugStream, "finished");
+	running=false;
 }
 
 

@@ -38,7 +38,6 @@ class Server:public Thread
 
 		Server(OKCounterD *,int);
 		virtual ~Server();
-		void notifyClose(Client *);
 		void sendData(vector<int> &);
 		
 	protected:

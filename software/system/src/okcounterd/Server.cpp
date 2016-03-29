@@ -44,6 +44,7 @@
 #include "Server.h"
 
 #define BUFSIZE 8096
+#define MAXCLIENTS 16
 
 extern ostream* debugStream;
 
@@ -67,16 +68,6 @@ Server::~Server()
 		clients.at(i)->stop();
 }
 
-void Server::notifyClose(Client *c)
-{
-	for (unsigned int i=0;i<clients.size();i++){
-		if (clients.at(i) == c){
-			DBGMSG(debugStream,"closed client");
-			clients.erase(clients.begin()+i);
-			delete c; 
-		}
-	}
-}
 
 void Server::sendData(vector<int> &data){
 	for (unsigned int i=0;i<clients.size();i++){
@@ -120,19 +111,31 @@ void Server::doWork()
 
 		retval = select(listenfd+1, &rfds, NULL,NULL, &tv); // note number of file descriptors!
 	
-		if (retval) 
-		{
+		if (retval) {
 			len= sizeof(cli_addr);
 			if((socketfd = accept(listenfd, (struct sockaddr *)&cli_addr, &len)) < 0)
 				app->log("ERROR in accept()");
-			else
-			{
+			else{
 				processRequest(socketfd);
 			}
 		}
+		
+		unsigned int j=0;
+		while (j<clients.size()){
+			Client *c = clients.at(j);
+			if (!c->isRunning()){
+				DBGMSG(debugStream,"stopping client");
+				c->stop();
+				clients.erase(clients.begin()+j);
+				delete c;
+			}
+			else
+				j++;
+		}
+		
 	}
 	
-	pthread_exit(NULL);
+	running=false;
 }
 
 
@@ -244,9 +247,21 @@ bool Server::processRequest(int socketfd)
 	}
 	else if(NULL != strstr(buffer,"LISTEN") ){ 
 		DBGMSG(debugStream,"received " << buffer);
-		Client *client = new Client(this,socketfd);
-		clients.push_back(client);
-		client->go();
+		// Sanity check on number of clients
+		if (clients.size() == MAXCLIENTS){
+			app->log("Too many connections");
+			if (-1==shutdown(socketfd,SHUT_RDWR)){
+				app->log("ERROR in shutdown()");
+			}
+			if (-1==close(socketfd)){
+				app->log("ERROR in close()");
+			}
+		}
+		else{	
+			Client *client = new Client(this,socketfd);
+			clients.push_back(client);
+			client->go();
+		}
 	}
 	return true;
 }
