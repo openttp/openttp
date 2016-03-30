@@ -1,5 +1,29 @@
 #!/usr/bin/perl -w
 
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2015  R. Bruce Warrington, Michael J. Wouters
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+
 # Original version SQ, subsequently modified by PF and RBW
 # 23.11.99 PF  Read parameter file from ../Parameter_Files/ directory 
 # 22.11.99 RBW Only write to file if it was successfully opened; read
@@ -21,86 +45,154 @@
 #								if it was running while this happened. The solution is to check each response for the PRS10
 #               string and read the serial port again if is found. 
 # 20-05-2008 MJW Force readings into the range [-0.5,0.5]
+# 30-03-2016 MJW Cleanup to work with new configuration file. No backwards compatibility !
 #
 
 use POSIX;
 use Time::HiRes qw( usleep gettimeofday);
 use TFLibrary;
-use vars ( '$tmask' );
+use Getopt::Std;
+
+use vars qw( $tmask $opt_c $opt_d $opt_h $opt_v);
+
+$VERSION="1.0";
+$AUTHORS="Steve Quigg, Peter Fisk, Bruce Warrington, Michael Wouters";
 
 $debugOn=0;
 $MAXTRIES=10; # maximum number of times to try to get a sensible response from the PRS10
 
-$alarmTimeout = 120; # SIGAARLM timout - needs to be greater than status polling time
+$alarmTimeout = 120; # SIGALRM timout - needs to be greater than status polling time
 
-# check command line
+$home = $ENV{HOME};
+
+# Check command line
 if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
 $0=~s#.*/##;					# then strip it
-unless (@ARGV==1) {
-  print "Usage: $0 filename\n";
-  print "  where <filename> is the name of the setup file\n";
-  exit;
+
+if (!(getopts('c:dhv')) || $opt_h){
+	&ShowHelp();
+	exit;
 }
 
-$count=0;
-open (PS, "ps x|");
-while (<PS>) {
-  @_=split;
-  $count++ if ($_[4]=~/^[\w\/]*$0$/);
+if ($opt_v){
+	print "$0 version $VERSION\n";
+	print "Written by $AUTHORS\n";
+	exit;
 }
-close PS;
-if ($count>1) {ErrorExit("$0 process already present")}
 
+if (-d "$home/etc")  {
+	$configPath="$home/etc";
+}
+else{	
+	ErrorExit("No ~/etc directory found!\n");
+} 
 
+if (-d "$home/logs")  {
+	$logPath="$home/logs";
+} 
+else{
+	ErrorExit("No ~/logs directory found!\n");
+}
 
-# Read setup info from file
-$filename=$ARGV[0];
-unless ($filename=~m#/#) {$filename=$path.$filename}
+$configFile=$configPath."/gpscv.conf";
+if (defined $opt_c){
+	$configFile=$opt_c;
+}
 
-%Init = &TFMakeHash($filename,(tolower=>1));
+if (!(-e $configFile)){
+	ErrorExit("A configuration file was not found!\n");
+}
 
-# Check we got the info we need from the setup file
-@check=("counter Port","data path",
-  	"counter data extension",
-	"log rb status",
-	"rb logging interval",
-	"rb logging extension",
-	"rb status",
-	"rb power failure");
+%Init = &TFMakeHash2($configFile,(tolower=>1));
+
+# Check we got the info we need from the config file
+@check=("paths:counter data","counter:lock file","counter:port");
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
-  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $filename")}
+  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
 }
 
-$logPRS10    = $Init{"log rb status"};
-$logInterval = $Init{"rb logging interval"};
-$lastLog     = -1;
-$oldPRS10mjd = 0;
-$pwrflag     = $Init{"rb power failure"};
-$prs10StatusFile = $Init{"rb status"};
+# Check the lock file
+$lockfile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logPath);
+
+if (-e $lockfile){
+	open(IN,"<$lockfile");
+	@info = split ' ',<IN>;
+	close IN;
+	Debug("$info[0] $info[1]");
+	$running = kill 0,$info[1];
+	if ($running){
+		ErrorExit("already running ($info[1])");
+	}
+	else{
+		open(OUT,">$lockfile");
+		print OUT "$0 $$\n"; 
+		close OUT;
+	}
+}
+else{
+	open(OUT,">$lockfile");
+	print OUT "$0 $$\n"; 
+	close OUT;
+}
+
+$dataExtension=".tic";
+if (defined($Init{"counter:data extension"})){
+	$dataExtension=$Init{"counter:data extension"};
+	if (!($dataExtension =~ /^\./)){
+		$dataExtension = ".".$dataExtension;
+	}
+}
+
+$dataPath = TFMakeAbsolutePath($Init{"paths:counter data"},$home);
+
+$logPRS10 = 1;
+if (defined($Init{"prs10:log status"})){
+	$logPRS10=lc $Init{"prs10:log status"};
+	$logPRS10 = ($logPRS10 eq "yes");
+}
+
+$logInterval = 60; # in seconds
+if (defined( $Init{"prs10:logging interval"})){
+	$logInterval=$Init{"prs10:logging interval"}
+}
+
+$logExtension = ".rb";
+if (defined( $Init{"prs10:file extension"})){
+	$logExtension=$Init{"prs10:file extension"}
+}
+
+$pwrFlag = "prs10.pwr";
+if (defined( $Init{"prs10:power flag"})){
+	$pwrFlag=$Init{"prs10:power flag"}
+}
+
+$prs10StatusFile = "prs10.status";
+if (defined( $Init{"prs10:status file"})){
+	$prs10StatusFile=$Init{"prs10:status file"}
+}
+
+$prs10LogPath = $dataPath;
+if (defined( $Init{"prs10:log path"})){
+	$prs10LogPath=TFMakeAbsolutePath($Init{"prs10:log path",$home});
+}
 
 # Create a lock on the port - this will stop other UUCP lock file
 # aware applications from using the port
-$port = $Init{"counter port"};
-unless (`/usr/local/bin/lockport -p $$ $port $0`==1) 
-{
+$port = $Init{"counter:port"};
+unless (`/usr/local/bin/lockport -p $$ $port $0`==1) {
 	ErrorExit("Failed to lock port");
 }
 
-# Other initialisation
-unless ($Init{"data path"}=~m#/$#) {$Init{"data path"}.="/"}
-
-$oldmjd=0;
-
-# set up a timeout in case we get stuck beacuse of a dead serial port
+# Set up a timeout in case we get stuck because of a dead serial port
 $SIG{ALRM} = sub {ErrorExit("Timed out - exiting.")};
 alarm $alarmTimeout;
 
-# catch kill signal so we can log that we were killed
+# Catch kill signal so we can log that we were killed
 $SIG{TERM} = sub {ErrorExit("Received SIGTERM - exiting.")};
 
-# initialise the port
+# Initialise the port
 
 $PORT = &TFConnectSerial($Init{"counter port"},
 	(ispeed=>B9600,ospeed=>B9600,
@@ -114,11 +206,13 @@ vec($rxmask,fileno $PORT,1)=1;
 # flush receiver, and wait a moment just in case
 tcflush($PORT,TCIOFLUSH);
 
+$lastLog     = -1;
+$oldPRS10mjd = 0;
+$oldmjd=0;
 $lastData=-1; # time at which we last got TT data
 $gotData=0;
 
-while (1) 
-{
+while (1) {
 		
   # query PRS10
   $data=GetTimeTag();
@@ -132,12 +226,8 @@ while (1)
   # the result to -1 until a new value is available. Unfortunately,
   # sleep()ing for a second doesn't seem to be the best idea because
   # readings get lost. So we'll sleep for most of a second
-  # print "$data";
 	
-	
-	
-  if ($data > -1)
-	{	 
+  if ($data > -1){	 
 		Debug("Got TT data $data"); 
     # get MJD and time
     $tt=time();
@@ -149,7 +239,7 @@ while (1)
     # check for new day and create new filename if necessary
     if ($mjd!=$oldPRS10mjd) {
       $oldPRS10mjd=$mjd;
-      $file_out=$Init{"data path"} . $mjd . $Init{"counter data extension"};
+      $file_out=$dataPath . $mjd . $dataExtension;
     }
 
     # write time-stamped data to file
@@ -172,25 +262,21 @@ while (1)
 	{
 		
 		$tt=time;
-		if ($logPRS10 &&( $tt- $lastLog >= $logInterval))
-		{
+		if ($logPRS10 &&( $tt- $lastLog >= $logInterval)){
 			
 			$mjd=int($tt / 86400)+40587;
-			if ($mjd!=$oldmjd)
-			{
+			if ($mjd!=$oldmjd){
      	 	$oldmjd=$mjd;
-      	$prs10LogFile=$Init{"data path"} . $mjd .  $Init{"rb logging extension"};
+      	$prs10LogFile=$Init{"data path"} . $mjd .  $logExtension;
 			}
-			if (!(-e $prs10LogFile))
-			{
+			if (!(-e $prs10LogFile)){
 				open (OUT,">>$prs10LogFile");
 				# query the PRS10 for its id - we'll dump this at the
 				# top of the status file
 				$prs10id = GetID();
-				print OUT "# PRS10 ID $prs10id $ENV{HOSTNAME}\n";
+				print OUT "# PRS10 ID $prs10id $home\n";
 			}
-			else
-			{
+			else{
 				open (OUT,">>$prs10LogFile");
 			}
 			($sec,$min,$hour)=gmtime($tt);
@@ -203,35 +289,30 @@ while (1)
 			# If the PRS10 has lost power then most flags will be set and we ought
 			# to clear them
 			open(STATUS,">$prs10StatusFile");
-			if (129 <= $statusbytes[5])
-			{
+			if (129 <= $statusbytes[5]){
 				# Print flags line so we know about the power loss
-				for ($i=0; $i<= $#statusbytes;$i++)
-				{
+				for ($i=0; $i<= $#statusbytes;$i++){
 					print OUT "$statusbytes[$i]  ";
 				}
-				for ($i=0;$i<16;$i++)
-				{
+				for ($i=0;$i<16;$i++){
 					$volts = GetAD($i);
 					print OUT "$volts ";
 				}	
 				print OUT "\n";
 				print OUT "$time "; # Next line will have updated flags
 				# Make the power failure file
-				open (PWRFLAG,">$pwrflag");
+				open (PWRFLAG,">$pwrFlag");
 				print PWRFLAG "$mjd $time Power loss detected\n"; # contents not used
 				close PWRFLAG;
 				$status = GetStatus();
 				next unless (length($status) > 0);
 				@statusbytes=split ",",$status;
 			}
-			for ($i=0; $i<= $#statusbytes;$i++)
-			{
+			for ($i=0; $i<= $#statusbytes;$i++){
 				print OUT "$statusbytes[$i]  ";
 				print STATUS "$statusbytes[$i]  ";
 			}
-			for ($i=0;$i<16;$i++)
-			{
+			for ($i=0;$i<16;$i++){
 				$volts = GetAD($i);
 				print OUT "$volts ";
 				print STATUS "$volts ";
@@ -247,12 +328,20 @@ while (1)
 	# Sleep a bit
 	#usleep(100000);
 }
-print "Unexpected temination\n";
+print "Unexpected termination\n";
 close($PORT);
 
 # End of main program
+
 #-----------------------------------------------------------------------
 
+sub ShowHelp{
+	print "Usage: $0 [OPTION] ...\n";
+	print "\t-c <file> specify new configuration file (full path)\n";
+  print "\t-d turn on debugging\n";
+  print "\t-h show this help\n";
+  print "\t-v print version\n";
+}
 
 #-----------------------------------------------------------------------
 
@@ -270,8 +359,7 @@ sub GetResponse {
 	$done =0;
 	$input="";
 	#print "GetResponse\n";
-	while (!$done)
-	{
+	while (!$done){
 		$nfound=select $tmask=$rxmask,undef,undef,1.0;
 		if ($nfound==0) {return "";}
   		next unless $nfound;
@@ -279,8 +367,7 @@ sub GetResponse {
 		
 		# if last character is newline then we've got the message
 		$lastch=substr $input,length($input)-1,1;
-		if ($lastch eq chr(13) )
-		{
+		if ($lastch eq chr(13) ){
 			# Test for PRS_10 in the response. This is automatically output 
 			# by the PRS10 on reset and may be lurking to confuse us.
 			$done = !($input =~/PRS_10/);
@@ -293,8 +380,7 @@ sub GetResponse {
 sub PRS10Cmd
 {
 	$tries=0;
-	while ($tries < 5)
-	{
+	while ($tries < 5){
 		print $PORT "$_[0]\r";
 		$response = GetResponse();
 		last if (length($response) > 0);
@@ -306,8 +392,7 @@ sub PRS10Cmd
 # -------------------------------------------------------------------------
 sub Debug
 {
-	if ($debugOn)
-	{
+	if ($debugOn){
 		($sec,$min,$hour)=gmtime(time());
 		printf STDERR "%02d:%02d:%02d $_[0]\n",$hour,$min,$sec;
 	}
@@ -317,13 +402,11 @@ sub Debug
 sub GetID
 {
 	my ($r,$i);
-	for ($i=0;$i<$MAXTRIES;$i++)
-	{
+	for ($i=0;$i<$MAXTRIES;$i++){
 		$r=PRS10Cmd("ID?");
 		chop $r; # remove terminator
 		# valid response begins with PRS10
-		if ($r=~/^PRS10/)
-		{
+		if ($r=~/^PRS10/){
 			Debug("Got PRS10 ID $r");
 			return $r;
 		}
@@ -335,13 +418,11 @@ sub GetID
 sub GetTimeTag
 {
 	my ($r,$i);
-	for ($i=0;$i<$MAXTRIES;$i++)
-	{
+	for ($i=0;$i<$MAXTRIES;$i++){
 		$r=PRS10Cmd("tt?");
 		chop $r; # remove terminator
 		# valid responses are -1 and a +ve integer
-		if (($r eq -1) || ($r=~/^\d+$/))
-		{
+		if (($r eq -1) || ($r=~/^\d+$/)){
 			return $r;
 		}
 	}
@@ -351,15 +432,12 @@ sub GetTimeTag
 # -------------------------------------------------------------------------
 sub GetStatus
 {
-	
 	my ($r,$i);
-	for ($i=0;$i<$MAXTRIES;$i++)
-	{
+	for ($i=0;$i<$MAXTRIES;$i++){
 		$r=PRS10Cmd("ST?");
 		chop $r; # remove terminator
 		# valid response is six comma-separated integers
-		if ($r=~/^\d+,\d+,\d+,\d+,\d+,\d+/)
-		{
+		if ($r=~/^\d+,\d+,\d+,\d+,\d+,\d+/){
 			Debug("Status $i $r");  
 			return $r;
 		}
@@ -373,13 +451,11 @@ sub GetAD
 {
 	my ($r,$i);
 	my $cmd = "AD " . $_[0] . "?";
-	for ($i=0;$i<$MAXTRIES;$i++)
-	{
+	for ($i=0;$i<$MAXTRIES;$i++){
 		$r=PRS10Cmd("$cmd");
 		chop $r; # remove terminator
 		# valid response is a floating point number of the form d.dddd
-		if ($r=~/^\d{1}\.\d{3}/)
-		{
+		if ($r=~/^\d{1}\.\d{3}/){
 			return $r;
 		}
 	}
