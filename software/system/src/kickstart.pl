@@ -36,17 +36,16 @@
 #                Rip the guts out of this. Multiple problems - checking for processes with the same name,
 #                different behaviour of ps across O/Ss, long process names, imperfect detection of different startup methods ....
 #								 Demand use of a lock and check whether the process is running via this.
-#                
-
-# Format of the configuration file
-# TARGET  EXECUTABLE  LOCKFILE
+# 30-03-2016 MJW New configuration file format. Use the 'standard' .conf format
+#
 
 use POSIX;
 use Getopt::Std;
-use vars qw($opt_d $opt_h $opt_v);
+use TFLibrary;
+use vars qw($opt_c $opt_d $opt_h $opt_v);
 
 $AUTHOR="Michael Wouters";
-$VERSION="0.1";
+$VERSION="1.0";
 
 my $home=$ENV{HOME};
 
@@ -54,8 +53,7 @@ my $home=$ENV{HOME};
 if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
 $0=~s#.*/##;					# then strip it
 
-
-if (!(getopts('dhv')) || $opt_h){
+if (!(getopts('c:dhv')) || $opt_h){
 	&ShowHelp();
 	exit;
 }
@@ -66,89 +64,105 @@ if ($opt_v){
 	exit;
 }
 
-if (-d "$home/logs") {$logpath="$home/logs";} else {die "$logpath missing"}; 
-if (-d "$home/etc")  {$configpath="$home/etc";} else {die "$configpath missing";};
+if (-d "$home/logs") {$logPath="$home/logs";} else {die "$logPath missing"}; 
+if (-d "$home/etc")  {$configPath="$home/etc";} else {die "$configPath missing";};
 
-my $configfile ="$configpath/kickstart.conf";
-my $checkpath="$logpath/kickstart.";
-my $logfile=  "$logpath/kickstart.log";
-my $outfile;
+my $logFile=  "$logPath/kickstart.log";
 
-my @targets;
- 
-if (!(-e $configfile)){
-	print STDERR "No configuration file found\n";
-	exit;
+$configFile=$configPath."/kickstart.conf";
+if (defined $opt_c){
+	$configFile=$opt_c;
 }
 
-open(IN,"<$configfile");
-$ntargets=0;
-while ($line=<IN>){
-	if ($line=~ /^\s*#/) {next;}
-	chomp $line;
-	$targets[$ntargets]=[split ' ',$line];
-	if ($#{$targets[$ntargets]} != 2){
-		print STDERR "Syntax error in $configfile - need 3 entries\n"; 
-		print STDERR "Entry is ($line)\n";
-		exit;
+if (!(-e $configFile)){
+	ErrorExit("A configuration file was not found!\n");
+}
+
+%Init = &TFMakeHash2($configFile,(tolower=>1));
+
+# Check we got the info we need from the config file
+@check=("targets");
+foreach (@check) {
+  $tag=$_;
+  $tag=~tr/A-Z/a-z/;	
+  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
+}
+
+my @targets=split /,/,$Init{"targets"};
+for ($i=0;$i<=$#targets;$i++){ # trim whitespace
+	$targets[$i] =~ s/^\s+//;
+	$targets[$i] =~ s/\s+$//;
+}
+
+for ($i=0;$i<=$#targets;$i++){
+
+	$target=$Init{"$targets[$i]:target"};
+	$lockFile=TFMakeAbsoluteFilePath($Init{"$targets[$i]:lock file"},$home,$logPath);
+	# since there can be command line arguments we need to extract the first part of the command
+	@cmdargs = split /\s+/,$Init{"$targets[$i]:command"};
+	if ($#cmdargs>0){
+		$cmd=TFMakeAbsoluteFilePath($cmdargs[0],$home,"$home/bin");
+		for ($j=1;$j<=$#cmdargs;$j++){ # reassemble the command
+			$cmd .= " ".$cmdargs[$j]; 
+		}
 	}
-	$ntargets++;
-}
-close IN;
-                                                                                
-for ($i=0;$i<$ntargets;$i++){
-
-	$target=$targets[$i][0];
-	$lockfile=$targets[$i][2];
+	else{
+		$cmd=TFMakeAbsoluteFilePath($Init{"$targets[$i]:command"},$home,"$home/bin");
+	}
 	$running=0;
-	# Strip any file extension from the target
-	$shorttarget = $target;
-	$shorttarget =~ s/\.\w*$//;
 		
-	Debug("Testing $target for lock $lockfile");
-	if (-e $lockfile){
-		Debug("Lockfile $lockfile found\n");
-		open(IN,"<$lockfile");
-		@targetinfo = split ' ',<IN>;
+	Debug("Testing $target for lock $lockFile");
+	if (-e $lockFile){
+		Debug("lock file $lockFile found\n");
+		open(IN,"<$lockFile");
+		@lockInfo = split ' ',<IN>;
 		close IN;
-		$running = kill 0,$targetinfo[1];
+		$running = kill 0,$lockInfo[1];
 	}	
 	
 	Debug("Process is ".($running ? "" : "not")." running");
-	$checkfile=$checkpath . $shorttarget. ".check";
+	$checkFile=$logPath . "/"."kickstart.".$target. ".check";
 	if ($running)
-		{`/bin/touch $checkfile`}
+		{`/bin/touch $checkFile`}
 	else{
 		@_=gmtime(time);
 		$message=sprintf("%02d/%02d/%02d %02d:%02d:%02d $target restarted",
 						$_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0]);
-		if (-e $checkfile){
-			@_=stat($checkfile);
+		if (-e $checkFile){
+			@_=stat($checkFile);
 			@_=gmtime($_[9]);
 			$message.=sprintf(" (last OK check %02d/%02d/%02d %02d:%02d:%02d)",
 								$_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0]);
 		}
 		$message.="\n";
-		if (open LOG,">>$logfile") {print LOG $message; close LOG}
-		else {print "! Could not open log file $logfile\n",$message}
+		if (open LOG,">>$logFile") {print LOG $message; close LOG}
+		else {print "! Could not open log file $logFile\n",$message}
 		
-		
-		$outfile="$logpath/$shorttarget.log";
-		if (open LOG,">>$outfile") {print LOG $message; close LOG}
-		else {print "! Could not open log file $outfile\n",$message}
-		`nohup $targets[$i][1] >>$outfile 2>&1 &`;
-		Debug("Restarted\n");
+		$outFile="$logPath/$target.log"; # stdout/ & stderr from target
+		if (open LOG,">>$outFile") {print LOG $message; close LOG}
+		else {print "! Could not open log file $outFile\n",$message}
+		`nohup $cmd >>$outFile 2>&1 &`;
+		Debug("Restarted using $cmd\n");
 	}
-	
 }
 
 #-----------------------------------------------------------------------
 
 sub ShowHelp{
 	print "Usage: $0 [OPTION] ...\n";
+	print "\t-c <file> specify an alternate configuration file\n";
   print "\t-d turn on debugging\n";
   print "\t-h show this help\n";
   print "\t-v print version\n";
+}
+
+#-----------------------------------------------------------------------
+sub ErrorExit {
+  my $message=shift;
+  @_=gmtime(time());
+  printf "%02d/%02d/%02d %02d:%02d:%02d $message\n",
+    $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+  exit;
 }
 
 # -------------------------------------------------------------------------
