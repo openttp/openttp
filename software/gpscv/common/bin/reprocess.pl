@@ -30,41 +30,119 @@
 
 # Modification history:
 #	   RBW  Use TFLibrary to build initialisation hash
-#  4. 4.02 RBW  Allow up to MaxAttempts to reprocess
-# 
-use TFLibrary;
+#  2002-04-02 RBW  Allow up to MAXATTEMPTS to reprocess
+#  ???        MJW Path fixups for new directory structure
+#  2015-03-30 MJW Fixups to work with new configuration file. Renamed to reprocess.pl
+#
 
+use TFLibrary;
+use POSIX;
+use Getopt::Std;
+use vars qw($opt_d $opt_h $opt_v);
+
+$VERSION="1.0";
+$AUTHOR="Bruce Warrington, Michael Wouters";
 
 # some parameters
-$MaxAge=14;	# give up after two weeks
-$MaxPerRun=3;	# only catch up this many per run
-$MaxAttempts=2;	# have a couple of attempts
-$TimeGap=60;	# minutes between catch-up process runs
+$MAXAGE=14;	# give up after two weeks
+$MAXPERRUN=3;	# only catch up this many per run
+$MAXATTEMPTS=2;	# have a couple of attempts
+$TIMEGAP=60;	# minutes between catch-up process runs
+
+# Check command line
+if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
+$0=~s#.*/##;					# then strip it
+
+if (!(getopts('dhv')) || $opt_h){
+	&ShowHelp();
+	exit;
+}
+
+if ($opt_v){
+	print "$0 version $VERSION\n";
+	print "Written by $AUTHOR\n";
+	exit;
+}
 
 $home=$ENV{HOME};
-if (-d "$home/logs") {$LogPath="$home/logs";}    else {$LogPath="$home/Log_Files";}
-if (-d "$home/etc")  {$ConfigPath="$home/etc";}  else {$ConfigPath="$home/Parameter_Files";}
-if (-d "$home/cctf")  {$cctfPath="$home/cctf";}  else {$cctfPath="$home/cctf_data";}
-$ProcessPath="$ENV{HOME}/process";
+if (-d "$home/etc")  {
+	$configPath="$home/etc";
+}
+else 
+{	
+	ErrorExit("No ~/etc directory found!\n");
+} 
 
-$InitFile="$ConfigPath/cctf.setup";
-$LogFile="$LogPath/process.log";
-$BatchFile="/tmp/reprocess";
+if (-d "$home/logs")  {
+	$logPath="$home/logs";
+} 
+else{
+	ErrorExit("No ~/logs directory found!\n");
+}
 
-# read setup information from parameter file
-%Init=&TFMakeHash($InitFile,(tolower=>1));
-# while (($key,$val)=each %Init) {print "$key -> $val\n"}
+$configFile=$configPath."/gpscv.conf";
+if (defined $opt_c){
+	$configFile=$opt_c;
+}
+
+
+if (!(-e $configFile)){
+	ErrorExit("A configuration file was not found!\n");
+}
+
+%Init = &TFMakeHash2($configFile,(tolower=>1));
+
+# Check we got the info we need from the config file
+@check=("paths:counter data","paths:receiver data","counter:file extension",);
+foreach (@check) {
+  $tag=$_;
+  $tag=~tr/A-Z/a-z/;	
+  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
+}
+
+$tmpPath=$home."/tmp/";
+if (defined($Init{"paths:tmp"})){
+	$tmpPath=TFMakeAbsolutePath($Init{"paths:tmp"},$home);
+}
+
+$logFile="$logPath/process.log";
+$batchFile=$tmpPath."reprocess";
 
 #  find raw data files which do not have a corresponding CCTF output
+$gpsDataPath=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
+$gpsExt = ".rx";
+if (defined ($Init{"receiver:file extension"})){
+	$gpsExt = $Init{"receiver:file extension"};
+	if (!($gpsExt =~ /^\./)){
+		$gpsExt = ".".$gpsExt;
+	}
+}
+
+$ticDataPath=TFMakeAbsolutePath($Init{"paths:counter data"},$home);
+$ticExt = ".tic";
+if (defined ($Init{"counter:file extension"})){
+	$ticExt = $Init{"counter:file extension"};
+	if (!($ticExt =~ /^\./)){
+		$ticExt = ".".$ticExt;
+	}
+}
+
+$cggttsPath = $home."/cggtts/";
+#if (defined $Init{"cggtts"}){ # FIXME this is complicated
+#}
+$cggttsExt = ".cctf";# FIXME this is complicated
+
 $mjd=int(time()/86400)+40587;
-$fileSpec=$Init{"data path"}."*".$Init{"counter data extension"}."*";
+
+$fileSpec=$ticDataPath."*".$ticExt."*";
 @files=glob $fileSpec;
-foreach (@files) {
-  if (/(.*)(\d{5})$Init{"counter data extension"}/) {
-    $rxData=$1.$2.$Init{"gps data extension"};
-    $cctfData="$cctfPath/$2.cctf";
-    if ((-e $rxData || -e $rxData.".gz") && !(-e $cctfData) && 
-      ($2<$mjd) && ($2>($mjd-$MaxAge))) 
+for ($i=0;$i<=$#files;$i++) {
+  if ($files[$i]=~/(.*)(\d{5})$ticExt/) {
+    $rxData=$gpsDataPath.$2.$gpsExt;
+    Debug("Checking $files[$i] $rxData");
+    $cggttsData=$cggttsPath.$2.$cggttsExt; # FIXME BIPM naming convention etc ?
+    if ((-e $rxData || -e $rxData.".gz") && !(-e $cggttsData) && 
+      ($2<$mjd) && ($2>($mjd-$MAXAGE))) 
       {push @MJD,$2}
   }
 }
@@ -72,13 +150,13 @@ exit unless @MJD;
 
 # look in the process log to see if we already tried to generate the
 # missing days; drop any we've already tried to process before
-open IN,$LogFile or die "Could not open process log $LogFile: $!";
+open IN,$logFile or die "Could not open process log $logFile: $!";
 while (<IN>) {
   next unless /^(\d{5})/;
   for ($i=0; $i<=$#MJD; $i++) {
     next unless $1==$MJD[$i];
     $count{$1}=0 unless defined $count{$1};
-    if (++$count{$1}>=$MaxAttempts) {
+    if (++$count{$1}>=$MAXATTEMPTS) {
       splice @MJD,$i,1;		# drop this MJD, as we already tried it
       last;
     }
@@ -88,8 +166,8 @@ while (<IN>) {
 close IN;
 
 @MJD=sort @MJD;
-splice @MJD,$MaxPerRun;		# keep only the first $MaxPerRun elements
-if (open LOG,">>$LogFile") {
+splice @MJD,$MAXPERRUN;		# keep only the first $MAXPERRUN elements
+if (open LOG,">>$logFile") {
   @_=gmtime(time());
   printf LOG "# reprocess: scheduling @MJD (%02d/%02d/%02d %02d:%02d)\n",
     $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1];
@@ -98,12 +176,39 @@ if (open LOG,">>$LogFile") {
 
 $gap=5;
 foreach $mjd (@MJD) {
-  next unless open OUT,">$BatchFile$mjd";
-  print OUT "nice $ProcessPath/process $mjd 2>>$LogPath/errorlog\n";
-  print OUT "rm -f $BatchFile$mjd\n";	# tidy up by deleting batch file
+  next unless open OUT,">$batchFile$mjd";
+ # print OUT "nice $ProcessPath/process $mjd 2>>$LogPath/errorlog\n";
+  print OUT "rm -f $batchFile$mjd\n";	# tidy up by deleting batch file
   close OUT;
-  `at -f $BatchFile$mjd now +$gap minutes 2>>/dev/null`;
-  $gap+=$TimeGap;
+ # `at -f $batchFile$mjd now +$gap minutes 2>>/dev/null`;
+  $gap+=$TIMEGAP;
 }
 
 # end of reprocess
+
+#-----------------------------------------------------------------------
+
+sub ShowHelp{
+	print "Usage: $0 [OPTION] ...\n";
+	print "\t-d debug\n";
+  print "\t-h show this help\n";
+  print "\t-v print version\n";
+}
+
+#-----------------------------------------------------------------------
+sub ErrorExit {
+  my $message=shift;
+  @_=gmtime(time());
+  printf "%02d/%02d/%02d %02d:%02d:%02d $message\n",
+    $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+  exit;
+}
+
+
+# -------------------------------------------------------------------------
+sub Debug
+{
+	if ($opt_d){
+		printf STDERR "$_[0]\n";
+	}
+}
