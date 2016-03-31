@@ -48,25 +48,23 @@ $RESOLUTION_T=0;
 $RESOLUTION_360=2;
 
 # Parse command line
-if (!getopts('hm:pr:stlLuavx')){
+if (!getopts('hm:pr:stlLuavx') || $opt_h){
   &ShowHelp();
   exit;
 }
 
 $svn=999;
 
-if ($opt_h){&ShowHelp();exit;}
-
-if ($opt_m){$mjd=$opt_m;}else{$mjd=int(time()/86400) + 40587;}
-if ($opt_r){$svn=$opt_r;}
+if (defined $opt_m){$mjd=$opt_m;}else{$mjd=int(time()/86400) + 40587;}
+if (defined $opt_r){$svn=$opt_r;}
 
 $home=$ENV{HOME};
 if (-d "$home/etc")  {$configpath="$home/etc";}  else 
 	{$configpath="$home/Parameter_Files";} # backwards compatibility
 
 # More backwards compatibility fixups
-if (-e "$configpath/cggtts.conf"){
-	$configFile=$configpath."/cggtts.conf";
+if (-e "$configpath/gpscv.conf"){
+	$configFile=$configpath."/gpscv.conf";
 	$localMajorVersion=2;
 }
 elsif (-e "$configpath/cctf.setup"){
@@ -84,19 +82,29 @@ if ($localMajorVersion==1){
 	$infile=$Init{"data path"}."/$mjd".$Init{"gps data extension"};
 }
 elsif ($localMajorVersion==2){
-		$infile=$Init{"paths:receiver data"}."/$mjd".$Init{"receiver:file extension"};
-		if ($Init{"receiver:model"} eq "Resolution T"){
-			$model=$RESOLUTION_T;
+	$gpsDataPath=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
+	$gpsExt = ".rx";
+	if (defined ($Init{"receiver:file extension"})){
+		$gpsExt = $Init{"receiver:file extension"};
+		if (!($gpsExt =~ /^\./)){
+			$gpsExt = ".".$gpsExt;
 		}
+	}
+	
+	$infile=$gpsDataPath."$mjd".$gpsExt; # FIXME assumptions here ...
+	if ($Init{"receiver:model"} eq "Resolution T"){
+		$model=$RESOLUTION_T;
+	}
 #		elsif ($Init{"receiver:model"} eq "Resolution SMT"){
 #			$model=$RESOLUTION_SMT;
 #		}
-		elsif ($Init{"receiver:model"} eq "Resolution SMT 360"){
-			$model=$RESOLUTION_360;
-		}
-		else{
-			print "Unknown receiver model: ".$Init{"receiver:model"}."\n";
-		}
+	elsif ($Init{"receiver:model"} eq "Resolution SMT 360"){
+		$model=$RESOLUTION_360;
+	}
+	else{
+		print "Incorrect receiver model: ".$Init{"receiver:model"}."\n";
+		exit;
+	}
 }
 
 $yearOffset=2000;
@@ -104,12 +112,9 @@ if ($model==$RESOLUTION_T){
 	$yearOffset=1900;
 }
 
-$infile = &FixPath( $infile );
-
 $zipfile=$infile.".gz";
 $zipit=0;
-if (-e $zipfile)
-{
+if (-e $zipfile){
 	`gunzip $zipfile`;
 	$zipit=1;
 }
@@ -296,16 +301,6 @@ sub ShowHelp()
 	print "  -u      UTC offset (8FAB)\n";
 	print "  -v      software versions\n";
 	print "  -x      alarms and gps decoding status\n";
-}
-
-#----------------------------------------------------------------------------
-sub FixPath()
-{
-	my $path=$_[0];
-	if (!($path=~/^\//)){
-		$path =$ENV{HOME}."/".$path;
-	}
-	return $path;
 }
 
 #----------------------------------------------------------------------------
