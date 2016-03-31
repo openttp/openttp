@@ -87,7 +87,7 @@ if (!(-e $configFile)){
 %Init = &TFMakeHash2($configFile,(tolower=>1));
 
 # Check we got the info we need from the config file
-@check=("counter:okxem port","counter:okxem channel","paths:counter data","counter:file extension","counter:lock file");
+@check=("counter:port","counter:okxem channel","paths:counter data","counter:file extension","counter:lock file");
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
@@ -118,11 +118,8 @@ else{
 	close OUT;
 }
 
-$port = $Init{"counter:okxem port"};
+$port = $Init{"counter:port"};
 $chan = $Init{"counter:okxem channel"};
-
-# Other initialisation
-unless ($Init{"paths:counter data"}=~m#/$#) {$Init{"paths:counter data"}.="/"}
 
 $sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
 unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 

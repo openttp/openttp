@@ -606,6 +606,9 @@ sub TFMakeAbsolutePath {
 	if (!($path=~/^\//)){
 		$path =$rootpath."/".$path;
 	}
+	if (!($path=~/\//$)){
+		$path .= "/";
+	}
 	return $path;
 }
 
