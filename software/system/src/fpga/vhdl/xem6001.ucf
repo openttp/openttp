@@ -1,0 +1,210 @@
+#-------------------------------------------------------------------------
+# XEM6001 - Xilinx constraints file
+#
+# Pin mappings for the XEM6001.  Use this as a template and comment out 
+# the pins that are not used in your design.  (By default, map will fail
+# if this file contains constraints for signals not in your design).
+#
+# Copyright (c) 2004-2010 Opal Kelly Incorporated
+# $Rev: 539 $ $Date: 2010-09-09 19:50:03 -0500 (Thu, 09 Sep 2010) $
+#-------------------------------------------------------------------------
+
+#-------------------------------
+# FrontPanel Host Interface pins
+#-------------------------------
+NET "hi_in<0>"      LOC="N8" | IOSTANDARD="LVCMOS33";
+NET "hi_in<1>"      LOC="T10" | IOSTANDARD="LVCMOS33";
+NET "hi_in<2>"      LOC="T5"  | IOSTANDARD="LVCMOS33";
+NET "hi_in<3>"      LOC="T4"  | IOSTANDARD="LVCMOS33";
+NET "hi_in<4>"      LOC="T7"  | IOSTANDARD="LVCMOS33";
+NET "hi_in<5>"      LOC="R7"  | IOSTANDARD="LVCMOS33";
+NET "hi_in<6>"      LOC="T6"  | IOSTANDARD="LVCMOS33";
+NET "hi_in<7>"      LOC="P6"  | IOSTANDARD="LVCMOS33";
+NET "hi_out<0>"     LOC="M11" | IOSTANDARD="LVCMOS33";
+NET "hi_out<1>"     LOC="P4"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<0>"   LOC="M7"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<1>"   LOC="P7"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<2>"   LOC="P8"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<3>"   LOC="P9"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<4>"   LOC="N9"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<5>"   LOC="P11" | IOSTANDARD="LVCMOS33";
+NET "hi_inout<6>"   LOC="N6"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<7>"   LOC="M6"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<8>"   LOC="R5"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<9>"   LOC="L7"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<10>"  LOC="L8"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<11>"  LOC="P5"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<12>"  LOC="N5"  | IOSTANDARD="LVCMOS33";
+NET "hi_inout<13>"  LOC="P12" | IOSTANDARD="LVCMOS33";
+NET "hi_inout<14>"  LOC="N12" | IOSTANDARD="LVCMOS33";
+NET "hi_inout<15>"  LOC="P10" | IOSTANDARD="LVCMOS33";
+
+NET "hi_muxsel"    LOC = "T11"  | IOSTANDARD="LVCMOS33";
+
+NET "hi_in<0>" TNM_NET = "okHostClk";
+TIMESPEC "TS_okHostClk" = PERIOD "okHostClk" 20.83 ns HIGH 50%;  # 48 MHz
+NET "hi_inout[*]" TNM = "okHostINOUT_grp";
+TIMEGRP "okHostINOUT_grp" OFFSET = IN 9.83 ns VALID 9.83 ns BEFORE "hi_in<0>" RISING;
+TIMEGRP "okHostINOUT_grp" OFFSET = OUT 11.63 ns AFTER "hi_in<0>" RISING;
+NET "hi_out<0>" OFFSET = OUT 11.93 ns AFTER "hi_in<0>" RISING;
+NET "hi_out<1>" OFFSET = OUT 11.93 ns AFTER "hi_in<0>" RISING;
+NET "hi_in<1>" OFFSET = IN 14.13 ns VALID 20.83 ns BEFORE "hi_in<0>" RISING;
+NET "hi_in<2>" OFFSET = IN 14.13 ns VALID 20.83 ns BEFORE "hi_in<0>" RISING;
+NET "hi_in<3>" OFFSET = IN 14.13 ns VALID 20.83 ns BEFORE "hi_in<0>" RISING;
+NET "hi_in<4>" OFFSET = IN 13.33 ns VALID 20.83 ns BEFORE "hi_in<0>" RISING;
+NET "hi_in<5>" OFFSET = IN 13.33 ns VALID 20.83 ns BEFORE "hi_in<0>" RISING;
+NET "hi_in<6>" OFFSET = IN 13.33 ns VALID 20.83 ns BEFORE "hi_in<0>" RISING;
+NET "hi_in<7>" OFFSET = IN 13.33 ns VALID 20.83 ns BEFORE "hi_in<0>" RISING;
+
+#---------------
+# PLL Clock pins
+#---------------
+# NET "clk1"   LOC="T8"  | IOSTANDARD="LVCMOS33";
+# NET "clk1"   TNM_NET = "extclk";
+# TIMESPEC "TS_extclk" = PERIOD "extclk" 10.0 ns HIGH 50%;  # 100 MHz
+#NET "clk2"   LOC="K12" | IOSTANDARD="LVCMOS33";
+#NET "clk3"   LOC="H4"  | IOSTANDARD="LVCMOS33";
+
+#----------------
+# Port JP1 (zbus)
+#----------------
+#NET "zclk1"     LOC="B10" | IOSTANDARD="LVCMOS33";
+#NET "zclk2"     LOC="A10" | IOSTANDARD="LVCMOS33";
+#NET "zbus<0>"   LOC="C7"  | IOSTANDARD="LVCMOS33";
+#NET "zbus<1>"   LOC="C8"  | IOSTANDARD="LVCMOS33";
+#NET "zbus<2>"   LOC="A8"  | IOSTANDARD="LVCMOS33";
+#NET "zbus<3>"   LOC="B8"  | IOSTANDARD="LVCMOS33";
+#NET "zbus<4>"   LOC="A9"  | IOSTANDARD="LVCMOS33";
+#NET "zbus<5>"   LOC="C9"  | IOSTANDARD="LVCMOS33";
+#NET "zbus<6>"   LOC="A11" | IOSTANDARD="LVCMOS33";
+#NET "zbus<7>"   LOC="C11" | IOSTANDARD="LVCMOS33";
+#NET "zbus<8>"   LOC="A12" | IOSTANDARD="LVCMOS33";
+#NET "zbus<9>"   LOC="B12" | IOSTANDARD="LVCMOS33";
+#NET "zbus<10>"  LOC="A13" | IOSTANDARD="LVCMOS33";
+#NET "zbus<11>"  LOC="A14" | IOSTANDARD="LVCMOS33";
+#NET "zbus<12>"  LOC="B14" | IOSTANDARD="LVCMOS33";
+#NET "zbus<13>"  LOC="C13" | IOSTANDARD="LVCMOS33";
+
+#----------------
+# Port JP2 (ybus)
+#----------------
+#NET "yclk1"    LOC="J4"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<0>"  LOC="R2"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<1>"  LOC="R1"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<2>"  LOC="P2"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<3>"  LOC="P1"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<4>"  LOC="N1"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<5>"  LOC="M2"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<6>"  LOC="M1"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<7>"  LOC="L1"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<8>"  LOC="N3"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<9>"  LOC="M3"   | IOSTANDARD="LVCMOS33";
+#NET "ybus<10>"  LOC="L3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<11>"  LOC="K3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<12>"  LOC="K2"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<13>"  LOC="J3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<14>"  LOC="J1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<15>"  LOC="K1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<16>"  LOC="H1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<17>"  LOC="H2"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<18>"  LOC="H3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<19>"  LOC="G1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<20>"  LOC="G3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<21>"  LOC="F1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<22>"  LOC="F2"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<23>"  LOC="F3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<24>"  LOC="E2"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<25>"  LOC="E1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<26>"  LOC="E3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<27>"  LOC="D1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<28>"  LOC="D3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<29>"  LOC="C1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<30>"  LOC="C2"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<31>"  LOC="C3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<32>"  LOC="B2"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<33>"  LOC="B1"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<34>"  LOC="A3"  | IOSTANDARD="LVCMOS33";
+#NET "ybus<35>"  LOC="A2"  | IOSTANDARD="LVCMOS33";
+
+#----------------
+# Port JP3 (xbus)
+#----------------
+
+NET "ct1b"   LOC="H15" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+NET "ct2b"   LOC="B16" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+NET "ct3b"   LOC="C16" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+NET "ct4b"   LOC="D16" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+NET "ct5b"   LOC="E15" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+NET "refpps" LOC="F14" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+
+NET "ppsout" LOC="E16" | IOSTANDARD="LVCMOS33";
+NET "gpio"   LOC="G14" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE; # may need to remove clock constraint in other applications
+NET "gpio_en"  LOC="H14" | IOSTANDARD="LVCMOS33";
+
+NET "cr1"  LOC="T15" | IOSTANDARD="LVCMOS33";
+NET "cr2"  LOC="T14" | IOSTANDARD="LVCMOS33";
+
+NET "clk100"   LOC="J14"  | IOSTANDARD="LVCMOS33" ;
+NET "clk100"   TNM_NET = "extclk";
+TIMESPEC "TS_extclk" = PERIOD "extclk" 10.0 ns HIGH 50%;  # 100 MHz
+
+
+#NET "xclk1"    LOC="J13"  | IOSTANDARD="LVCMOS33";
+# NET "ct2a"  LOC="B15" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+#NET "ct3a"  LOC="C15" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+# NET "ct4b"  LOC="D14" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+#NET "xbus<10>"  LOC="F16" | IOSTANDARD="LVCMOS33";
+# NET "ct1a"  LOC="G16" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+
+
+
+#NET "xbus<15>"  LOC="H16" | IOSTANDARD="LVCMOS33";
+#NET "xbus<16>"  LOC="J16" | IOSTANDARD="LVCMOS33";
+
+
+
+#NET "xbus<17>"  LOC="J14" | IOSTANDARD="LVCMOS33";
+# 
+#NET "gpio"  LOC="K15" | IOSTANDARD="LVCMOS33" | CLOCK_DEDICATED_ROUTE = FALSE;
+#NET "xbus<19>"  LOC="K16" | IOSTANDARD="LVCMOS33";
+#NET "xbus<20>"  LOC="K14" | IOSTANDARD="LVCMOS33";
+#NET "xbus<21>"  LOC="L16" | IOSTANDARD="LVCMOS33";
+#NET "xbus<22>"  LOC="L14" | IOSTANDARD="LVCMOS33";
+#NET "xbus<23>"  LOC="M16" | IOSTANDARD="LVCMOS33";
+#NET "xbus<24>"  LOC="M14" | IOSTANDARD="LVCMOS33";
+#NET "xbus<25>"  LOC="M15" | IOSTANDARD="LVCMOS33";
+#NET "xbus<26>"  LOC="N14" | IOSTANDARD="LVCMOS33";
+#NET "xbus<27>"  LOC="N16" | IOSTANDARD="LVCMOS33";
+#NET "xbus<28>"  LOC="P15" | IOSTANDARD="LVCMOS33";
+#NET "xbus<29>"  LOC="P16" | IOSTANDARD="LVCMOS33";
+#NET "xbus<30>"  LOC="R15" | IOSTANDARD="LVCMOS33";
+#NET "xbus<31>"  LOC="R16" | IOSTANDARD="LVCMOS33";
+#NET "xbus<32>"  LOC="R14" | IOSTANDARD="LVCMOS33";
+
+#NET "xbus<34>"  LOC="T13" | IOSTANDARD="LVCMOS33";
+
+
+#------------
+# Peripherals
+#------------
+NET "led<0>"    LOC="A4" | IOSTANDARD="LVCMOS33";
+NET "led<1>"    LOC="C5" | IOSTANDARD="LVCMOS33";
+NET "led<2>"    LOC="B5" | IOSTANDARD="LVCMOS33";
+NET "led<3>"    LOC="A5" | IOSTANDARD="LVCMOS33";
+NET "led<4>"    LOC="C6" | IOSTANDARD="LVCMOS33";
+NET "led<5>"    LOC="B6" | IOSTANDARD="LVCMOS33";
+NET "led<6>"    LOC="A6" | IOSTANDARD="LVCMOS33";
+NET "led<7>"    LOC="A7" | IOSTANDARD="LVCMOS33";
+#
+#NET "button<0>" LOC="D5" | IOSTANDARD="LVCMOS33";
+#NET "button<1>" LOC="D6" | IOSTANDARD="LVCMOS33";
+#NET "button<2>" LOC="D8" | IOSTANDARD="LVCMOS33";
+#NET "button<3>" LOC="D9" | IOSTANDARD="LVCMOS33";
+
+#NET "spi_cs"       LOC = "T3"  | IOSTANDARD="LVCMOS33";
+#NET "spi_clk"      LOC = "M9" | IOSTANDARD="LVCMOS33";
+#NET "spi_din"      LOC = "R9" | IOSTANDARD="LVCMOS33";
+#NET "spi_dout"     LOC = "T9" | IOSTANDARD="LVCMOS33";
+#NET "spi_hold"     LOC = "R10" | IOSTANDARD="LVCMOS33";
+#NET "spi_wp"       LOC = "P10" | IOSTANDARD="LVCMOS33";
+
