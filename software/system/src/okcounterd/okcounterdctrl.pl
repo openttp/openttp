@@ -25,8 +25,10 @@
 
 # Script for controlling the Opal Kelly XEM6001, via okcounterd
 # Derived from get_counter_data_okxem
+#
 # Modification history
 # 2016-03-17 MJW Initial version 0.1
+# 2016-04-01 MJW Removed backwards compatibility
 #
 
 use POSIX;
@@ -55,34 +57,31 @@ if ($opt_v){
 }
 
 # Read the config file
-$configfile = "";
+$configFile = "";
 if ($opt_c){
-	$configfile=$opt_c;
+	$configFile=$opt_c;
 }
 else{
 	$user = "cvgps";
-	$configfile="/home/$user/etc/gpscv.conf";
-	if (!(-e $configfile)){
-		$configfile="/home/$user/etc/cctf.setup";
-		if (!(-e $configfile)){
-			print "Unable to find a configuration file";
-			exit;
-		}
+	$configFile="/home/$user/etc/gpscv.conf";
+	if (!(-e $configFile)){
+		print "Unable to find $configFile";
+		exit;
 	}
 }
 
 
-%Init = &TFMakeHash($configfile,(tolower=>1));
+%Init = &TFMakeHash2($configFile,(tolower=>1));
 
 # Check we got the info we need from the setup file
-@check=("okcounter port");
+@check=("counter:port");
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
-  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configfile")}
+  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
 }
 
-$port = $Init{"okcounter port"};
+$port = $Init{"counter:port"};
 
 $sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
 unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
