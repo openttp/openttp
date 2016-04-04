@@ -58,6 +58,10 @@ Client::Client(Server *s,int fd)
 
 Client::~Client()
 {
+	// Socket is not closed until the Client is destroyed
+	// This deals with the problem that if a counter logging process exits (and the Client socket is immediately released),
+	// there is a finite time before it is destroyed. If a new process is started before it is destroyed, then the OS may give 
+	// the new process the same file descriptor, which this Client then closes 
 	close(socketfd);
 }
 
@@ -112,12 +116,12 @@ void Client::doWork()
 		int serror=errno; // save the errorno since subsequent system calls will overwrite it
 		if (0==nread){
 			DBGMSG(debugStream,"connection " << threadID << " closed by remote");
-			close(socketfd);
+			//close(socketfd);
 			stopRequested=true;
 		}
 		else if (-1==nread){
 			DBGMSG(debugStream,"recv error : " << strerror(serror) << " " << threadID << " closed");
-			close(socketfd);
+			//close(socketfd);
 			stopRequested=true;
 		}
 	}
