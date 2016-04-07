@@ -1315,9 +1315,9 @@ void LCDMonitor::configure()
 	
 	poweroffCommand="/sbin/poweroff";
 	rebootCommand="/sbin/shutdown -r now";
-	ntpdRestartCommand="/sbin/service ntpd restart";
-	gpsRxRestartCommand="su - cvgps -c '/home/cvgps/bin/check_rx'";
-	gpsLoggerLockFile="/home/cvgps/logs/rx.lock";
+	ntpdRestartCommand="/sbin/service ntpd-nmi restart";
+	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
+	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 
 	ipv4addr="192.168.1.2";
 	ipv4nm  ="255.255.255.0";
@@ -1332,11 +1332,11 @@ void LCDMonitor::configure()
 	sysInfoConf="/usr/local/etc/sysinfo.conf";
 	receiverName="resolutiont";
 	alarmPath="/home/cvgps/logs/alarms";
-	rbStatusFile="/home/cvgps/logs/rb.status";
-	GPSStatusFile="/home/cvgps/logs/rx.status";
+	refStatusFile="/home/cvgps/logs/prs10.status";
+	GPSStatusFile="/home/cvgps/logs/rest.status";
 
-	string squealerConfig("/home/cvgps/etc/squealer.conf");
-	string cctfConfig("/home/cvgps/etc/cctf.setup");
+	string sysmonConfig("/home/cvgps/etc/sysmonitor.conf");
+	string gpscvConfig("/home/cvgps/etc/gpscv.conf");
 	
 	showPRNs=false;
 
@@ -1360,10 +1360,10 @@ void LCDMonitor::configure()
 	else
 		log("NTP user not found in config file");
 		
-	if (list_get_string_value(last,"General","Squealer config",&stmp))
-		squealerConfig=stmp;
+	if (list_get_string_value(last,"General","sysmonitor config",&stmp))
+		sysmonConfig=stmp;
 	else
-		log("Squealer config not found in config file");
+		log("sysmon config not found in config file");
 	
 	// Network	
 	if (list_get_string_value(last,"Network","DNS",&stmp))
@@ -1387,28 +1387,24 @@ void LCDMonitor::configure()
 	else
 		log("GPSCV user not found in config file");
 
-	if (list_get_string_value(last,"GPSCV","CCTF config",&stmp))
-		cctfConfig=stmp;
+	if (list_get_string_value(last,"GPSCV","gpscv config",&stmp))
+		gpscvConfig=stmp;
 	else
-		log("CCTF config not found in config file");
+		log("GPSCV config not found in config file");
 
 	if (list_get_string_value(last,"GPSCV","GPS restart command",&stmp))
 		gpsRxRestartCommand=stmp;
 	else
 		log("GPS restart command not found in config file");
 
-	if (list_get_string_value(last,"GPSCV","GPS logger lock file",&stmp))
-		gpsLoggerLockFile=stmp;
-	else
-		log("GPS logger lock file not found in config file");
 	
 	// OS
-	if (list_get_string_value(last,"OS","Reboot command",&stmp))
+	if (list_get_string_value(last,"OS","reboot command",&stmp))
 		rebootCommand= stmp;
 	else
 		log("Reboot command not found in config file");
 			
-	if (list_get_string_value(last,"OS","Poweroff command",&stmp))
+	if (list_get_string_value(last,"OS","poweroff command",&stmp))
 		poweroffCommand= stmp;
 	else
 		log("Poweroff command not found in config file");
@@ -1419,7 +1415,7 @@ void LCDMonitor::configure()
 		log("ntpd restart command not found in config file");
 
 	// UI
-	if (list_get_int_value(last,"UI","Show PRNs",&itmp))
+	if (list_get_int_value(last,"UI","show PRNs",&itmp))
 		showPRNs = (itmp==1);
 	else
 		log("Show PRNs not found in config file");
@@ -1442,7 +1438,7 @@ void LCDMonitor::configure()
 	else
 		log("LCD contrast not found in config file");
 	
-	if (list_get_string_value(last,"UI","Display mode",&stmp))
+	if (list_get_string_value(last,"UI","display mode",&stmp))
 	{
 		boost::to_upper(stmp);
 		if (0==strcmp(stmp,"GPS"))
@@ -1459,37 +1455,49 @@ void LCDMonitor::configure()
 		
 	list_clear(last);
 	
+	//
+	// Parse gpscv.conf
+	//
 	
-	if (!configfile_parse_as_list(&last,cctfConfig.c_str()))
+	if (!configfile_parse_as_list(&last,gpscvConfig.c_str()))
 	{
 		ostringstream msg;
-		msg << "failed to read " << cctfConfig;
+		msg << "failed to read " << gpscvConfig;
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
 	
-	if (list_get_string_value(last,"Main","Receiver",&stmp))
+	if (list_get_string_value(last,"receiver","model",&stmp))
 		receiverName=stmp;
 	else
-		log("receiver type not found in cctf.setup");
+		log("receiver type not found in gpscv.conf");
 
-	if (list_get_string_value(last,"Main","Rb Status",&stmp))
-		rbStatusFile=stmp;
+	if (list_get_string_value(last,"receiver","lock file",&stmp))
+		gpsLoggerLockFile=stmp;
 	else
-		log("Rb Status not found in cctf.setup");
+		log("receiver:lock file not found in gpscv.conf");
+	
+	if (list_get_string_value(last,"reference","status file",&stmp))
+		refStatusFile=stmp;
+	else
+		log("reference:status not found in gpscv.conf");
 			
-	if (list_get_string_value(last,"Main","receiver status",&stmp))
+	if (list_get_string_value(last,"receiver","status file",&stmp))
 		GPSStatusFile=stmp;
 	else
-		log("Receiver Status not found in cctf.setup");
+		log("receiver:status file not found in gpscv.conf");
 		
 	list_clear(last);
 	
 	
-	if (!configfile_parse_as_list(&last,squealerConfig.c_str()))
+	//
+	// Parse sysmon.conf
+	//
+	
+	if (!configfile_parse_as_list(&last,sysmonConfig.c_str()))
 	{
 		ostringstream msg;
-		msg << "failed to read " << squealerConfig;
+		msg << "failed to read " << sysmonConfig;
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
@@ -1500,7 +1508,7 @@ void LCDMonitor::configure()
 		alarmPath+="/*";
 	}
 	else
-		log("Status File Directory not found in config file");
+		log("Status File Directory not found in sysmonitor.conf");
 				
 	list_clear(last);
 	
@@ -1997,6 +2005,12 @@ bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string 
 	}
 	sleep(2);
 	return (sysret==0);
+}
+
+string LCDMonitor::makeAbsoluteFilePath(std::string fpath)
+{
+	string absfpath = fpath;
+	return absfpath;
 }
 
 void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim)

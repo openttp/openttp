@@ -33,7 +33,7 @@
 #include "Debug.h"
 
 #include <pthread.h>
-
+#include <cstdlib>
 
 // This lock is only used for libcwd so far, so put this here.
 extern pthread_mutex_t cout_mutex;
