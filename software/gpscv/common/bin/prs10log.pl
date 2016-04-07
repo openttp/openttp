@@ -148,34 +148,34 @@ if (defined($Init{"counter:data extension"})){
 $dataPath = TFMakeAbsolutePath($Init{"paths:counter data"},$home);
 
 $logPRS10 = 1;
-if (defined($Init{"prs10:log status"})){
-	$logPRS10=lc $Init{"prs10:log status"};
+if (defined($Init{"reference:log status"})){
+	$logPRS10=lc $Init{"reference:log status"};
 	$logPRS10 = ($logPRS10 eq "yes");
 }
 
 $logInterval = 60; # in seconds
-if (defined( $Init{"prs10:logging interval"})){
-	$logInterval=$Init{"prs10:logging interval"}
+if (defined( $Init{"reference:logging interval"})){
+	$logInterval=$Init{"reference:logging interval"}
 }
 
 $logExtension = ".rb";
-if (defined( $Init{"prs10:file extension"})){
-	$logExtension=$Init{"prs10:file extension"}
+if (defined( $Init{"reference:file extension"})){
+	$logExtension=$Init{"reference:file extension"}
 }
 
 $pwrFlag = "prs10.pwr";
-if (defined( $Init{"prs10:power flag"})){
-	$pwrFlag=$Init{"prs10:power flag"}
+if (defined( $Init{"reference:power flag"})){
+	$pwrFlag=$Init{"reference:power flag"}
 }
 
 $prs10StatusFile = "prs10.status";
-if (defined( $Init{"prs10:status file"})){
-	$prs10StatusFile=$Init{"prs10:status file"}
+if (defined( $Init{"reference:status file"})){
+	$prs10StatusFile=$Init{"reference:status file"}
 }
 
 $prs10LogPath = $dataPath;
-if (defined( $Init{"prs10:log path"})){
-	$prs10LogPath=TFMakeAbsolutePath($Init{"prs10:log path",$home});
+if (defined( $Init{"reference:log path"})){
+	$prs10LogPath=TFMakeAbsolutePath($Init{"reference:log path",$home});
 }
 
 # Create a lock on the port - this will stop other UUCP lock file
@@ -267,7 +267,7 @@ while (1) {
 			$mjd=int($tt / 86400)+40587;
 			if ($mjd!=$oldmjd){
      	 	$oldmjd=$mjd;
-      	$prs10LogFile=$Init{"data path"} . $mjd .  $logExtension;
+      	$prs10LogFile=$prs10LogPath . $mjd .  $logExtension;
 			}
 			if (!(-e $prs10LogFile)){
 				open (OUT,">>$prs10LogFile");
