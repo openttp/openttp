@@ -241,7 +241,7 @@ main(
 	FILE *str;
 	pid_t pid;
 	
-	int j,tstart;
+	int tstart;
 	struct sched_param	sched;
 	long twait;
 	struct timeval tv;
@@ -249,6 +249,7 @@ main(
 #ifdef USE_SIO8186x
 	unsigned char dout;
 	unsigned char datagpio0;
+	unsigned char bitmask;
 #endif
 	
 	ppsd.offset=0;
@@ -397,9 +398,8 @@ main(
 	
 #ifdef USE_SIO8186x
 	SIOF8186x_select_LDN_GPIO();
+	datagpio0 = LpcReadIndirectByte(RegGPIO0_PSR);
 	if (debugOn){
-		printf("Reading GPIO0 port status\n");
-		datagpio0 = LpcReadIndirectByte(RegGPIO0_PSR);
 		printf("Current GPIO0 value: 0x%02x\n", datagpio0);
 	}
 #endif
@@ -435,8 +435,10 @@ main(
 	 *
 	 */
 
+	
 #ifdef USE_SIO8186x
-	dout=0x0;
+	bitmask = 0x08; /* GPIO 3 is used for PPS output */
+	dout= (datagpio0 & ~bitmask) | (0x0 & bitmask); /* set pps low */
 	LpcWriteIndirectByte(RegGPIO0_ODR, dout);
 #endif
 	
@@ -479,9 +481,9 @@ main(
 #endif 
 		
 #ifdef USE_SIO8186x
-		dout=0xff;
+		dout= (datagpio0 & ~bitmask) | (0x08 & bitmask); /* set pps high */
 		LpcWriteIndirectByte(RegGPIO0_ODR, dout);
-		dout=0x0;
+		dout= (datagpio0 & ~bitmask) | (0x0 & bitmask); /* set pps low */
 		LpcWriteIndirectByte(RegGPIO0_ODR, dout);
 #endif
 		gettimeofday(&tv,NULL);
