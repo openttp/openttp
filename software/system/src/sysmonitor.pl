@@ -34,6 +34,8 @@
 use POSIX;
 use Getopt::Std;
 use Linux::SysInfo qw(sysinfo);
+use Sys::Syslog;                        
+use Sys::Syslog qw(:standard :macros);  
 use TFLibrary;
 use Time::HiRes qw( gettimeofday );
 
@@ -78,18 +80,17 @@ use Getopt::Std;
 use TFLibrary;
 use vars qw($opt_c $opt_d $opt_h $opt_v);
 
-
 $AUTHORS="Michael Wouters";
 $VERSION="1.0";
 
 $MAX_FILE_AGE=30;
 $BOOT_GRACE_TIME=30;
 
-# $ALARM_AUDIBLE=0x01;
-# $ALARM_EMAIL=0x02;
-# $ALARM_SMS=0x04;
+# $ALARM_AUDIBLE=0x01; # deprecated: just annoying
+# $ALARM_EMAIL=0x02; # deprecated: delegated to Alerter
+# $ALARM_SMS=0x04; # deprecated: delegated to Alerter
 $ALARM_LOG=0x08;
-# $ALARM_SNMP=0x1;
+# $ALARM_SNMP=0x1; # deprecated: delegated to Alerter
 $ALARM_ALERTER=0x20;
 $ALARM_SYSLOG=0x40;
 $ALARM_STATUS_FILE=0x80;
@@ -126,7 +127,7 @@ if (!(-e $gpscvConfigFile)){
 my %GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
 
 # Check we got the info we need from the config file
-my @check=("reference:oscillator","reference:status file");
+my @check=('reference:oscillator','reference:status file','receiver:manufacturer','receiver:status file');
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
@@ -141,6 +142,9 @@ if (defined $GPSCVInit{'reference:power flag'}){
 	$refPowerFlag = $GPSCVInit{'reference:power flag'};
 	$checkRefPower = !((lc $refPowerFlag) eq 'none');
 }
+
+my $receiver = $GPSCVInit{'receiver:manufacturer'};
+my $rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$home,$logPath);
 
 # Read this application's .conf
 
@@ -170,11 +174,11 @@ if (defined $Init{"log file"}){
 
 # Reference monitors
 
-$mon = new Monitored(32, "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
-$mon->{statusFile}=$refStatusFile;
-$mon->{oscillator}=$refOscillator;
-$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE;
-push @monitors,$mon;
+# $mon = new Monitored(32, "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
+# $mon->{statusFile}=$refStatusFile;
+# $mon->{oscillator}=$refOscillator;
+# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# push @monitors,$mon;
 
 # $mon = new Monitored(32, "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
 # $mon->{statusFile}=$refStatusFile;
@@ -187,6 +191,12 @@ push @monitors,$mon;
 # 	$mon->{oscillator}=$refOscillator;
 # 	push @monitors,$mon;
 # }
+
+$mon = new Monitored(32, "GPS insufficient satellites", "GPS low sats",99,\&CheckGPSSignal);
+$mon->{statusFile}=$rxStatusFile;
+$mon->{receiver}=$receiver;
+$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+push @monitors,$mon;
 
 SysmonitorLog("Started");
 
@@ -329,6 +339,46 @@ sub CheckNTPD
 sub CheckGPSSignal
 {
 	Debug("\n-->CheckGPSSignal");
+	my $mon=$_[0];
+	my $statusFile = $mon->{statusFile};
+	if ($mon->{receiver} eq "Trimble"){
+		# format is nsats = xxx
+		if (-e $statusFile){
+			# won't check age
+			open (IN,"<$statusFile");
+			my $line=<IN>;
+			chomp $line;
+			close IN;
+			Debug("$mon->{receiver} $line");
+			if ($line =~/nsats\s*=\s*(\d+)/){
+				return $1>= 4;
+			}
+		}
+		return 1; # not there or parse error
+	}
+	elsif ($mon->{receiver} eq "Javad"){
+		# format of the message is
+		# NP HH:MM:SS ,NAVPOS,%C,%6.2F,%1D,%C%C,{%2D,%2D} etc
+		# When no satellites are visible get something like
+		# NP HH:MM:SS ,NAVPOS,%C,%6.2F,%1D
+		if (-e $statusFile){
+			open (IN,"<$statusFile");
+			my $line=<IN>;
+			chomp $line;
+			close IN;
+			Debug("$mon->{receiver} $line");
+			if ($line =~ /\{(\d{2}),\d{2}\}/){
+				return $1>= 4;
+			}
+			else{
+				return 0;
+			}
+		}
+		return 1;
+	}
+	elsif ($mon->{receiver} eq "NVS"){
+	}
+	return 0;
 }
 
 # -------------------------------------------------------------------------
@@ -395,43 +445,23 @@ sub SetError{
 		
 		# Number of alerts is limited to maxPerDay for email, SMS, SNMP etc*
 		if ($mon->{nToday} < $mon->{maxPerDay}){
-			
-			# e-mail alarm */
-# 			if (($mon->{methods} | ALERT_EMAIL) && (a->mailAddr))
-# 			{
-# 				strcpy(fname,"/tmp/email.body.txt");
-# 				if ((f=fopen(fname,"w")))
-#         {
-# 					if (a->msg) 
-# 						fprintf(f,"%s %s\n",a->id,a->msg);
-# 					fclose(f);
-# 					snprintf(msgbuf,BUF_LEN-1,"fastmail -s  \"%s\"  %s %s",
-# 							a->msg,fname,a->mailAddr);
-# 					//system(msgbuf); /* FIXME what about blocking */
-# 				}
-# 				
-# 			}
 		
 			if (($mon->{methods} | $ALARM_SYSLOG)) {
-				#openlog("squealer",LOG_PID,LOG_USER);
-				#if (a->msg)
-				#	syslog(LOG_WARNING,a->msg);
-				#else
-				#	syslog(LOG_WARNING,"unspecified warning");
-				#closelog();
+				Debug("syslog() ...");
+				openlog("sysmonitor",LOG_PID,LOG_USER);
+				syslog(LOG_WARNING,$mon->{msg});
+				closelog();
 			}
 			
 			if (($mon->{methods} | $ALARM_ALERTER)) {
-# 				/* This method writes to the alerter queue */
-# 				if ((f=fopen(a->alerterQueue,"a")))
-#         {
+#				if ((f=fopen(a->alerterQueue,"a"))){
 # 					if (a->msg) 
 # 						fprintf(f,"%02d/%02d/%02d %02d:%02d:%02d  %s (%i)\n",
 # 							gmt->tm_mday,gmt->tm_mon+1,gmt->tm_year % 100,
 # 							gmt->tm_hour,gmt->tm_min,gmt->tm_sec,
 # 							a->msg,a->alerterID);
 # 					fclose(f);
-# 				}
+#			}
 			}
 			
 			$mon->{nToday}+=1;
@@ -471,17 +501,11 @@ sub ClearError{
 		}
 		if ($mon->{nToday} <=$mon->{maxPerDay}){ #remember to catch last one 
 			my @gmt=gmtime(time);	
-# 			if ((a->methods | ALERT_EMAIL)){				
-# 			}
-# 			if ((a->methods | ALERT_SMS)) {		
-# 			}
-# 			if ((a->methods | ALERT_SNMP)) {
-# 			}
-# 			if ((a->methods | ALERT_SYSLOG)) {
-# 				openlog("squealer",LOG_PID,LOG_USER);
-# 				syslog(LOG_WARNING,msgbuf);
-# 				closelog();
-# 			}
+			if (($mon->{methods} | $ALARM_SYSLOG)) {
+				openlog("sysmonitor",LOG_PID,LOG_USER);
+				syslog(LOG_WARNING,$mon->{msg});
+				closelog();
+			}
 #			if (($mon->{methods} | $ALARM_ALERTER)) {
 # 				if ((f=fopen(a->alerterQueue,"a")))
 #         {
