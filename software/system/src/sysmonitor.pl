@@ -50,7 +50,7 @@ sub new
 {
 	my $class = shift;
 	my $self = {
-		id => shift, # numeric identifier
+		category => shift, # NTP, GPS, Oscillator, ...
 		msg => shift, # long form of alarm message
 		shortMsg => shift, # short form of alarm message
 		alerterID=>shift,
@@ -94,8 +94,11 @@ $ALARM_LOG=0x08;
 $ALARM_ALERTER=0x20;
 $ALARM_SYSLOG=0x40;
 $ALARM_STATUS_FILE=0x80;
-	
-my $home=$ENV{HOME};
+
+$MDSTAT='/proc/mdstat';
+
+$root = '/usr/local';
+
 
 # Check command line
 if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
@@ -112,43 +115,12 @@ if ($opt_v){
 	exit;
 }
 
-if (-d "$home/logs") {$logPath="$home/logs";} else {die "$logPath missing"}; 
-if (-d "$home/etc")  {$configPath="$home/etc";} else {die "$configPath missing";};
-
-
-# Read the system gpscv.conf
-
-my $gpscvConfigFile = $configPath."/gpscv.conf";
-
-if (!(-e $gpscvConfigFile)){
-	ErrorExit("The configuration file $configFile was not found!\n");
-}
-
-my %GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
-
-# Check we got the info we need from the config file
-my @check=('reference:oscillator','reference:status file','receiver:manufacturer','receiver:status file');
-foreach (@check) {
-  $tag=$_;
-  $tag=~tr/A-Z/a-z/;	
-  unless (defined $GPSCVInit{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
-}
-
-my $refOscillator = lc $GPSCVInit{'reference:oscillator'};
-my $refStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'reference:status file'},$home,$logPath);
-my $refPowerFlag;
-my $checkRefPower=0;
-if (defined $GPSCVInit{'reference:power flag'}){
-	$refPowerFlag = $GPSCVInit{'reference:power flag'};
-	$checkRefPower = !((lc $refPowerFlag) eq 'none');
-}
-
-my $receiver = $GPSCVInit{'receiver:manufacturer'};
-my $rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$home,$logPath);
+if (-d "$root/log") {$logPath="$root/log";} else {die "$logPath missing"}; 
+if (-d "$root/etc")  {$configPath="$root/etc";} else {die "$configPath missing";};
 
 # Read this application's .conf
 
-my $configFile=$configPath."/sysmonitor.conf";
+$configFile=$configPath."/sysmonitor.conf";
 if (defined $opt_c){
 	$configFile=$opt_c;
 }
@@ -159,48 +131,167 @@ if (!(-e $configFile)){
 
 %Init = &TFMakeHash2($configFile,(tolower=>1));
 
-$alarmPath= $logPath."/alarms/";
+$alarmPath= $logPath.'/alarms/';
 if (defined $Init{"alarm path"}){
-	$alarmPath = TFMakeAbsolutePath($alarmPath,$home);
+	$alarmPath = TFMakeAbsolutePath($alarmPath,$root);
 }
 
-$logFile = $logPath."/sysmonitor.log";
-if (defined $Init{"log file"}){
-	$logFile = TFMakeAbsoluteFilePath($logFile,$home,$logPath);
+$logFile = $logPath.'/sysmonitor.log';
+if (defined $Init{'log file'}){
+	$logFile = TFMakeAbsoluteFilePath($logFile,$root,$logPath);
 }
+
+$gpscvHome ='/home/cvgps';
+if (defined $Init{'gpscv account'}){
+	$gpscvHome = '/home/'.$Init{'gpscv account'};
+}
+
+$ntpHome ='ntp-admin';
+if (defined $Init{'ntp account'}){
+	$ntpHome = '/home/'.$Init{'ntp account'};
+}
+
+$alerterQueue = '/usr/local/log/alert.log';
+if (defined $Init{'alerter queue'}){
+	$alerterQueue = $Init{'alerter queue'};
+}
+
+# Read the system gpscv.conf
+$gpscvConfigFile = $gpscvHome.'/etc/gpscv.conf';
+if (!(-e $gpscvConfigFile)){
+	ErrorExit("The configuration file $configFile was not found!\n");
+}
+
+%GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
+
+$gpscvLogPath=$gpscvHome.'/logs/';
+
+# Check we got the info we need from the config file
+ @check=('reference:oscillator','reference:status file','receiver:manufacturer','receiver:status file');
+foreach (@check) {
+  $tag=$_;
+  $tag=~tr/A-Z/a-z/;	
+  unless (defined $GPSCVInit{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
+}
+
+$refOscillator = lc $GPSCVInit{'reference:oscillator'};
+$refStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'reference:status file'},$gpscvHome,$gpscvLogPath);
+$checkRefPower=0;
+if (defined $GPSCVInit{'reference:power flag'}){
+	$refPowerFlag = $GPSCVInit{'reference:power flag'};
+	$checkRefPower = !((lc $refPowerFlag) eq 'none');
+}
+
+$receiver = $GPSCVInit{'receiver:manufacturer'};
+$rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$gpscvHome,$gpscvLogPath);
 
 # Create all the monitors
 @monitors = ();
 
+# NTP monitors
+if (defined $Init{'ntpd refclocks'}){
+	my @refclks = split /,/,$Init{'ntpd refclocks'};
+	foreach (@refclks){
+		my $clk = lc $_;
+		$clk =~ s/^\s+//; # clean white space
+		$clk =~ s/\s+$//;
+		if (defined $Init{"$clk:refid"}){
+			my $name = 'ref clk';
+			if (defined $Init{"$clk:name"}){
+				$name = $Init{"$clk:name"};
+			}
+			$mon = new Monitored("NTP", "NTP refclk $name dead", "NTP $name dead",99,\&CheckNTPRefClock);
+			$mon->{refid}=$Init{"$clk:refid"};
+			$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+			push @monitors,$mon;
+			Debug("Added $clk ($name)");
+		}else{
+			ErrorExit("$clk:refid undefined");
+		}
+	}
+}
+
 # Reference monitors
 
-# $mon = new Monitored(32, "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
+# $mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
+# $mon->{statusFile}=$refStatusFile;
+# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# push @monitors,$mon;
+
+# $mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
 # $mon->{statusFile}=$refStatusFile;
 # $mon->{oscillator}=$refOscillator;
 # $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
 # push @monitors,$mon;
 
-# $mon = new Monitored(32, "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
+# $mon = new Monitored("Oscillator", "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
 # $mon->{statusFile}=$refStatusFile;
 # $mon->{oscillator}=$refOscillator;
 # push @monitors,$mon;
-# 
+
 # if ($checkRefPower){
-# 	$mon = new Monitored(32, "Reference power failure", "Ref power failure",99,\&CheckRefPowerFlag);
+# 	$mon = new Monitored("Oscillator", "Reference power failure", "Ref power failure",99,\&CheckRefPowerFlag);
 # 	$mon->{powerFlag}=$refPowerFlag;
 # 	$mon->{oscillator}=$refOscillator;
 # 	push @monitors,$mon;
 # }
 
-$mon = new Monitored(32, "GPS insufficient satellites", "GPS low sats",99,\&CheckGPSSignal);
-$mon->{statusFile}=$rxStatusFile;
-$mon->{receiver}=$receiver;
-$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
-push @monitors,$mon;
+# $mon = new Monitored("GPS", "GPS logging not running", "GPS not logging",99,\&CheckGPSLogging);
+# $mon->{statusFile}=$rxStatusFile;
+# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# push @monitors,$mon;
+
+# $mon = new Monitored("GPS", "GPS insufficient satellites", "GPS low sats",99,\&CheckGPSSignal);
+# $mon->{statusFile}=$rxStatusFile;
+# $mon->{receiver}=$receiver;
+# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# push @monitors,$mon;
+
+# Check for RAID
+if (-e $MDSTAT){
+	open (IN,"<$MDSTAT");
+	while ($line=<IN>){
+		if ($line =~/Personalities/ && $line =~/raid/ ){
+			DEBUG('RAID detected');
+			$mon = new Monitored("PC", 'RAID disk failure', 'RAID failure',99,\&CheckRAID);
+			$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+			push @monitors,$mon;
+			last;
+		}
+	}
+	close IN;
+}
+
+Debug("Initialized ".($#monitors+1). " monitors");
+
+# Catch the kill signal so we can log that we were killed
+$SIG{TERM} = sub {SysmonitorLog("Received SIGTERM - exiting.")};
 
 SysmonitorLog("Started");
 
+$ntpqClks={}; # NB global
+$lastNtpq = 0; 
+
 while (1){
+	
+	my $now =time;
+	
+	if ($now - $lastNtpq > 128){ # clocks are polled at 16 s typically and it takes 8 polls for reachability to hit zero
+		Debug("Running ntpq");
+		@ntpqOut= split /\n/,`ntpq -pn`;
+		if ($#ntpqOut >= 1){
+			shift @ntpqOut; shift @ntpqOut; # first two lines are uninteresting
+			foreach (@ntpqOut){
+				my @fields = split /\s+/,$_;
+				if ($#fields == 9){
+					$fields[0]=~/(\d+\.\d+\.\d+\.\d+)/;
+					$ntpqClks{$1}=$fields[6]; # hash for easy lookup
+				}
+			}
+			$lastNtpq=$now;
+		}
+	}
+	
 	for ($i=0;$i<=$#monitors;$i++){
 		my $ret = $monitors[$i]->{testfn}->($monitors[$i]);
 		if ($ret){
@@ -210,8 +301,12 @@ while (1){
 			SetError($monitors[$i]);
 		}
 	}
+	
 	sleep(1);
+	
 }
+
+SysmonitorLog("Unexpected exit");
 
 #-----------------------------------------------------------------------
 sub ShowHelp{
@@ -277,6 +372,19 @@ sub CheckFile
 		return ($uptime < $BOOT_GRACE_TIME);
 	}
 	return 0; 
+}
+
+# -------------------------------------------------------------------------
+sub CheckNTPRefClock
+{
+	Debug("\n-->CheckNTPRefClk");
+	my $mon = $_[0];
+	Debug("Checking $mon->{refid}");
+	if (defined $ntpqClks{$mon->{refid}}){
+		Debug("$mon->{refid} reachability $ntpqClks{$mon->{refid}}");
+		return ($ntpqClks{$mon->{refid}} == 377);
+	}
+	return 0; # if it's not there, there may have been a problem with device initialization by OS
 }
 
 # -------------------------------------------------------------------------
@@ -393,7 +501,7 @@ sub SetError{
 	
 	my $mon=$_[0];
 	
-	($tvnow_secs,$tvnow_usecs) = gettimeofday;
+	my ($tvnow_secs,$tvnow_usecs) = gettimeofday;
 	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; # double has enough significant figures
 	# Reset time of last clear 
 	$mon->{errLastClear}=0;
@@ -454,14 +562,14 @@ sub SetError{
 			}
 			
 			if (($mon->{methods} | $ALARM_ALERTER)) {
-#				if ((f=fopen(a->alerterQueue,"a"))){
-# 					if (a->msg) 
-# 						fprintf(f,"%02d/%02d/%02d %02d:%02d:%02d  %s (%i)\n",
-# 							gmt->tm_mday,gmt->tm_mon+1,gmt->tm_year % 100,
-# 							gmt->tm_hour,gmt->tm_min,gmt->tm_sec,
-# 							a->msg,a->alerterID);
-# 					fclose(f);
-#			}
+				if (-e $alerterQueue){
+					open(OUT,">>$alerterQueue");
+					printf OUT "%02d/%02d/%02d %02d:%02d:%02d %s (%i)\n",
+						$gmt[3],$gmt[4]+1,$gmt[5] % 100,
+						$gmt[2],$gmt[1],$gmt[0],
+						$mon->{shortMsg},$mon->{alerterID};
+					close OUT;
+				}
 			}
 			
 			$mon->{nToday}+=1;
@@ -493,32 +601,33 @@ sub ClearError{
 	Debug("Error time = ".$mon->{errTime});
 	if ($mon->{isError} && ($mon->{errTime} <= 0.0)){ # error has cleared 
 		my $msg = $mon->{msg}." (cleared)";
+		
 		if (($mon->{methods} | $ALARM_LOG))  {
 			SysmonitorLog($msg);
 		}
 		if (($mon->{methods} | $ALARM_STATUS_FILE)){
 				unlink  $alarmPath."/". ($mon->{shortMsg});
 		}
+		
 		if ($mon->{nToday} <=$mon->{maxPerDay}){ #remember to catch last one 
 			my @gmt=gmtime(time);	
+			
 			if (($mon->{methods} | $ALARM_SYSLOG)) {
 				openlog("sysmonitor",LOG_PID,LOG_USER);
 				syslog(LOG_WARNING,$mon->{msg});
 				closelog();
 			}
-#			if (($mon->{methods} | $ALARM_ALERTER)) {
-# 				if ((f=fopen(a->alerterQueue,"a")))
-#         {
-# 					
-# 					if (a->msg) 
-# 						fprintf(f,"%02d/%02d/%02d %02d:%02d:%02d  %s cleared (%i)\n",
-# 							gmt->tm_mday,gmt->tm_mon+1,gmt->tm_year % 100,
-# 							gmt->tm_hour,gmt->tm_min,gmt->tm_sec,
-# 							a->msg,a->alerterID);
-# 					fclose(f);
-# 				}
-#			}
-		
+			
+			if (($mon->{methods} | $ALARM_ALERTER)) {
+				if (-e $alerterQueue){
+					open(OUT,">>$alerterQueue");
+					printf OUT "%02d/%02d/%02d %02d:%02d:%02d %s cleared (%i)\n",
+						$gmt[3],$gmt[4]+1,$gmt[5] % 100,
+						$gmt[2],$gmt[1],$gmt[0],
+						$mon->{msg},$mon->{alerterID};
+					close OUT;
+				}
+			}
 		}
 		
 		$mon->{isError}=0;
@@ -528,6 +637,8 @@ sub ClearError{
 	}
 	return 0; # error still persisting 
 }
+
+
 
 # -------------------------------------------------------------------------
 sub SysmonitorLog{
