@@ -61,14 +61,18 @@ int main(
 	
 	struct sched_param	sched;
 	debugStream= NULL;
+	string bitfile="";
 	
 	OKCounterD *app = new OKCounterD(argc,argv);
 	
 	// Process the command line options
-	while ((opt=getopt(argc,argv,"d:hv")) != -1)
+	while ((opt=getopt(argc,argv,"b:d:hv")) != -1)
 	{
 		switch(opt)
 		{
+			case 'b':
+				bitfile=optarg;
+				break;
 			case 'd':	// enable debugging 
 				{
 					string dbgout = optarg;
@@ -169,7 +173,7 @@ int main(
 	}
 #endif
 
-	app->initializeFPGA("");	
+	app->initializeFPGA(bitfile);	
 	app->run();
 
 	unlink(PID_FILE);

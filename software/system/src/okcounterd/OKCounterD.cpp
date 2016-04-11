@@ -59,7 +59,8 @@ void OKCounterD::showHelp()
 	cout << endl << APP_NAME << " version " << OKCOUNTERD_VERSION << endl;
 	cout << "Usage: " << APP_NAME << " [options]" << endl;
 	cout << "Available options are" << endl;
-	cout << "-d <file> Turn on debugging to <file> (use 'stderr' for output to stderr)" << endl;
+	cout << "-b <file> specify a bitfile to load"<< endl;
+	cout << "-d <file> turn on debugging to <file> (use 'stderr' for output to stderr)" << endl;
 	cout << "-h print this help message" << endl;
 	cout << "-v print version" << endl;
 } 
