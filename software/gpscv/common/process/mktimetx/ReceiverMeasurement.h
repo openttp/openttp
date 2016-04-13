@@ -33,6 +33,7 @@
 using namespace std;
 
 class SVMeasurement;
+class CounterMeasurement;
 
 class ReceiverMeasurement
 {
@@ -50,6 +51,8 @@ class ReceiverMeasurement
 		struct tm tmGPS,tmUTC; // time of measurement, according to the receiver. tmGPS is mostly used but sometimes we get UTC for the receiver TOM
 													 // and have to convert to GPS later when the number of leap seconds are known
 		double tmfracs; // fractional part of time of measurement, units are seconds (s) - must be +ve
+		
+		CounterMeasurement *cm; // matched counter measurement
 		
 		vector<SVMeasurement*> gps,gpsP1,gpsP2;
 		vector<SVMeasurement*> glonass;

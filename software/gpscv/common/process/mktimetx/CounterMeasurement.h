@@ -25,6 +25,7 @@
 #ifndef __COUNTER_MEASUREMENT_H_
 #define __COUNTER_MEASUREMENT_H_
 
+#include <cstdio>
 #include <string>
 
 using namespace std;

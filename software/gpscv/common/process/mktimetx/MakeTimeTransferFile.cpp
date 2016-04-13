@@ -226,6 +226,8 @@ void MakeTimeTransferFile::run()
 
 	matchMeasurements(receiver,counter); // only do this once
 	
+	// Apply the sawtooth corrected 1 pps to the pseudoranges
+	
 	// Each system+code generates a CGGTTS file
 	if (createCGGTTS){
 		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
@@ -877,6 +879,7 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 	int matchcnt=0;
 	for (unsigned int i=0;i<MPAIRS_SIZE;i++){
 		if (mpairs[i]->flags == 0x03){
+			mpairs[i]->rm->cm = mpairs[i]->cm;
 			matchcnt++;
 		}
 	}

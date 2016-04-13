@@ -40,7 +40,7 @@ Main.o: Main.cpp Debug.h MakeTimeTransferFile.h
 Receiver.o: Receiver.cpp Antenna.h Debug.h Receiver.h ReceiverMeasurement.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Receiver.cpp
 
-ReceiverMeasurement.o: ReceiverMeasurement.cpp ReceiverMeasurement.h
+ReceiverMeasurement.o: ReceiverMeasurement.cpp CounterMeasurement.h ReceiverMeasurement.h SVMeasurement.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c ReceiverMeasurement.cpp
 
 RIN2CGGTTS.o: RIN2CGGTTS.cpp RIN2CGGTTS.h Utility.h

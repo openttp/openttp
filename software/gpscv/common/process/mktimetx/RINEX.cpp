@@ -29,6 +29,7 @@
 
 #include "Antenna.h"
 #include "Counter.h"
+#include "CounterMeasurement.h"
 #include "Debug.h"
 #include "MakeTimeTransferFile.h"
 #include "MeasurementPair.h"
@@ -194,6 +195,9 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 	while (currMeas < 86400 && obsTime <= 86400){
 		if (mpairs[currMeas]->flags==0x03){
 			ReceiverMeasurement *rm = mpairs[currMeas]->rm;
+			
+			double ppsTime = rm->cm->rdg+rm->sawtooth - rx->ppsOffset*1.0E-9; // correction to the local clock
+			
 			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
 			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
 			if (tMeas==obsTime){
@@ -258,7 +262,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->gps.size();svc++){
 							if (rm->gps[svc]->svn == svns[sv]){
-								fprintf(fout,"%14.3lf%1i%1i",rm->gps[svc]->meas*CVACUUM,rm->gps[svc]->lli,rm->gps[svc]->signal);
+								fprintf(fout,"%14.3lf%1i%1i",(rm->gps[svc]->meas+ppsTime)*CVACUUM,rm->gps[svc]->lli,rm->gps[svc]->signal);
 								foundit=true;
 								break;
 							}
@@ -270,7 +274,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->gpsP1.size();svc++){
 							if (rm->gpsP1[svc]->svn == svns[sv]){
-								fprintf(fout,"%14.3lf%1i%1i",rm->gpsP1[svc]->meas*CVACUUM,rm->gpsP1[svc]->lli,rm->gpsP1[svc]->signal);
+								fprintf(fout,"%14.3lf%1i%1i",(rm->gpsP1[svc]->meas+ppsTime)*CVACUUM,rm->gpsP1[svc]->lli,rm->gpsP1[svc]->signal);
 								foundit=true;
 								break;
 							}
@@ -282,7 +286,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->gpsP2.size();svc++){
 							if (rm->gpsP2[svc]->svn == svns[sv]){
-								fprintf(fout,"%14.3lf%1i%1i",rm->gpsP2[svc]->meas*CVACUUM,rm->gpsP2[svc]->lli,rm->gpsP2[svc]->signal);
+								fprintf(fout,"%14.3lf%1i%1i",(rm->gpsP2[svc]->meas+ppsTime)*CVACUUM,rm->gpsP2[svc]->lli,rm->gpsP2[svc]->signal);
 								foundit=true;
 								break;
 							}

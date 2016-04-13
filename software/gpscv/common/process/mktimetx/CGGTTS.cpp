@@ -32,6 +32,7 @@
 #include "Antenna.h"
 #include "CGGTTS.h"
 #include "Counter.h"
+#include "CounterMeasurement.h"
 #include "Debug.h"
 #include "GPS.h"
 #include "MakeTimeTransferFile.h"
@@ -66,7 +67,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		return false;
 	}
 	
-	double measDelay = intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
+	double measDelay = rx->ppsOffset + intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
 	
 	writeHeader(fout);
 	
@@ -171,6 +172,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 			if (svtrk[sv].size() > 0){
 				
 				if (quadFits){
+					// FIXME if I ever implement this, the sawtooth-corrected pps measurements get folded in here to maximize smoothing?
 				}
 				
 				int npts=0;
@@ -181,7 +183,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
-						double refsyscorr,refsvcorr,iono,tropo,az,el;
+						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
 						if (GPS::getPseudorangeCorrections(rx,rxmt,svtrk[sv].at(t),ant,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
@@ -189,8 +191,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 							svel[npts]=el;
 							mdtr[npts]=tropo;
 							mdio[npts]=iono;
-							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo ;
-							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo ;
+							refpps=(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
+							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
+							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
 							npts++;
 						}
 						tsearch += 30;

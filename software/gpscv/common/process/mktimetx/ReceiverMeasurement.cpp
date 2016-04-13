@@ -22,8 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "CounterMeasurement.h"
 #include "ReceiverMeasurement.h"
-
 #include "SVMeasurement.h"
 
 ReceiverMeasurement::ReceiverMeasurement()
@@ -33,6 +33,7 @@ ReceiverMeasurement::ReceiverMeasurement()
 	epochFlag=0;
 	signalLevel=0.0;
 	tmfracs=0.0;
+	cm=NULL;
 }
 
 ReceiverMeasurement::~ReceiverMeasurement()
