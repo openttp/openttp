@@ -245,7 +245,7 @@ while (1) {
 		if ($mjd!=$oldPRS10mjd) {
 			$oldPRS10mjd=$mjd;
 			$file_out=$dataPath . $mjd . $dataExtension;
-			if (-x $headerGen){
+			if ((-x $headerGen) && !(-e $file_out)){
 				if (open OUT,">>$file_out"){
 					@header = split /\n/,`$headerGen`;
 					for ($i=0;$i<=$#header;$i++){

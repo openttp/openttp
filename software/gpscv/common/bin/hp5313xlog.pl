@@ -219,7 +219,7 @@ while ($errorCount<10) {
     if ($mjd!=$oldmjd) {
       $oldmjd=$mjd;
       $file_out=$dataPath . $mjd .$ctrExt;
-      if (-x $headerGen){
+      if ((-x $headerGen) && !(-e $file_out)){
 				if (open OUT,">>$file_out"){
 					@header = split /\n/,`$headerGen`;
 					for ($i=0;$i<=$#header;$i++){
