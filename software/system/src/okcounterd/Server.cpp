@@ -162,6 +162,13 @@ bool Server::init()
 		return false;
 	}
 	
+	int on = 1;
+	if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) <0){
+		app->log("ERROR setsockopt()");
+		// don't return
+	}
+
+
 	if(port < 0 || port >60000){
 		app->log("ERROR invalid port number (try 1->60000)");
 		return false;
