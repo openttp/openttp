@@ -178,6 +178,11 @@ if (defined( $Init{"reference:log path"})){
 	$prs10LogPath=TFMakeAbsolutePath($Init{"reference:log path",$home});
 }
 
+$headerGen="";
+if (defined $Init{"counter:header generator"}){
+	$headerGen = TFMakeAbsoluteFilePath($Init{"counter:header generator"},$home,"$home/bin");
+}
+
 # Create a lock on the port - this will stop other UUCP lock file
 # aware applications from using the port
 $port = $Init{"counter:port"};
@@ -214,38 +219,46 @@ $gotData=0;
 
 while (1) {
 		
-  # query PRS10
-  $data=GetTimeTag();
+	# query PRS10
+	$data=GetTimeTag();
 	# if we couldn't get a response then serial comms is dead 
 	# and there's no point trying to get the status
-  next unless (length($data) > 0);
+	next unless (length($data) > 0);
 	alarm $alarmTimeout; # got a response so reset the timeout
 	
-  # Why do we do this ? TT does not arm the PRS10 for a time
-  # interval measurement. It simply queries. After a query it sets
-  # the result to -1 until a new value is available. Unfortunately,
-  # sleep()ing for a second doesn't seem to be the best idea because
-  # readings get lost. So we'll sleep for most of a second
+	# Why do we do this ? TT does not arm the PRS10 for a time
+	# interval measurement. It simply queries. After a query it sets
+	# the result to -1 until a new value is available. Unfortunately,
+	# sleep()ing for a second doesn't seem to be the best idea because
+	# readings get lost. So we'll sleep for most of a second
 	
-  if ($data > -1){	 
+	if ($data > -1){	 
 		Debug("Got TT data $data"); 
-    # get MJD and time
-    $tt=time();
+		# get MJD and time
+		$tt=time();
 		$lastData=$tt;
 		$gotData=1;
-    $mjd=int($tt / 86400)+40587;
-    ($sec,$min,$hour)=gmtime($tt);
+		$mjd=int($tt / 86400)+40587;
+		($sec,$min,$hour)=gmtime($tt);
 
-    # check for new day and create new filename if necessary
-    if ($mjd!=$oldPRS10mjd) {
-      $oldPRS10mjd=$mjd;
-      $file_out=$dataPath . $mjd . $dataExtension;
+		# check for new day and create new filename if necessary
+		if ($mjd!=$oldPRS10mjd) {
+			$oldPRS10mjd=$mjd;
+			$file_out=$dataPath . $mjd . $dataExtension;
+			if (-x $headerGen){
+				if (open OUT,">>$file_out"){
+					@header = split /\n/,`$headerGen`;
+					for ($i=0;$i<=$#header;$i++){
+						print OUT "# $header[0]\n";
+					}
+					close OUT;
+				}
+			}
     }
 
     # write time-stamped data to file
     $time=sprintf("%02d:%02d:%02d",$hour,$min,$sec);
-    if (open OUT,">>$file_out")
-		{
+    if (open OUT,">>$file_out"){
 			# Force TT reading into the range [-0.5,0.5]
 			if ($data > 5.0E8) {$data-=1.0E9;}
 			print OUT $time,"  ",$data*1.0E-9,"\n";

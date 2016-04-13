@@ -103,6 +103,12 @@ $dataPath = TFMakeAbsolutePath($Init{"paths:counter data"},$home);
 $port = $Init{"counter:port"};
 $GPIBaddress = $Init{"counter:gpib address"};
 $cntrConfig = TFMakeAbsoluteFilePath($Init{"counter:configuration"},$home,$configPath);
+
+$headerGen="";
+if (defined $Init{"counter:header generator"}){
+	$headerGen = TFMakeAbsoluteFilePath($Init{"counter:header generator"},$home,"$home/bin");
+}
+
 # Check the lock file
 $lockFile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logPath);
 
@@ -213,6 +219,15 @@ while ($errorCount<10) {
     if ($mjd!=$oldmjd) {
       $oldmjd=$mjd;
       $file_out=$dataPath . $mjd .$ctrExt;
+      if (-x $headerGen){
+				if (open OUT,">>$file_out"){
+					@header = split /\n/,`$headerGen`;
+					for ($i=0;$i<=$#header;$i++){
+						print OUT "# $header[0]\n";
+					}
+					close OUT;
+				}
+			}
       Debug("Opening $file_out");
     }
 

@@ -121,6 +121,11 @@ else{
 $port = $Init{"counter:port"};
 $chan = $Init{"counter:okxem channel"};
 
+$headerGen="";
+if (defined $Init{"counter:header generator"}){
+	$headerGen = TFMakeAbsoluteFilePath($Init{"counter:header generator"},$home,"$home/bin");
+}
+
 $sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
 unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
 
@@ -152,6 +157,15 @@ while (1)
 	if ($mjd!=$oldmjd) {
 		$oldmjd=$mjd;
 		$file_out=$dataPath . $mjd . $ctrext;
+		if (-x $headerGen){
+			if (open OUT,">>$file_out"){
+				@header = split /\n/,`$headerGen`;
+				for ($i=0;$i<=$#header;$i++){
+					print OUT "# $header[0]\n";
+				}
+				close OUT;
+			}
+		}
 	}
 
 	$msg = <$sock>;
