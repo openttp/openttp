@@ -66,6 +66,8 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		return false;
 	}
 	
+	double measDelay = intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
+	
 	writeHeader(fout);
 	
 	// Generate the observation schedule as per DefraignePetit2015 pg3
@@ -93,8 +95,10 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 	}
 
 	// Constellation/code identifiers as per V2E
+	
 	string GNSSconst;
 	string GNSScode;
+	
 	switch (constellation){
 		case Receiver::GPS:
 			GNSSconst="G";
@@ -185,8 +189,8 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 							svel[npts]=el;
 							mdtr[npts]=tropo;
 							mdio[npts]=iono;
-							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo;
-							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo;
+							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo ;
+							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo ;
 							npts++;
 						}
 						tsearch += 30;
@@ -219,12 +223,12 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 					
 					double refsvtc,refsvc,refsvm,refsvresid;
 					Utility::linearFit(tutc,refsv,npts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
-					refsvtc=rint(refsvtc*10);
+					refsvtc=rint((refsvtc-measDelay)*10); // apply total measurement system delay
 					refsvm=rint(refsvm*10000);
 					
 					double refsystc,refsysc,refsysm,refsysresid;
 					Utility::linearFit(tutc,refsys,npts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
-					refsystc=rint(refsystc*10);
+					refsystc=rint((refsystc-measDelay)*10); // apply total measurement system delay
 					refsysm=rint(refsysm*10000);
 					refsysresid=rint(refsysresid*10);
 					
@@ -239,7 +243,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 						switch (ver){
 							case V1:
 								snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
-												npts*fitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
+												npts*fitInterval,(int) eltc,(int) aztc, (int) refsvtc ,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
 												ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
 								fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
 								break;

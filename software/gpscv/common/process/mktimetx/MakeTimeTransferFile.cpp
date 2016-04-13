@@ -226,12 +226,9 @@ void MakeTimeTransferFile::run()
 
 	matchMeasurements(receiver,counter); // only do this once
 	
-	// Each system+code generates a  CGGTTS file
+	// Each system+code generates a CGGTTS file
 	if (createCGGTTS){
 		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
-			
-		  // FIXME Fold the counter/timer measurements (plus sawtooth correction) in now
-		
 			CGGTTS cggtts(antenna,counter,receiver);
 			cggtts.ref=CGGTTSref;
 			cggtts.lab=CGGTTSlab;
