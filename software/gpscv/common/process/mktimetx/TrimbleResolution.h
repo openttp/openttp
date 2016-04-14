@@ -56,3 +56,4 @@ class TrimbleResolution:public Receiver
 };
 
 #endif
+

@@ -127,3 +127,4 @@ bool RIN2CGGTTS::getParam(ifstream &fin,string &currParam,string param,int *val)
 	}
 	return true;
 }extern ostream *debugStream;
+

@@ -171,7 +171,7 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 		toc-=3600*tocHour;
 		int tocMinute=(int) toc/60;
 		toc-=60*tocMinute;
-		int tocSecond=toc;
+		int tocSecond=(int) toc;
 		if (tmpgpslt >= (86400 - 6*3600) && (tocHour < 6))
 			  gpsDayOfWeek++;
 		toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
@@ -234,3 +234,4 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 }
 
 #undef CLIGHT
+

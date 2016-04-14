@@ -49,3 +49,4 @@ double Timer::elapsedTime(int unit)
 	}
 	return t;
 }
+

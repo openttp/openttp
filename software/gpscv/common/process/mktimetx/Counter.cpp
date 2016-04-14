@@ -98,3 +98,4 @@ unsigned int Counter::memoryUsage()
 	mem+= measurements.size()*(sizeof(CounterMeasurement *) + sizeof(CounterMeasurement));
 	return mem+sizeof(*this);
 }
+

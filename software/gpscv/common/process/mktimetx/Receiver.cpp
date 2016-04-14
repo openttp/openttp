@@ -286,4 +286,5 @@ EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 	return ed;
 }
 
+
 	
