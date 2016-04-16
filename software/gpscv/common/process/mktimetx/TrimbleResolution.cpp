@@ -219,7 +219,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					measurements.push_back(rmeas);
 					rmeas->gpstow=gpstow;
 					rmeas->gpswn=gpswn;
-					rmeas->sawtooth=sawtooth;
+					rmeas->sawtooth=-sawtooth; // the sawtooth correction is subtracted and our convention is that it will be added
 					rmeas->timeOffset=rxtimeoffset;
 					
 					
@@ -244,7 +244,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					rmeas->gps=gps;
 					// correct all code measurements for the receiver time offset here
 					for (unsigned int sv=0;sv < gps.size(); sv++){ // FIXME GPS only
-						rmeas->gps[sv]->meas += rxtimeoffset*1.0E-9;
+						rmeas->gps[sv]->meas += rxtimeoffset*1.0E-9;// reported units are ns
 						DBGMSG(debugStream,4,(int) fabhh << ":" << (int) fabmm << ":" << (int) fabss << " " <<
 							(int) rmeas->gps[sv]->svn << " " <<rmeas->gps[sv]->meas);
 					}	
@@ -487,6 +487,8 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 		}
 	}
 
+	interpolateMeasurements(measurements);
+	
 	DBGMSG(debugStream,1,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,1,measurements.size() << " measurements read");
 	DBGMSG(debugStream,1,ephemeris.size() << " ephemeris entries read");
