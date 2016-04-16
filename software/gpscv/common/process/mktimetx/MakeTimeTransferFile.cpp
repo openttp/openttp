@@ -681,6 +681,7 @@ bool MakeTimeTransferFile::loadConfig()
 	else
 		configOK=false;
 	
+	setConfig(last,"receiver","version",receiver->version); 
 	if (!setConfig(last,"receiver","pps offset",&receiver->ppsOffset)) configOK=false;
 	if (!setConfig(last,"receiver","file extension",receiverExtension,false)) configOK=false;
 	

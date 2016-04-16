@@ -46,9 +46,6 @@
 
 extern ostream *debugStream;
 
-// Since we only have 2 systems with old firmware 
-// we'll make new firmware the default
-#define SAWTOOTH_MULTIPLIER 1.0 
 #define SLOPPINESS 0.99
 #define CLOCKSTEP  0.001
 #define MAX_CHANNELS 12 // max channels per constellation
@@ -100,6 +97,10 @@ TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
 	swversion="0.1";
 	constellations=Receiver::GPS;
 	codes=C1;
+	// Since we only have 2 systems with old firmware which report the sawtooth
+	// correction in units of seconds
+	// we'll make new firmware the default
+	sawtoothMultiplier=1.0E-9;
 }
 
 TrimbleResolution::~TrimbleResolution()
@@ -143,6 +144,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	{
 		case ResolutionT:
 			yearOffset=1900;
+			if (version == "old") sawtoothMultiplier = 1.0;
 			break;
 		case ResolutionSMT:
 			yearOffset=2000;
@@ -176,9 +178,8 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 			// NB In the documentation for the Resolution 360, the Packet ID is now included as byte 0 so the indexing
 			// in the documentation now corresponds to what we were doing anyway (offsetting by one byte)
 			
-			if(strncmp(msg.c_str(),"45",2)==0)  // software version information report packet */
-			{
-				HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf);/* offset by 2 for message id*/
+			if(strncmp(msg.c_str(),"45",2)==0){  // software version information report packet 
+				HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf);//offset by 2 for message id
 				appvermajor=cbuf;
 				HexToBin((char *) msg.substr(2+2,2).c_str(),1,&cbuf);
 				appverminor=cbuf;
@@ -280,14 +281,13 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 			
 			if(strncmp(msg.c_str(),"5a",2)==0) // look for Raw Measurement Report (5A) 
 			{
-				
 				if (gps.size() >= MAX_CHANNELS){ // too much data - something is missing 
 					newsecond=false; // reset the state machine   
 					got8FAC=false;
 					DBGMSG(debugStream,1,"Too many 5A messages at line " << linecount);
 				}
 				HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf); // Get SVN
-				if (cbuf > 32){  // FIXME GPS only
+				if (cbuf <= 32){  // FIXME GPS only
 				
 					// Check whether we already have data for this SV. If we do
 					// something is wrong and we should abort data collection for the 
@@ -317,7 +317,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 				
 				HexToBin((char *) reversestr(msg.substr(2*16+2,2*4)).c_str(),4,(unsigned char *) &rxtimeoffset);
 				HexToBin((char *) reversestr(msg.substr(2*60+2,2*4)).c_str(),4,(unsigned char *) &sawtooth);
-				sawtooth = sawtooth*SAWTOOTH_MULTIPLIER; // nb this in seconds/ns according to firmware 
+				sawtooth = sawtooth*sawtoothMultiplier; // nb this in seconds/ns according to firmware 
 				DBGMSG(debugStream,3," 8FAC bias= " << rxtimeoffset << ",sawtooth= " << sawtooth);
 				got8FAC=true;
 				continue;

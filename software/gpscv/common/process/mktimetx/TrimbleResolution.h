@@ -53,6 +53,8 @@ class TrimbleResolution:public Receiver
 	
 		int model;
 		
+		double sawtoothMultiplier;
+		
 };
 
 #endif

@@ -117,6 +117,10 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 	// Use a fixed array of vectors so that we can use the index as a hash for the SVN. Memory is cheap
 	vector<SVMeasurement *> svtrk[MAXSV+1];
 	
+	int lowElevationCnt=0; // a few diagnostics
+	int highDSGCnt=0;
+	int shortTrackCnt=0;
+	
 	for (int i=0;i<ntracks;i++){
 		int trackStart = schedule[i]*60;
 		int trackStop =  schedule[i]*60+780-1;
@@ -258,7 +262,14 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 								break;
 						} // switch
 					} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
+					else{
+						if (eltc < minElevation*10) lowElevationCnt++;
+						if (refsysresid > maxDSG*10) highDSGCnt++;
+					}
 				} // if (npts*fitInterval >= minTrackLength)
+				else{
+					shortTrackCnt++;
+				}
 			}
 		}
 		
@@ -266,6 +277,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 			svtrk[sv].clear();
 	}
 	
+	DBGMSG(debugStream,INFO,lowElevationCnt << " low elevation tracks");
+	DBGMSG(debugStream,INFO,highDSGCnt <<  " high DSG tracks");
+	DBGMSG(debugStream,INFO,shortTrackCnt << " short tracks");
 	fclose(fout);
 	
 	return true;
