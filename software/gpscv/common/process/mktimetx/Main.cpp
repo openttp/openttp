@@ -48,6 +48,7 @@ ostream *debugStream;
 string   debugFileName;
 ofstream debugLog;
 int verbosity=1;
+bool shortDebugMessage=false;
 
 MakeTimeTransferFile *app;
 

@@ -66,6 +66,7 @@ extern ostream *debugStream;
 extern string   debugFileName;
 extern ofstream debugLog;
 extern int verbosity;
+extern bool shortDebugMessage;
 
 static struct option longOptions[] = {
 		{"configuration",required_argument, 0,  0 },
@@ -79,6 +80,7 @@ static struct option longOptions[] = {
 		{"timing-diagnostics",no_argument, 0,  0 },
 		{"version",       no_argument, 0,  0 },
 		{"sv-diagnostics",no_argument, 0,  0 },
+		{"short-debug-message",no_argument, 0,  0 },
 		{0,         			0,0,  0 }
 };
 
@@ -171,6 +173,9 @@ MakeTimeTransferFile::MakeTimeTransferFile(int argc,char **argv)
 							break;
 						case 10:
 							SVDiagnosticsOn=true;
+							break;
+						case 11:
+							shortDebugMessage=true;
 							break;
 					}
 				}
@@ -307,6 +312,7 @@ void MakeTimeTransferFile::showHelp()
 	cout << "-h,--help              print this help message" << endl;
 	cout << "-m <n>                 set the mjd" << endl;
 	cout << "--receiver-path <path> path to GNSS receiver logs" << endl;
+	cout << "--short-debug-message  shorter debugging messages" << endl;
 	cout << "--sv-diagnostics       write SV diagnostics files" << endl;
 	cout << "--timing-diagnostics   write receiver timing diagnostics file" << endl;
 	cout << "--verbosity <n>        set debugging verbosity" << endl;
@@ -441,10 +447,13 @@ bool MakeTimeTransferFile::decompress(string f)
 		if ((ret = stat(fgz.c_str(),&statBuf))==0){ // gzipped file is there
 			DBGMSG(debugStream,INFO,"decompressing " << fgz);
 			string cmd = gzip + " -d " + fgz;
-			system(cmd.c_str());
+			if ((ret=system(cmd.c_str()))!=0){
+				cerr << "\"" << cmd << "\"" << " failed (return value = " << ret << ")" << endl;
+				exit(EXIT_FAILURE);
+			}
 			return true;
 		}
-		else{ // file is missing/wrong permissions on path
+		else{ // file is missing/wrong permissions on path 
 			cerr << " can't open " << f << endl;
 			exit(EXIT_FAILURE);
 		}

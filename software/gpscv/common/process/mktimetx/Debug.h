@@ -26,6 +26,7 @@
 #define __DEBUG_H_
 
 extern int verbosity;
+extern bool shortDebugMessage;
 
 #define INFO    1
 #define WARNING 2
@@ -34,8 +35,11 @@ extern int verbosity;
 // NB null stream indicates debugging off
 #ifdef DEBUG
 	#define DBGMSG( os, v, msg ) \
-  if (NULL != os && v<=verbosity) (*os) << __FILE__ << "(" << __LINE__ << ") " << __FUNCTION__ << "() " \
-       << msg << std::endl
+  if (NULL != os && v<=verbosity) \
+		{if (shortDebugMessage)\
+			(*os) <<  __FUNCTION__ << "() "<< msg << std::endl; \
+		else\
+			(*os) << __FILE__ << "(" << __LINE__ << ") " << __FUNCTION__ << "() " << msg << std::endl;}
 #else
 	#define DBGMSG( os, msg ) 
 #endif
