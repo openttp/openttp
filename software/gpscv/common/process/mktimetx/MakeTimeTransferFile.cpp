@@ -29,6 +29,9 @@
 #include <cstring>
 #include <cmath>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include <algorithm>
 #include <iostream>
 #include <fstream>
@@ -214,16 +217,20 @@ void MakeTimeTransferFile::run()
 	
 	makeFilenames();
 	
+	bool recompress = decompress(receiverFile);
 	if (!receiver->readLog(receiverFile,MJD)){
 		cerr << "Exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
+	if (recompress) compress(receiverFile);
 	
+	recompress = decompress(counterFile);
 	if (!counter->readLog(counterFile)){
 		cerr << "Exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
-
+	if (recompress) compress(counterFile);
+	
 	matchMeasurements(receiver,counter); // only do this once
 	
 	// Apply the sawtooth corrected 1 pps to the pseudoranges
@@ -369,6 +376,8 @@ void MakeTimeTransferFile::init()
 	CGGTTSnamingConvention=Plain;
 	tmpPath=homeDir+"/tmp";
 	
+	gzip="/bin/gzip";
+	
 	mpairs= new MeasurementPair*[MPAIRS_SIZE];
 	for (int i=0;i<MPAIRS_SIZE;i++)
 		mpairs[i]=new MeasurementPair();
@@ -423,6 +432,41 @@ void  MakeTimeTransferFile::makeFilenames()
 	
 }
 
+bool MakeTimeTransferFile::decompress(string f)
+{
+	struct stat statBuf;
+	int ret = stat(f.c_str(),&statBuf);
+	if (ret !=0 ){ // decompressed file is not there
+		string fgz = f + ".gz";
+		if ((ret = stat(fgz.c_str(),&statBuf))==0){ // gzipped file is there
+			DBGMSG(debugStream,INFO,"decompressing " << fgz);
+			string cmd = gzip + " -d " + fgz;
+			system(cmd.c_str());
+			return true;
+		}
+		else{ // file is missing/wrong permissions on path
+			cerr << " can't open " << f << endl;
+			exit(EXIT_FAILURE);
+		}
+	}
+	return false;
+}
+
+void MakeTimeTransferFile::compress(string f){
+	struct stat statBuf;
+	int ret = stat(f.c_str(),&statBuf);
+	if (ret ==0 ){ // file exists
+		DBGMSG(debugStream,INFO,"compressing " << f);
+		string cmd = gzip + " " + f;
+		system(cmd.c_str());
+	}
+	else{ // file is missing/wrong permissions on path
+		cerr << " can't open " << f << " (gzip failed)" << endl;
+		// not fatal
+	}
+}
+
+		
 string MakeTimeTransferFile::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 	ostringstream ss;
 	char fname[16];
@@ -714,6 +758,8 @@ bool MakeTimeTransferFile::loadConfig()
 	path="";
 	if (setConfig(last,"paths","cggtts",path))
 		CGGTTSPath=relativeToAbsolutePath(path);
+	
+	setConfig(last,"misc","gzip",gzip);
 	
 	return configOK;
 }

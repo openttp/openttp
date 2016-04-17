@@ -84,7 +84,10 @@ class MakeTimeTransferFile
 		void init();
 		string relativeToAbsolutePath(string);
 		void   makeFilenames();
+		bool decompress(string);
+		void compress(string);
 		string makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD);
+		
 		
 		bool loadConfig();
 		bool setConfig(ListEntry *,const char *,const char *,string &,bool required=true);
@@ -135,6 +138,8 @@ class MakeTimeTransferFile
 		string timingDiagnosticsFile;
 		string processingLog;
 		string tmpPath;
+		
+		string gzip;
 		
 		MeasurementPair **mpairs;
 		
