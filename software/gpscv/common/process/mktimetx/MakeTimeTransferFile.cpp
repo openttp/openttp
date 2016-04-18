@@ -939,8 +939,25 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 			matchcnt++;
 		}
 	}
+	
 	DBGMSG(debugStream,INFO,matchcnt << " matches");
 	
+	// Paranoia
+	// Some downstream algorithms require that the data be time-ordered
+	// so check this.
+	for (unsigned int i=1;i<MPAIRS_SIZE;i++){
+		if (mpairs[i]->flags == 0x03 && mpairs[i-1]->flags == 0x03){
+			ReceiverMeasurement *rxm = mpairs[i-1]->rm;
+			int trx0=((int) rxm->pchh)*3600 +  ((int) rxm->pcmm)*60 + ((int) rxm->pcss);
+			rxm = mpairs[i]->rm;
+			int trx1=((int) rxm->pchh)*3600 +  ((int) rxm->pcmm)*60 + ((int) rxm->pcss);
+			if (trx1 < trx0){ // duplicates are already filtered
+				cerr << "MakeTimeTransferFile::matchMeasurements() not monotonically ordered!" << endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+	}
+
 }
 
 void MakeTimeTransferFile::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string fname)

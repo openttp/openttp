@@ -131,7 +131,6 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		int trackStop =  schedule[i]*60+780-1;
 		if (trackStop >= 86400) trackStop=86400-1;
 		// Matched measurement pairs can be looked up without a search since the index is TOD
-		// FIXME Sanity check post-match would be prudent
 		for (int m=trackStart;m<=trackStop;m++){
 			
 			if ((mpairs[m]->flags==0x03)){
