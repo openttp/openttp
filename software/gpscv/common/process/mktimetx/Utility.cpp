@@ -87,6 +87,12 @@ bool Utility::linearFit(double x[], double y[],int n,double xinterp,double *yint
 	return true;
 }
 
+bool Utility::quadFit(double x[], double y[],int n,double xinterp,double *yinterp){
+	double c,m,rmsResidual;
+	linearFit(x,y,n,xinterp,yinterp,&c,&m,&rmsResidual); // FIXME
+	return true;
+}
+
 void Utility::ECEFtoLatLonH(double X, double Y, double Z, 
 	double *lat, double *lon, double *ht)
 {

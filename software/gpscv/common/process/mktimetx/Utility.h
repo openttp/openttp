@@ -31,6 +31,7 @@ namespace Utility{
 	std::string trim(std::string const&); 
 	void MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday);
 	bool linearFit(double x[], double y[],int n,double xinterp,double *yinterp,double *c,double *m,double *rmsResidual);
+	bool quadFit(double x[], double y[],int n,double xinterp,double *yinterp);
 	void ECEFtoLatLonH(double X, double Y, double Z, double *lat, double *lon, double *ht);
 }
 #endif

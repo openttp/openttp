@@ -95,6 +95,11 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		ntracks++;
 	}
 
+	switch (ver){
+		case V1: quadFits=true;break;
+		case V2E:quadFits=false;break;
+	}
+	
 	// Constellation/code identifiers as per V2E
 	
 	string GNSSconst;
@@ -161,29 +166,96 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		int hh = schedule[i] / 60;
 		int mm = schedule[i] % 60;
 		
-		double refsv[52]; //use arrays which can store the quadratic fits as well
-		double refsys[52];
-		double mdtr[52];
-		double mdio[52];
-		double tutc[52];
-		double svaz[52];
-		double svel[52];
+		 //use arrays which can store the 15s quadratic fits and 30s decimated data
+		double refsv[52],refsys[52],mdtr[52],mdio[52],tutc[52],svaz[52],svel[52];
 		
-		int fitInterval=30; // length of fitting interval 
-		if (quadFits) fitInterval=15;
+		int linFitInterval=30; // length of fitting interval 
+		if (quadFits) linFitInterval=15;
 		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
-			if (svtrk[sv].size() > 0){
-				
-				if (quadFits){
-					// FIXME if I ever implement this, the sawtooth-corrected pps measurements get folded in here to maximize smoothing?
+			if (svtrk[sv].size() == 0 ) continue;
+			
+			int npts=0;
+			int ioe;
+			if (quadFits){
+				double qrefsv[15],qrefsys[15],qmdtr[15],qmdio[15],qtutc[15],qsvaz[15],qsvel[15];
+				unsigned int nqfitpts=0,nqfits=0,isv=0;
+				int t=trackStart;
+				while (t<=trackStop){
+					ReceiverMeasurement *rxm = svtrk[sv].at(isv)->rm;
+					int tmeas=rint(rxm->tmUTC.tm_sec + rxm->tmUTC.tm_min*60+ rxm->tmUTC.tm_hour*3600+rxm->tmfracs);
+					if (t==tmeas){
+						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
+						// FIXME MDIO needs to change for L2
+						if (nqfitpts > 14){ // shouldn't happen
+							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
+							exit(EXIT_FAILURE);
+						}
+						if (GPS::getPseudorangeCorrections(rx,rxm,svtrk[sv].at(isv),ant,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+							qtutc[nqfitpts]=tmeas;
+							qsvaz[nqfitpts]=az;
+							qsvel[nqfitpts]=el;
+							qmdtr[nqfitpts]=tropo;
+							qmdio[nqfitpts]=iono;
+							refpps=(rxm->cm->rdg + rxm->sawtooth)*1.0E9;
+							qrefsv[nqfitpts]  = svtrk[sv].at(isv)->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
+							qrefsys[nqfitpts] = svtrk[sv].at(isv)->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
+							nqfitpts++;
+						}
+						t++;
+						isv++;
+					}
+					else if (t<tmeas){
+						t++;
+						// don't increment isv - have to retest
+					}
+					else{ // t > tmeas - shouldn't happen
+						cerr << "Error in CGGTTS::writeObservationFile() - unexpected tmeas" << endl;
+						exit(EXIT_FAILURE);
+					}
+					
+					if (((t-trackStart) % 15 == 0) || (isv == svtrk[sv].size())){ // have got a full set of points for a quadratic fit
+						//DBGMSG(debugStream,1,sv << " " << trackStart << " " << nqfitpts << " " << nqfits);
+						
+						// Sanity checks
+						if (nqfits > 51){// shouldn't happen
+							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
+							exit(EXIT_FAILURE);
+						}
+						
+						if (nqfitpts > 7){ 
+							double tc=(t-1)-7; // subtract 1 because we've gone one too far
+							
+							tutc[nqfits] = tc;
+							
+							Utility::quadFit(qtutc,qsvaz,nqfitpts,tc,&(svaz[nqfits]) );
+						
+							Utility::quadFit(qtutc,qsvel,nqfitpts,tc,&(svel[nqfits]));
+							
+							Utility::quadFit(qtutc,qmdtr,nqfitpts,tc,&(mdtr[nqfits]));
+							
+							Utility::quadFit(qtutc,qrefsv,nqfitpts,tc,&(refsv[nqfits]));
+						
+							Utility::quadFit(qtutc,qrefsys,nqfitpts,tc,&(refsys[nqfits]));
+						
+							Utility::quadFit(qtutc,qmdio,nqfitpts,tc,&(mdio[nqfits]));
+					
+							nqfits++;
+						}
+						nqfitpts=0;
+					} // 
+					
+					if (isv == svtrk[sv].size()){ // no more measurements available
+						break;
+					}
 				}
-				
-				int npts=0;
+				npts = nqfits;
+			}                                 
+			else{ // v2E specifies 30s decimated values 
 				int tsearch=trackStart;
 				int t=0;
-				int ioe;
-			  while (t<svtrk[sv].size()){
+				
+				while (t<svtrk[sv].size()){
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
@@ -211,71 +283,71 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 						t++;
 					}
 				}
+			} // else quadfits
+			
+			if (npts*linFitInterval >= minTrackLength){
+				double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
 				
-				if (npts*fitInterval >= minTrackLength){
-					double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
-					
-					double aztc,azc,azm,azresid;
-					Utility::linearFit(tutc,svaz,npts,tc,&aztc,&azc,&azm,&azresid);
-					aztc=rint(aztc*10);
-					
-					double eltc,elc,elm,elresid;
-					Utility::linearFit(tutc,svel,npts,tc,&eltc,&elc,&elm,&elresid);
-					eltc=rint(eltc*10);
-					
-					double mdtrtc,mdtrc,mdtrm,mdtrresid;
-					Utility::linearFit(tutc,mdtr,npts,tc,&mdtrtc,&mdtrc,&mdtrm,&mdtrresid);
-					mdtrtc=rint(mdtrtc*10);
-					mdtrm=rint(mdtrm*10000);
-					
-					double refsvtc,refsvc,refsvm,refsvresid;
-					Utility::linearFit(tutc,refsv,npts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
-					refsvtc=rint((refsvtc-measDelay)*10); // apply total measurement system delay
-					refsvm=rint(refsvm*10000);
-					
-					double refsystc,refsysc,refsysm,refsysresid;
-					Utility::linearFit(tutc,refsys,npts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
-					refsystc=rint((refsystc-measDelay)*10); // apply total measurement system delay
-					refsysm=rint(refsysm*10000);
-					refsysresid=rint(refsysresid*10);
-					
-					double mdiotc,mdioc,mdiom,mdioresid;
-					Utility::linearFit(tutc,mdio,npts,tc,&mdiotc,&mdtrc,&mdiom,&mdioresid);
-					mdiotc=rint(mdiotc*10);
-					mdiom=rint(mdiom*10000);
-					
-					// Ready to output
-					if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 
-						char sout[155]; // V2E
-						switch (ver){
-							case V1:
-								snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
-												npts*fitInterval,(int) eltc,(int) aztc, (int) refsvtc ,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
-												ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
-								fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
-								break;
-							case V2E:
-								snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSconst.c_str(),sv,"FF",mjd,hh,mm,
-												npts*fitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
-												ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,GNSScode.c_str());
-								fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
-								break;
-						} // switch
-					} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
-					else{
-						if (eltc < minElevation*10) lowElevationCnt++;
-						if (refsysresid > maxDSG*10) highDSGCnt++;
-					}
-				} // if (npts*fitInterval >= minTrackLength)
+				double aztc,azc,azm,azresid;
+				Utility::linearFit(tutc,svaz,npts,tc,&aztc,&azc,&azm,&azresid);
+				aztc=rint(aztc*10);
+				
+				double eltc,elc,elm,elresid;
+				Utility::linearFit(tutc,svel,npts,tc,&eltc,&elc,&elm,&elresid);
+				eltc=rint(eltc*10);
+				
+				double mdtrtc,mdtrc,mdtrm,mdtrresid;
+				Utility::linearFit(tutc,mdtr,npts,tc,&mdtrtc,&mdtrc,&mdtrm,&mdtrresid);
+				mdtrtc=rint(mdtrtc*10);
+				mdtrm=rint(mdtrm*10000);
+				
+				double refsvtc,refsvc,refsvm,refsvresid;
+				Utility::linearFit(tutc,refsv,npts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
+				refsvtc=rint((refsvtc-measDelay)*10); // apply total measurement system delay
+				refsvm=rint(refsvm*10000);
+				
+				double refsystc,refsysc,refsysm,refsysresid;
+				Utility::linearFit(tutc,refsys,npts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
+				refsystc=rint((refsystc-measDelay)*10); // apply total measurement system delay
+				refsysm=rint(refsysm*10000);
+				refsysresid=rint(refsysresid*10);
+				
+				double mdiotc,mdioc,mdiom,mdioresid;
+				Utility::linearFit(tutc,mdio,npts,tc,&mdiotc,&mdtrc,&mdiom,&mdioresid);
+				mdiotc=rint(mdiotc*10);
+				mdiom=rint(mdiom*10000);
+				
+				// Ready to output
+				if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 
+					char sout[155]; // V2E
+					switch (ver){
+						case V1:
+							snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
+											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc ,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
+											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
+							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
+							break;
+						case V2E:
+							snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSconst.c_str(),sv,"FF",mjd,hh,mm,
+											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
+											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,GNSScode.c_str());
+							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
+							break;
+					} // switch
+				} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
 				else{
-					shortTrackCnt++;
+					if (eltc < minElevation*10) lowElevationCnt++;
+					if (refsysresid > maxDSG*10) highDSGCnt++;
 				}
+			} // if (npts*linFitInterval >= minTrackLength)
+			else{
+				shortTrackCnt++;
 			}
 		}
-		
+	
 		for (unsigned int sv=1;sv<=MAXSV;sv++)
 			svtrk[sv].clear();
-	}
+	} // for (int i=0;i<ntracks;i++){
 	
 	DBGMSG(debugStream,INFO,lowElevationCnt << " low elevation tracks");
 	DBGMSG(debugStream,INFO,highDSGCnt <<  " high DSG tracks");
