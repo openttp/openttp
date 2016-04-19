@@ -32,13 +32,13 @@
 # 19-10-2004 MJW Seems to work ...
 # 28-08-2015 MJW Many changes to tidy this up and work with rin2cggts-produced files
 # 05-02-2016 MJW More flexible handling of data paths added
-
+# 19-04-2016 MJW SVNs, IOE added to matched track output file. Option to required matched ephemeris
 
 use POSIX qw(strftime);
 use Getopt::Std;
 
 use subs qw(MyPrint);
-use vars qw($opt_c $opt_d $opt_h $opt_i $opt_m $opt_n $opt_p $opt_q $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
+use vars qw($opt_c $opt_d $opt_h $opt_i $opt_m $opt_n $opt_o $opt_p $opt_q $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
 
 $VERSION = "2.0.1";
 
@@ -56,6 +56,7 @@ $REFSV=7;
 $SRSV=8;
 $REFGPS=9;
 $DSG=11;
+$IOE=12;
 $MDIO=15;
 $MSIO=17; # only for dual frequency
 $SMSI=18; # only for dual frequency
@@ -64,10 +65,11 @@ $ISG=19;  # only for dual frequency
 $REFIONO=$MDIO;
 $CALIONO=$MDIO;
 $REFDIFF=$REFGPS;
+$MATCHEPHEM=0;
 
 $0=~s#.*/##; # strip path from executable name
 
-if (!getopts('c:d:e:him:n:p:q:r:st:vx:y:')){
+if (!getopts('c:d:e:him:n:op:q:r:st:vx:y:')){
 	ShowHelp();	
 	exit;
 }
@@ -88,6 +90,10 @@ if ($opt_d){
 
 if ($opt_e){
 	$ELEVMASK=$opt_e*10.0;
+}
+
+if ($opt_o){
+	$MATCHEPHEM=1;
 }
 
 if ($opt_s){
@@ -145,6 +151,7 @@ MyPrint "Ionosphere corrections removed = ".($USEIONO?"yes":"no")."\n";
 MyPrint "Maximum DSG = ".$DSGMAX/10.0." ns\n";
 MyPrint "Elevation mask = ".$ELEVMASK/10.0." deg\n";
 MyPrint "Using ".($opt_s?"REFSV":"REFGPS")."\n";
+MyPrint "Filtering by matched ephemeris = ".($MATCHEPHEM?"yes":"no")."\n";
 MyPrint "\n";
 
 $CCTFINTDLY=0;
@@ -408,8 +415,11 @@ for ($i=0;$i<=$#ref;$i++){
 	for ($j=0;$j<=$#cal;$j++){
 		if (($ref[$i][$PRN] == $cal[$j][$PRN]) &&
 		    ($ref[$i][$MJD] == $cal[$j][$MJD]) &&
-		    ($ref[$i][$STTIME] == $cal[$j][$STTIME]))
+		    ($ref[$i][$STTIME] == $cal[$j][$STTIME]) &&
+		    !( $MATCHEPHEM && ($ref[$i][$IOE] != $cal[$j][$IOE]))
+		    )
 		{
+			
 			# Convert STTIME to decimal MJD
 			$ref[$i][$STTIME]=~/(\d\d)(\d\d)(\d\d)/;			
 			$t = $ref[$i][$MJD]+($1*3600.0+$2*60.0+$3)/86400.0-$startMJD;
@@ -417,7 +427,8 @@ for ($i=0;$i<=$#ref;$i++){
 			push @matches, [$t,
 				$ref[$i][$REFGPS]/10.0,$cal[$j][$REFGPS]/10.0,
 				($ref[$i][$REFDIFF] + $USEIONO*$ref[$i][$REFIONO])/10.0-
-				($cal[$j][$REFDIFF] + $USEIONO*$cal[$j][$CALIONO])/10.0  + $calCorrection - $refCorrection];
+				($cal[$j][$REFDIFF] + $USEIONO*$cal[$j][$CALIONO])/10.0  + $calCorrection - $refCorrection,
+				$ref[$i][$PRN],$ref[$i][$IOE],$cal[$j][$IOE] ];
 			last;
 		}
 	}
@@ -478,7 +489,7 @@ if (`which gnuplot` eq ""){
 # Dump stuff for plotting
 open(OUT, ">$refrxname.$calrxname.matches.txt");
 for ($i=0;$i<=$#matches;$i++){
-	print OUT "$matches[$i][0] $matches[$i][1] $matches[$i][2] $matches[$i][3]\n"; 
+	print OUT "$matches[$i][0] $matches[$i][1] $matches[$i][2] $matches[$i][3] $matches[$i][4] $matches[$i][5] $matches[$i][6]\n"; 
 }
 close OUT;
 
@@ -560,6 +571,7 @@ sub ShowHelp
 	print "-i        remove ionosphere correction (zero baseline data)\n";
 	print "-m  <val> name to use for REF receiver in output (default = \"ref\")\n";
 	print "-n  <val> name to use for CAL receiver in output (default = \"cal\")\n";
+	print "-n        filter by matched ephemeris (default=no)\n";
 	print "-p  <val> prefix to use for constructing REF file name\n";
 	print "-q  <val> prefix to use for constructing CAL file name\n";
 	print "-r  <modeled|measured> set ionospheric correction used for REF receiver\n";
