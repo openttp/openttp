@@ -22,8 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __MAKE_TIME_TRANSFER_FILE_H_
-#define __MAKE_TIME_TRANSFER_FILE_H_
+#ifndef __APPLICATION_H_
+#define __APPLICATION_H_
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -64,18 +64,21 @@ class CGGTTSOutput{
 		double internalDelay;
 };
 
-class MakeTimeTransferFile
+class Application
 {
 	public:
 		
-		MakeTimeTransferFile(int argc,char **argv);
-		~MakeTimeTransferFile();
+		Application(int argc,char **argv);
+		~Application();
 		
 		void setMJD(int);
 		void run();
 		
 		void showHelp();
 		void showVersion();
+		
+		string timeStamp();
+		void logMessage(string msg);
 		
 	private:
 	
@@ -124,6 +127,8 @@ class MakeTimeTransferFile
 		string agency;
 		
 		double antCableDelay,refCableDelay;
+		
+		string logFile;
 		
 		int MJD;
 		int interval;

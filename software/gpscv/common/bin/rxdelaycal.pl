@@ -23,8 +23,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# File names are assumed to be of the form MJD.cctf
-# Delays is a file containing details of the various delays.
 # 
 # Modification history
 #
@@ -69,13 +67,8 @@ $MATCHEPHEM=0;
 
 $0=~s#.*/##; # strip path from executable name
 
-if (!getopts('c:d:e:him:n:op:q:r:st:vx:y:')){
+if (!getopts('c:d:e:him:n:op:q:r:st:vx:y:') || $opt_h){
 	ShowHelp();	
-	exit;
-}
-
-if ($opt_h){
-	ShowHelp();
 	exit;
 }
 
@@ -571,7 +564,7 @@ sub ShowHelp
 	print "-i        remove ionosphere correction (zero baseline data)\n";
 	print "-m  <val> name to use for REF receiver in output (default = \"ref\")\n";
 	print "-n  <val> name to use for CAL receiver in output (default = \"cal\")\n";
-	print "-n        filter by matched ephemeris (default=no)\n";
+	print "-o        filter by matched ephemeris (default=no)\n";
 	print "-p  <val> prefix to use for constructing REF file name\n";
 	print "-q  <val> prefix to use for constructing CAL file name\n";
 	print "-r  <modeled|measured> set ionospheric correction used for REF receiver\n";

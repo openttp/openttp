@@ -42,7 +42,7 @@
 #include <string>
 
 #include "Debug.h"
-#include "MakeTimeTransferFile.h"
+#include "Application.h"
 
 ostream *debugStream;
 string   debugFileName;
@@ -50,7 +50,7 @@ ofstream debugLog;
 int verbosity=1;
 bool shortDebugMessage=false;
 
-MakeTimeTransferFile *app;
+Application *app;
 
 int main(
 	int argc,
@@ -63,7 +63,7 @@ int main(
 	
 	debugStream= NULL;
 	
-	MakeTimeTransferFile *app = new MakeTimeTransferFile(argc,argv);
+	app = new Application(argc,argv);
 	app->run();
 	
 	return EXIT_SUCCESS;

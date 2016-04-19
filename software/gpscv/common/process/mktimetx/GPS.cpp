@@ -24,10 +24,10 @@
 
 #include <cmath>
 
+#include "Application.h"
 #include "Antenna.h"
 #include "Debug.h"
 #include "GPS.h"
-#include "MakeTimeTransferFile.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
@@ -38,7 +38,7 @@
 #define F -4.442807633e-10
 #define MAX_ITERATIONS 10 // for solution of the Kepler equation
 
-extern MakeTimeTransferFile *app;
+extern Application *app;
 extern ostream *debugStream;
 extern string   debugFileName;
 extern ofstream debugLog;

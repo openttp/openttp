@@ -28,16 +28,16 @@
 #include <cstdio>
 
 #include "Antenna.h"
+#include "Application.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
 #include "Debug.h"
-#include "MakeTimeTransferFile.h"
 #include "MeasurementPair.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "RINEX.h"
 
-extern MakeTimeTransferFile *app;
+extern Application *app;
 extern ostream *debugStream;
 
 const char * RINEXVersionName[]= {"2.11","3.02"};

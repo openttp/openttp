@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cmath>
+#include <ctime>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -45,13 +46,13 @@
 
 #include <configurator.h>
 
+#include "Application.h"
 #include "Antenna.h"
 #include "CGGTTS.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
 #include "Debug.h"
 #include "Javad.h"
-#include "MakeTimeTransferFile.h"
 #include "MeasurementPair.h"
 #include "NVS.h"
 #include "Receiver.h"
@@ -93,7 +94,7 @@ using boost::bad_lexical_cast;
 //	Public
 //
 
-MakeTimeTransferFile::MakeTimeTransferFile(int argc,char **argv)
+Application::Application(int argc,char **argv)
 {
 
 	init();
@@ -208,17 +209,24 @@ MakeTimeTransferFile::MakeTimeTransferFile(int argc,char **argv)
 	
 }
 
-MakeTimeTransferFile::~MakeTimeTransferFile()
+Application::~Application()
 {
 	for (unsigned int i =0;i<MPAIRS_SIZE;i++)
 		delete mpairs[i];
 	delete[] mpairs;
 }
 
-void MakeTimeTransferFile::run()
+void Application::run()
 {
 	Timer timer;
 	timer.start();
+	
+	// Create the log file, erasing any existing file
+	ofstream ofs;
+	ofs.open(logFile.c_str());
+	ofs.close();
+	
+	logMessage(timeStamp() + APP_NAME +  " version " + APP_VERSION + " run started");
 	
 	makeFilenames();
 	
@@ -298,9 +306,11 @@ void MakeTimeTransferFile::run()
 	delete receiver;
 	delete counter;
 	delete antenna;
+	
+	logMessage(timeStamp() + " run finished");
 }
 
-void MakeTimeTransferFile::showHelp()
+void Application::showHelp()
 {
 	cout << endl << APP_NAME << " version " << APP_VERSION << endl;
 	cout << "Usage: " << APP_NAME << " [options]" << endl;
@@ -319,18 +329,38 @@ void MakeTimeTransferFile::showHelp()
 	cout << "--version              print version" << endl;
 }
 
-void MakeTimeTransferFile::showVersion()
+void Application::showVersion()
 {
 	cout << APP_NAME <<  " version " << APP_VERSION << endl;
 	cout << "Written by " << APP_AUTHORS << endl;
 	cout << "This ain't no stinkin' Perl script!" << endl;
 }
 
+string Application::timeStamp(){
+	time_t tt = time(NULL);
+	struct tm *gmt = gmtime(&tt);
+	char ts[32];
+	sprintf(ts,"%4d-%02d-%02d %02d:%02d:%02d ",gmt->tm_year+1900,gmt->tm_mon+1,gmt->tm_mday,
+		gmt->tm_hour,gmt->tm_min,gmt->tm_sec);
+	return string(ts);
+}
+
+void Application::logMessage(string msg)
+{
+	ofstream ofs;
+	ofs.open(logFile.c_str(),ios::app);
+	ofs << msg << endl;
+	ofs.close();
+	
+	DBGMSG(debugStream,INFO,msg);
+}
+
+
 //	
 //	Private
 //	
 
-void MakeTimeTransferFile::init()
+void Application::init()
 {
 	pid = getpid();
 	
@@ -372,6 +402,8 @@ void MakeTimeTransferFile::init()
 		homeDir=penv;
 	}
 	
+	logFile = "mktimetx.log";
+	
 	configurationFile = homeDir+"/etc/gpscv.conf";
 	counterPath = homeDir+"/raw";
 	counterExtension= "tic";
@@ -390,7 +422,7 @@ void MakeTimeTransferFile::init()
 
 }
 
-string MakeTimeTransferFile::relativeToAbsolutePath(string path)
+string Application::relativeToAbsolutePath(string path)
 {
 	string absPath=path;
 	if (path.size() > 0){ 
@@ -402,7 +434,7 @@ string MakeTimeTransferFile::relativeToAbsolutePath(string path)
 	return absPath;
 }
 
-void  MakeTimeTransferFile::makeFilenames()
+void  Application::makeFilenames()
 {
 	ostringstream ss;
 	ss << "./" << "timing." << pid << "." << MJD << ".dat";  
@@ -438,7 +470,7 @@ void  MakeTimeTransferFile::makeFilenames()
 	
 }
 
-bool MakeTimeTransferFile::decompress(string f)
+bool Application::decompress(string f)
 {
 	struct stat statBuf;
 	int ret = stat(f.c_str(),&statBuf);
@@ -461,7 +493,7 @@ bool MakeTimeTransferFile::decompress(string f)
 	return false;
 }
 
-void MakeTimeTransferFile::compress(string f){
+void Application::compress(string f){
 	struct stat statBuf;
 	int ret = stat(f.c_str(),&statBuf);
 	if (ret ==0 ){ // file exists
@@ -476,7 +508,7 @@ void MakeTimeTransferFile::compress(string f){
 }
 
 		
-string MakeTimeTransferFile::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
+string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 	ostringstream ss;
 	char fname[16];
 	if (CGGTTSnamingConvention == Plain)
@@ -497,7 +529,7 @@ string MakeTimeTransferFile::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 	return ss.str();
 }
 
-bool MakeTimeTransferFile::loadConfig()
+bool Application::loadConfig()
 {
 	// Our conventional config file format is used to maintain compatibility with existing scripts
 	ListEntry *last;
@@ -773,7 +805,7 @@ bool MakeTimeTransferFile::loadConfig()
 	return configOK;
 }
 
-bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,string &val,bool required)
+bool Application::setConfig(ListEntry *last,const char *section,const char *token,string &val,bool required)
 {
 	char *stmp;
 	if (list_get_string(last,section,token,&stmp)){
@@ -793,7 +825,7 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 	return true;
 }
 
-bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,double *val,bool required)
+bool Application::setConfig(ListEntry *last,const char *section,const char *token,double *val,bool required)
 {
 	double dtmp;
 	if (list_get_double(last,section,token,&dtmp)){
@@ -814,7 +846,7 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 	return true;
 }
 
-bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const char *token,int *val,bool required)
+bool Application::setConfig(ListEntry *last,const char *section,const char *token,int *val,bool required)
 {
 	int itmp;
 	if (list_get_int(last,section,token,&itmp)){
@@ -835,7 +867,7 @@ bool MakeTimeTransferFile::setConfig(ListEntry *last,const char *section,const c
 	return true;
 }
 
-bool MakeTimeTransferFile::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fname)
+bool Application::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fname)
 {
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
@@ -880,7 +912,7 @@ bool MakeTimeTransferFile::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, 
 	return true;
 }
 
-void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
+void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 {
 	if (cntr->measurements.size() == 0 || rx->measurements.size()==0)
 		return;
@@ -940,7 +972,9 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 		}
 	}
 	
-	DBGMSG(debugStream,INFO,matchcnt << " matches");
+	ostringstream ss;
+	ss  << matchcnt << " matched measurements";  
+	logMessage(ss.str());
 	
 	// Paranoia
 	// Some downstream algorithms require that the data be time-ordered
@@ -952,7 +986,7 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 			rxm = mpairs[i]->rm;
 			int trx1=((int) rxm->pchh)*3600 +  ((int) rxm->pcmm)*60 + ((int) rxm->pcss);
 			if (trx1 < trx0){ // duplicates are already filtered
-				cerr << "MakeTimeTransferFile::matchMeasurements() not monotonically ordered!" << endl;
+				cerr << "Application::matchMeasurements() not monotonically ordered!" << endl;
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -960,7 +994,7 @@ void MakeTimeTransferFile::matchMeasurements(Receiver *rx,Counter *cntr)
 
 }
 
-void MakeTimeTransferFile::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string fname)
+void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string fname)
 {
 	FILE *fout;
 	
@@ -980,7 +1014,7 @@ void MakeTimeTransferFile::writeReceiverTimingDiagnostics(Receiver *rx,Counter *
 	fclose(fout);
 }
 
-void MakeTimeTransferFile::writeSVDiagnostics(Receiver *rx,string path)
+void Application::writeSVDiagnostics(Receiver *rx,string path)
 {
 	FILE *fout;
 	

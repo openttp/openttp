@@ -36,6 +36,7 @@
 #include <sstream>
 #include <vector>
 
+#include "Application.h"
 #include "Antenna.h"
 #include "Debug.h"
 #include "GPS.h"
@@ -45,6 +46,7 @@
 #include "TrimbleResolution.h"
 
 extern ostream *debugStream;
+extern Application *app;
 
 #define SLOPPINESS 0.99
 #define CLOCKSTEP  0.001
@@ -489,9 +491,11 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 
 	interpolateMeasurements(measurements);
 	
-	DBGMSG(debugStream,1,"done: read " << linecount << " lines");
-	DBGMSG(debugStream,1,measurements.size() << " measurements read");
+	ostringstream ss;
+	ss << measurements.size() << " receiver measurements read";
+	app->logMessage(ss.str());
 	DBGMSG(debugStream,1,ephemeris.size() << " ephemeris entries read");
+	
 	return true;
 }
 	

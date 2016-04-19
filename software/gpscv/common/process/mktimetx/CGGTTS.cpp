@@ -29,19 +29,19 @@
 #include <iostream>
 #include <algorithm>
 
+#include "Application.h"
 #include "Antenna.h"
 #include "CGGTTS.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
 #include "Debug.h"
 #include "GPS.h"
-#include "MakeTimeTransferFile.h"
 #include "MeasurementPair.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "Utility.h"
 
-extern MakeTimeTransferFile *app;
+extern Application *app;
 extern ostream *debugStream;
 
 #define NTRACKS 89
