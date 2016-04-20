@@ -37,7 +37,7 @@
 		double ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
 			float alpha0,float alpha1,float alpha2,float alpha3,
 			float beta0,float beta1,float beta2,float beta3);
-		bool getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMeasurement *svm, Antenna *ant,
+		bool getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMeasurement *svm, Antenna *ant,EphemerisData *ed,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 			double *azimuth,double *elevation, int *ioe);
 	}

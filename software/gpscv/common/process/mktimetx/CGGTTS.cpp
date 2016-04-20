@@ -171,7 +171,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		int mm = schedule[i] % 60;
 		
 		 //use arrays which can store the 15s quadratic fits and 30s decimated data
-		double refsv[52],refsys[52],mdtr[52],mdio[52],tutc[52],svaz[52],svel[52];
+		double refsv[52],refsys[52],mdtr[52],mdio[52],tutc[52],svaz[52],svel[52],uncorrprange[52];
 		
 		int linFitInterval=30; // length of fitting interval 
 		if (quadFits) linFitInterval=15;
@@ -182,30 +182,22 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 			int npts=0;
 			int ioe;
 			if (quadFits){
-				double qrefsv[15],qrefsys[15],qmdtr[15],qmdio[15],qtutc[15],qsvaz[15],qsvel[15];
+				double qprange[15],qtutc[15],qrefpps[15];
 				unsigned int nqfitpts=0,nqfits=0,isv=0;
 				int t=trackStart;
 				while (t<=trackStop){
 					ReceiverMeasurement *rxm = svtrk[sv].at(isv)->rm;
 					int tmeas=rint(rxm->tmUTC.tm_sec + rxm->tmUTC.tm_min*60+ rxm->tmUTC.tm_hour*3600+rxm->tmfracs);
 					if (t==tmeas){
-						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
 						if (nqfitpts > 14){ // shouldn't happen
 							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
 							exit(EXIT_FAILURE);
 						}
-						if (GPS::getPseudorangeCorrections(rx,rxm,svtrk[sv].at(isv),ant,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
-							qtutc[nqfitpts]=tmeas;
-							qsvaz[nqfitpts]=az;
-							qsvel[nqfitpts]=el;
-							qmdtr[nqfitpts]=tropo;
-							qmdio[nqfitpts]=iono;
-							refpps=(rxm->cm->rdg + rxm->sawtooth)*1.0E9;
-							qrefsv[nqfitpts]  = svtrk[sv].at(isv)->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
-							qrefsys[nqfitpts] = svtrk[sv].at(isv)->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
-							nqfitpts++;
-						}
+						qrefpps[nqfitpts]=(rxm->cm->rdg + rxm->sawtooth)*1.0E9;
+						qprange[nqfitpts]=svtrk[sv].at(t)->meas;
+						qtutc[nqfitpts]=tmeas;
+						nqfitpts++;
 						t++;
 						isv++;
 					}
@@ -220,7 +212,6 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 					
 					if (((t-trackStart) % 15 == 0) || (isv == svtrk[sv].size())){ // have got a full set of points for a quadratic fit
 						//DBGMSG(debugStream,1,sv << " " << trackStart << " " << nqfitpts << " " << nqfits);
-						
 						// Sanity checks
 						if (nqfits > 51){// shouldn't happen
 							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
@@ -229,29 +220,14 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 						
 						if (nqfitpts > 7){ 
 							double tc=(t-1)-7; // subtract 1 because we've gone one too far
-							
 							tutc[nqfits] = tc;
-							
-							Utility::quadFit(qtutc,qsvaz,nqfitpts,tc,&(svaz[nqfits]) );
-						
-							Utility::quadFit(qtutc,qsvel,nqfitpts,tc,&(svel[nqfits]));
-							
-							Utility::quadFit(qtutc,qmdtr,nqfitpts,tc,&(mdtr[nqfits]));
-							
-							Utility::quadFit(qtutc,qrefsv,nqfitpts,tc,&(refsv[nqfits]));
-						
-							Utility::quadFit(qtutc,qrefsys,nqfitpts,tc,&(refsys[nqfits]));
-						
-							Utility::quadFit(qtutc,qmdio,nqfitpts,tc,&(mdio[nqfits]));
-					
+							Utility::quadFit(qtutc,qprange,nqfitpts,tc,&(uncorrprange[nqfits]) );
 							nqfits++;
 						}
 						nqfitpts=0;
 					} // 
 					
-					if (isv == svtrk[sv].size()){ // no more measurements available
-						break;
-					}
+					if (isv == svtrk[sv].size()) break;  // no more measurements available
 				}
 				npts = nqfits;
 			}                                 
@@ -259,13 +235,17 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 				int tsearch=trackStart;
 				int t=0;
 				
+				EphemerisData *ed=NULL;
 				while (t<svtrk[sv].size()){
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
+						if (ed==NULL)
+							ed = rx->nearestEphemeris(Receiver::GPS,sv,rxmt->gpstow);
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
-						if (GPS::getPseudorangeCorrections(rx,rxmt,svtrk[sv].at(t),ant,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						// getPseudorangeCorrections will check for NULL ephemeris
+						if (GPS::getPseudorangeCorrections(rx,rxmt,svtrk[sv].at(t),ant,ed,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
 							svel[npts]=el;

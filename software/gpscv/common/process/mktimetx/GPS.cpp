@@ -148,13 +148,14 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 } // ionnodelay
 
 bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMeasurement *svm, Antenna *ant,
+	EphemerisData *ed,
 	double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 	double *azimuth,double *elevation,int *ioe){
 	
 	*refsyscorr=*refsvcorr=0.0;
 	bool ok=false;
 	// find closest ephemeris entry
-	EphemerisData *ed = rx->nearestEphemeris(Receiver::GPS,svm->svn,rxm->gpstow);
+	//EphemerisData *ed = rx->nearestEphemeris(Receiver::GPS,svm->svn,rxm->gpstow);
 	if (ed != NULL){
 		double x[3],Ek;
 		
