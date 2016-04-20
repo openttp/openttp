@@ -29,6 +29,8 @@
 #include <iostream>
 #include <algorithm>
 
+#include <boost/lexical_cast.hpp>
+
 #include "Application.h"
 #include "Antenna.h"
 #include "CGGTTS.h"
@@ -66,6 +68,8 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		cerr << "Unable to open " << fname << endl;
 		return false;
 	}
+	
+	app->logMessage("generating CGGTTS file for " + boost::lexical_cast<string>(mjd));
 	
 	double measDelay = rx->ppsOffset + intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
 	
@@ -125,6 +129,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 	int lowElevationCnt=0; // a few diagnostics
 	int highDSGCnt=0;
 	int shortTrackCnt=0;
+	int goodTrackCnt=0;
 	
 	for (int i=0;i<ntracks;i++){
 		int trackStart = schedule[i]*60;
@@ -319,6 +324,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 				// Ready to output
 				if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 
 					char sout[155]; // V2E
+					goodTrackCnt++;
 					switch (ver){
 						case V1:
 							snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
@@ -348,9 +354,11 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 			svtrk[sv].clear();
 	} // for (int i=0;i<ntracks;i++){
 	
-	DBGMSG(debugStream,INFO,lowElevationCnt << " low elevation tracks");
-	DBGMSG(debugStream,INFO,highDSGCnt <<  " high DSG tracks");
-	DBGMSG(debugStream,INFO,shortTrackCnt << " short tracks");
+	app->logMessage(boost::lexical_cast<string>(goodTrackCnt) + " good tracks");
+	app->logMessage(boost::lexical_cast<string>(lowElevationCnt) + " low elevation tracks");
+	app->logMessage(boost::lexical_cast<string>(highDSGCnt) + " high DSG tracks");
+	app->logMessage(boost::lexical_cast<string>(shortTrackCnt) + " short tracks");
+	
 	fclose(fout);
 	
 	return true;

@@ -258,7 +258,6 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 	
 }
 
-
 EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 {
 	EphemerisData *ed = NULL;
@@ -270,9 +269,17 @@ EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 					return ed;
 				ed=sortedGPSEphemeris[svn][0];
 				dt=fabs(ed->t_oe - tow);
-				for (unsigned int i=1;i<sortedGPSEphemeris[svn].size();i++){
-					tmpdt=fabs(sortedGPSEphemeris[svn][i]->t_oe - tow);
-					if (tmpdt < dt){
+				for (unsigned int i=0;i<sortedGPSEphemeris[svn].size();i++){
+					tmpdt=sortedGPSEphemeris[svn][i]->t_oe - tow;
+					//if (ed==NULL && tmpdt <=0 && (fabs(tmpdt) < 0.1*86400)){ // first time
+					//	ed=sortedGPSEphemeris[svn][i];
+					//	dt=fabs(ed->t_oe - tow);
+					//}
+					//else if ((ed!= NULL) && (fabs(tmpdt) < dt) && tmpdt <=0 && (fabs(tmpdt) < 0.1*86400)){
+					//	ed=sortedGPSEphemeris[svn][i];
+					//	dt=fabs(ed->t_oe - tow);
+					//}
+					if (fabs(tmpdt) < dt){
 						ed=sortedGPSEphemeris[svn][i];
 						dt=fabs(ed->t_oe - tow);
 					}

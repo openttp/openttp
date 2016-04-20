@@ -972,9 +972,7 @@ void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 		}
 	}
 	
-	ostringstream ss;
-	ss  << matchcnt << " matched measurements";  
-	logMessage(ss.str());
+	logMessage(boost::lexical_cast<string>(matchcnt) + " matched measurements");
 	
 	// Paranoia
 	// Some downstream algorithms require that the data be time-ordered
