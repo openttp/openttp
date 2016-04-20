@@ -25,6 +25,8 @@
 #ifndef __GPS_H_
 #define __GPS_H_
 
+#include <time.h>
+
 	class Antenna;
 	class EphemerisData;
 	class Receiver;
@@ -37,9 +39,10 @@
 		double ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
 			float alpha0,float alpha1,float alpha2,float alpha3,
 			float beta0,float beta1,float beta2,float beta3);
-		bool getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMeasurement *svm, Antenna *ant,EphemerisData *ed,
+		bool getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 			double *azimuth,double *elevation, int *ioe);
+		unsigned int UTCtoTOW(struct tm *tmUTC, unsigned int nLeapSeconds);
 	}
 
 #endif

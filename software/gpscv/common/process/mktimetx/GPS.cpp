@@ -24,6 +24,8 @@
 
 #include <cmath>
 
+#include <iostream>
+
 #include "Application.h"
 #include "Antenna.h"
 #include "Debug.h"
@@ -147,21 +149,20 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 } // ionnodelay
 
-bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMeasurement *svm, Antenna *ant,
+bool GPS::getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, Antenna *ant,
 	EphemerisData *ed,
 	double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 	double *azimuth,double *elevation,int *ioe){
 	
 	*refsyscorr=*refsvcorr=0.0;
 	bool ok=false;
-	// find closest ephemeris entry
-	//EphemerisData *ed = rx->nearestEphemeris(Receiver::GPS,svm->svn,rxm->gpstow);
+
 	if (ed != NULL){
 		double x[3],Ek;
 		
 		*ioe=ed->IODE;
 		
-		int igpslt = rxm->gpstow; // take integer part of GPS local time (but it's integer anyway ...) 
+		int igpslt = gpsTOW; // take integer part of GPS local time (but it's integer anyway ...) 
 		int gpsDayOfWeek = igpslt/86400; 
 		//  if it is near the end of the day and toc->hour is < 6, then the ephemeris is from the next day.
 		int tmpgpslt = igpslt % 86400;
@@ -178,20 +179,20 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 		toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
 	
 		// Calculate clock corrections (ICD 20.3.3.3.3.1)
-		double gpssvt= rxm->gpstow - svm->meas;
+		double gpssvt= gpsTOW - pRange;
 		double clockCorrection = ed->a_f0 + ed->a_f1*(gpssvt - toc) + ed->a_f2*(gpssvt - toc)*(gpssvt - toc); // SV PRN code phase offset
 		double tk = gpssvt - clockCorrection;
 		
 		double range,svdist,svrange,ax,ay,az;
 		if (GPS::satXYZ(ed,tk,&Ek,x)){
 			double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
-			range = svm->meas + clockCorrection + relativisticCorrection - ed->t_GD;
+			range = pRange + clockCorrection + relativisticCorrection - ed->t_GD;
 			// Sagnac correction (ICD 20.3.3.4.3.4)
 			ax = ant->x - OMEGA_E_DOT * ant->y * range;
 			ay = ant->y + OMEGA_E_DOT * ant->x * range;
 			az = ant->z ;
 			
-			svrange= (svm->meas+clockCorrection) * CLIGHT;
+			svrange= (pRange+clockCorrection) * CLIGHT;
 			svdist = sqrt( (x[0]-ax)*(x[0]-ax) + (x[1]-ay)*(x[1]-ay) + (x[2]-az)*(x[2]-az));
 			double err  = (svrange - svdist);
 			
@@ -211,7 +212,7 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 									
 				*tropo = Troposphere::delayModel(*elevation,ant->height);
 				
-				*iono = ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,rxm->gpstow,
+				*iono = ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
 					rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,
 					rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3);
 				
@@ -233,6 +234,21 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,ReceiverMeasurement *rxm, SVMea
 	return ok;
 		
 }
+
+// Convert UTC time to GPS time of week
+// mktime is used - for this to work, the time zone must be UTC (set in main())
+
+#define SECSPERWEEK 604800
+
+unsigned int GPS::UTCtoTOW(struct tm *tmUTC, unsigned int nLeapSeconds)
+{
+  // 315964800 is origin of GPS time, 00:00:00 Jan 6 1980 UTC, reckoned in Unix time
+	time_t tGPS = mktime(tmUTC) + nLeapSeconds - 315964800;
+	unsigned int GPSWeekNumber = (int) (tGPS/SECSPERWEEK);
+	return tGPS - GPSWeekNumber*SECSPERWEEK;
+}
+
+#undef SECSPERWEEK
 
 #undef CLIGHT
 

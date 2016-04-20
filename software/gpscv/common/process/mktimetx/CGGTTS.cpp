@@ -166,7 +166,6 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 			} // if
 		}
 		
-		
 		int hh = schedule[i] / 60;
 		int mm = schedule[i] % 60;
 		
@@ -231,7 +230,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 				}
 				npts = nqfits;
 			}                                 
-			else{ // v2E specifies 30s decimated values 
+			else{ // v2E specifies 30s sampled values 
 				int tsearch=trackStart;
 				int t=0;
 				
@@ -240,12 +239,12 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
-						if (ed==NULL)
+						if (ed==NULL) // use only one ephemeris for each track
 							ed = rx->nearestEphemeris(Receiver::GPS,sv,rxmt->gpstow);
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
 						// getPseudorangeCorrections will check for NULL ephemeris
-						if (GPS::getPseudorangeCorrections(rx,rxmt,svtrk[sv].at(t),ant,ed,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						if (GPS::getPseudorangeCorrections(rx,rxmt->gpstow,svtrk[sv].at(t)->meas,ant,ed,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
 							svel[npts]=el;
