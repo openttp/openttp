@@ -141,7 +141,7 @@ class Application
 		string CGGTTSPath;
 		int CGGTTSnamingConvention;
 		string timingDiagnosticsFile;
-		string processingLog;
+		string processingLogPath,processingLog;
 		string tmpPath;
 		
 		string gzip;

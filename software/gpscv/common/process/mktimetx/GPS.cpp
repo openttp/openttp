@@ -240,7 +240,7 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, A
 
 #define SECSPERWEEK 604800
 
-unsigned int GPS::UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
+void GPS::UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 	unsigned int *tow,unsigned int *truncatedWN,unsigned int *fullWN)
 {
   // 315964800 is origin of GPS time, 00:00:00 Jan 6 1980 UTC, reckoned in Unix time

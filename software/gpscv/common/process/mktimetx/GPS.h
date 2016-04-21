@@ -42,7 +42,7 @@
 		bool getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 			double *azimuth,double *elevation, int *ioe);
-		unsigned int UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
+		void UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 			unsigned int *tow,unsigned int *truncatedWN=NULL,unsigned int*fullWN=NULL);
 	}
 

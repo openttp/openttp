@@ -221,6 +221,8 @@ void Application::run()
 	Timer timer;
 	timer.start();
 	
+	makeFilenames();
+		
 	// Create the log file, erasing any existing file
 	ofstream ofs;
 	ofs.open(logFile.c_str());
@@ -228,7 +230,7 @@ void Application::run()
 	
 	logMessage(timeStamp() + APP_NAME +  " version " + APP_VERSION + " run started");
 	
-	makeFilenames();
+
 	
 	bool recompress = decompress(receiverFile);
 	if (!receiver->readLog(receiverFile,MJD)){
@@ -403,7 +405,7 @@ void Application::init()
 	}
 	
 	logFile = "mktimetx.log";
-	
+	processingLogPath =  homeDir+"/logs";
 	configurationFile = homeDir+"/etc/gpscv.conf";
 	counterPath = homeDir+"/raw";
 	counterExtension= "tic";
@@ -467,6 +469,8 @@ void  Application::makeFilenames()
 	snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
 	ss6 << RINEXPath << "/" << fname;
 	RINEXobsFile=ss6.str();
+	
+	logFile = processingLogPath + "/" + "mktimetx.log";
 	
 }
 
@@ -799,6 +803,10 @@ bool Application::loadConfig()
 	path="";
 	if (setConfig(last,"paths","cggtts",path))
 		CGGTTSPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","processing log",path))
+		processingLogPath=relativeToAbsolutePath(path);
 	
 	setConfig(last,"misc","gzip",gzip);
 	

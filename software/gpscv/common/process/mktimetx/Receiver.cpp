@@ -268,30 +268,10 @@ EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 				if (sortedGPSEphemeris[svn].size()==0)
 					return ed;
 				
-				// algorithm 2
-				//ed=sortedGPSEphemeris[svn][0];
-				//dt=fabs(ed->t_oe - tow);
-				
 				for (unsigned int i=0;i<sortedGPSEphemeris[svn].size();i++){
 					tmpdt=sortedGPSEphemeris[svn][i]->t_oe - tow;
-					
-					// Algorithm 1: same as rin2cggtts
-					//if (ed==NULL && tmpdt >=0 && (fabs(tmpdt) < 0.1*86400)){ // first time
-					//	ed=sortedGPSEphemeris[svn][i];
-					//	dt=fabs(ed->t_oe - tow);
-					//}
-					//else if ((ed!= NULL) && (fabs(tmpdt) < dt) && tmpdt >=0 && (fabs(tmpdt) < 0.1*86400)){
-					//	ed=sortedGPSEphemeris[svn][i];
-					//	dt=fabs(ed->t_oe - tow);
-					//}
-					
-					// Algorithm 2: closest wins
-					//if (fabs(tmpdt) < dt){
-					//	ed=sortedGPSEphemeris[svn][i];
-					//	dt=fabs(ed->t_oe - tow);
-					//}
-					
-					// Algorithm 3: as per previous software
+		
+					// algorithm as per previous software
 					if (ed==NULL && tmpdt >=0 && fabs(tmpdt) < 0.1*86400){ // first time
 						dt=fabs(tmpdt);
 						ed=sortedGPSEphemeris[svn][i];
@@ -303,7 +283,8 @@ EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 					
 				}
 				
-				// Algorithm 3: If we didn't find a prior ephemeris, just find the nearest
+				// If we didn't find a prior ephemeris, just find the nearest
+				// Helps with Resolution T
 				if (ed == NULL){
 					ed=sortedGPSEphemeris[svn][0];
 					dt=fabs(ed->t_oe - tow);

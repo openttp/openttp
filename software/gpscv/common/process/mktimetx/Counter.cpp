@@ -29,7 +29,9 @@
   
 #include <iostream>
 #include <fstream>
+#include <boost/lexical_cast.hpp>
 
+#include "Application.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
 #include "Debug.h"
@@ -38,6 +40,8 @@
 #define MAXSIZE 90000
 
 extern ostream *debugStream;
+extern Application *app;
+
 //
 //	public methods
 //		
@@ -85,9 +89,7 @@ bool Counter::readLog(string fname)
 	infile.close();
 	timer.stop();
 	
-	DBGMSG(debugStream,INFO,"done: read " << measurements.size());
-	DBGMSG(debugStream,INFO,"first " << measurements.front()->timestamp());
-	DBGMSG(debugStream,INFO,"last " << measurements.back()->timestamp());
+	app->logMessage("read " + boost::lexical_cast<string>(measurements.size()) + " counter measurements");
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
 	return true;
 }
