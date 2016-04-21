@@ -292,11 +292,11 @@ EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 					//}
 					
 					// Algorithm 3: as per previous software
-					if (ed==NULL && tmpdt >=0){ // first time
+					if (ed==NULL && tmpdt >=0 && fabs(tmpdt) < 0.1*86400){ // first time
 						dt=fabs(tmpdt);
 						ed=sortedGPSEphemeris[svn][i];
 					}
-					else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 )){
+					else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 ) && fabs(tmpdt) < 0.1*86400){
 						dt=fabs(tmpdt);
 						ed=sortedGPSEphemeris[svn][i];
 					}

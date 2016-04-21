@@ -170,7 +170,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 		int mm = schedule[i] % 60;
 		
 		 //use arrays which can store the 15s quadratic fits and 30s decimated data
-		double refsv[52],refsys[52],mdtr[52],mdio[52],tutc[52],svaz[52],svel[52],uncorrprange[52];
+		double refsv[52],refsys[52],mdtr[52],mdio[52],tutc[52],svaz[52],svel[52];
 		
 		int linFitInterval=30; // length of fitting interval 
 		if (quadFits) linFitInterval=15;
@@ -181,8 +181,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 			int npts=0;
 			int ioe;
 			if (quadFits){
-				double qprange[15],qtutc[15],qrefpps[15];
-				unsigned int nqfitpts=0,nqfits=0,isv=0;
+				double qprange[15],qtutc[15],qrefpps[15]; // for the 15s fits
+				double uncorrprange[52], refpps[52]; // for the results of the 15s fits
+				unsigned int nqfitpts=0,nqfits=0,isv=0,gpsTOW[52];
 				int t=trackStart;
 				while (t<=trackStop){
 					ReceiverMeasurement *rxm = svtrk[sv].at(isv)->rm;
@@ -193,8 +194,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
 							exit(EXIT_FAILURE);
 						}
+						// smooth the counter measurements - this helps clean up any residual sawtooth error
 						qrefpps[nqfitpts]=(rxm->cm->rdg + rxm->sawtooth)*1.0E9;
-						qprange[nqfitpts]=svtrk[sv].at(t)->meas;
+						qprange[nqfitpts]=svtrk[sv].at(isv)->meas;
 						qtutc[nqfitpts]=tmeas;
 						nqfitpts++;
 						t++;
@@ -217,10 +219,24 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 							exit(EXIT_FAILURE);
 						}
 						
-						if (nqfitpts > 7){ 
+						if (nqfitpts > 7){ // demand at least half a track - then we are not extrapolating
 							double tc=(t-1)-7; // subtract 1 because we've gone one too far
 							tutc[nqfits] = tc;
+							// Compute and save GPS TOW so that we have it available for computing the pseudorange corrections
+							// FIXME This does not handle the week rollover 
+							unsigned int gpsDay = (rxm->gpstow / 86400); // use the last receiver measurement for day number
+							unsigned int TOD = tc+rx->leapsecs;
+							if (TOD >= 86400){
+								TOD -= 86400;
+								gpsDay++;
+								if (gpsDay == 7){
+									gpsDay=0;
+								}
+							}
+							// FIXME as a kludge could just drop points at the week rollover
+							gpsTOW[nqfits] =  tc + rx->leapsecs + gpsDay*86400;
 							Utility::quadFit(qtutc,qprange,nqfitpts,tc,&(uncorrprange[nqfits]) );
+							Utility::quadFit(qtutc,qrefpps,nqfitpts,tc,&(refpps[nqfits]) );
 							nqfits++;
 						}
 						nqfitpts=0;
@@ -228,7 +244,28 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 					
 					if (isv == svtrk[sv].size()) break;  // no more measurements available
 				}
-				npts = nqfits;
+				// Now we can compute the pr corrections etc for the fitted prs
+
+				EphemerisData *ed=NULL;
+				npts=0;
+				for ( int q=0;q<nqfits;q++){
+					if (ed==NULL) // use only one ephemeris for each track
+							ed = rx->nearestEphemeris(Receiver::GPS,sv,gpsTOW[q]);
+					double refsyscorr,refsvcorr,iono,tropo,az,el;
+					// FIXME MDIO needs to change for L2
+					// getPseudorangeCorrections will check for NULL ephemeris
+					if (GPS::getPseudorangeCorrections(rx,gpsTOW[q],uncorrprange[q],ant,ed,
+							&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						tutc[npts]=tutc[q]; // ok to overwrite, because npts <= q
+						svaz[npts]=az;
+						svel[npts]=el;
+						mdtr[npts]=tropo;
+						mdio[npts]=iono;
+						refsv[npts]  = uncorrprange[q]*1.0E9 + refsvcorr  - iono - tropo + refpps[q];
+						refsys[npts] = uncorrprange[q]*1.0E9 + refsyscorr - iono - tropo + refpps[q];
+						npts++;
+					}
+				}
 			}                                 
 			else{ // v2E specifies 30s sampled values 
 				int tsearch=trackStart;
@@ -299,6 +336,15 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 				Utility::linearFit(tutc,mdio,npts,tc,&mdiotc,&mdtrc,&mdiom,&mdioresid);
 				mdiotc=rint(mdiotc*10);
 				mdiom=rint(mdiom*10000);
+				
+				// Some range checks on the data - flag bad measurements
+				if (refsvm >  99999) refsvm=99999;
+				if (refsvm < -99999) refsvm=-99999;
+				
+				if (refsysm >  99999) refsysm=99999;
+				if (refsysm < -99999) refsysm=-99999;
+				
+				if (refsysresid > 999.9) refsysresid = 999.9;
 				
 				// Ready to output
 				if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 

@@ -39,10 +39,10 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <string>
 
 #include "Debug.h"
 #include "Application.h"
-#include "GPS.h"
 
 ostream *debugStream;
 string   debugFileName;

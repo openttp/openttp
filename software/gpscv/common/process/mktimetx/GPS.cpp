@@ -240,12 +240,15 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, A
 
 #define SECSPERWEEK 604800
 
-unsigned int GPS::UTCtoTOW(struct tm *tmUTC, unsigned int nLeapSeconds)
+unsigned int GPS::UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
+	unsigned int *tow,unsigned int *truncatedWN,unsigned int *fullWN)
 {
   // 315964800 is origin of GPS time, 00:00:00 Jan 6 1980 UTC, reckoned in Unix time
 	time_t tGPS = mktime(tmUTC) + nLeapSeconds - 315964800;
 	unsigned int GPSWeekNumber = (int) (tGPS/SECSPERWEEK);
-	return tGPS - GPSWeekNumber*SECSPERWEEK;
+	(*tow) = tGPS - GPSWeekNumber*SECSPERWEEK;
+	if (truncatedWN) (*truncatedWN) = GPSWeekNumber % 1024;
+	if (fullWN)      (*fullWN) = GPSWeekNumber;
 }
 
 #undef SECSPERWEEK
