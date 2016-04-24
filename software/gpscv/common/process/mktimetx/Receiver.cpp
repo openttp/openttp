@@ -285,17 +285,17 @@ EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
 				
 				// If we didn't find a prior ephemeris, just find the nearest
 				// Helps with Resolution T
-				if (ed == NULL){
-					ed=sortedGPSEphemeris[svn][0];
-					dt=fabs(ed->t_oe - tow);
-					for (unsigned int i=1;i<sortedGPSEphemeris[svn].size();i++){
-						tmpdt=sortedGPSEphemeris[svn][i]->t_oe - tow;
-						if (fabs(tmpdt) < dt){
-							ed=sortedGPSEphemeris[svn][i];
-							dt=fabs(ed->t_oe - tow);
-						}
-					}
-				}
+// 				if (ed == NULL){
+// 					ed=sortedGPSEphemeris[svn][0];
+// 					dt=fabs(ed->t_oe - tow);
+// 					for (unsigned int i=1;i<sortedGPSEphemeris[svn].size();i++){
+// 						tmpdt=sortedGPSEphemeris[svn][i]->t_oe - tow;
+// 						if (fabs(tmpdt) < dt){
+// 							ed=sortedGPSEphemeris[svn][i];
+// 							dt=fabs(ed->t_oe - tow);
+// 						}
+// 					}
+// 				}
 				
 			}
 			break;
