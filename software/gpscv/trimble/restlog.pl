@@ -23,7 +23,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-#restlog - Perl script to configure Trimble Resolution T GPS Rx and download data
+# restlog - Perl script to configure Trimble Resolution T GPS Rx and download data
 
 # Modification history:
 #  2. 8.01    RBW  Begun for Trimble ACE UTC
@@ -44,6 +44,8 @@
 #  14-02-2012 MJW Woho ! Real bug fix. Any trailing 0x10's in a data 
 #									packet were erroneously removed
 #	 24-08-2015 MJW Cleanups; Resolution 360 compatibility added						
+#  26-08-2016 MJW Remove backwards compatibility.
+#
 
 # Improvements?
 # Use 6D for tracking visible satellites but this is not strictly correct
@@ -61,7 +63,8 @@ use Getopt::Std;
 use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
-$VERSION="2.0";
+$VERSION="3.0";
+$AUTHORS="Michael Wouters, Bruce Warrington";
 
 $RESOLUTION_T=0;
 #$RESOLUTION_SMT=1;
@@ -104,62 +107,47 @@ $rxMinorAlarms="";
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
-if (-d "$home/etc")  {$configpath="$home/etc";}  else 
-	{$configpath="$home/Parameter_Files";} # backwards compatibility
 
-if (-d "$home/logs")  {$logpath="$home/logs";} else 
-	{$logpath="$home/Log_Files";}
+if( !(getopts('c:dhrv')) || ($#ARGV>=1) ) {
 
-if( !(getopts('c:dhrv')) || ($#ARGV>=1)) {
-  select STDERR;
   ShowHelp();
   exit;
 }
 
-# More backwards compatibility fixups
-if (defined $opt_c){
-	$configFile=$opt_c;
-	if (!(-e $configFile)){
-		print STDERR "The configuration file $configFile was not found!\n";
-		exit;
-	}
-	# Need to determine local major version
-	if ($configFile =~ /\.setup$/){
-		$localMajorVersion=1;
-	}
-	elsif ($configFile =~ /\.conf$/){
-		$localMajorVersion=2;
-	}
-	else{
-		print STDERR "Unable to determine the $configFile version, sorry. Is it .setup or .conf ?\n";
-		exit;
-	}
-}
-elsif (-e "$configpath/gpscv.conf"){
-		$configFile=$configpath."/gpscv.conf";
-		$localMajorVersion=2;
-}
-elsif (-e "$configpath/cctf.setup"){
-		$configFile="$configpath/cctf.setup";
-		$localMajorVersion=1;
-}
-else{
-		print STDERR "No configuration file was found!\n";
-		exit;
-}
-
-if ($opt_h){
-	ShowHelp();
-	exit;
-}
-
 if ($opt_v){
 	print "$0 version $VERSION\n";
+	print "Written by $AUTHORS\n";
 	exit;
 }
 
+if (-d "$home/etc")  {
+	$configPath="$home/etc";
+}
+else{	
+	ErrorExit("No ~/etc directory found!\n");
+} 
+
+if (-d "$home/logs")  {
+	$logPath="$home/logs";
+} 
+else{
+	ErrorExit("No ~/logs directory found!\n");
+}
+
+$configFile=$configPath."/gpscv.conf";
+if (defined $opt_c){
+	$configFile=$opt_c;
+}
+
+if (!(-e $configFile)){
+	ErrorExit("A configuration file was not found!\n");
+}
+
+&Initialise($configFile);
+
 # Check for an existing lock file
-$lockFile = $logpath."/rest.lock";
+# Check the lock file
+$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
 if (-e $lockFile){
 	open(LCK,"<$lockFile");
 	@info = split ' ', <LCK>;
@@ -180,28 +168,26 @@ else{
 	close LCK;
 }
 
-&Initialise($configFile);
 $Init{version}=$VERSION;
 
-$rxmodel=$RESOLUTION_360;
-if ($localMajorVersion == 2){
-	if ($Init{"receiver:model"} eq "Resolution T"){
-		$rxmodel=$RESOLUTION_T;
-	}
+$rxmodel=$RESOLUTION_T;
+if ($Init{"receiver:model"} eq "Resolution T"){
+	$rxmodel=$RESOLUTION_T;
+}
 #	elsif ($Init{"receiver:model"} eq "Resolution SMT"){
 #		$rxmodel=$RESOLUTION_SMT;
 #	}
-	elsif ($Init{"receiver:model"} eq "Resolution SMT 360"){
-		$rxmodel=$RESOLUTION_360;
-	}
-	else{
-		print "Unknown receiver model: ".$Init{"receiver:model"}."\n";
-	}
+elsif ($Init{"receiver:model"} eq "Resolution SMT 360"){
+	$rxmodel=$RESOLUTION_360;
 }
+else{
+	print "Unknown receiver model: ".$Init{"receiver:model"}."\n";
+}
+Debug("Receiver model is ".$Init{"receiver:model"});
 
 #Open the serial ports to the receiver
 $rxmask="";
-$port=&GetConfig($localMajorVersion,"gps port","receiver:port");
+$port=$Init{"receiver:port"};
 $port="/dev/$port" unless $port=~m#/#;
 
 unless (`/usr/local/bin/lockport $port $0`==1) {
@@ -223,9 +209,15 @@ $params[$UTC_PARAMETERS][$LAST_RECEIVED]=-1;
 $params[$IONO_PARAMETERS][$LAST_REQUESTED]=-1;
 $params[$IONO_PARAMETERS][$LAST_RECEIVED]=-1;
 
-$rxStatus=&GetConfig($localMajorVersion,"receiver status","receiver:status file");
-$rxStatus=&FixPath($rxStatus);
+$rxStatus=$Init{"receiver:status file"};
+$rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$logPath);
 
+$Init{"paths:receiver data"}=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
+
+if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
+		$Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
+}
+	
 $now=time();
 $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
 &OpenDataFile($mjd,1);
@@ -243,7 +235,7 @@ $SIG{TERM}=sub {$killed=1};
 $tstart = time;
 
 $receiverTimeout=600;
-$configReceiverTimeout=&GetConfig($localMajorVersion,"receiver timeout","receiver:timeout");
+$configReceiverTimeout=$Init{"receiver:timeout"};
 if (defined($configReceiverTimeout)){$receiverTimeout=$configReceiverTimeout;}
 
 $lastMsg=time(); 
@@ -253,53 +245,53 @@ LOOP: while (!$killed)
 	if (time()-$lastMsg > $receiverTimeout){ # too long, so byebye
 		@_=gmtime();
 		$msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d no response from receiver\n",
-  		$_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+			$_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
 		printf OUT "# ".$msg;
-		goto BYEBYE;	
-  }
+		goto BYEBYE;
+		}
   
-  # see if there is text waiting
-  $nfound=select $tmask=$rxmask,undef,undef,0.2;
-  next unless $nfound;
-  if ($nfound<0) {$killed=1; last}
-  # read what's waiting, and add it on the end of $input
-  sysread $rx,$input,$nfound,length $input;
-  # look for a message in what we've accumulated
-  # $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
-  if ($input=~/(\x10+)\x03/){
-    if ((length $1) & 1){
-      # ETX preceded by odd number of DLE: got the packet termination
+	# see if there is text waiting
+	$nfound=select $tmask=$rxmask,undef,undef,0.2;
+	next unless $nfound;
+	if ($nfound<0) {$killed=1; last}
+	# read what's waiting, and add it on the end of $input
+	sysread $rx,$input,$nfound,length $input;
+	# look for a message in what we've accumulated
+	# $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
+	if ($input=~/(\x10+)\x03/){
+		if ((length $1) & 1){
+			# ETX preceded by odd number of DLE: got the packet termination
       
 			$dle = substr $&,1,-1; # drop the last DLE
 			$data=$save.$`.$dle;
 			
-      $first=ord substr $data,0,1;
-      if ($first!=0x10){
-        printf STDERR "! Parse error - bad packet start char 0x%02X\n",$first;
-      }
-      else{
+			$first=ord substr $data,0,1;
+			if ($first!=0x10){
+				printf STDERR "! Parse error - bad packet start char 0x%02X\n",$first;
+			}
+			else{
 			
-        $now=time();			# got one - tag the time
+				$now=time();			# got one - tag the time
 				$lastMsg=$now;
-        if ($now>=$next){
-          # (this way is safer than just incrementing $mjd)
-          $mjd=int($now/86400) + 40587;	
-          &OpenDataFile($mjd,0);
+				if ($now>=$next){
+					# (this way is safer than just incrementing $mjd)
+					$mjd=int($now/86400) + 40587;	
+					&OpenDataFile($mjd,0);
 					# Request receiver and software versions
 					&SendCommand("\x8E\x41");
 					&SendCommand("\x8E\x42");
 					&SendCommand("\x1F");
-          $next=($mjd-40587+1)*86400;	# seconds at next MJD
-        }
-        if ($now>$then){
-          # update string version of time stamp
-          @_=gmtime $now;
-          $nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
-          $then=$now;
-        }
+					$next=($mjd-40587+1)*86400;	# seconds at next MJD
+				}
+				if ($now>$then){
+					# update string version of time stamp
+					@_=gmtime $now;
+					$nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
+					$then=$now;
+				}
 				$data=substr $data,1;		  # drop leading DLE
-      	$data=~s/\x10{2}/\x10/g;	# un-stuff doubled DLE in data
-    	  # @bytes=unpack "C*",$data;
+				$data=~s/\x10{2}/\x10/g;	# un-stuff doubled DLE in data
+				# @bytes=unpack "C*",$data;
 				
 				# It's possible that we might ask for system data when there is none
 				# available so filter out empty responses
@@ -331,15 +323,15 @@ LOOP: while (!$killed)
 				ParseGPSSystemDataMessage();
 				
 			}
-      $save="";
-    }
-    else{
-      # ETX preceded by even number of DLE: DLEs "stuffed", this is packet data
-      # Remove from $input for next search, but save it for later
-      $save=$save.$`.$&;
-    }
-    $input=$';	
-  }  
+			$save="";
+		}
+		else{
+			# ETX preceded by even number of DLE: DLEs "stuffed", this is packet data
+			# Remove from $input for next search, but save it for later
+			$save=$save.$`.$&;
+		}
+		$input=$';	
+	}  
 
 }
 
@@ -360,82 +352,45 @@ sub ShowHelp
 {
 	print "Usage: $0 [OPTIONS] ..\n";
 	print "  -c <file> set configuration file\n";
-  print "  -d debug\n";
-  print "  -h show this help\n";
+	print "  -d debug\n";
+	print "  -h show this help\n";
 	print "  -r reset receiver on startup\n";
 	print "  -v show version\n";
-  print "  The default configuration file is $configFile\n";
+	print "  The default configuration file is $configFile\n";
 }
 
 #----------------------------------------------------------------------------
 sub Initialise 
 {
   my $name=shift;
-  if ($localMajorVersion == 1){
-		my @required=("gps port",  "data path", "gps data extension","receiver status","ppsOffset");
-		%Init=&TFMakeHash($name,(tolower=>1));
-	}
-	elsif($localMajorVersion == 2){
-		@required=( "paths:receiver data","receiver:file extension","receiver:port","receiver:status file","receiver:pps offset");
-		%Init=&TFMakeHash2($name,(tolower=>1));
-	}
+	@required=( "paths:receiver data","receiver:file extension","receiver:port","receiver:status file","receiver:pps offset");
+	%Init=&TFMakeHash2($name,(tolower=>1));
 	
 	if (!%Init){
 		print "Couldn't open $name\n";
 		exit;
-  }
-  
-  my ($tag,$err);
-  
-  # Check that all required information is present
-  $err=0;
-  foreach (@required) {
-    unless (defined $Init{$_}) {
-      print STDERR "! No value for $_ given in $name\n";
-      $err=1;
-    }
-  }
-  exit if $err;
-
-	if ($localMajorVersion == 1){
-		$Init{"data path"}=FixPath($Init{"data path"});
-		$Init{"receiver status"}=FixPath{"receiver status"};
 	}
-	elsif ($localMajorVersion == 2){
-		$Init{"paths:receiver data"}=FixPath($Init{"paths:receiver data"});
-		$Init{"receiver:status file"}=FixPath($Init{"receiver:status file"});
+  
+	my $err;
+  
+	# Check that all required information is present
+	$err=0;
+	foreach (@required) {
+		unless (defined $Init{$_}) {
+			print STDERR "! No value for $_ given in $name\n";
+			$err=1;
+		}
 	}
- 
+	exit if $err;
+	
 }# Initialise
 
-#-----------------------------------------------------------------------------
-sub GetConfig()
-{
-	my($ver,$v1tag,$v2tag)=@_;
-	if ($ver == 1){
-		return $Init{$v1tag};
-	}
-	elsif ($ver==2){
-		return $Init{$v2tag};
-	}
-}
-
-#----------------------------------------------------------------------------
-sub FixPath()
-{
-	my $path=$_[0];
-	if (!($path=~/^\//)){
-		$path =$ENV{HOME}."/".$path;
-	}
-	return $path;
-}
 
 #-----------------------------------------------------------------------------
 sub Debug
 {
 	if ($opt_d){
-		$now = strftime "%H:%M:%S",gmtime;
-		print "$now $_[0] \n";
+		print strftime("%H:%M:%S",gmtime)." $_[0]\n";
 	}
 }
 
@@ -445,30 +400,23 @@ sub OpenDataFile
   my $mjd=$_[0];
 
 	# Fixup path and extension if needed
-	my $ext = &GetConfig($localMajorVersion,"gps data extension","receiver:file extension");;
-	if (!($ext =~ /^\./)){ # do we need a period ?
-		$ext = ".".$ext;
-	}
 
-	my $path = &GetConfig($localMajorVersion,"data path","paths:receiver data");;
-	if (!($path=~/\/$/)){ #add / if needed
-		$path .= "/";
-	}
-
-  my $name=$path.$mjd.$ext;
-  my $old=(-e $name); # already there ? May have restarted logging.
+	my $ext=$Init{"receiver:file extension"};
+	
+	my $name=$Init{"paths:receiver data"}.$mjd.$ext;
+	my $old=(-e $name); # already there ? May have restarted logging.
 
 	Debug("Opening $name");
 
-  open OUT,">>$name" or die "Could not write to $name";
-  select OUT;
-  $|=1;
-  printf "# %s $0 (version $Init{version}) %s\n",
-    &TFTimeStamp(),($_[1]? "beginning" : "continuing");
-  printf "# %s file $name\n",
-    ($old? "Appending to" : "Beginning new");
-  printf "\@ MJD=%d\n",$mjd;
-  select STDOUT;
+	open OUT,">>$name" or die "Could not write to $name";
+	select OUT;
+	$|=1;
+	printf "# %s $0 (version $Init{version}) %s\n",
+		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
+	printf "# %s file $name\n",
+		($old? "Appending to" : "Beginning new");
+	printf "\@ MJD=%d\n",$mjd;
+	select STDOUT;
 
 } # OpenDataFile
 
@@ -505,7 +453,7 @@ sub ConfigureReceiver
 	&SendCommand("\x8E\xA2\x01"); #OK
 	
 	# Set the 1 pps offset
-	$ppsOffset = &GetConfig($localMajorVersion,"ppsoffset","receiver:pps offset")/1.0E9; # convert to seconds
+	$ppsOffset = $Init{"receiver:pps offset"}/1.0E9; # convert to seconds
 	$pps=DoubleToStr($ppsOffset);
 	$biasUncertaintyThreshold ="\x43\x96\x00\x00";
 	&SendCommand("\x8E\x4a\x01\x00\x00".$pps.$biasUncertaintyThreshold);
