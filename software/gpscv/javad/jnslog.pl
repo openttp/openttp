@@ -42,7 +42,8 @@
 #												Delay between commands added (present in other versions of jnslog)
 #												Delayed 1 pps synchronization on start and periodic 1 pps synchronization therafter
 # 											Restart of receiver on empty SI message
-# 2015-01-25 2.0.0	MJW Imported into OpenTTP. Renamed from tclog to jnslog.pl
+# 2016-01-25 2.0.0	MJW Imported into OpenTTP. Renamed from tclog to jnslog.pl
+# 2016-04-27 2.0.1	MJW Testing. Some fixups due to changes elsewhere in OpenTTP
 #
 # TO DO:
 # Enforce checksum checking for incoming messages
@@ -54,50 +55,77 @@ use TFLibrary;
 use POSIX;
 use vars qw($opt_d $opt_h $opt_r $opt_v);
 
-$VERSION="2.0.0";
+$VERSION="2.0.1";
+$AUTHORS="Bruce Warrington, Michael Wouters";
 
 $home=$ENV{HOME};
-$logPath="$home/logs";
-$configPath="$home/etc";
+$configFile="$home/etc/gpscv.conf";
 
 $0=~s#.*/##;
 
-$configFile="$configPath/cggtts.conf";
-
-if( !(getopts('dhrv')) || ($#ARGV>=1)) {
-  select STDERR;
+if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) {
   ShowHelp();
   exit;
 }
 
-if ($opt_h){
-	ShowHelp();
-	exit;
-}
-
 if ($opt_v){
 	print "$0 version $VERSION\n";
+	print "Written by $AUTHORS\n";
 	exit;
 }
 
+if (-d "$home/etc")  {
+	$configPath="$home/etc";
+}
+else{	
+	ErrorExit("No ~/etc directory found!\n");
+} 
+
+if (-d "$home/logs")  {
+	$logPath="$home/logs";
+} 
+else{
+	ErrorExit("No ~/logs directory found!\n");
+}
+
+if (defined $opt_c){
+	$configFile=$opt_c;
+}
+
+if (!(-e $configFile)){
+	ErrorExit("A configuration file was not found!\n");
+}
+
+&Initialise($configFile);
+
 # Check for an existing lock file
-$lockFile = $logPath."/rx.lock";
+$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
 if (-e $lockFile){
 	open(LCK,"<$lockFile");
-	$pid = <LCK>;
-	chomp $pid;
-	if (-e "/proc/$pid"){
-		printf STDERR "Process $pid already running\n";
+	@info = split ' ', <LCK>;
+	close LCK;
+	if (-e "/proc/$info[1]"){
+		printf STDERR "Process $info[1] already running\n";
 		exit;
 	}
+	else{
+		open(LCK,">$lockFile");
+		print LCK "$0 $$\n";
+		close LCK;
+	}
+}
+else{
+	open(LCK,">$lockFile");
+	print LCK "$0 $$\n";
 	close LCK;
 }
 
-open(LCK,">$lockFile");
-print LCK $$,"\n";
-close LCK;
+$rxStatus = &TFMakeAbsoluteFilePath($Init{"receiver:status file"},$home,$logPath);
+$Init{"paths:receiver data"}=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
 
-&Initialise(@ARGV==1? $ARGV[0] : $configFile);
+if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
+	$Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
+}
 
 $now=time();
 $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
@@ -131,8 +159,6 @@ $then=0;
 $input="";
 $killed=0;
 $SIG{TERM}=sub {$killed=1};
-
-$statusFile = $Init{"receiver:status file"};
 
 LOOP: while (!$killed) {
 	# See if there is text waiting
@@ -200,7 +226,7 @@ LOOP: while (!$killed) {
 		# Output some status information so that other processes can use it
 		# without having to parse the entire receiver data stream
 		if ($id eq "NP"){
-			open(STATUS,">$statusFile");
+			open(STATUS,">$rxStatus");
 			printf STATUS "$id $nowstr %s\n",$data;
 			close(STATUS);
 		}
@@ -279,22 +305,12 @@ foreach (1..3) {print $rx "dm\n"}			# disable messages
 
 sub ShowHelp
 {
-	print "Usage: $0 [-r] [-d] [-h] [-v] [configuration file]\n";
-	print "  -d debug\n";
-	print "  -h show this help\n";
-	print "  -r suppress reset of receiver on startup\n";
-	print "  -v show version\n";
+  print "Usage: $0 [-r] [-d] [-h] [-v] [configuration file]\n";
+  print "  -d debug\n";
+  print "  -h show this help\n";
+  print "  -r suppress reset of receiver on startup\n";
+  print "  -v show version\n";
   print "  The default configuration file is $configFile\n";
-}
-
-#----------------------------------------------------------------------------
-sub FixPath()
-{
-	my $path=$_[0];
-	if (!($path=~/^\//)){
-		$path =$ENV{HOME}."/".$path;
-	}
-	return $path;
 }
 
 #-----------------------------------------------------------------------------
@@ -302,7 +318,7 @@ sub FixPath()
 sub Initialise {
 	my $name=shift;
 	my @required=("receiver:pps offset", "receiver:elevation mask", "receiver:port","receiver:status file",
-		"paths:receiver data", "receiver:file extension","receiver:configuration");
+		"paths:receiver data", "receiver:file extension","receiver:configuration","receiver:lock file");
 	my $err;
   
 	%Init=&TFMakeHash2($name,(tolower=>1));
@@ -318,9 +334,6 @@ sub Initialise {
 	}
 	exit if $err;
 
-	$Init{"receiver:status file"} = &FixPath($Init{"receiver:status file"});
-	$Init{"paths:receiver data"}= &FixPath($Init{"paths:receiver data"});
-	
 	# For some reason, the constant B115200 is not picked up properly?
 	# Following line comes from termbits.ph 
 	# eval 'sub B115200 () {0010002;}' unless defined(&B115200);
@@ -376,7 +389,7 @@ sub GetFixedPositionCommands {
 
 sub OpenDataFile {
 	my $mjd=$_[0];
-	my $name=$Init{"paths:receiver data"}."/".$mjd.".".$Init{"receiver:file extension"};
+	my $name=$Init{"paths:receiver data"}."/".$mjd.$Init{"receiver:file extension"};
 	my $old=(-e $name);
 
 	open OUT,">>$name" or die "Could not write to $name";
@@ -508,4 +521,10 @@ sub ConfigureReceiver {
 
 #-----------------------------------------------------------------------------
 
-
+sub ErrorExit {
+  my $message=shift;
+  @_=gmtime(time());
+  printf "%02d/%02d/%02d %02d:%02d:%02d $message\n",
+    $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+  exit;
+}

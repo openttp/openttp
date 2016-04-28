@@ -107,9 +107,9 @@ $rxMinorAlarms="";
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
+$configFile="$home/etc/gpscv.conf";
 
-if( !(getopts('c:dhrv')) || ($#ARGV>=1) ) {
-
+if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) {
   ShowHelp();
   exit;
 }
@@ -120,10 +120,7 @@ if ($opt_v){
 	exit;
 }
 
-if (-d "$home/etc")  {
-	$configPath="$home/etc";
-}
-else{	
+if (!(-d "$home/etc"))  {
 	ErrorExit("No ~/etc directory found!\n");
 } 
 
@@ -134,7 +131,7 @@ else{
 	ErrorExit("No ~/logs directory found!\n");
 }
 
-$configFile=$configPath."/gpscv.conf";
+
 if (defined $opt_c){
 	$configFile=$opt_c;
 }
@@ -347,7 +344,7 @@ close OUT;
 
 # end of main 
 
-#
+#-----------------------------------------------------------------------------
 sub ShowHelp
 {
 	print "Usage: $0 [OPTIONS] ..\n";
@@ -359,11 +356,21 @@ sub ShowHelp
 	print "  The default configuration file is $configFile\n";
 }
 
+#-----------------------------------------------------------------------------
+sub ErrorExit {
+  my $message=shift;
+  @_=gmtime(time());
+  printf "%02d/%02d/%02d %02d:%02d:%02d $message\n",
+    $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+  exit;
+}
+
 #----------------------------------------------------------------------------
 sub Initialise 
 {
   my $name=shift;
-	@required=( "paths:receiver data","receiver:file extension","receiver:port","receiver:status file","receiver:pps offset");
+	@required=( "paths:receiver data","receiver:file extension","receiver:port","receiver:status file",
+		"receiver:pps offset","receiver:lock file");
 	%Init=&TFMakeHash2($name,(tolower=>1));
 	
 	if (!%Init){
