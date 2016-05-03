@@ -159,6 +159,8 @@ else{
 				Debug("\tchecking $cggttsFile");
 				if (!(-e $cggttsFile)){ # only attempt to regenerate missing files 
 					Debug("\t-->missing");
+					Debug("\t-->processing $m");
+					`$binPath/mktimetx -m $m`;
 				}
 				else{
 					Debug("\t-->exists");
