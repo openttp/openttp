@@ -74,6 +74,7 @@ static struct option longOptions[] = {
 		{"counter-path",required_argument, 0,  0 },
 		{"comment",  required_argument, 0,  0 },
 		{"debug",         required_argument, 0,  0 },
+		{"disable-tic", no_argument, 0,  0 },
 		{"help",          no_argument, 0, 0 },
 		{"no-navigation", no_argument, 0,  0 },
 		{"receiver-path",required_argument, 0,  0 },
@@ -141,21 +142,23 @@ Application::Application(int argc,char **argv)
 								}
 								break;
 							}
-							
 						case 4:
+							TICenabled=false;
+							break;
+						case 5:
 							showHelp();
 							exit(EXIT_SUCCESS);
 							break;
 						
-						case 5:
+						case 6:
 							generateNavigationFile=false;
 							break;
 							
-						case 6:
+						case 7:
 							receiverPath=optarg;
 							break;
 							
-						case 7:
+						case 8:
 							{
 								if (1!=sscanf(optarg,"%i",&verbosity)){
 									cerr << "Bad value for option --verbosity" << endl;
@@ -164,18 +167,18 @@ Application::Application(int argc,char **argv)
 								}
 							}
 							break;
-						case 8:
+						case 9:
 							timingDiagnosticsOn=true;
 							break;
 							
-						case 9:
+						case 10:
 							showVersion();
 							exit(EXIT_SUCCESS);
 							break;
-						case 10:
+						case 11:
 							SVDiagnosticsOn=true;
 							break;
-						case 11:
+						case 12:
 							shortDebugMessage=true;
 							break;
 					}
@@ -230,8 +233,6 @@ void Application::run()
 	
 	logMessage(timeStamp() + APP_NAME +  " version " + APP_VERSION + " run started");
 	
-
-	
 	bool recompress = decompress(receiverFile);
 	if (!receiver->readLog(receiverFile,MJD)){
 		cerr << "Exiting" << endl;
@@ -247,8 +248,6 @@ void Application::run()
 	if (recompress) compress(counterFile);
 	
 	matchMeasurements(receiver,counter); // only do this once
-	
-	// Apply the sawtooth corrected 1 pps to the pseudoranges
 	
 	// Each system+code generates a CGGTTS file
 	if (createCGGTTS){
@@ -271,7 +270,7 @@ void Application::run()
 			cggtts.code=CGGTTSoutputs.at(i).code;
 			cggtts.calID=CGGTTSoutputs.at(i).calID;
 			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
-			cggtts.writeObservationFile(CGGTTSfile,MJD,mpairs);
+			cggtts.writeObservationFile(CGGTTSfile,MJD,mpairs,TICenabled);
 		}
 	} // if createCGGTTS
 	
@@ -285,7 +284,7 @@ void Application::run()
 		
 		if (generateNavigationFile) 
 			rnx.writeNavigationFile(RINEXversion,RINEXnavFile,MJD);
-		rnx.writeObservationFile(RINEXversion,RINEXobsFile,MJD,interval,mpairs);
+		rnx.writeObservationFile(RINEXversion,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	}
 	
 	if (timingDiagnosticsOn) 
@@ -321,6 +320,7 @@ void Application::showHelp()
 	cout << "--counter-path <path>  path to counter/timer measurements" << endl; 
 	cout << "--comment <message>    comment for the CGGTTS file" << endl;
 	cout << "--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << endl;
+	cout << "--disable-tic          disables use of sawtooth-corrected TIC measurements" << endl;
 	cout << "-h,--help              print this help message" << endl;
 	cout << "-m <n>                 set the mjd" << endl;
 	cout << "--receiver-path <path> path to GNSS receiver logs" << endl;
@@ -397,6 +397,7 @@ void Application::init()
 	timingDiagnosticsOn=false;
 	SVDiagnosticsOn=false;
 	generateNavigationFile=true;
+	TICenabled=true;
 	
 	char *penv;
 	homeDir="";

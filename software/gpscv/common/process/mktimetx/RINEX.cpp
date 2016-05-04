@@ -59,13 +59,16 @@ RINEX::RINEX(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, MeasurementPair **mpairs)
+bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
 {
 	char buf[81];
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
 		return false;
 	}
+	
+	int useTIC = (TICenabled?1:0);
+	DBGMSG(debugStream,1,"Using TIC = " << (TICenabled? "yes":"no"));
 	
 	char obs;
 	switch (rx->constellations){
@@ -196,7 +199,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 		if (mpairs[currMeas]->flags==0x03){
 			ReceiverMeasurement *rm = mpairs[currMeas]->rm;
 			
-			double ppsTime = rm->cm->rdg+rm->sawtooth - rx->ppsOffset*1.0E-9; // correction to the local clock
+			double ppsTime = useTIC*(rm->cm->rdg+rm->sawtooth) - rx->ppsOffset*1.0E-9; // correction to the local clock
 			
 			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
 			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);

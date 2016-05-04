@@ -61,7 +61,7 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
+bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,bool TICenabled)
 {
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
@@ -72,7 +72,8 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 	app->logMessage("generating CGGTTS file for " + boost::lexical_cast<string>(mjd));
 	
 	double measDelay = rx->ppsOffset + intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
-	
+	int useTIC = (TICenabled?1:0);
+	DBGMSG(debugStream,1,"Using TIC = " << (TICenabled? "yes":"no"));
 	writeHeader(fout);
 	
 	// Generate the observation schedule as per DefraignePetit2015 pg3
@@ -195,7 +196,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 							exit(EXIT_FAILURE);
 						}
 						// smooth the counter measurements - this helps clean up any residual sawtooth error
-						qrefpps[nqfitpts]=(rxm->cm->rdg + rxm->sawtooth)*1.0E9;
+						qrefpps[nqfitpts]= useTIC*(rxm->cm->rdg + rxm->sawtooth)*1.0E9;
 						qprange[nqfitpts]=svtrk[sv].at(isv)->meas;
 						qtutc[nqfitpts]=tmeas;
 						nqfitpts++;
@@ -287,7 +288,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs)
 							svel[npts]=el;
 							mdtr[npts]=tropo;
 							mdio[npts]=iono;
-							refpps=(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
+							refpps= useTIC*(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
 							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
 							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
 							npts++;

@@ -45,6 +45,7 @@
 #include <boost/algorithm/string/split.hpp>
 
 #include "Antenna.h"
+#include "Application.h"
 #include "Debug.h"
 #include "GPS.h"
 #include "HexBin.h"
@@ -54,6 +55,7 @@
 #include "Timer.h"
 
 extern ostream *debugStream;
+extern Application *app;
 
 // JAVAD types
 #define I1 char
@@ -98,8 +100,8 @@ Javad::Javad(Antenna *ant,string m):Receiver(ant)
 		codes = C1 | P1 | P2;
 	}
 	else{
-		cerr << "Unknown receiver model: " << modelName << endl;
-		cerr << "Assuming generic single frequency receiver " << endl;
+		app->logMessage("Unknown receiver model: " + modelName);
+		app->logMessage("Assuming generic single frequency receiver");
 		modelName="generic";
 	}
 }
@@ -856,19 +858,19 @@ bool Javad::readLog(string fname,int mjd)
 		}
 	}
 	else{
-		cerr << "Unable to open " << fname << endl;
+		app->logMessage("Unable to open "+fname);
 		return false;
 	}
 	
 	infile.close();
 
 	if (!gotIonoData){
-		cerr << "No IO (ionosphere) message found" << endl;
+		app->logMessage("failed to find ionosphere parameters - no IO messages");
 		return false;
 	}
 	
 	if (!gotUTCdata){
-		cerr << "No U0 (UTC) message found" << endl;
+		app->logMessage("failed to find UTC parameters - no U0 messages");
 		return false;
 	}
 	

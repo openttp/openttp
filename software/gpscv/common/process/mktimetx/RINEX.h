@@ -42,7 +42,7 @@ class RINEX
 		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
 		
 		RINEX(Antenna *,Counter *,Receiver *);
-		bool writeObservationFile(int ver,string fname,int mjd,int interval,MeasurementPair **mpairs);
+		bool writeObservationFile(int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
 		bool writeNavigationFile(int ver,string fname,int mjd);
 		
 		string observer;

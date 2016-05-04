@@ -442,6 +442,16 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	}
 	infile.close();
 	
+	if (!gotIonoData){
+		app->logMessage("failed to find ionosphere parameters - no 580204 messages");
+		return false;
+	}
+	
+	if (!gotUTCdata){
+		app->logMessage("failed to find UTC parameters - no 580205 messages");
+		return false;
+	}
+	
 	// Post-load cleanups
 	// Calculate GPS time of measurements, now that the number of leap seconds is known
 	for (unsigned int i=0;i<measurements.size();i++){

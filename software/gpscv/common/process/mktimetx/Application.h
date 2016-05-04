@@ -152,6 +152,7 @@ class Application
 		bool timingDiagnosticsOn;
 		bool SVDiagnosticsOn;
 		bool generateNavigationFile;
+		bool TICenabled;
 		
 };
 #endif
