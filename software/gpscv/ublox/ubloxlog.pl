@@ -29,8 +29,6 @@
 # 02-05-2016 MJW First version, derived restlog.pl
 #
 
-
-
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
 use POSIX;
@@ -40,8 +38,6 @@ use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
 $VERSION="0.1";
 $AUTHORS="Michael Wouters";
-
-$COLDSTART_HOLDOFF = 0;
 
 $0=~s#.*/##;
 
@@ -69,7 +65,6 @@ if (-d "$home/logs")  {
 else{
 	ErrorExit("No ~/logs directory found!\n");
 }
-
 
 if (defined $opt_c){
 	$configFile=$opt_c;
@@ -174,16 +169,26 @@ LOOP: while (!$killed)
 	# look for a message in what we've accumulated
 	# $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
 	
+	print $input;
+	$input="";
+	$msg = "\xb5\x62\x06\x08\x00\x06\xe8\x03\x01\x00\x01\x00"; # CFG_RATE											---- 
+			SendCommand($msg);
+	next;
 	
 	if ($input=~/(\$G\w{4})(.+\*[A-F_0-9]{2})\r\n/){ # grab NMEA
 		$input=$';
-		if ($1 eq '$GNZDA') {print "$1 $2\n";}
+		if ($1 eq '$GNZDA') {
+			print "$1 $2\n";
+			$msg = "\xb5\x62\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE											---- 
+			SendCommand($msg);
+		}
 		else{
 			print $1,"\n";
 		}
 	}
-	if ($input=~/\xb5\x62(.)(.)(..)/){ # grab UBX
+	if ($input=~/\xb5\x62/){ # grab UBX
 		# UBX fields are little endian so no byte flipping required
+		printf "Got \n";
 	}
 }
 
@@ -285,18 +290,18 @@ sub OpenDataFile
 #----------------------------------------------------------------------------
 sub Checksum
 {
-	my $msg = shift;
+	my @cmsg = unpack('C*',shift);
 	my $cka=0;
 	my $ckb=0;
 	my $i;
 	
-	for ($i=0;$i<length($msg);$i++){
-		$cka = $cka + substr($msg,$i,1);
+	for ($i=0;$i<=$#cmsg;$i++){
+		$cka = $cka + $cmsg[$i];
 		$ckb = $ckb + $cka;
 		$cka = $cka & 0xff;
 		$ckb = $ckb & 0xff;
 	}
-	return $cka.$ckb;
+	return pack('C2',$cka,$ckb);
 }
 
 #----------------------------------------------------------------------------
@@ -304,7 +309,7 @@ sub SendCommand
 {
   my $cmd=shift;
   my $cksum=Checksum($cmd);
-  #print $rx $cdm.$cksum;	
+  print $rx $cmd.$cksum;	
 } # SendCommand
 
 #----------------------------------------------------------------------------
