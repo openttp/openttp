@@ -122,9 +122,10 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	ifstream infile (fname.c_str());
 	string line;
 	int linecount=0;
-	bool newsecond=false;
+	bool useData=true;
 	bool got8FAC=false;
 	bool gotrxid=false;
+	bool gotSWVersion=false;
 	
 	string msgid,currpctime,pctime,msg,gpstime;
 	
@@ -171,59 +172,22 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){
 				DBGMSG(debugStream,1," bad data at line " << linecount);
-				newsecond=false; // reset the state machine
-				got8FAC=false;
-				gps.clear();
+				// no need to reset things - not so bad if we miss a message
 				continue;
 			}
 			
 			// NB In the documentation for the Resolution 360, the Packet ID is now included as byte 0 so the indexing
 			// in the documentation now corresponds to what we were doing anyway (offsetting by one byte)
-			
-			if(strncmp(msg.c_str(),"45",2)==0){  // software version information report packet 
-				HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf);//offset by 2 for message id
-				appvermajor=cbuf;
-				HexToBin((char *) msg.substr(2+2,2).c_str(),1,&cbuf);
-				appverminor=cbuf;
-				HexToBin((char *) msg.substr(4+2,2).c_str(),1,&cbuf);
-				appmonth=cbuf;
-				HexToBin((char *) msg.substr(6+2,2).c_str(),1,&cbuf);
-				appday=cbuf;
-				HexToBin((char *) msg.substr(8+2,2).c_str(),1,&cbuf);
-				appyear=cbuf+1900;
-				HexToBin((char *) msg.substr(10+2,2).c_str(),1,&cbuf);
-				corevermajor=cbuf;
-				HexToBin((char *) msg.substr(12+2,2).c_str(),1,&cbuf);
-				coreverminor=cbuf;
-				HexToBin((char *) msg.substr(14+2,2).c_str(),1,&cbuf);
-				coremonth=cbuf;
-				HexToBin((char *) msg.substr(16+2,2).c_str(),1,&cbuf);
-				coreday=cbuf;
-				HexToBin((char *) msg.substr(18+2,2).c_str(),1,&cbuf);
-				coreyear=cbuf+yearOffset;
-				stringstream ss;
-				ss << appvermajor << "." << appverminor;
-				ss << " " << appyear << "-" << appmonth << "-" << appday;
-				version2=ss.str();
-				ss.str("");ss.clear();
-				ss << corevermajor << "." << coreverminor;
-				ss << " " << coreyear << "-" << coremonth<< "-" << coreday;
-				version1=ss.str(); // report this as principal version info
-				DBGMSG(debugStream,1,version1);
-				DBGMSG(debugStream,1,version2);
-				continue;
-			}
 		
 			// The primary time message 8FAB is the first message of interest output each second 
 			if(strncmp(msg.c_str(),"8fab",4)==0){
-				if (got8FAC && gps.size()>0){ // complete data for the current second has been processed
+				if (got8FAC && gps.size()>0 && useData){ // complete data for the current second has been processed
 					ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 					measurements.push_back(rmeas);
 					rmeas->gpstow=gpstow;
 					rmeas->gpswn=gpswn;
 					rmeas->sawtooth=-sawtooth; // the sawtooth correction is subtracted and our convention is that it will be added
 					rmeas->timeOffset=rxtimeoffset;
-					
 					
 					// 8fab packet is configured for UTC date
 					// so save this so that we can calculate GPS date later when the number of leap seconds is known
@@ -255,17 +219,20 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					DBGMSG(debugStream,3,rmeas->gps.size() << " GPS measurements " << "[PC " << pchh << " " << pcmm << " " << pcss << "]" <<
 						"[RX UTC " << (int) fabhh << " " << (int) fabmm << " " << (int) fabss << "]");
 				}
-
+				
 				//  Check GPS time - it may not be valid yet
 				HexToBin((char *) msg.substr(2*9+2,2).c_str(),1,&cbuf);
 				if (cbuf & 0x04){ //  discard data for the second if GPS time is not set
-					newsecond=false;
+					useData=false;
 					gps.clear();
 					DBGMSG(debugStream,2,"GPS time is not set yet");
 					continue;
 				}
 				
-				newsecond=true;
+				// Starting a new second with valid GPS time so get started
+				gps.clear();
+				useData=true;
+				got8FAC=false;
 				pctime=currpctime;
 				
 				HexToBin((char *) reversestr(msg.substr(1*2+2,2*sizeof(int))).c_str(),sizeof(int),(unsigned char *) &gpstow);
@@ -278,19 +245,13 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 				HexToBin((char *) reversestr(msg.substr(15*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &fabyyyy);
 			}
 			
-			// If we have not started a new second then there is no need to parse for other messages
-			if (!newsecond) continue; // FIXME looks like cruft
-			
-			if(strncmp(msg.c_str(),"5a",2)==0) // look for Raw Measurement Report (5A) 
-			{
+			if(strncmp(msg.c_str(),"5a",2)==0){ // look for Raw Measurement Report (5A) 
 				if (gps.size() >= MAX_CHANNELS){ // too much data - something is missing 
-					newsecond=false; // reset the state machine   
-					got8FAC=false;
+					useData=false; // flag bad data   
 					DBGMSG(debugStream,1,"Too many 5A messages at line " << linecount);
 				}
 				HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf); // Get SVN
 				if (cbuf <= 32){  // FIXME GPS only
-				
 					// Check whether we already have data for this SV. If we do
 					// something is wrong and we should abort data collection for the 
 					// current second 
@@ -306,8 +267,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 						gps.push_back(new SVMeasurement(cbuf,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
 					}
 					else{
-						newsecond=false; // reset the state machine 
-						got8FAC=false;
+						useData=false; 
 						gps.clear();
 						// typically get unexpected messages because of loss of data caused by polling the receiver
 						DBGMSG(debugStream,2," duplicate/unexpected SV at line "<<linecount);
@@ -360,6 +320,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 						HexToBin((char *) reversestr(msg.substr(40*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &ionoData.B3);
 						gotIonoData=true;
 						DBGMSG(debugStream,1,"ionosphere parameters: a0=" << ionoData.a0);
+						continue;
 					}
 					else{
 						DBGMSG(debugStream,1,"Bad 580204 message size");
@@ -381,10 +342,47 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 							HexToBin((char *) reversestr(msg.substr(41*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &utcData.dt_LSF);
 							DBGMSG(debugStream,1,"UTC parameters: dtLS=" << utcData.dtlS << ",dt_LSF=" << utcData.dt_LSF);
 							gotUTCdata = setCurrentLeapSeconds(mjd,utcData);
+							continue;
 					}
 					else{
 						DBGMSG(debugStream,1,"Bad 580205 message size");
 					}
+				}
+			}
+			
+			if (!gotSWVersion){
+				if(strncmp(msg.c_str(),"45",2)==0){  // software version information report packet 
+					HexToBin((char *) msg.substr(0+2,2).c_str(),1,&cbuf);//offset by 2 for message id
+					appvermajor=cbuf;
+					HexToBin((char *) msg.substr(2+2,2).c_str(),1,&cbuf);
+					appverminor=cbuf;
+					HexToBin((char *) msg.substr(4+2,2).c_str(),1,&cbuf);
+					appmonth=cbuf;
+					HexToBin((char *) msg.substr(6+2,2).c_str(),1,&cbuf);
+					appday=cbuf;
+					HexToBin((char *) msg.substr(8+2,2).c_str(),1,&cbuf);
+					appyear=cbuf+1900;
+					HexToBin((char *) msg.substr(10+2,2).c_str(),1,&cbuf);
+					corevermajor=cbuf;
+					HexToBin((char *) msg.substr(12+2,2).c_str(),1,&cbuf);
+					coreverminor=cbuf;
+					HexToBin((char *) msg.substr(14+2,2).c_str(),1,&cbuf);
+					coremonth=cbuf;
+					HexToBin((char *) msg.substr(16+2,2).c_str(),1,&cbuf);
+					coreday=cbuf;
+					HexToBin((char *) msg.substr(18+2,2).c_str(),1,&cbuf);
+					coreyear=cbuf+yearOffset;
+					stringstream ss;
+					ss << appvermajor << "." << appverminor;
+					ss << " " << appyear << "-" << appmonth << "-" << appday;
+					version2=ss.str();
+					ss.str("");ss.clear();
+					ss << corevermajor << "." << coreverminor;
+					ss << " " << coreyear << "-" << coremonth<< "-" << coreday;
+					version1=ss.str(); // report this as principal version info
+					DBGMSG(debugStream,1,version1);
+					DBGMSG(debugStream,1,version2);
+					continue;
 				}
 			}
 			
