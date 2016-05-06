@@ -168,27 +168,40 @@ LOOP: while (!$killed)
 	sysread $rx,$input,$nfound,length $input;
 	# look for a message in what we've accumulated
 	# $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
-	
-	print $input;
-	$input="";
-	$msg = "\xb5\x62\x06\x08\x00\x06\xe8\x03\x01\x00\x01\x00"; # CFG_RATE											---- 
-			SendCommand($msg);
-	next;
+
 	
 	if ($input=~/(\$G\w{4})(.+\*[A-F_0-9]{2})\r\n/){ # grab NMEA
-		$input=$';
+		$input=$'; # save the dangly bits
 		if ($1 eq '$GNZDA') {
 			print "$1 $2\n";
-			$msg = "\xb5\x62\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE											---- 
-			SendCommand($msg);
 		}
 		else{
 			print $1,"\n";
 		}
 	}
-	if ($input=~/\xb5\x62/){ # grab UBX
-		# UBX fields are little endian so no byte flipping required
-		printf "Got \n";
+	# Header structure for UBX packets is 
+	# Sync char 1 | Sync char 2| Class (1 byte) | ID (1 byte) | payload length (2 bytes) | payload | cksum_a | cksum_b
+	
+	if ($input=~/\xb5\x62(.{4})/){ # if we've got a UBX header
+		# UBX fields are little endian 
+		($class,$id,$payloadLength) = unpack("CCv",$1);
+		# have we got the lot ?
+		$packetLength = $payloadLength + 8;
+		$inputLength=length($input);
+		if ($packetLength <= $inputLength){ # it's all there ! yay !
+			printf "%02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
+			if ($packetLength == $inputLength){
+				$input="";
+			}
+			else{
+				#printf "%i %i %i\n",$inputLength,length($'),$payloadLength+2;
+				$input=substr $input,6+$payloadLength+2;
+				#printf "%i %i %i\n",length($input),length($'),$payloadLength+2;
+			}
+		}
+		else{
+			# nuffink
+		}
 	}
 }
 
