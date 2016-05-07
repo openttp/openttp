@@ -173,30 +173,88 @@ LOOP: while (!$killed)
 	if ($input=~/(\$G\w{4})(.+\*[A-F_0-9]{2})\r\n/){ # grab NMEA
 		$input=$'; # save the dangly bits
 		if ($1 eq '$GNZDA') {
-			print "$1 $2\n";
+			# print "$1 $2\n";
+			# SendCommand("\x06\x13\x00\x00");
 		}
 		else{
-			print $1,"\n";
+			# print $1,"\n";
 		}
 	}
 	# Header structure for UBX packets is 
 	# Sync char 1 | Sync char 2| Class (1 byte) | ID (1 byte) | payload length (2 bytes) | payload | cksum_a | cksum_b
 	
 	if ($input=~/\xb5\x62(.{4})/){ # if we've got a UBX header
-		# UBX fields are little endian 
+		$postmatch = $'; # save the postmatch string 
 		($class,$id,$payloadLength) = unpack("CCv",$1);
 		# have we got the lot ?
 		$packetLength = $payloadLength + 8;
 		$inputLength=length($input);
 		if ($packetLength <= $inputLength){ # it's all there ! yay !
-			printf "%02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
+			#printf "%02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
+			
+			$now=time();			# got one - tag the time
+			
+			if ($now>$then) {
+				# update string version of time stamp
+				@_=gmtime $now;
+				$nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
+				$then=$now;
+				print "---\n";
+			}
+		
+			$payload = substr $postmatch,0,$payloadLength;
+			
+			#print "$class $id\n";
+			
+			if ($class == 0x02 && $id == 0x15){ # raw measurement data
+				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
+			}
+			
+			if ($class == 0x0d && $id == 0x01){ # time pulse data
+				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
+			}
+			
+			if ($class == 0x01 && $id == 0x35){ # satellite information
+				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
+			}
+			
+			if ($class == 0x01 && $id == 0x21){ # UTC solution
+				printf "$nowstr %02x %02x %i %i %i\n",$class,$id,$packetLength,length($postmatch),$inputLength;
+			}
+			
+			if ($class == 0x01 && $id == 0x22){ # clock solution
+				printf "$nowstr %02x %02x %i %i %i\n",$class,$id,$packetLength,length($postmatch),$inputLength;
+				PollGPSEphemeris();
+			}
+			
+			if ($class == 0x05){ # ACK response to CFG 
+				($classID,$msgID) = unpack("CC",$postmatch);
+				if ($id == 0x01){
+					printf "ACK_ACK %02x %02x\n",$classID,$msgID;
+				}
+				elsif ($id == 0x00){
+					printf "ACK_NAK %02x %02x\n",$classID,$msgID;
+				}
+			}
+			
+			if ($class == 0x0a && $id == 0x04){ # version info
+				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
+			}
+			
+			if ($class == 0x0b && $id == 0x31){ # GPS ephemeris
+				$svid=0;
+				if (length($payload) != 8){
+					($svid) = unpack("I",$payload);
+				}
+				printf "$nowstr %02x %02x %i %i svid=$svid\n",$class,$id,$packetLength,$inputLength;
+			}
+		
+			# Tidy up the input buffer
 			if ($packetLength == $inputLength){
 				$input="";
 			}
 			else{
-				#printf "%i %i %i\n",$inputLength,length($'),$payloadLength+2;
-				$input=substr $input,6+$payloadLength+2;
-				#printf "%i %i %i\n",length($input),length($'),$payloadLength+2;
+				$input=$postmatch;
 			}
 		}
 		else{
@@ -322,7 +380,7 @@ sub SendCommand
 {
   my $cmd=shift;
   my $cksum=Checksum($cmd);
-  print $rx $cmd.$cksum;	
+  print $rx "\xb5\x62".$cmd.$cksum;	
 } # SendCommand
 
 #----------------------------------------------------------------------------
@@ -333,9 +391,48 @@ sub ConfigureReceiver
 		
 	}
 	# Navigation/measurement rate settings
-	$msg = "\xb5\x62\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE											---- 
+	$msg = "\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE
 	SendCommand($msg);
 	
+	# Configure various messages for 1 Hz output
+	
+	# TIM-TP time pulse message (contains sawtooth error)
+	$msg="\x06\x01\x03\x00\x0d\x01\x01"; #CFG-MSG 0x0d 0x01
+	SendCommand($msg);
+	
+	# RXM-RAWX raw data message
+	$msg="\x06\x01\x03\x00\x02\x15\x01"; #CFG-MSG 0x02 0x15
+	SendCommand($msg);
+	
+	# Satellite information
+	$msg="\x06\x01\x03\x00\x01\x35\x01"; #CFG-MSG 0x01 0x35
+	SendCommand($msg); 
+	
+	# NAV-CLOCK clock solution (contains clock bias)
+	$msg="\x06\x01\x03\x00\x01\x22\x01"; #CFG-MSG 0x01 0x22
+	SendCommand($msg); 
+	
+	# NAV-TIMEUTC UTC time solution 
+	$msg="\x06\x01\x03\x00\x01\x21\x01"; #CFG-MSG 0x01 0x21
+	SendCommand($msg); 
+	
+	PollVersionInfo();
+	
 } # ConfigureReceiver
+
+# ---------------------------------------------------------------------------
+# Gets receiver/software version
+sub PollVersionInfo
+{
+	my $msg="\x0a\x04\x00\x00";
+	SendCommand($msg);
+}
+
+sub PollGPSEphemeris
+{
+	my $msg="\x0B\x31\x00\x00";
+	SendCommand($msg);
+	
+}
 
 
