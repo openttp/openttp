@@ -39,10 +39,41 @@ use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 $VERSION="0.1";
 $AUTHORS="Michael Wouters";
 
+$REMOVE_SV_THRESHOLD=600; #interval after which  a SV marked as disappeared is removed
+$COLDSTART_HOLDOFF = 0;
+$EPHEMERIS_POLL_INTERVAL=7000; # a bit less than the 7200 s threshold for
+															 # ephemeris validity as used in processing S/W
+															 
+# Track each SV so that we know when to ask for an ephemeris
+# Record PRN
+# Record time SV appeared (Unix time)
+# Record time we last got an ephemeris (Unix time)
+# Flag for marking whether still visible
+
+$PRN=0; # constants for indexing into the array tracking each SV
+$APPEARED=1;
+$LAST_EPHEMERIS_RECEIVED=2;
+$LAST_EPHEMERIS_REQUESTED=5;
+$STILL_VISIBLE=3;
+$DISAPPEARED=4;
+
+# Need to track some parameters too
+$UTC_IONO_POLL_INTERVAL=14400;
+
+$LAST_REQUESTED=0;
+$LAST_RECEIVED=1;
+
+$UTC_IONO_PARAMETERS= 0;
+#Initialise parameters
+$params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED]=-1;
+$params[$UTC_IONO_PARAMETERS][$LAST_RECEIVED]=-1;
+
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
 $configFile="$home/etc/gpscv.ublox.conf"; # FIXME temporary
+
+$ubxmsgs=":";
 
 if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) {
   ShowHelp();
@@ -137,7 +168,6 @@ $then=0;
 &ConfigureReceiver();
 
 $input="";
-$save="";
 $killed=0;
 
 $SIG{TERM}=sub {$killed=1};
@@ -160,101 +190,77 @@ LOOP: while (!$killed)
 		goto BYEBYE;
 		}
   
-	# see if there is text waiting
+	# Wait for input
 	$nfound=select $tmask=$rxmask,undef,undef,0.2;
 	next unless $nfound;
 	if ($nfound<0) {$killed=1; last}
-	# read what's waiting, and append it to $input
+	# Read input, and append it to $input
 	sysread $rx,$input,$nfound,length $input;
-	# look for a message in what we've accumulated
+	# Look for a message in what we've accumulated
 	# $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
 
+	#if ($input=~/(\$G\w{4})(.+\*[A-F_0-9]{2})\r\n/){ # grab NMEA
+	#	$input=$'; # save the dangly bits
+	#	if ($1 eq '$GNZDA') {
+	#	}
+	#	else{
+	#		# print $1,"\n";
+	#	}
+	#}
 	
-	if ($input=~/(\$G\w{4})(.+\*[A-F_0-9]{2})\r\n/){ # grab NMEA
-		$input=$'; # save the dangly bits
-		if ($1 eq '$GNZDA') {
-			# print "$1 $2\n";
-			# SendCommand("\x06\x13\x00\x00");
-		}
-		else{
-			# print $1,"\n";
-		}
-	}
 	# Header structure for UBX packets is 
 	# Sync char 1 | Sync char 2| Class (1 byte) | ID (1 byte) | payload length (2 bytes) | payload | cksum_a | cksum_b
 	
-	if ($input=~/\xb5\x62(.{4})/){ # if we've got a UBX header
-		$postmatch = $'; # save the postmatch string 
-		($class,$id,$payloadLength) = unpack("CCv",$1);
-		# have we got the lot ?
+	if ($input=~ /\xb5\x62(..)(..)([\s\S]*)/) { # if we've got a UBX header
+		$input=$&; # chuck away the prematch part
+		$classid=$1;
+		$payloadLength = unpack("v",$2);
+		$data = $3;
+		
+		# Have we got the full message ?
 		$packetLength = $payloadLength + 8;
 		$inputLength=length($input);
 		if ($packetLength <= $inputLength){ # it's all there ! yay !
-			#printf "%02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
 			
 			$now=time();			# got one - tag the time
 			
 			if ($now>$then) {
-				# update string version of time stamp
+				# Update string version of time stamp
 				@_=gmtime $now;
 				$nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
 				$then=$now;
 				print "---\n";
 			}
-		
-			$payload = substr $postmatch,0,$payloadLength;
-			
-			#print "$class $id\n";
-			
-			if ($class == 0x02 && $id == 0x15){ # raw measurement data
-				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
-			}
-			
-			if ($class == 0x0d && $id == 0x01){ # time pulse data
-				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
-			}
-			
-			if ($class == 0x01 && $id == 0x35){ # satellite information
-				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
-			}
-			
-			if ($class == 0x01 && $id == 0x21){ # UTC solution
-				printf "$nowstr %02x %02x %i %i %i\n",$class,$id,$packetLength,length($postmatch),$inputLength;
-			}
-			
-			if ($class == 0x01 && $id == 0x22){ # clock solution
-				printf "$nowstr %02x %02x %i %i %i\n",$class,$id,$packetLength,length($postmatch),$inputLength;
-				PollGPSEphemeris();
-			}
-			
-			if ($class == 0x05){ # ACK response to CFG 
-				($classID,$msgID) = unpack("CC",$postmatch);
-				if ($id == 0x01){
-					printf "ACK_ACK %02x %02x\n",$classID,$msgID;
+	
+			if ( $ubxmsgs =~ /:$classid:/){ # we want this one
+				($class,$id)=unpack("CC",$classid);
+				printf "%02x%02x $nowstr %i %i %i\n",$class,$id,$payloadLength,$packetLength,$inputLength;
+				
+				if ($class == 0x01 && $id == 0x35){
+					UpdateSVInfo($data);
 				}
-				elsif ($id == 0x00){
-					printf "ACK_NAK %02x %02x\n",$classID,$msgID;
+				
+				if ($class == 0x01 && $id == 0x22){ # last of periodic messages is the clock solution
+					UpdateUTCIonoParameters();
+					UpdateGPSEphemeris();
+				}
+				
+				if ($class == 0x0b){
+					ParseGPSSystemDataMessage($id,$payloadLength,$data);
 				}
 			}
-			
-			if ($class == 0x0a && $id == 0x04){ # version info
-				printf "$nowstr %02x %02x %i %i\n",$class,$id,$packetLength,$inputLength;
-			}
-			
-			if ($class == 0x0b && $id == 0x31){ # GPS ephemeris
-				$svid=0;
-				if (length($payload) != 8){
-					($svid) = unpack("I",$payload);
+			else{
+				if ($opt_d){
+					#($class,$id)=unpack("CC",$classid);
+					#printf "Unhandled UBX msg %02x %02x\n",$class,$id;
 				}
-				printf "$nowstr %02x %02x %i %i svid=$svid\n",$class,$id,$packetLength,$inputLength;
 			}
-		
 			# Tidy up the input buffer
 			if ($packetLength == $inputLength){
 				$input="";
 			}
 			else{
-				$input=$postmatch;
+				$input=substr $input,$packetLength;
 			}
 		}
 		else{
@@ -390,31 +396,44 @@ sub ConfigureReceiver
 	if ($opt_r){ # hard reset
 		
 	}
+	
 	# Navigation/measurement rate settings
+	$ubxmsgs .= "\x06\x08:";
 	$msg = "\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE
 	SendCommand($msg);
 	
 	# Configure various messages for 1 Hz output
 	
-	# TIM-TP time pulse message (contains sawtooth error)
-	$msg="\x06\x01\x03\x00\x0d\x01\x01"; #CFG-MSG 0x0d 0x01
-	SendCommand($msg);
-	
 	# RXM-RAWX raw data message
+	$ubxmsgs .= "\x06\x01:";
+	$ubxmsgs .= "\x02\x15:";
 	$msg="\x06\x01\x03\x00\x02\x15\x01"; #CFG-MSG 0x02 0x15
 	SendCommand($msg);
 	
+	# TIM-TP time pulse message (contains sawtooth error)
+	$ubxmsgs .= "\x0d\x01:";
+	$msg="\x06\x01\x03\x00\x0d\x01\x01"; #CFG-MSG 0x0d 0x01
+	SendCommand($msg);
+	
 	# Satellite information
+	$ubxmsgs .= "\x01\x35:";
 	$msg="\x06\x01\x03\x00\x01\x35\x01"; #CFG-MSG 0x01 0x35
 	SendCommand($msg); 
 	
+	# NAV-TIMEUTC UTC time solution 
+	$ubxmsgs .= "\x01\x21:";
+	$msg="\x06\x01\x03\x00\x01\x21\x01"; #CFG-MSG 0x01 0x21
+	SendCommand($msg); 
+	
 	# NAV-CLOCK clock solution (contains clock bias)
+	$ubxmsgs .= "\x01\x22:";
 	$msg="\x06\x01\x03\x00\x01\x22\x01"; #CFG-MSG 0x01 0x22
 	SendCommand($msg); 
 	
-	# NAV-TIMEUTC UTC time solution 
-	$msg="\x06\x01\x03\x00\x01\x21\x01"; #CFG-MSG 0x01 0x21
-	SendCommand($msg); 
+	# Polled messages
+	$ubxmsgs .= "\x0b\x31:"; # GPS ephemeris
+	$ubxmsgs .= "\x0b\x02:"; # GPS UTC & ionosphere
+	$ubxmsgs .= "\x05\x00:\x05\01:"; # ACK-NAK, ACK_ACK
 	
 	PollVersionInfo();
 	
@@ -428,11 +447,145 @@ sub PollVersionInfo
 	SendCommand($msg);
 }
 
+# ---------------------------------------------------------------------------
 sub PollGPSEphemeris
 {
-	my $msg="\x0B\x31\x00\x00";
+ 
+  ($svID)=pack("C",shift);
+	my $msg="\x0b\x31\x01\x00$svID";
 	SendCommand($msg);
+}
+
+# ----------------------------------------------------------------------------
+sub PollUTCIonoParameters
+{
+	my $msg="\x0b\x02\x0\x00"; # AID-HUI GPS health, UTC and ionosphere parameters
+	SendCommand($msg);
+}
+
+# Poll for ephemeris if a poll is due
+sub UpdateGPSEphemeris
+{
+	for ($i=0;$i<=$#SVdata;$i++){
+		if ($SVdata[$i][$LAST_EPHEMERIS_REQUESTED] ==-1 &&
+			time - $tstart > $COLDSTART_HOLDOFF ){ #flags start up for SV
+			# Try to get an ephemeris as soon as possible after startup
+			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
+			Debug("Requesting ephemeris for $SVdata[$i][$PRN]");
+			PollGPSEphemeris($SVdata[$i][$PRN]);
+		}
+		elsif (time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > 30 && 
+			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $SVdata[$i][$LAST_EPHEMERIS_RECEIVED] ){
+				$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
+			Debug("Requesting ephemeris for $SVdata[$i][$PRN] again!");
+			PollGPSEphemeris($SVdata[$i][$PRN]);
+		}
+		elsif (($SVdata[$i][$LAST_EPHEMERIS_RECEIVED] != -1) &&
+			(time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $EPHEMERIS_POLL_INTERVAL)){
+			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
+			Debug("Requesting ephemeris for $SVdata[$i][$PRN] cos it be stale");
+			PollGPSEphemeris($SVdata[$i][$PRN]);
+		}
+	}
 	
+}
+
+# ----------------------------------------------------------------------------
+sub UpdateUTCIonoParameters
+{
+	
+	if ($params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED] == -1 && 
+		time - $tstart > $COLDSTART_HOLDOFF){
+		# Just starting so do this ASAP
+		$params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED]= time;
+		Debug("Requesting UTC/iono parameters");
+		PollUTCIonoParameters();
+	}
+	elsif (time - $params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED] > 30 &&
+		$params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED] > 
+			$params[$UTC_IONO_PARAMETERS][$LAST_RECEIVED]){
+		# Polled but no response
+		$params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED]= time;
+		Debug("Requesting UTC/iono parameters again!");
+		PollUTCIonoParameters();
+	}
+	elsif (($params[$UTC_IONO_PARAMETERS][$LAST_RECEIVED] != -1) &&
+		time - $params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED] >  $UTC_IONO_POLL_INTERVAL){
+		# Poll overdue
+		$params[$UTC_IONO_PARAMETERS][$LAST_REQUESTED]= time;
+		Debug("Requesting UTC/iono parameters cos they be stale");
+		PollUTCIonoParameters();
+	}
+}
+
+# ---------------------------------------------------------------------------
+sub UpdateSVInfo
+{
+	# This is used to track SVs as they appear and disappear so that we know
+	# when to request a new ephemeris
+	my $data=shift;
+	my $numSVs=(length($data)-8-2)/12;
+	
+	# $qual = $flags & 0x07;
+	
+	# Mark all SVs as not visible so that non-visible SVs can be pruned
+	for ($i=0;$i<=$#SVdata;$i++){
+		$SVdata[$i][$STILL_VISIBLE]=0;
+	}
+	for ($i=0;$i<$numSVs;$i++){
+		($gnssID,$svID,$cno,$elev,$azim,$prRes,$flags)=unpack("CCCcssI",substr $data,8+12*$i,12);
+		$ephAvail=$flags & 0x0800;
+		next unless ($gnssID != 0); # only want GPS
+		Debug("Checking $svID");
+		# If the SV is being tracked then no more to do
+		for ($j=0;$j<=$#SVdata;$j++){
+			if ($SVdata[$j][$PRN] == $svID){
+				$SVdata[$j][$STILL_VISIBLE]=1;
+				$SVdata[$j][$DISAPPEARED]=-1; # reset this timer
+				last;
+			}
+		}
+
+		if ($j > $#SVdata && $svID > 0 && $ephAvail){
+			Debug("$svID acquired");
+			$SVdata[$j][$PRN]=$svID;
+			$SVdata[$j][$APPEARED]=time;
+			$SVdata[$j][$LAST_EPHEMERIS_RECEIVED]=-1;
+			$SVdata[$j][$LAST_EPHEMERIS_REQUESTED]=-1;
+			$SVdata[$j][$STILL_VISIBLE]=1;
+			$SVdata[$j][$DISAPPEARED]=-1;
+		}
+	}
+	# Now prune satellites which have disappeared
+	# This is only done if the satellite has not been
+	# visible for some time - satellites can drop in and out of
+	# view so we'll try to avoid excessive polling
+	for ($i=0;$i<=$#SVdata;$i++){
+		if ($SVdata[$i][$STILL_VISIBLE]==0){
+			if ($SVdata[$i][$DISAPPEARED]==-1){
+				$SVdata[$i][$DISAPPEARED]=time;
+				Debug("$SVdata[$i][$PRN] has disappeared");
+			}
+			elsif (time - $SVdata[$i][$DISAPPEARED] > $REMOVE_SV_THRESHOLD){	
+				Debug("$SVdata[$i][$PRN] removed");
+				splice @SVdata,$i,1;	
+			}	
+		}
+	}
+			
+}
+
+# ---------------------------------------------------------------------------
+sub ParseGPSSystemDataMessage()
+{
+	my ($id) = $_[0];
+	if ($id == 0x31){ # ephemeris
+		
+	}
+	elsif ($id == 0x02 && $payloadLength != 0){ # UTC + ionosphere parameters
+		$params[$UTC_IONO_PARAMETERS][$LAST_RECEIVED] = time;
+		Debug("UTC/iono parameters received");
+	}
 }
 
 
