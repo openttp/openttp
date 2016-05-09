@@ -45,12 +45,12 @@ $EPHEMERIS_POLL_INTERVAL=7000; # a bit less than the 7200 s threshold for
 															 # ephemeris validity as used in processing S/W
 															 
 # Track each SV so that we know when to ask for an ephemeris
-# Record PRN
+# Record SVN
 # Record time SV appeared (Unix time)
 # Record time we last got an ephemeris (Unix time)
 # Flag for marking whether still visible
 
-$PRN=0; # constants for indexing into the array tracking each SV
+$SVN=0; # constants for indexing into the array tracking each SV
 $APPEARED=1;
 $LAST_EPHEMERIS_RECEIVED=2;
 $LAST_EPHEMERIS_REQUESTED=5;
@@ -393,8 +393,13 @@ sub SendCommand
 sub ConfigureReceiver
 {
 
+	# Note that reset causes a USB disconnect
+	# so it's a good idea to use udev to map the device to a 
+	# fixed name
 	if ($opt_r){ # hard reset
-		
+		$msg="\x06\x04\x04\x00\xff\xff\x00\x00";
+		SendCommand($msg);
+		sleep 5;
 	}
 	
 	# Navigation/measurement rate settings
@@ -434,8 +439,10 @@ sub ConfigureReceiver
 	$ubxmsgs .= "\x0b\x31:"; # GPS ephemeris
 	$ubxmsgs .= "\x0b\x02:"; # GPS UTC & ionosphere
 	$ubxmsgs .= "\x05\x00:\x05\01:"; # ACK-NAK, ACK_ACK
+	$ubxmsgs .= "\x27\x03:"; # Chip ID
 	
 	PollVersionInfo();
+	PollChipID();
 	
 } # ConfigureReceiver
 
@@ -444,6 +451,13 @@ sub ConfigureReceiver
 sub PollVersionInfo
 {
 	my $msg="\x0a\x04\x00\x00";
+	SendCommand($msg);
+}
+
+# ---------------------------------------------------------------------------
+sub PollChipID
+{
+	my $msg="\x27\x03\x00\x00";
 	SendCommand($msg);
 }
 
@@ -459,7 +473,7 @@ sub PollGPSEphemeris
 # ----------------------------------------------------------------------------
 sub PollUTCIonoParameters
 {
-	my $msg="\x0b\x02\x0\x00"; # AID-HUI GPS health, UTC and ionosphere parameters
+	my $msg="\x0b\x02\x00\x00"; # AID-HUI GPS health, UTC and ionosphere parameters
 	SendCommand($msg);
 }
 
@@ -471,20 +485,20 @@ sub UpdateGPSEphemeris
 			time - $tstart > $COLDSTART_HOLDOFF ){ #flags start up for SV
 			# Try to get an ephemeris as soon as possible after startup
 			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
-			Debug("Requesting ephemeris for $SVdata[$i][$PRN]");
-			PollGPSEphemeris($SVdata[$i][$PRN]);
+			Debug("Requesting ephemeris for $SVdata[$i][$SVN]");
+			PollGPSEphemeris($SVdata[$i][$SVN]);
 		}
 		elsif (time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > 30 && 
 			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $SVdata[$i][$LAST_EPHEMERIS_RECEIVED] ){
 				$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
-			Debug("Requesting ephemeris for $SVdata[$i][$PRN] again!");
-			PollGPSEphemeris($SVdata[$i][$PRN]);
+			Debug("Requesting ephemeris for $SVdata[$i][$SVN] again!");
+			PollGPSEphemeris($SVdata[$i][$SVN]);
 		}
 		elsif (($SVdata[$i][$LAST_EPHEMERIS_RECEIVED] != -1) &&
 			(time - $SVdata[$i][$LAST_EPHEMERIS_REQUESTED] > $EPHEMERIS_POLL_INTERVAL)){
 			$SVdata[$i][$LAST_EPHEMERIS_REQUESTED] = time;
-			Debug("Requesting ephemeris for $SVdata[$i][$PRN] cos it be stale");
-			PollGPSEphemeris($SVdata[$i][$PRN]);
+			Debug("Requesting ephemeris for $SVdata[$i][$SVN] cos it be stale");
+			PollGPSEphemeris($SVdata[$i][$SVN]);
 		}
 	}
 	
@@ -521,34 +535,39 @@ sub UpdateUTCIonoParameters
 # ---------------------------------------------------------------------------
 sub UpdateSVInfo
 {
+	# Uses 0x01 0x35 message 
 	# This is used to track SVs as they appear and disappear so that we know
 	# when to request a new ephemeris
 	my $data=shift;
 	my $numSVs=(length($data)-8-2)/12;
-	
-	# $qual = $flags & 0x07;
+	my $i;
 	
 	# Mark all SVs as not visible so that non-visible SVs can be pruned
 	for ($i=0;$i<=$#SVdata;$i++){
 		$SVdata[$i][$STILL_VISIBLE]=0;
 	}
+	
+	#($iTOW,$ver,$numSVs) = unpack("ICC",$data);
+	#Debug("numSVs = $numSVs");
+	
 	for ($i=0;$i<$numSVs;$i++){
 		($gnssID,$svID,$cno,$elev,$azim,$prRes,$flags)=unpack("CCCcssI",substr $data,8+12*$i,12);
 		$ephAvail=$flags & 0x0800;
-		next unless ($gnssID != 0); # only want GPS
-		Debug("Checking $svID");
+		next unless ($gnssID == 0); # only want GPS
+		# Debug("Checking $svID ($i)");
 		# If the SV is being tracked then no more to do
 		for ($j=0;$j<=$#SVdata;$j++){
-			if ($SVdata[$j][$PRN] == $svID){
+			if ($SVdata[$j][$SVN] == $svID){
 				$SVdata[$j][$STILL_VISIBLE]=1;
 				$SVdata[$j][$DISAPPEARED]=-1; # reset this timer
+				# Debug("Already tracking $svID ($i)");
 				last;
 			}
 		}
 
 		if ($j > $#SVdata && $svID > 0 && $ephAvail){
-			Debug("$svID acquired");
-			$SVdata[$j][$PRN]=$svID;
+			Debug("$svID acquired ($j)");
+			$SVdata[$j][$SVN]=$svID;
 			$SVdata[$j][$APPEARED]=time;
 			$SVdata[$j][$LAST_EPHEMERIS_RECEIVED]=-1;
 			$SVdata[$j][$LAST_EPHEMERIS_REQUESTED]=-1;
@@ -556,6 +575,7 @@ sub UpdateSVInfo
 			$SVdata[$j][$DISAPPEARED]=-1;
 		}
 	}
+	
 	# Now prune satellites which have disappeared
 	# This is only done if the satellite has not been
 	# visible for some time - satellites can drop in and out of
@@ -564,10 +584,10 @@ sub UpdateSVInfo
 		if ($SVdata[$i][$STILL_VISIBLE]==0){
 			if ($SVdata[$i][$DISAPPEARED]==-1){
 				$SVdata[$i][$DISAPPEARED]=time;
-				Debug("$SVdata[$i][$PRN] has disappeared");
+				Debug("$SVdata[$i][$SVN] has disappeared");
 			}
 			elsif (time - $SVdata[$i][$DISAPPEARED] > $REMOVE_SV_THRESHOLD){	
-				Debug("$SVdata[$i][$PRN] removed");
+				Debug("$SVdata[$i][$SVN] removed");
 				splice @SVdata,$i,1;	
 			}	
 		}
@@ -578,9 +598,21 @@ sub UpdateSVInfo
 # ---------------------------------------------------------------------------
 sub ParseGPSSystemDataMessage()
 {
-	my ($id) = $_[0];
+	my ($id,$payloadLength,$data) = @_;
 	if ($id == 0x31){ # ephemeris
-		
+		my ($svn) = unpack("I",$data); 
+		if ($payloadLength == 104){
+			Debug("Got ephemeris for $svn");
+			for ($i=0;$i<=$#SVdata;$i++){
+				if ($SVdata[$i][$SVN]==$svn){
+					$SVdata[$i][$LAST_EPHEMERIS_RECEIVED] = time;
+					last;
+				}
+			}
+		}
+		else{
+			Debug("No ephemeris for $svn");
+		}
 	}
 	elsif ($id == 0x02 && $payloadLength != 0){ # UTC + ionosphere parameters
 		$params[$UTC_IONO_PARAMETERS][$LAST_RECEIVED] = time;
