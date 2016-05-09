@@ -477,6 +477,11 @@ sub ConfigureReceiver
 	&SendCommand("\x8E\x41"); # manufacturing parameters
 	&SendCommand("\x8E\x42"); # production parameters
 	&SendCommand("\x1F");
+	
+	if ($opt_r){
+		&SendCommand("\x8E\xA6\x00"); # Force self survey after reset
+	}
+	
 } # ConfigureReceiver
 
 #----------------------------------------------------------------------------

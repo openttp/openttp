@@ -38,6 +38,7 @@
 #include <boost/concept_check.hpp>
 
 #include "Antenna.h"
+#include "Application.h"
 #include "Debug.h"
 #include "GPS.h"
 #include "HexBin.h"
@@ -46,6 +47,7 @@
 #include "SVMeasurement.h"
 
 extern ostream *debugStream;
+extern Application *app;
 
 #define MAX_CHANNELS 16 // max channels per constellation
 
@@ -76,8 +78,8 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 		// For the future
 	}
 	else{
-		cerr << "Unknown receiver model: " << modelName << endl;
-		cerr << "Assuming NV08C-CSM" << endl;
+		app->logMessage("Unknown receiver model: " + modelName);
+		app->logMessage("Assuming NV08C-CSM");
 	}
 }
 
@@ -378,18 +380,18 @@ bool NVS::readLog(string fname,int mjd)
 		}
 	}
 	else{
-		cerr << " unable to open " << fname << endl;
+		app->logMessage(" unable to open " + fname);
 		return false;
 	}
 	infile.close();
 
 	if (!gotIonoData){
-		cerr << "No 4A (ionosphere) message found" << endl;
+		app->logMessage("failed to find ionosphere parameters - no 4A messages");
 		return false;
 	}
 	
 	if (!gotUTCdata){
-		cerr << "No 4B (UTC) message found" << endl;
+		app->logMessage("failed to find UTC parameters - no 4B messages");
 		return false;
 	}
 	

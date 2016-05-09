@@ -42,7 +42,7 @@ $VERSION = "2.0.1";
 
 $MINTRACKLENGTH=750;
 $DSGMAX=200;
-$USEIONO=1;
+$IONOCORR=1; # this means the ionospheric correction is removed!
 $ELEVMASK=0;
 
 $PRN=0;
@@ -98,7 +98,7 @@ if ($opt_t){
 }
 
 if ($opt_i){
-	$USEIONO=0;
+	$IONOCORR=0;
 }
 
 $refrxext = "cctf";
@@ -140,7 +140,7 @@ MyPrint "$0 version $VERSION\n\n";
 MyPrint "Run " . (strftime "%a %b %e %H:%M:%S %Y", gmtime)."\n\n";
 
 MyPrint "Mininimum track length = $MINTRACKLENGTH\n";
-MyPrint "Ionosphere corrections removed = ".($USEIONO?"yes":"no")."\n";
+MyPrint "Ionosphere corrections removed = ".(($IONOCORR)?"yes":"no")."\n";
 MyPrint "Maximum DSG = ".$DSGMAX/10.0." ns\n";
 MyPrint "Elevation mask = ".$ELEVMASK/10.0." deg\n";
 MyPrint "Using ".($opt_s?"REFSV":"REFGPS")."\n";
@@ -419,8 +419,8 @@ for ($i=0;$i<=$#ref;$i++){
 			# Note that the measured ionospheric delay is added back in ...
 			push @matches, [$t,
 				$ref[$i][$REFGPS]/10.0,$cal[$j][$REFGPS]/10.0,
-				($ref[$i][$REFDIFF] + $USEIONO*$ref[$i][$REFIONO])/10.0-
-				($cal[$j][$REFDIFF] + $USEIONO*$cal[$j][$CALIONO])/10.0  + $calCorrection - $refCorrection,
+				($ref[$i][$REFDIFF] + $IONOCORR*$ref[$i][$REFIONO])/10.0-
+				($cal[$j][$REFDIFF] + $IONOCORR*$cal[$j][$CALIONO])/10.0  + $calCorrection - $refCorrection,
 				$ref[$i][$PRN],$ref[$i][$IOE],$cal[$j][$IOE] ];
 			last;
 		}
@@ -561,7 +561,7 @@ sub ShowHelp
 	print "-d  <val> set maximum DSG (default=". $DSGMAX/10.0. " ns)\n";
 	print "-e  <val> set elevation mask (default = $ELEVMASK degrees)\n";
 	print "-h        show this help\n";
-	print "-i        remove ionosphere correction (zero baseline data)\n";
+	print "-i        ionosphere correction is used (zero baseline data assumed otherwise)\n";
 	print "-m  <val> name to use for REF receiver in output (default = \"ref\")\n";
 	print "-n  <val> name to use for CAL receiver in output (default = \"cal\")\n";
 	print "-o        filter by matched ephemeris (default=no)\n";
