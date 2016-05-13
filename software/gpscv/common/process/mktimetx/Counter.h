@@ -28,6 +28,7 @@
 
 #include <string>
 #include <vector>
+#include <boost/concept_check.hpp>
 
 using namespace std;
 
@@ -41,6 +42,7 @@ class Counter
 		~Counter();
 	
 		bool readLog(string);
+		bool flipSign;
 		
 		vector<CounterMeasurement *> measurements;
 	

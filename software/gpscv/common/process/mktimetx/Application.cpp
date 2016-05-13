@@ -562,6 +562,7 @@ bool Application::loadConfig()
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
+			
 			for (unsigned int i=0;i<configs.size();i++){
 				string calID="";
 				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp)){
@@ -776,6 +777,12 @@ bool Application::loadConfig()
 	if (!setConfig(last,"receiver","file extension",receiverExtension,false)) configOK=false;
 	
 	// Counter
+	if (setConfig(last,"counter","flip sign",stmp,false)){
+		boost::to_upper(stmp);
+		if (stmp=="YES")
+			counter->flipSign=true;
+	}
+	
 	if (!setConfig(last,"counter","file extension",counterExtension,false)) configOK=false;
 	
 	// Delays

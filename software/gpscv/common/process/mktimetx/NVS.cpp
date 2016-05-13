@@ -221,6 +221,7 @@ bool NVS::readLog(string fname,int mjd)
 			if(msgid=="72"){ // Time and frequency parameters (sawtooth correction)
 				if (msg.size()==34*2){
 					HexToBin((char *) msg.substr(21*2,sizeof(FP64)*2).c_str(),sizeof(FP64),(unsigned char *) &sawtooth);
+					sawtooth = sawtooth * 1.0E-9; // convert from ns to seconds
 					currentMsgs |= MSG72;
 					continue;
 				}
