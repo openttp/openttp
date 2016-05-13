@@ -272,6 +272,7 @@ bool Javad::readLog(string fname,int mjd)
 							
 							if (ok){
 								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								svm->dbuf3 = CApr[chan];
 								rmeas->gps.push_back(svm);
 							}
 							

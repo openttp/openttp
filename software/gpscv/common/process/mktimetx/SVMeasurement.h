@@ -43,7 +43,7 @@ class SVMeasurement
 		unsigned char lli;
 		unsigned char signal;
 
-		double dbuf1,dbuf2; // FIXME used as temporaries when interpolating. Remove eventually.
+		double dbuf1,dbuf2,dbuf3; // FIXME used as temporaries when interpolating. Remove eventually.
 		unsigned int uibuf;
 		
 		ReceiverMeasurement *rm; // allows us to get at data common to each SV

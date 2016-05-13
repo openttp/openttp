@@ -210,6 +210,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					rmeas->gps=gps;
 					// correct all code measurements for the receiver time offset here
 					for (unsigned int sv=0;sv < gps.size(); sv++){ // FIXME GPS only
+						rmeas->gps[sv]->dbuf3 = rmeas->gps[sv]->meas; 
 						rmeas->gps[sv]->meas += rxtimeoffset*1.0E-9;// reported units are ns
 						DBGMSG(debugStream,4,(int) fabhh << ":" << (int) fabmm << ":" << (int) fabss << " " <<
 							(int) rmeas->gps[sv]->svn << " " <<rmeas->gps[sv]->meas);

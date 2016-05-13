@@ -274,6 +274,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				
 				EphemerisData *ed=NULL;
 				while (t<svtrk[sv].size()){
+					svtrk[sv].at(t)->dbuf2=0.0;
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
@@ -291,6 +292,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 							refpps= useTIC*(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
 							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
 							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
+							svtrk[sv].at(t)->dbuf2 = refsv[npts]/1.0E9; // back to seconds !
 							npts++;
 						}
 						tsearch += 30;

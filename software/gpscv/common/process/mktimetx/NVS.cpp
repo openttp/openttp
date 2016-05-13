@@ -143,8 +143,8 @@ bool NVS::readLog(string fname,int mjd)
 						
 						//rmeas->gpstow=gpstow; // only needed for Trimble
 						//rmeas->gpswn=gpswn;   // ditto
-						rmeas->sawtooth=0.0*sawtooth; // FIXME
-						rmeas->timeOffset=0.0*rxtimeoffset; // FIXME
+						rmeas->sawtooth=sawtooth; 
+						rmeas->timeOffset=rxtimeoffset;
 						
 						int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
