@@ -201,11 +201,7 @@ LOOP: while (!$killed)
 
 	#if ($input=~/(\$G\w{4})(.+\*[A-F_0-9]{2})\r\n/){ # grab NMEA
 	#	$input=$'; # save the dangly bits
-	#	if ($1 eq '$GNZDA') {
-	#	}
-	#	else{
-	#		# print $1,"\n";
-	#	}
+	#	print $1,$2,"\n";
 	#}
 	
 	# Header structure for UBX packets is 
@@ -223,6 +219,17 @@ LOOP: while (!$killed)
 		if ($packetLength <= $inputLength){ # it's all there ! yay !
 			
 			$now=time();			# got one - tag the time
+			$lastMsg=$now;
+			
+			if ($now>=$next){
+				# (this way is safer than just incrementing $mjd)
+				$mjd=int($now/86400) + 40587;	
+				&OpenDataFile($mjd,0);
+				# Request receiver and software versions
+				# TODO
+				PollChipID();
+				$next=($mjd-40587+1)*86400;	# seconds at next MJD
+			}
 			
 			if ($now>$then) {
 				# Update string version of time stamp
@@ -235,7 +242,7 @@ LOOP: while (!$killed)
 			if ( $ubxmsgs =~ /:$classid:/){ # we want this one
 				($class,$id)=unpack("CC",$classid);
 				printf "%02x%02x $nowstr %i %i %i\n",$class,$id,$payloadLength,$packetLength,$inputLength;
-				
+				printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
 				if ($class == 0x01 && $id == 0x35){
 					UpdateSVInfo($data);
 				}
@@ -251,8 +258,8 @@ LOOP: while (!$killed)
 			}
 			else{
 				if ($opt_d){
-					#($class,$id)=unpack("CC",$classid);
-					#printf "Unhandled UBX msg %02x %02x\n",$class,$id;
+					($class,$id)=unpack("CC",$classid);
+					printf "Unhandled UBX msg %02x %02x\n",$class,$id;
 				}
 			}
 			# Tidy up the input buffer
