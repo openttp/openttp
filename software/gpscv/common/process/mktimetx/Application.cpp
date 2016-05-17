@@ -930,6 +930,7 @@ bool Application::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fn
 
 void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 {
+	// Measurements are matched using PC time stamps
 	if (cntr->measurements.size() == 0 || rx->measurements.size()==0)
 		return;
 

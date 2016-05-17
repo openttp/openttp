@@ -50,6 +50,7 @@ class ReceiverMeasurement
 		unsigned char pchh,pcmm,pcss; // time of measurement, as determined from the log time stamp
 		struct tm tmGPS,tmUTC; // time of measurement, according to the receiver. tmGPS is mostly used but sometimes we get UTC for the receiver TOM
 													 // and have to convert to GPS later when the number of leap seconds are known
+													 // tmUTC is used in CGGTTS file generation
 		double tmfracs; // fractional part of time of measurement, units are seconds (s) - must be +ve
 		
 		CounterMeasurement *cm; // matched counter measurement

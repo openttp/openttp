@@ -1,2 +1,54 @@
 
+General notes
+
+NVS
+
+Note that this receiver uses UTC as the reference timescale to report time stamps.
+
+This receiver reports a measurement time for observation a few hundred ms prior to the upcoming
+second.
+
+Trimble
+
+ 
+
+Internals
+
+One aspect to keep straight is that three timescales are used in the software:
+PC time
+UTC
+GPS time
+
+PC time is used only to match TIC and GNSS observations. Time stamps recorded in measurement files do
+not have a fractional seconds part. The latency of the various signals (eg GPS messages 
+for a second are always output after the beginning of the second) and their logging by the host PC 
+means that this is no ambiguity during normal operation.
+
+UTC time is used for CGGTTS generation.
+
+GPS time is used for various calculations and for RINEX observations.
+
+/subsection{Application.cpp}
+
+Matched measurements are stored in a vector whose index corresponds to UTC time-of-day.
+
+/subsection{CGGTTS.cpp}
+
+
+
 /section{Adding support for a new receiver}
+
+Conventions
+
+A counter/timer measurement must be started by REF and stopped by GPS.
+There is an option in gpscv.conf to reverse the sign of this.
+
+The sawtooth correction is ADDED to the counter/timer measurement.
+
+
+Debugging and validation
+
+It can be useful to look at how well the receiver recovers GPS time - this is easily done by
+using the option --disable-tic. The sawtooth-corrected TIC measurement is then set to zero.
+
+REFSYS values noisy at the hundreds of ns level may indicate an off by one error in assigned time stamps.
