@@ -2,7 +2,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2014  Michael J. Wouters
+// Copyright (c) 2016  Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,49 +23,30 @@
 // THE SOFTWARE.
 
 
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
-#include <unistd.h>
-#include <errno.h>
-#include <paths.h>
+#ifndef __UBLOX_H_
+#define __UBLOX_H_
 
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <signal.h>
-
-#include <iostream>
-#include <fstream>
-#include <sstream>
 #include <string>
 
-#include "Debug.h"
-#include "Application.h"
+#include "Receiver.h"
 
-ostream *debugStream;
-string   debugFileName;
-ofstream debugLog;
-int verbosity=1;
-bool shortDebugMessage=false;
+using namespace std;
 
-Application *app;
-
-int main(
-	int argc,
-	char **argv)
+class Ublox:public Receiver
 {
+	public:
+		
+		Ublox(Antenna *,string);
+		virtual ~Ublox();
 	
-	// make sure we are using UTC so mktime() works the way we want
-	setenv("TZ","UTC",1);
-	tzset();
+		virtual bool readLog(string,int);
+		
+	protected:
 	
-	debugStream= NULL;
+	private:
 	
-	new Application(argc,argv);
-	app->run();
 	
-	return EXIT_SUCCESS;
-}
+};
+
+#endif
 

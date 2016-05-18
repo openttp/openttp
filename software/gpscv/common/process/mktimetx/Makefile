@@ -7,7 +7,7 @@ CXXFLAGS= -Wall -DDEBUG -g
 CFGFLAGS= 
 OBJECTS = Application.o Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o  ReceiverMeasurement.o \
 	CGGTTS.o RINEX.o \
-	Javad.o NVS.o TrimbleResolution.o \
+	Javad.o NVS.o TrimbleResolution.o Ublox.o\
 	Timer.o Troposphere.o Utility.o
 
 all: $(PROGRAM)
@@ -36,7 +36,7 @@ Javad.o: Javad.cpp Antenna.h Debug.h GPS.h HexBin.h Javad.h Receiver.h ReceiverM
 	Timer.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Javad.cpp
 
-NVS.o: NVS.cpp Antenna.h Debug.h GPS.h HexBin.h NVS.h Receiver.h ReceiverMeasurement.h SVMeasurement.h 
+NVS.o: NVS.cpp Application.h Antenna.h Debug.h GPS.h HexBin.h NVS.h Receiver.h ReceiverMeasurement.h SVMeasurement.h 
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c NVS.cpp
 	
 Main.o: Main.cpp Debug.h Application.h
@@ -57,12 +57,15 @@ RINEX.o: RINEX.cpp  Antenna.h Counter.h Debug.h  Application.h MeasurementPair.h
 Timer.o: Timer.cpp Timer.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Timer.cpp
 
-TrimbleResolution.o: TrimbleResolution.cpp Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h TrimbleResolution.h
+TrimbleResolution.o: TrimbleResolution.cpp Application.h Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h TrimbleResolution.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c TrimbleResolution.cpp
 
 Troposphere.o: Troposphere.cpp Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Troposphere.cpp
-	
+
+Ublox.o: Ublox.cpp Ublox.h Application.h Antenna.h Debug.h GPS.h HexBin.h Receiver.h ReceiverMeasurement.h SVMeasurement.h 
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Ublox.cpp
+
 Utility.o: Utility.cpp Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Utility.cpp
 	
@@ -71,5 +74,4 @@ $(PROGRAM): $(OBJECTS)
 
 clean:
 	rm -f *.o $(PROGRAM)
- 
 	

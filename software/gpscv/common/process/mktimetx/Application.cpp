@@ -61,8 +61,10 @@
 #include "SVMeasurement.h"
 #include "Timer.h"
 #include "TrimbleResolution.h"
+#include "Ublox.h"
 #include "Utility.h"
 
+extern Application *app;
 extern ostream *debugStream;
 extern string   debugFileName;
 extern ofstream debugLog;
@@ -97,7 +99,8 @@ using boost::bad_lexical_cast;
 
 Application::Application(int argc,char **argv)
 {
-
+	app = this;
+	
 	init();
 	
 	// Process the command line options
@@ -536,6 +539,7 @@ string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 
 bool Application::loadConfig()
 {
+
 	// Our conventional config file format is used to maintain compatibility with existing scripts
 	ListEntry *last;
 	if (!configfile_parse_as_list(&last,configurationFile.c_str())){
@@ -733,7 +737,6 @@ bool Application::loadConfig()
 		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
 	
 	// Receiver
-
 	string rxModel,rxManufacturer;
 	if (!setConfig(last,"receiver","model",rxModel)) configOK=false;
 	if ((configResult = setConfig(last,"receiver","manufacturer",rxManufacturer))){
@@ -745,6 +748,9 @@ bool Application::loadConfig()
 		}
 		else if (rxManufacturer.find("NVS") != string::npos){
 			receiver = new NVS(antenna,rxModel); 
+		}
+		else if (rxManufacturer.find("ublox") != string::npos){
+			receiver = new Ublox(antenna,rxModel); 
 		}
 		else{
 			cerr << "Unknown receiver manufacturer " << rxManufacturer << endl;
