@@ -562,6 +562,7 @@ bool Application::loadConfig()
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
+			
 			for (unsigned int i=0;i<configs.size();i++){
 				string calID="";
 				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp)){
@@ -776,6 +777,12 @@ bool Application::loadConfig()
 	if (!setConfig(last,"receiver","file extension",receiverExtension,false)) configOK=false;
 	
 	// Counter
+	if (setConfig(last,"counter","flip sign",stmp,false)){
+		boost::to_upper(stmp);
+		if (stmp=="YES")
+			counter->flipSign=true;
+	}
+	
 	if (!setConfig(last,"counter","file extension",counterExtension,false)) configOK=false;
 	
 	// Delays
@@ -923,6 +930,7 @@ bool Application::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fn
 
 void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 {
+	// Measurements are matched using PC time stamps
 	if (cntr->measurements.size() == 0 || rx->measurements.size()==0)
 		return;
 
@@ -1015,7 +1023,7 @@ void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,stri
 			CounterMeasurement *cm= mpairs[i]->cm;
 			ReceiverMeasurement *rxm = mpairs[i]->rm;
 			int tmatch=((int) cm->hh)*3600 +  ((int) cm->mm)*60 + ((int) cm->ss);
-			fprintf(fout,"%i %g %g %g\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset);
+			fprintf(fout,"%i %g %g %.16e\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset);
 		}
 	}
 	fclose(fout);
@@ -1039,7 +1047,10 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 				SVMeasurement *svm = rx->measurements[m]->gps[msv];
 				if (svm->svn == prn){
 					int tod = rx->measurements[m]->tmUTC.tm_hour*3600+ rx->measurements[m]->tmUTC.tm_min*60 + rx->measurements[m]->tmUTC.tm_sec;
-					fprintf(fout,"%d %14.3lf \n",tod,svm->meas*CVACUUM);
+					// FIXME the meaning of dbuf1 and dbuf2 needs to be controlled in a way visible to the user !
+					// The default here is that df1 contains the raw (non-interpolated) pseudo range and df2 contains 
+					// corrected pseudoranges when CGGTTS output has been generated (which can be useful to look at) 
+					fprintf(fout,"%d %.16e %.16e %.16e %.16e\n",tod,svm->meas,svm->dbuf1,svm->dbuf2,svm->dbuf3);
 				}
 			}
 		}

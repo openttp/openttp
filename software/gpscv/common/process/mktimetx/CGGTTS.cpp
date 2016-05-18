@@ -131,6 +131,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 	int highDSGCnt=0;
 	int shortTrackCnt=0;
 	int goodTrackCnt=0;
+	int ephemerisMisses=0;
+	int pseudoRangeFailures=0;
+	int badMeasurementCnt=0;
 	
 	for (int i=0;i<ntracks;i++){
 		int trackStart = schedule[i]*60;
@@ -188,7 +191,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				int t=trackStart;
 				while (t<=trackStop){
 					ReceiverMeasurement *rxm = svtrk[sv].at(isv)->rm;
-					int tmeas=rint(rxm->tmUTC.tm_sec + rxm->tmUTC.tm_min*60+ rxm->tmUTC.tm_hour*3600+rxm->tmfracs);
+					int tmeas=rint(rxm->tmUTC.tm_sec + rxm->tmUTC.tm_min*60+ rxm->tmUTC.tm_hour*3600+rxm->tmfracs); // tmfracs is set to zero by interpolateMeasurements()
 					if (t==tmeas){
 						// FIXME MDIO needs to change for L2
 						if (nqfitpts > 14){ // shouldn't happen
@@ -208,7 +211,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 						// don't increment isv - have to retest
 					}
 					else{ // t > tmeas - shouldn't happen
-						cerr << "Error in CGGTTS::writeObservationFile() - unexpected tmeas" << endl;
+						cerr << "Error in CGGTTS::writeObservationFile() - unexpected tmeas (t=" << t<< ",tmeas=" << tmeas<< endl;
 						exit(EXIT_FAILURE);
 					}
 					
@@ -252,6 +255,8 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				for ( int q=0;q<nqfits;q++){
 					if (ed==NULL) // use only one ephemeris for each track
 							ed = rx->nearestEphemeris(Receiver::GPS,sv,gpsTOW[q]);
+					if (NULL == ed) ephemerisMisses++;
+					
 					double refsyscorr,refsvcorr,iono,tropo,az,el;
 					// FIXME MDIO needs to change for L2
 					// getPseudorangeCorrections will check for NULL ephemeris
@@ -266,6 +271,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 						refsys[npts] = uncorrprange[q]*1.0E9 + refsyscorr - iono - tropo + refpps[q];
 						npts++;
 					}
+					else{
+						pseudoRangeFailures++;
+					}
 				}
 			}                                 
 			else{ // v2E specifies 30s sampled values 
@@ -274,11 +282,13 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				
 				EphemerisData *ed=NULL;
 				while (t<svtrk[sv].size()){
+					svtrk[sv].at(t)->dbuf2=0.0;
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
 						if (ed==NULL) // use only one ephemeris for each track
 							ed = rx->nearestEphemeris(Receiver::GPS,sv,rxmt->gpstow);
+						if (NULL == ed) ephemerisMisses++;
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
 						// getPseudorangeCorrections will check for NULL ephemeris
@@ -291,7 +301,11 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 							refpps= useTIC*(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
 							refsv[npts]  = svtrk[sv].at(t)->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
 							refsys[npts] = svtrk[sv].at(t)->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
+							svtrk[sv].at(t)->dbuf2 = refsv[npts]/1.0E9; // back to seconds !
 							npts++;
+						}
+						else{
+							pseudoRangeFailures++;
 						}
 						tsearch += 30;
 						t++;
@@ -347,6 +361,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				
 				if (refsysresid > 999.9) refsysresid = 999.9;
 				
+				if (fabs(refsvm)==99999 || fabs(refsysm) == 99999 || refsysresid == 999.9)
+					badMeasurementCnt++;
+				
 				// Ready to output
 				if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 
 					char sout[155]; // V2E
@@ -379,6 +396,10 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 		for (unsigned int sv=1;sv<=MAXSV;sv++)
 			svtrk[sv].clear();
 	} // for (int i=0;i<ntracks;i++){
+	
+	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<string>(ephemerisMisses));
+	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<string>(pseudoRangeFailures-ephemerisMisses) );
+	app->logMessage("Bad measurements: " + boost::lexical_cast<string>(badMeasurementCnt) );
 	
 	app->logMessage(boost::lexical_cast<string>(goodTrackCnt) + " good tracks");
 	app->logMessage(boost::lexical_cast<string>(lowElevationCnt) + " low elevation tracks");

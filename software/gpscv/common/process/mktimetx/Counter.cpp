@@ -48,6 +48,7 @@ extern Application *app;
 
 Counter::Counter()
 {
+	flipSign=false;
 }
 
 Counter::~Counter()
@@ -64,6 +65,9 @@ bool Counter::readLog(string fname)
 	Timer timer;
 	timer.start();
 	
+	double mSign=1.0;
+	if (flipSign) mSign = -1.0;
+	
 	DBGMSG(debugStream,INFO,"reading " << fname);
 	
 	ifstream infile (fname.c_str());
@@ -73,7 +77,7 @@ bool Counter::readLog(string fname)
 			int hh,mm,ss;
 			double rdg;
 			if (4==sscanf(line.c_str(),"%d:%d:%d %lf",&hh,&mm,&ss,&rdg)){
-				measurements.push_back(new CounterMeasurement(hh,mm,ss,rdg));
+				measurements.push_back(new CounterMeasurement(hh,mm,ss,mSign*rdg));
 			}
 			// check how much data there is - shouldn't be more than 86400 readings
 			if (measurements.size() > MAXSIZE){ //something is really wrong

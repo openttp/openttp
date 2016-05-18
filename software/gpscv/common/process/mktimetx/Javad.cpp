@@ -272,6 +272,7 @@ bool Javad::readLog(string fname,int mjd)
 							
 							if (ok){
 								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								svm->dbuf3 = CApr[chan];
 								rmeas->gps.push_back(svm);
 							}
 							
@@ -354,6 +355,7 @@ bool Javad::readLog(string fname,int mjd)
 								if ((smoothingOffset - rxTimeOffset)<-5e-4) smoothingOffset+=1e-3;
 				
 								rmeas->sawtooth=sawtooth-(smoothingOffset-rxTimeOffset); // added to the counter measurement
+																																				 // the term (moothingOffset-rxTimeOffset) is typically zero
 								rmeas->timeOffset = rxTimeOffset; // just used for diagnostics
 								
 								// All OK

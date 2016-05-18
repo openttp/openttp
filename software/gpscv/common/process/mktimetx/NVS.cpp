@@ -66,6 +66,10 @@ typedef long double FP80   ; // WARNING 80 bits on x86 but 64 bits on ARM
 #define MSG74 0x04
 #define MSGF5 0x08
 
+// Current problems with NVS driver
+// Get OK output for V2E if I  misalign measurement TOW timestamps by 1 s from UTC & PC
+// V1 CGGTTS produces bad ouput beacuse it is using the wrong TOW (doesn't used the recorded value)
+
 NVS::NVS(Antenna *ant,string m):Receiver(ant)
 {
 	modelName=m;
@@ -97,16 +101,18 @@ bool NVS::readLog(string fname,int mjd)
 	
 	string msgid,currpctime,pctime,msg,gpstime;
 	
-	float rxtimeoffset; // single
+	float rxTimeOffset; // single
 	FP64 sawtooth;     // units are ns
 	FP64  fp64buf;
 	INT16U int16ubuf;
 	INT32U int32ubuf;
 	INT8S int8sbuf;
+	INT8U int8ubuf;
 	
 	vector<SVMeasurement *> gps;
 	gotIonoData = false;
 	gotUTCdata=false;
+	
 	INT8U msg46ss,msg46mm,msg46hh,msg46mday,msg46mon;
 	INT16U msg46yyyy;
 	FP64 tmeasUTC,dGPSUTC;
@@ -141,11 +147,12 @@ bool NVS::readLog(string fname,int mjd)
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 						measurements.push_back(rmeas);
 						
-						//rmeas->gpstow=gpstow; // only needed for Trimble
-						//rmeas->gpswn=gpswn;   // ditto
-						rmeas->sawtooth=0.0*sawtooth; // FIXME
-						rmeas->timeOffset=0.0*rxtimeoffset; // FIXME
-						
+						rmeas->sawtooth=sawtooth; 
+						rmeas->timeOffset=rxTimeOffset;
+						if (rxTimeOffset !=0){ // FIXME this is here until we get sufficient experience !
+							cerr << "Surprise\n";
+							exit(0);
+						}
 						int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
 							rmeas->pchh=pchh;
@@ -153,8 +160,19 @@ bool NVS::readLog(string fname,int mjd)
 							rmeas->pcss=pcss;
 						}
 						
-						// Save UTC time of measurement
+						// Calculate the time of measurement in various systems
+						// The NVS reports the measurement time as X.Y, in the second after X
+						// Some fudgery is used in the various time assignments below to make this fit into 
+						// various assumptions that are made in the processing
 						
+						// GPSTOW is used for pseudorange estimations
+						// note: this is rounded because measurements are interpolated on a 1s grid
+						rmeas->gpstow=rint((tmeasUTC+dGPSUTC)/1000);  
+						rmeas->gpswn=weekNum; // note: this is truncated. Not currently used 
+						
+						// UTC time of measurement
+						// We could use other time information to calculate this eg gpstow,gpswn and leap seconds
+						// but we'll just use the 46 message
 						rmeas->tmUTC.tm_sec=msg46ss;
 						rmeas->tmUTC.tm_min=msg46mm;
 						rmeas->tmUTC.tm_hour=msg46hh;
@@ -163,17 +181,27 @@ bool NVS::readLog(string fname,int mjd)
 						rmeas->tmUTC.tm_year=msg46yyyy-1900;
 						rmeas->tmUTC.tm_isdst=0;
 						
-						// Calculate GPS time of measurement
+						// Calculate GPS time of measurement - just add leap seconds to UTC
 						time_t tgps = mktime(&(rmeas->tmUTC));
 						tgps += (int) rint(dGPSUTC/1000.0); // add leap seconds
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
-						rmeas->tmfracs = tmeasUTC/1000.0 - int(tmeasUTC/1000.0);
+						// This may seem obscure.
+						// What we're doing here is calculating the offset of the measurement time
+						// from the nominal measurement time. Note that this is how the measurement time is
+						// given by the Javad receiver, as a +/- offset from the nominal. This is all necessary 
+						// so that the interpolation function works correctly
+						// FIXME tmfracs may be poorly named. 
+						rmeas->tmfracs = (tmeasUTC/1000.0 - int(tmeasUTC/1000.0))-1.0; 
+						
 						for (unsigned int i=0;i<gps.size();i++)
-							gps.at(i)->rm=rmeas;
+							gps.at(i)->rm=rmeas; // code measurements are not reported with ms ambiguities
 						rmeas->gps=gps;
 						gps.clear(); // don't delete - we only made a shallow copy!
+						
+						//fprintf(stderr,"PC=%02d:%02d:%02d rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d\n",
+						//	pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,tmeasUTC/1000.0,(int) gpstow,(int) weekNum);
 					}
 				} // if (gps.size() > 0)
 				
@@ -184,11 +212,12 @@ bool NVS::readLog(string fname,int mjd)
 					continue;
 				}
 				
-				HexToBin((char *) msg.substr(0,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &tmeasUTC);
-				HexToBin((char *) msg.substr(8*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &weekNum);
-				HexToBin((char *) msg.substr(10*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &dGPSUTC);
-				HexToBin((char *) msg.substr(26*2,2*sizeof(INT8S)).c_str(),sizeof(INT8S),(unsigned char *) &int8sbuf);
-				rxtimeoffset = int8sbuf * 1.0E-3;
+				HexToBin((char *) msg.substr(0,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &tmeasUTC); // in ms, since beginning of week
+				HexToBin((char *) msg.substr(8*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &weekNum); // truncated
+				HexToBin((char *) msg.substr(10*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &dGPSUTC); // in ms - current number of leap secs
+				HexToBin((char *) msg.substr(26*2,2*sizeof(INT8S)).c_str(),sizeof(INT8S),(unsigned char *) &int8sbuf); // in ms
+	
+				rxTimeOffset = int8sbuf * 1.0E-3; // seems to be zero all the time
 				
 				int nsats=(msg.size()-27*2) / (30*2);
 				INT8U svn,signal,flags;
@@ -200,8 +229,14 @@ bool NVS::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr((39+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf);
 						HexToBin((char *) msg.substr((55+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&flags);
 						// FIXME use flags to filter measurements 
-						//DBGMSG(debugStream,2,"svn "<< (int) svn << " pr " << dbuf << " flags " << (int) flags);
-						gps.push_back(new SVMeasurement(svn,fp64buf*1.0E-3,NULL)); // ReceiverMeasurement not known yet; convert from ms
+						DBGMSG(debugStream,2,pctime << " svn "<< (int) svn << " pr " << fp64buf*1.0E-3 << " flags " << (int) flags);
+						if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
+							SVMeasurement *svm = new SVMeasurement(svn,fp64buf*1.0E-3,NULL);
+							svm->dbuf3=svm->meas;
+							gps.push_back(svm); 
+						}
+						else{
+						}
 					}
 				}
 				
@@ -218,9 +253,17 @@ bool NVS::readLog(string fname,int mjd)
 				
 			} // raw data (F5)
 			
-			if(msgid=="72"){ // Time and frequency parameters (sawtooth correction)
+			if(msgid=="72"){ // Time and frequency parameters (sawtooth correction in particular)
 				if (msg.size()==34*2){
+					// Check the time scale - if this is not GPS then quit
+					// Checked repeatedly in case of receiver restarts
+					HexToBin((char *) msg.substr(12*2,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &int8ubuf);
+					if (!(int8ubuf & 0x01)){
+						app->logMessage("reference time scale is not GPS");
+						return false;
+					}
 					HexToBin((char *) msg.substr(21*2,sizeof(FP64)*2).c_str(),sizeof(FP64),(unsigned char *) &sawtooth);
+					sawtooth = sawtooth * 1.0E-9; // convert from ns to seconds
 					currentMsgs |= MSG72;
 					continue;
 				}
@@ -343,7 +386,7 @@ bool NVS::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr(102*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->t_GD));
 						ed->t_GD *= 1.0E-3;
 						HexToBin((char *) msg.substr(106*2,2*sizeof(FP64)).c_str(),sizeof(FP64), (unsigned char *) &fp64buf);
-						ed->t_OC=fp64buf*1.0E-3;
+						ed->t_OC=fp64buf*1.0E-3; // note that this is reported as a UTC time
 						HexToBin((char *) msg.substr(114*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->a_f2));
 						ed->a_f2 *= 1000.0;
 						HexToBin((char *) msg.substr(118*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->a_f1));
@@ -359,8 +402,8 @@ bool NVS::readLog(string fname,int mjd)
 						ed->SV_health=0.;
 						HexToBin((char *) msg.substr(136*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U), (unsigned char *) &(ed->week_number));
 						
-						ed->t_ephem=0.0; // FIXME
-						
+						ed->t_ephem=0.0; // FIXME unknown - how to flag ?
+					
 						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC);
 						addGPSEphemeris(ed);
 						continue;
@@ -395,8 +438,12 @@ bool NVS::readLog(string fname,int mjd)
 		return false;
 	}
 	
+	// The NVS sometime reports what appears to be an incorrect pseudorange after picking up an SV
+	// If you wanted to filter these out, this is where you should do it
+	
 	interpolateMeasurements(measurements);
-
+	// Note that after this, tmfracs is now zero and all measurements have been interpolated to a 1 s grid
+	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");

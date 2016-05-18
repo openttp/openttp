@@ -216,6 +216,9 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 													track.at(trackStart)->dbuf2,track.at(trackStart)->meas,
 						tgps2-tgps1 + track.at(trackStart+1)->dbuf2,track.at(trackStart+1)->meas,
 						tgps3-tgps1 + track.at(trackStart+2)->dbuf2,track.at(trackStart+2)->meas);
+				DBGMSG(debugStream,TRACE,"Track:" <<prn<< " " << track.at(trackStart)->dbuf2 << " " << track.at(trackStart)->meas << " " <<
+					tgps2-tgps1 + track.at(trackStart+1)->dbuf2 << " " << track.at(trackStart+1)->meas << " " <<
+					tgps3-tgps1 + track.at(trackStart+2)->dbuf2 << " " << track.at(trackStart+2)->meas);
 				
 				for (unsigned int i=trackStart+1;i<=trackStop-1;i++){
 					tgps1 = track.at(i-1)->uibuf;
