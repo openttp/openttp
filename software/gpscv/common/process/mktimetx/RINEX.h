@@ -25,10 +25,13 @@
 #ifndef __RINEX_H_
 #define __RINEX_H_
 
+#include <fstream>
 #include <string>
+#include <vector>
 
 class Antenna;
 class Counter;
+class EphemerisData;
 class MeasurementPair;
 class Receiver;
 
@@ -45,12 +48,20 @@ class RINEX
 		bool writeObservationFile(int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
 		bool writeNavigationFile(int ver,string fname,int mjd);
 		
+		bool readNavigationFile(string fname,int GNSSsystem);
+		
 		string observer;
 		string agency;
 		
 	private:
 		
 		void init();
+		
+		EphemerisData* getGPSEphemeris(ifstream *fin,unsigned int *lineCount);
+		void parseParam(string &str,int start,int len,int *val);
+		void parseParam(string &str,int start,int len,float *val);
+		void parseParam(string &str,int start,int len,double *val);
+		bool get4DParams(ifstream *fin,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
 		Antenna *ant;
 		Counter *cntr;

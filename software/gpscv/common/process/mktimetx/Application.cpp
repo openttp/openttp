@@ -102,7 +102,7 @@ Application::Application(int argc,char **argv)
 	app = this;
 	
 	init();
-	
+
 	// Process the command line options
 	// These override anything in the configuration file, default or specified
 	int longIndex;
@@ -206,6 +206,7 @@ Application::Application(int argc,char **argv)
 		}
 	}
 	
+	
 	if (!loadConfig()){
 		cerr << "Configuration failed - exiting" << endl;
 		exit(EXIT_FAILURE);
@@ -228,7 +229,12 @@ void Application::run()
 	timer.start();
 	
 	makeFilenames();
-		
+	
+	//RINEX rnx(antenna,counter,receiver);
+	//rnx.readNavigationFile("/home/michael/RINEX/brdc1360.16n",Receiver::GPS);
+	//rnx.writeNavigationFile(RINEX::V2,"test.n",57523);
+	//exit(EXIT_SUCCESS);
+	
 	// Create the log file, erasing any existing file
 	ofstream ofs;
 	ofs.open(logFile.c_str());

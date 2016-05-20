@@ -22,10 +22,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <algorithm>
 #include <iostream>
+#include <sstream>
 
 #include <cmath>
 #include <cstdio>
+
+#include <boost/algorithm/string.hpp>
 
 #include "Antenna.h"
 #include "Application.h"
@@ -36,6 +40,7 @@
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "RINEX.h"
+
 
 extern Application *app;
 extern ostream *debugStream;
@@ -356,7 +361,7 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 			fprintf(fout,"%2s%12.4e%12.4e%12.4e%12.4e%10s%-20s\n","",
 				rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3,"","ION BETA");
 			fprintf(fout,"%3s%19.12e%19.12e%9d%9d %-20s\n","",
-				rx->utcData.A0,rx->utcData.A1,(int) rx->utcData.t_ot, gpsWeek,"DELTA-UTC: A0,A1,T,W");
+				rx->utcData.A0,rx->utcData.A1,(int) rx->utcData.t_ot, gpsWeek,"DELTA-UTC: A0,A1,T,W"); // FIXME gpsWeek is NOT right !
 			break;
 		}
 		case V3:
@@ -471,7 +476,7 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 			URA[rx->ephemeris[i]->SV_accuracy_raw],(double) rx->ephemeris[i]->SV_health,rx->ephemeris[i]->t_GD,(double) rx->ephemeris[i]->IODC);
 		
 		fprintf(fout,buf," ", // broadcast orbit 7
-			rx->ephemeris[i]->t_ephem,0.0,0.0,0.0);
+			rx->ephemeris[i]->t_ephem,4.0,0.0,0.0);
 	}
 	
 	fclose(fout);
@@ -480,12 +485,262 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 }
 
 
+bool RINEX::readNavigationFile(string fname,int GNSSsystem){
+	
+	unsigned int lineCount=0;
+	
+	ifstream fin(fname.c_str());
+	string line;
+				 
+	if (!fin.good()){
+		app->logMessage("Unable to open the navigation file " + fname);
+		return false;
+	}
+
+	// First, determine the version
+	double RINEXver;
+	
+	while (!fin.eof()){
+		getline(fin,line);
+		lineCount++;
+		if (string::npos != line.find("RINEX VERSION")){
+			double ver;
+			parseParam(line,1,12,&RINEXver);
+			break;
+		}
+	}
+
+	if (fin.eof()){
+		app->logMessage("Unable to determine RINEX version in " + fname);
+		return false;
+	}
+	
+	DBGMSG(debugStream,TRACE,"RINEX version is" << RINEXver);
+	//int ibuf;
+	//double dbuf;
+	while (!fin.eof()){
+		getline(fin,line);
+		lineCount++;
+		if (RINEXver == 2){
+			if (string::npos != line.find("ION ALPHA")){
+				std::replace( line.begin(), line.end(), 'D', 'E');
+				parseParam(line,3,14, &(rx->ionoData.a0));
+				parseParam(line,15,26,&(rx->ionoData.a1));
+				parseParam(line,27,38,&(rx->ionoData.a2));
+				parseParam(line,39,50,&(rx->ionoData.a3));
+				DBGMSG(debugStream,TRACE,"read ION ALPHA " << rx->ionoData.a0 << " " << rx->ionoData.a1 << " " << rx->ionoData.a2 << " " << rx->ionoData.a3);
+				
+			}
+			if (string::npos != line.find("ION BETA")){
+				std::replace( line.begin(), line.end(), 'D', 'E');
+				parseParam(line,3,14, &(rx->ionoData.B0));
+				parseParam(line,15,26,&(rx->ionoData.B1));
+				parseParam(line,27,38,&(rx->ionoData.B2));
+				parseParam(line,39,50,&(rx->ionoData.B3));
+				DBGMSG(debugStream,TRACE,"read ION BETA " << rx->ionoData.B0 << " " << rx->ionoData.B1 << " " << rx->ionoData.B2 << " " << rx->ionoData.B3);
+			}
+			else if (string::npos != line.find("DELTA-UTC:")){
+				std::replace( line.begin(), line.end(), 'D', 'E');
+				parseParam(line,4,22,&(rx->utcData.A0));
+				parseParam(line,23,41,&(rx->utcData.A1));
+				parseParam(line,42,50,&(rx->utcData.t_ot));
+			}
+			else if  (string::npos != line.find("LEAP SECONDS")){
+				parseParam(line,1,6,&(rx->leapsecs));
+				DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
+			}
+			else if (string::npos != line.find("END OF HEADER")) break;
+		}
+		
+	}
+	
+	if (fin.eof()){
+		app->logMessage("Format error (no END OF HEADER) in " + fname);
+		return false;
+	}
+	
+	while (!fin.eof()){
+		
+		switch (GNSSsystem){
+			case Receiver::GPS:
+			{
+				EphemerisData *ed = getGPSEphemeris(&fin,&lineCount);
+				if (NULL != ed) rx->ephemeris.push_back(ed);
+				break;
+			}
+			default:
+				break;
+		}
+		
+	}
+	
+	fin.close();
+	
+	//if (ephemeris.size() == 0){
+	//	app->logMessage("Empty navigation file " + fname);
+	//	return false;
+	//}
+	DBGMSG(debugStream,TRACE,"Read " << rx->ephemeris.size() << " entries");
+	return true;
+}
+
+
 //
-// private members
+// Private members
 //
+
+EphemerisData* RINEX::getGPSEphemeris(ifstream *fin,unsigned int *lineCount){
+	EphemerisData *ed = NULL;
+	
+	string line;
+	
+	(*lineCount)++;
+	if (!fin->eof()){ 
+		getline(*fin,line);
+	}
+	
+	string tst(line); 
+	boost::trim(tst);
+	if (tst.empty()) {return NULL;} // skip blank lines
+	
+	if (line.length() < 79){
+		return NULL;
+	}
+	
+	ed = new EphemerisData();
+	
+	int ibuf;
+	double dbuf;
+	
+	// Line 1: format is I2,5I3,F5.1,3D19.12
+	parseParam(line,1,2,&ibuf); ed->SVN = ibuf;
+	int year,mon,mday,hour,mins;
+	double secs;
+	parseParam(line,3,3,&year);
+	parseParam(line,6,3,&mon);
+	parseParam(line,9,3,&mday);
+	parseParam(line,12,3,&hour);
+	parseParam(line,15,3,&mins);
+	std::replace(line.begin(), line.end(), 'D', 'E'); // only floats left
+	parseParam(line,18,5,&secs);
+	
+	parseParam(line,23,19,&dbuf);ed->a_f0=dbuf;
+	parseParam(line,42,19,&dbuf);ed->a_f1=dbuf;
+	parseParam(line,61,19,&dbuf);ed->a_f2=dbuf;
+	
+	DBGMSG(debugStream,TRACE,"ephemeris for SVN " << (int) ed->SVN << " " << hour << ":" << mins << ":" <<  secs);
+	
+	// Lines 2-8: 3X,4D19.12
+	double dbuf1,dbuf2,dbuf3,dbuf4;
+	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->IODE=dbuf1; ed->C_rs=dbuf2; ed->delta_N=dbuf3; ed->M_0=dbuf4;
+	
+	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->C_uc=dbuf1; ed->e=dbuf2; ed->C_us=dbuf3; ed->sqrtA=dbuf4;;
+	
+	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->t_oe=dbuf1; ed->C_ic=dbuf2; ed->OMEGA_0=dbuf3; ed->C_is=dbuf4;
+	
+	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->i_0=dbuf1; ed->C_rc=dbuf2; ed->OMEGA=dbuf3; ed->OMEGADOT=dbuf4;
+	
+	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->IDOT=dbuf1; ed->week_number= dbuf3; // don't truncate WN just yet
+	
+	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->SV_health=dbuf2; ed->t_GD=dbuf3; ed->IODC=dbuf4;
+	int i=0;
+	ed->SV_accuracy_raw=0.0;
+	while (URA[i] > 0){
+		if (URA[i] == dbuf1){
+			ed->SV_accuracy_raw=i;
+			break;
+		}
+		i++;
+	}
+	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->t_ephem=dbuf1;
+	
+	// Calculate t_OC - the clock data reference time
+	
+	// First, work out the century.
+	struct tm tmGPS; // origin of GPS time
+	tmGPS.tm_sec=tmGPS.tm_min=tmGPS.tm_hour=0;
+	tmGPS.tm_mday=6;tmGPS.tm_mon=0;tmGPS.tm_year=1980-1900,tmGPS.tm_isdst=0;
+	time_t tGPS0=mktime(&tmGPS);
+	time_t ttmp= tGPS0 + ed->week_number*7*86400;
+	struct tm *tmtmp=gmtime(&ttmp);
+	int century=(tmtmp->tm_year/100)*100+1900;
+	
+	// Then, 'full' t_OC so we can get wday
+	tmGPS.tm_sec=(int) secs; 
+	tmGPS.tm_min=mins;
+	tmGPS.tm_hour=hour;
+	tmGPS.tm_mday=mday;
+	tmGPS.tm_mon=mon-1;
+	tmGPS.tm_year=year+century-1900;
+	tmGPS.tm_isdst=0;
+	mktime(&tmGPS); // this sets wday
+	
+	// Then 
+	ed->t_OC = secs+mins*60+hour*3600+tmGPS.tm_wday*86400;
+	
+	// Now truncate WN
+	ed->week_number = ed->week_number - 1024*(ed->week_number/1024);
+	
+	return ed;
+}
 
 void RINEX::init()
 {
 	agency = "KAOS";
 	observer = "Siegfried";
+}
+
+void RINEX::parseParam(string &str,int start,int len,int *val)
+{
+	stringstream ss(str.substr(start-1,len));
+	ss >> *val;
+}
+
+void RINEX::parseParam(string &str,int start,int len,float *val)
+{
+	std::replace(str.begin(), str.end(), 'D', 'E'); // filthy FORTRAN
+	stringstream ss(str.substr(start-1,len));
+	ss >> *val;
+}
+
+void RINEX::parseParam(string &str,int start,int len,double *val)
+{
+	std::replace(str.begin(), str.end(), 'D', 'E'); // filthy FORTRAN
+	stringstream ss(str.substr(start-1,len));
+	ss >> *val;
+}
+
+bool RINEX::get4DParams(ifstream *fin,
+	double *darg1,double *darg2,double *darg3,double *darg4,
+	unsigned int *lineCount)
+{
+	string line;
+	(*lineCount)++;
+	if (fin->good()) 
+		getline(*fin,line);
+	else{
+		return false;
+	}
+	
+	if (line.length() < 79){
+		return false;
+	}
+	
+	std::replace( line.begin(), line.end(), 'D', 'E'); // filthy FORTRAN
+	
+	// Format is 3X,4D19.12
+	parseParam(line,4,19,darg1);
+	parseParam(line,23,19,darg2);
+	parseParam(line,42,19,darg3);
+	parseParam(line,61,19,darg4);
+	
+	return true;
+	
 }
