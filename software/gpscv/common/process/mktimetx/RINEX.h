@@ -44,11 +44,11 @@ class RINEX
 		
 		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
 		
-		RINEX(Antenna *,Counter *,Receiver *);
-		bool writeObservationFile(int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
-		bool writeNavigationFile(int ver,string fname,int mjd);
+		RINEX();
+		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
+		bool writeNavigationFile(Receiver *rx,int ver,string fname,int mjd);
 		
-		bool readNavigationFile(string fname,int GNSSsystem);
+		bool readNavigationFile(string fname,int GNSSsystem,IonosphereData &ionoData,UTCData &UTCData,int *leapsecs,vector<EphemerisData *> &ephemeris);
 		
 		string observer;
 		string agency;
@@ -62,10 +62,6 @@ class RINEX
 		void parseParam(string &str,int start,int len,float *val);
 		void parseParam(string &str,int start,int len,double *val);
 		bool get4DParams(ifstream *fin,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
-		
-		Antenna *ant;
-		Counter *cntr;
-		Receiver *rx;
 		
 };
 

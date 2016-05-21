@@ -52,16 +52,27 @@ class MeasurementPair;
 
 class CGGTTSOutput{
 	public:
+		
+		enum EphemerisSource{ GNSSReceiver, UserSupplied};
+		
 		CGGTTSOutput();
-		CGGTTSOutput(int constellation,int code,string path,string calID,double internalDelay):
+		CGGTTSOutput(int constellation,int code,string path,string calID,double internalDelay,
+			int ephemerisSource,string ephemerisPath,string ephemerisFile
+			):
 			constellation(constellation),code(code),path(path),
-			calID(calID),internalDelay(internalDelay){};
+			calID(calID),internalDelay(internalDelay),
+			ephemerisSource(ephemerisSource),ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile){};
 		
 		int constellation;
 		int code;
 		string path;
 		string calID;
 		double internalDelay;
+		
+		int ephemerisSource;
+		string ephemerisPath;
+		string ephemerisFile;
+		
 };
 
 class Application

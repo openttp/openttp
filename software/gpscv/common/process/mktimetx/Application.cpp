@@ -257,7 +257,15 @@ void Application::run()
 	
 	// Each system+code generates a CGGTTS file
 	if (createCGGTTS){
+		
+		// Supply ephemeris as required
+		
 		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
+			if (CGGTTSoutputs.at(i).ephemerisSource==CGGTTSOutput::UserSupplied){
+				if (CGGTTSoutputs.at(i).constellation == Receiver::GPS){
+					//receiver->setEphemeris();
+				}
+			}
 			CGGTTS cggtts(antenna,counter,receiver);
 			cggtts.ref=CGGTTSref;
 			cggtts.lab=CGGTTSlab;
@@ -275,6 +283,7 @@ void Application::run()
 			cggtts.constellation=CGGTTSoutputs.at(i).constellation;
 			cggtts.code=CGGTTSoutputs.at(i).code;
 			cggtts.calID=CGGTTSoutputs.at(i).calID;
+		
 			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
 			cggtts.writeObservationFile(CGGTTSfile,MJD,mpairs,TICenabled);
 		}
@@ -284,13 +293,13 @@ void Application::run()
 	// Only one RINEX file per GNSS system is created
 	
 	if (createRINEX){
-		RINEX rnx(antenna,counter,receiver);
+		RINEX rnx;
 		rnx.agency = agency;
 		rnx.observer=observer;
 		
 		if (generateNavigationFile) 
-			rnx.writeNavigationFile(RINEXversion,RINEXnavFile,MJD);
-		rnx.writeObservationFile(RINEXversion,RINEXobsFile,MJD,interval,mpairs,TICenabled);
+			rnx.writeNavigationFile(receiver,RINEXversion,RINEXnavFile,MJD);
+		rnx.writeObservationFile(antenna,counter,receiver,RINEXversion,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	}
 	
 	if (timingDiagnosticsOn) 
@@ -568,6 +577,8 @@ bool Application::loadConfig()
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
+			int ephemerisSource=CGGTTSOutput::GNSSReceiver;
+			string ephemerisPath,ephemerisFile;
 			
 			for (unsigned int i=0;i<configs.size();i++){
 				string calID="";
@@ -613,10 +624,37 @@ bool Application::loadConfig()
 					configOK=false;
 					continue;
 				}
+				
+				if (setConfig(last,configs.at(i).c_str(),"ephemeris",stmp)){
+					boost::to_upper(stmp);
+					if (stmp == "RECEIVER"){
+						ephemerisSource=CGGTTSOutput::GNSSReceiver;
+					}
+					else if (stmp=="USER"){
+						// path and pattern are now required
+						ephemerisSource=CGGTTSOutput::UserSupplied;
+						if (!setConfig(last,configs.at(i).c_str(),"ephemeris path",ephemerisPath)){
+							configOK=false;
+							continue;
+						}
+						if (!setConfig(last,configs.at(i).c_str(),"ephemeris file",ephemerisFile)){
+							configOK=false;
+							continue;
+						}
+					}
+					else{
+						cerr << "Syntax error in [CGGTTS] ephemeris - " << stmp << " should be receiver/user " << endl;
+						configOK = false;
+						continue;
+					}
+				}
+		
 				if (setConfig(last,configs.at(i).c_str(),"path",stmp)){ // got everything
 					// FIXME check compatibility of constellation+code
 					stmp=relativeToAbsolutePath(stmp);
-					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly));
+					ephemerisPath = relativeToAbsolutePath(ephemerisPath);
+					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly,
+						ephemerisSource,ephemerisPath,ephemerisFile));
 				}
 				else{
 					configOK=false;

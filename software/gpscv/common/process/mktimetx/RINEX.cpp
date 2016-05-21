@@ -55,16 +55,12 @@ double URA[]={2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
 // Public methods
 //
 		
-RINEX::RINEX(Antenna *a,Counter *c,Receiver *r)
+RINEX::RINEX()
 {
-	ant=a;
-	cntr=c;
-	rx=r;
-	
 	init();
 }
 
-bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
+bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
 {
 	char buf[81];
 	FILE *fout;
@@ -324,7 +320,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 	return true;
 }
 
-bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
+bool RINEX::writeNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 {
 	char buf[81];
 	FILE *fout;
@@ -485,7 +481,8 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 }
 
 
-bool RINEX::readNavigationFile(string fname,int GNSSsystem){
+bool RINEX::readNavigationFile(string fname,int GNSSsystem,
+	IonosphereData &ionoData,UTCData &UTCdata,int *leapsecs,vector<EphemerisData *> &ephemeris){
 	
 	unsigned int lineCount=0;
 	
@@ -524,30 +521,30 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 		if (RINEXver == 2){
 			if (string::npos != line.find("ION ALPHA")){
 				std::replace( line.begin(), line.end(), 'D', 'E');
-				parseParam(line,3,14, &(rx->ionoData.a0));
-				parseParam(line,15,26,&(rx->ionoData.a1));
-				parseParam(line,27,38,&(rx->ionoData.a2));
-				parseParam(line,39,50,&(rx->ionoData.a3));
-				DBGMSG(debugStream,TRACE,"read ION ALPHA " << rx->ionoData.a0 << " " << rx->ionoData.a1 << " " << rx->ionoData.a2 << " " << rx->ionoData.a3);
+				parseParam(line,3,14, &(ionoData.a0));
+				parseParam(line,15,26,&(ionoData.a1));
+				parseParam(line,27,38,&(ionoData.a2));
+				parseParam(line,39,50,&(ionoData.a3));
+				DBGMSG(debugStream,TRACE,"read ION ALPHA " << ionoData.a0 << " " << ionoData.a1 << " " << ionoData.a2 << " " << ionoData.a3);
 				
 			}
 			if (string::npos != line.find("ION BETA")){
 				std::replace( line.begin(), line.end(), 'D', 'E');
-				parseParam(line,3,14, &(rx->ionoData.B0));
-				parseParam(line,15,26,&(rx->ionoData.B1));
-				parseParam(line,27,38,&(rx->ionoData.B2));
-				parseParam(line,39,50,&(rx->ionoData.B3));
-				DBGMSG(debugStream,TRACE,"read ION BETA " << rx->ionoData.B0 << " " << rx->ionoData.B1 << " " << rx->ionoData.B2 << " " << rx->ionoData.B3);
+				parseParam(line,3,14, &(ionoData.B0));
+				parseParam(line,15,26,&(ionoData.B1));
+				parseParam(line,27,38,&(ionoData.B2));
+				parseParam(line,39,50,&(ionoData.B3));
+				DBGMSG(debugStream,TRACE,"read ION BETA " << ionoData.B0 << " " << ionoData.B1 << " " << ionoData.B2 << " " << ionoData.B3);
 			}
 			else if (string::npos != line.find("DELTA-UTC:")){
 				std::replace( line.begin(), line.end(), 'D', 'E');
-				parseParam(line,4,22,&(rx->utcData.A0));
-				parseParam(line,23,41,&(rx->utcData.A1));
-				parseParam(line,42,50,&(rx->utcData.t_ot));
+				parseParam(line,4,22,&(UTCdata.A0));
+				parseParam(line,23,41,&(UTCdata.A1));
+				parseParam(line,42,50,&(UTCdata.t_ot));
 			}
 			else if  (string::npos != line.find("LEAP SECONDS")){
-				parseParam(line,1,6,&(rx->leapsecs));
-				DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
+				parseParam(line,1,6,leapsecs);
+				DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << leapsecs);
 			}
 			else if (string::npos != line.find("END OF HEADER")) break;
 		}
@@ -565,7 +562,7 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 			case Receiver::GPS:
 			{
 				EphemerisData *ed = getGPSEphemeris(&fin,&lineCount);
-				if (NULL != ed) rx->ephemeris.push_back(ed);
+				if (NULL != ed) ephemeris.push_back(ed);
 				break;
 			}
 			default:
@@ -580,7 +577,7 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 	//	app->logMessage("Empty navigation file " + fname);
 	//	return false;
 	//}
-	DBGMSG(debugStream,TRACE,"Read " << rx->ephemeris.size() << " entries");
+	DBGMSG(debugStream,TRACE,"Read " << ephemeris.size() << " entries");
 	return true;
 }
 
