@@ -26,7 +26,7 @@ Counter.o: Counter.cpp Counter.h CounterMeasurement.h Debug.h Timer.h
 CGGTTS.o : CGGTTS.cpp CGGTTS.h  Antenna.h Counter.h Debug.h GPS.h Application.h MeasurementPair.h Receiver.h  ReceiverMeasurement.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c CGGTTS.cpp
 	
-GPS.o: GPS.cpp  Antenna.h Debug.h GPS.h Application.h Receiver.h ReceiverMeasurement.h SVMeasurement.h Troposphere.h
+GPS.o: GPS.cpp  Antenna.h Debug.h GPS.h Application.h GNSSSystem.h  Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GPS.cpp
 
 HexBin.o: HexBin.cpp HexBin.h

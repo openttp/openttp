@@ -258,12 +258,16 @@ void Application::run()
 	// Each system+code generates a CGGTTS file
 	if (createCGGTTS){
 		
-		// Supply ephemeris as required
+		bool ephemerisReplaced=false;
 		
 		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
 			if (CGGTTSoutputs.at(i).ephemerisSource==CGGTTSOutput::UserSupplied){
-				if (CGGTTSoutputs.at(i).constellation == Receiver::GPS){
-					//receiver->setEphemeris();
+				if (CGGTTSoutputs.at(i).constellation == GNSSSystem::GPS){
+					RINEX rnx;
+					//if (rnx.readNavigationFile()){
+					//	rxEphemeris = receiver->ephemeris; // save it
+					//	ephemerisReplaced = true;
+					//}
 				}
 			}
 			CGGTTS cggtts(antenna,counter,receiver);
@@ -286,6 +290,10 @@ void Application::run()
 		
 			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
 			cggtts.writeObservationFile(CGGTTSfile,MJD,mpairs,TICenabled);
+			
+			if (ephemerisReplaced){
+				//receiver->ephemeris=rxEphemeris;
+			}
 		}
 	} // if createCGGTTS
 	
@@ -537,11 +545,11 @@ string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 		snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
 		string constellation;
 		switch (cggtts.constellation){
-			case Receiver::GPS:constellation="G";break;
-			case Receiver::GLONASS:constellation="R";break;
-			case Receiver::BEIDOU:constellation="E";break;
-			case Receiver::GALILEO:constellation="C";break;
-			case Receiver::QZSS:constellation="J";break;
+			case GNSSSystem::GPS:constellation="G";break;
+			case GNSSSystem::GLONASS:constellation="R";break;
+			case GNSSSystem::BEIDOU:constellation="E";break;
+			case GNSSSystem::GALILEO:constellation="C";break;
+			case GNSSSystem::QZSS:constellation="J";break;
 		}
 		// FIXME single frequency observation files only
 		ss << cggtts.path << "/" << constellation << "M" << CGGTTSlabCode << CGGTTSreceiverID << fname;
@@ -585,15 +593,15 @@ bool Application::loadConfig()
 				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp)){
 					boost::to_upper(stmp);
 					if (stmp == "GPS")
-						constellation = Receiver::GPS;
+						constellation = GNSSSystem::GPS;
 					else if (stmp == "GLONASS")
-						constellation = Receiver::GLONASS;
+						constellation = GNSSSystem::GLONASS;
 					else if (stmp=="BEIDOU")
-						constellation = Receiver::BEIDOU;
+						constellation = GNSSSystem::BEIDOU;
 					else if (stmp=="GALILEO")
-						constellation = Receiver::GALILEO;
+						constellation = GNSSSystem::GALILEO;
 					else if (stmp=="QZSS")
-						constellation = Receiver::QZSS;
+						constellation = GNSSSystem::QZSS;
 					else{
 						cerr << "unknown constellation " << stmp << " in [" << configs.at(i) << "]" << endl;
 						configOK=false;
@@ -603,15 +611,15 @@ bool Application::loadConfig()
 				if (setConfig(last,configs.at(i).c_str(),"code",stmp)){
 					boost::to_upper(stmp);
 					if (stmp=="C1")
-						code=Receiver::C1;
+						code=GNSSSystem::C1;
 					else if (stmp=="P1")
-						code=Receiver::P1;
+						code=GNSSSystem::P1;
 					else if (stmp=="P2")
-						code=Receiver::P2;
+						code=GNSSSystem::P2;
 					else if (stmp=="B1")
-						code=Receiver::B1;
+						code=GNSSSystem::B1;
 					else if (stmp=="E1")
-						code=Receiver::E1;
+						code=GNSSSystem::E1;
 					else{
 						cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << endl;
 						configOK=false;
@@ -803,15 +811,15 @@ bool Application::loadConfig()
 	if (setConfig(last,"receiver","observations",stmp,false)){
 		boost::to_upper(stmp);
 		if (stmp.find("GPS") != string::npos)
-			receiver->constellations |=Receiver::GPS;
+			receiver->constellations |=GNSSSystem::GPS;
 		if (stmp.find("GLONASS") != string::npos)
-			receiver->constellations |=Receiver::GLONASS;
+			receiver->constellations |=GNSSSystem::GLONASS;
 		if (stmp.find("BEIDOU") != string::npos)
-			receiver->constellations |=Receiver::BEIDOU;
+			receiver->constellations |=GNSSSystem::BEIDOU;
 		if (stmp.find("GALILEO") != string::npos)
-			receiver->constellations |=Receiver::GALILEO;
+			receiver->constellations |=GNSSSystem::GALILEO;
 		if (stmp.find("QZSS") != string::npos)
-			receiver->constellations |=Receiver::QZSS;
+			receiver->constellations |=GNSSSystem::QZSS;
 	}
 	else
 		configOK=false;

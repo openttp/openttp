@@ -75,8 +75,8 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 	modelName=m;
 	manufacturer="NVS";
 	swversion="0.1";
-	constellations=Receiver::GPS;
-	codes=C1;
+	constellations=GNSSSystem::GPS;
+	codes=GNSSSystem::C1;
 	channels=32;
 	if (modelName == "NV08C-CSM"){
 		// For the future
@@ -109,7 +109,7 @@ bool NVS::readLog(string fname,int mjd)
 	INT8S int8sbuf;
 	INT8U int8ubuf;
 	
-	vector<SVMeasurement *> gps;
+	vector<SVMeasurement *> gpsmeas;
 	gotIonoData = false;
 	gotUTCdata=false;
 	
@@ -135,7 +135,7 @@ bool NVS::readLog(string fname,int mjd)
 			if (sstr.fail()){
 				DBGMSG(debugStream,WARNING," bad data at line " << linecount);
 				currentMsgs=0;
-				deleteMeasurements(gps);
+				deleteMeasurements(gpsmeas);
 				continue;
 			}
 			
@@ -143,7 +143,7 @@ bool NVS::readLog(string fname,int mjd)
 			if(msgid == "F5"){ // Raw measurements 
 				
 				if (currentMsgs == reqdMsgs){ // save the measurements from the previous second
-					if (gps.size() > 0){
+					if (gpsmeas.size() > 0){
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 						measurements.push_back(rmeas);
 						
@@ -195,10 +195,10 @@ bool NVS::readLog(string fname,int mjd)
 						// FIXME tmfracs may be poorly named. 
 						rmeas->tmfracs = (tmeasUTC/1000.0 - int(tmeasUTC/1000.0))-1.0; 
 						
-						for (unsigned int i=0;i<gps.size();i++)
-							gps.at(i)->rm=rmeas; // code measurements are not reported with ms ambiguities
-						rmeas->gps=gps;
-						gps.clear(); // don't delete - we only made a shallow copy!
+						for (unsigned int i=0;i<gpsmeas.size();i++)
+							gpsmeas.at(i)->rm=rmeas; // code measurements are not reported with ms ambiguities
+						rmeas->gps=gpsmeas;
+						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
 						//fprintf(stderr,"PC=%02d:%02d:%02d rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d\n",
 						//	pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,tmeasUTC/1000.0,(int) gpstow,(int) weekNum);
@@ -208,7 +208,7 @@ bool NVS::readLog(string fname,int mjd)
 				if (((msg.size()-27*2) % 30*2) != 0){
 					DBGMSG(debugStream,WARNING,"0xf5 msg wrong size at " << linecount << " " << msg.size());
 					currentMsgs=0;
-					deleteMeasurements(gps);
+					deleteMeasurements(gpsmeas);
 					continue;
 				}
 				
@@ -233,17 +233,17 @@ bool NVS::readLog(string fname,int mjd)
 						if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
 							SVMeasurement *svm = new SVMeasurement(svn,fp64buf*1.0E-3,NULL);
 							svm->dbuf3=svm->meas;
-							gps.push_back(svm); 
+							gpsmeas.push_back(svm); 
 						}
 						else{
 						}
 					}
 				}
 				
-				if (gps.size() >= MAX_CHANNELS){ // too much data - something is wrong
-					DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gps.size() << ")");
+				if (gpsmeas.size() >= MAX_CHANNELS){ // too much data - something is wrong
+					DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gpsmeas.size() << ")");
 					currentMsgs=0;
-					deleteMeasurements(gps);
+					deleteMeasurements(gpsmeas);
 					continue;
 				}
 				
@@ -313,14 +313,14 @@ bool NVS::readLog(string fname,int mjd)
 					INT8U reliability;
 					HexToBin((char *) msg.substr(32*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&reliability); 
 					if (reliability == 255){
-						HexToBin((char *) msg.substr(0*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.a0)); 
-						HexToBin((char *) msg.substr(4*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.a1));
-						HexToBin((char *) msg.substr(8*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.a2));
-						HexToBin((char *) msg.substr(12*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.a3));
-						HexToBin((char *) msg.substr(16*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.B0)); 
-						HexToBin((char *) msg.substr(20*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.B1));
-						HexToBin((char *) msg.substr(24*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.B2));
-						HexToBin((char *) msg.substr(28*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(ionoData.B3));
+						HexToBin((char *) msg.substr(0*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.a0)); 
+						HexToBin((char *) msg.substr(4*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.a1));
+						HexToBin((char *) msg.substr(8*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.a2));
+						HexToBin((char *) msg.substr(12*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.a3));
+						HexToBin((char *) msg.substr(16*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B0)); 
+						HexToBin((char *) msg.substr(20*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B1));
+						HexToBin((char *) msg.substr(24*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B2));
+						HexToBin((char *) msg.substr(28*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B3));
 						gotIonoData = true;
 					}
 				}
@@ -336,17 +336,17 @@ bool NVS::readLog(string fname,int mjd)
 					HexToBin((char *) msg.substr(30*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&reliability); // GPS reliability only
 					if (reliability == 255){
 						HexToBin((char *) msg.substr(0*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf); 
-						utcData.A1=fp64buf;
+						gps.UTCdata.A1=fp64buf;
 						HexToBin((char *) msg.substr(8*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf); 
-						utcData.A0=fp64buf;
+						gps.UTCdata.A0=fp64buf;
 						HexToBin((char *) msg.substr(16*2,2*sizeof(INT32U)).c_str(),sizeof(INT32U),(unsigned char *) &int32ubuf);
-						utcData.t_ot = int32ubuf;
-						HexToBin((char *) msg.substr(20*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(utcData.WN_t));
-						HexToBin((char *) msg.substr(22*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(utcData.dtlS));
-						HexToBin((char *) msg.substr(24*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(utcData.WN_LSF));
-						HexToBin((char *) msg.substr(26*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(utcData.DN));
-						HexToBin((char *) msg.substr(28*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(utcData.dt_LSF));
-						gotUTCdata = setCurrentLeapSeconds(mjd,utcData);
+						gps.UTCdata.t_ot = int32ubuf;
+						HexToBin((char *) msg.substr(20*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.WN_t));
+						HexToBin((char *) msg.substr(22*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dtlS));
+						HexToBin((char *) msg.substr(24*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.WN_LSF));
+						HexToBin((char *) msg.substr(26*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.DN));
+						HexToBin((char *) msg.substr(28*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dt_LSF));
+						gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 					}
 				}
 				else{
@@ -361,7 +361,7 @@ bool NVS::readLog(string fname,int mjd)
 					HexToBin((char *) msg.substr(0,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &eph);
 					if (eph == 0x01){
 						
-						EphemerisData *ed = new EphemerisData;
+						GPS::EphemerisData *ed = new GPS::EphemerisData;
 						HexToBin((char *) msg.substr(1*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),(unsigned char *) &(ed->SVN));
 						HexToBin((char *) msg.substr(2*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_rs));
 						HexToBin((char *) msg.substr(6*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->delta_N));
@@ -405,7 +405,7 @@ bool NVS::readLog(string fname,int mjd)
 						ed->t_ephem=0.0; // FIXME unknown - how to flag ?
 					
 						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC);
-						addGPSEphemeris(ed);
+						gps.addEphemeris(ed);
 						continue;
 					
 					}
@@ -446,7 +446,7 @@ bool NVS::readLog(string fname,int mjd)
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
-	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");
+	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	
 	return true;
 	

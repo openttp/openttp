@@ -91,13 +91,13 @@ Javad::Javad(Antenna *ant,string m):Receiver(ant)
   modelName=m;
 	manufacturer="Javad";
 	swversion="0.1";
-	constellations=Receiver::GPS;
+	constellations=GNSSSystem::GPS;
 	dualFrequency=false;
-	codes=C1;
+	codes=GNSSSystem::C1;
 	channels=32;
 	if (modelName=="HE_GD"){
 		dualFrequency=true;
-		codes = C1 | P1 | P2;
+		codes = GNSSSystem::C1 | GNSSSystem::P1 | GNSSSystem::P2;
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
@@ -131,7 +131,7 @@ bool Javad::readLog(string fname,int mjd)
 	
 	vector<string> rxid;
 	
-	vector<SVMeasurement *> gps;
+	vector<SVMeasurement *> gpsmeas;
 	gotIonoData = false;
 	gotUTCdata=false;
 	
@@ -254,7 +254,7 @@ bool Javad::readLog(string fname,int mjd)
 					// For each tracked satellite, get the pseudorange for each code
 					for (unsigned int chan=0; chan < nSats; chan++){
 						
-						if (codes & C1){
+						if (codes & GNSSSystem::C1){
 							bool ok=true;
 							// Check that PLLs are locked for each channel before we use the data
 							if (CAlockFlags[chan*2] != 83){
@@ -278,7 +278,7 @@ bool Javad::readLog(string fname,int mjd)
 							
 						} // if codes & C1
 						
-						if (codes & P1){
+						if (codes & GNSSSystem::P1){
 							bool ok=true;
 							if (P1lockFlags[chan*2] != 83){
 								DBGMSG(debugStream,WARNING," P1 unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
@@ -296,7 +296,7 @@ bool Javad::readLog(string fname,int mjd)
 							
 						} // if codes & P1	
 							
-						if (codes & P2){
+						if (codes & GNSSSystem::P2){
 							bool ok = true;
 							if (P2lockFlags[chan*2] != 83){
 								DBGMSG(debugStream,WARNING," P2 unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
@@ -750,16 +750,16 @@ bool Javad::readLog(string fname,int mjd)
 			if (!gotIonoData){
 				if (msgid=="IO"){
 					if (msg.size()==39*2){
-						HexToBin((char *) msg.substr(6*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.a0);
-						HexToBin((char *) msg.substr(10*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.a1);
-						HexToBin((char *) msg.substr(14*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.a2);
-						HexToBin((char *) msg.substr(18*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.a3);
-						HexToBin((char *) msg.substr(22*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.B0);
-						HexToBin((char *) msg.substr(26*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.B1);
-						HexToBin((char *) msg.substr(30*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.B2);
-						HexToBin((char *) msg.substr(34*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &ionoData.B3);
+						HexToBin((char *) msg.substr(6*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.a0));
+						HexToBin((char *) msg.substr(10*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.a1));
+						HexToBin((char *) msg.substr(14*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.a2));
+						HexToBin((char *) msg.substr(18*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.a3));
+						HexToBin((char *) msg.substr(22*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B0));
+						HexToBin((char *) msg.substr(26*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B1));
+						HexToBin((char *) msg.substr(30*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B2));
+						HexToBin((char *) msg.substr(34*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B3));
 						gotIonoData=true;
-						DBGMSG(debugStream,TRACE,"ionosphere parameters: a0=" << ionoData.a0);
+						DBGMSG(debugStream,TRACE,"ionosphere parameters: a0=" << gps.ionoData.a0);
 					}
 					else{
 						errorCount++;
@@ -772,20 +772,20 @@ bool Javad::readLog(string fname,int mjd)
 			if (!gotUTCdata){
 				if (msgid=="UO"){
 					if (msg.size()==24*2){
-						HexToBin((char *) msg.substr(0*2,2*sizeof(F8)).c_str(),sizeof(F8),(unsigned char *) &utcData.A0);
-						HexToBin((char *) msg.substr(8*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &utcData.A1);
+						HexToBin((char *) msg.substr(0*2,2*sizeof(F8)).c_str(),sizeof(F8),(unsigned char *) &(gps.UTCdata.A0));
+						HexToBin((char *) msg.substr(8*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.UTCdata.A1));
 						HexToBin((char *) msg.substr(12*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
-						utcData.t_ot=u4buf;
-						HexToBin((char *) msg.substr(16*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &utcData.WN_t);
-						HexToBin((char *) msg.substr(18*2,2*sizeof(I2)).c_str(),sizeof(I2),(unsigned char *) &utcData.dtlS);
+						gps.UTCdata.t_ot=u4buf;
+						HexToBin((char *) msg.substr(16*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &(gps.UTCdata.WN_t));
+						HexToBin((char *) msg.substr(18*2,2*sizeof(I2)).c_str(),sizeof(I2),(unsigned char *) &(gps.UTCdata.dtlS));
 						HexToBin((char *) msg.substr(19*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &uint8buf);
-						utcData.DN=uint8buf;
-						HexToBin((char *) msg.substr(20*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &utcData.WN_LSF);
+						gps.UTCdata.DN=uint8buf;
+						HexToBin((char *) msg.substr(20*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &(gps.UTCdata.WN_LSF));
 				
 						HexToBin((char *) msg.substr(22*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &sint8buf);
-						utcData.dt_LSF=sint8buf;
-						DBGMSG(debugStream,TRACE,"UTC parameters: dtLS=" << utcData.dtlS << ",dt_LSF=" << utcData.dt_LSF);
-						gotUTCdata = setCurrentLeapSeconds(mjd,utcData);
+						gps.UTCdata.dt_LSF=sint8buf;
+						DBGMSG(debugStream,TRACE,"UTC parameters: dtLS=" << gps.UTCdata.dtlS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
+						gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 					}
 					else{
 						errorCount++;
@@ -797,7 +797,7 @@ bool Javad::readLog(string fname,int mjd)
 
 			if(msgid == "GE"){  // GPS ephemeris
 				if (msg.length() == 123*2){
-					EphemerisData *ed = new EphemerisData;
+					GPS::EphemerisData *ed = new GPS::EphemerisData;
  					HexToBin((char *) msg.substr(0*2,2*sizeof(UINT8)).c_str(), sizeof(UINT8),  (unsigned char *) &(ed->SVN));
 					HexToBin((char *) msg.substr(1*2,2*sizeof(UINT32)).c_str(),sizeof(UINT32), (unsigned char *) &(u4buf));
  					ed->t_ephem=u4buf;
@@ -847,7 +847,7 @@ bool Javad::readLog(string fname,int mjd)
 					HexToBin((char *) msg.substr(118*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->C_is));
 						
 					DBGMSG(debugStream,TRACE,"Ephemeris: SVN="<< (unsigned int) ed->SVN << ",toe="<< ed->t_oe << ",IODE=" << (int) ed->IODE);
-					addGPSEphemeris(ed);
+					gps.addEphemeris(ed);
 					
 				}
 				else{
@@ -915,15 +915,15 @@ bool Javad::readLog(string fname,int mjd)
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
-	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");
+	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,errorCount << " errors in input file");
-	if (codes & C1){
+	if (codes & GNSSSystem::C1){
 		DBGMSG(debugStream,INFO,badC1Measurements  << " SV C1 measurements rejected");
 	}
-	if (codes & P1){
+	if (codes & GNSSSystem::P1){
 		DBGMSG(debugStream,INFO,badP1Measurements  << " SV P1 measurements rejected");
 	}
-	if (codes & P2){
+	if (codes & GNSSSystem::P2){
 		DBGMSG(debugStream,INFO,badP2Measurements  << " SV P2 measurements rejected");
 	}
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");

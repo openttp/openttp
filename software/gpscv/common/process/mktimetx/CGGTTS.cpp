@@ -111,12 +111,12 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 	string GNSScode;
 	
 	switch (constellation){
-		case Receiver::GPS:
+		case GNSSSystem::GPS:
 			GNSSconst="G";
 			switch (code){
-				case Receiver::C1:GNSScode="L1C";break;
-				case Receiver::P1:GNSScode="L1P";break;
-				case Receiver::P2:GNSScode="L2P";break;
+				case GNSSSystem::C1:GNSScode="L1C";break;
+				case GNSSSystem::P1:GNSScode="L1P";break;
+				case GNSSSystem::P2:GNSScode="L2P";break;
 				default:break;
 			}
 			break;// FIXME GPS only
@@ -145,19 +145,19 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 			if ((mpairs[m]->flags==0x03)){
 				ReceiverMeasurement *rm = mpairs[m]->rm;
 				switch (constellation){
-					case Receiver::GPS:
+					case GNSSSystem::GPS:
 						switch (code){
-							case Receiver::C1:{
+							case GNSSSystem::C1:{
 								for (unsigned int sv=0;sv<rm->gps.size();sv++) 
 									svtrk[rm->gps.at(sv)->svn].push_back(rm->gps.at(sv));
 								break;
 							}
-							case Receiver::P1:{
+							case GNSSSystem::P1:{
 								for (unsigned int sv=0;sv<rm->gpsP1.size();sv++) 
 									svtrk[rm->gpsP1.at(sv)->svn].push_back(rm->gpsP1.at(sv));
 								break;
 							}
-							case Receiver::P2:{
+							case GNSSSystem::P2:{
 								for (unsigned int sv=0;sv<rm->gpsP2.size();sv++) 
 									svtrk[rm->gpsP2.at(sv)->svn].push_back(rm->gpsP2.at(sv));
 								break;
@@ -250,17 +250,17 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				}
 				// Now we can compute the pr corrections etc for the fitted prs
 
-				EphemerisData *ed=NULL;
+				GPS::EphemerisData *ed=NULL;
 				npts=0;
 				for ( int q=0;q<nqfits;q++){
 					if (ed==NULL) // use only one ephemeris for each track
-							ed = rx->nearestEphemeris(Receiver::GPS,sv,gpsTOW[q]);
+							ed = rx->gps.nearestEphemeris(sv,gpsTOW[q]);
 					if (NULL == ed) ephemerisMisses++;
 					
 					double refsyscorr,refsvcorr,iono,tropo,az,el;
 					// FIXME MDIO needs to change for L2
 					// getPseudorangeCorrections will check for NULL ephemeris
-					if (GPS::getPseudorangeCorrections(rx,gpsTOW[q],uncorrprange[q],ant,ed,
+					if (rx->gps.getPseudorangeCorrections(gpsTOW[q],uncorrprange[q],ant,ed,
 							&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 						tutc[npts]=tutc[q]; // ok to overwrite, because npts <= q
 						svaz[npts]=az;
@@ -280,19 +280,19 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				int tsearch=trackStart;
 				int t=0;
 				
-				EphemerisData *ed=NULL;
+				GPS::EphemerisData *ed=NULL;
 				while (t<svtrk[sv].size()){
 					svtrk[sv].at(t)->dbuf2=0.0;
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
 						if (ed==NULL) // use only one ephemeris for each track
-							ed = rx->nearestEphemeris(Receiver::GPS,sv,rxmt->gpstow);
+							ed = rx->gps.nearestEphemeris(sv,rxmt->gpstow);
 						if (NULL == ed) ephemerisMisses++;
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
 						// getPseudorangeCorrections will check for NULL ephemeris
-						if (GPS::getPseudorangeCorrections(rx,rxmt->gpstow,svtrk[sv].at(t)->meas,ant,ed,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,svtrk[sv].at(t)->meas,ant,ed,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
 							svel[npts]=el;
@@ -504,19 +504,19 @@ void CGGTTS::writeHeader(FILE *fout)
 		{
 			string cons;
 			switch (constellation){
-				case Receiver::BEIDOU:cons="BDS";break;
-				case Receiver::GALILEO:cons="GAL";break;
-				case Receiver::GLONASS:cons="GLO";break;
-				case Receiver::GPS:cons="GPS";break;
-				case Receiver::QZSS:cons="QZSS";break;
+				case GNSSSystem::BEIDOU:cons="BDS";break;
+				case GNSSSystem::GALILEO:cons="GAL";break;
+				case GNSSSystem::GLONASS:cons="GLO";break;
+				case GNSSSystem::GPS:cons="GPS";break;
+				case GNSSSystem::QZSS:cons="QZSS";break;
 			}
 			string code1;
 			switch (code){
-				case Receiver::B1:code1="B1";break;
-				case Receiver::C1:code1="C1";break;
-				case Receiver::E1:code1="E1";break;
-				case Receiver::P1:code1="P1";break;
-				case Receiver::P2:code1="P2";break;
+				case GNSSSystem::B1:code1="B1";break;
+				case GNSSSystem::C1:code1="C1";break;
+				case GNSSSystem::E1:code1="E1";break;
+				case GNSSSystem::P1:code1="P1";break;
+				case GNSSSystem::P2:code1="P2";break;
 			}
 			snprintf(buf,MAXCHARS,"INT DLY = %.1f ns %s %s     CAL_ID = %s",intDly,cons.c_str(),code1.c_str(),calID.c_str());
 			break;
