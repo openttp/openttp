@@ -72,8 +72,8 @@ Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 	modelName=m;
 	manufacturer="ublox";
 	swversion="0.1";
-	constellations=Receiver::GPS;
-	codes=C1;
+	constellations=GNSSSystem::GPS;
+	codes=GNSSSystem::C1;
 	channels=32;
 	if (modelName == "LEA8"){
 		// For the future
@@ -109,7 +109,7 @@ bool Ublox::readLog(string fname,int mjd)
 	
 	float rxTimeOffset; // single
 	
-	vector<SVMeasurement *> gps;
+	vector<SVMeasurement *> gpsmeas;
 	gotUTCdata=false;
 	gotIonoData=false;
 	
@@ -130,7 +130,7 @@ bool Ublox::readLog(string fname,int mjd)
 			if (sstr.fail()){
 				DBGMSG(debugStream,WARNING," bad data at line " << linecount);
 				currentMsgs=0;
-				deleteMeasurements(gps);
+				deleteMeasurements(gpsmeas);
 				continue;
 			}
 			
@@ -138,7 +138,7 @@ bool Ublox::readLog(string fname,int mjd)
 			if(msgid == "0215"){ // raw measurements 
 				
 				if (currentMsgs == reqdMsgs){ // save the measurements from the previous second
-					if (gps.size() > 0){
+					if (gpsmeas.size() > 0){
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 						measurements.push_back(rmeas);
 						
@@ -152,12 +152,12 @@ bool Ublox::readLog(string fname,int mjd)
 							rmeas->pcss=pcss;
 						}
 						
-						gps.clear(); // don't delete - we only made a shallow copy!
+						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
 						//fprintf(stderr,"PC=%02d:%02d:%02d rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d\n",
 						//	pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,tmeasUTC/1000.0,(int) gpstow,(int) weekNum);
 					}
-				} // if (gps.size() > 0)
+				} // if (gpsmeas.size() > 0)
 				
 				pctime=currpctime;
 				currentMsgs = 0;
@@ -177,7 +177,7 @@ bool Ublox::readLog(string fname,int mjd)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); 
-								gps.push_back(new SVMeasurement(svID,r8buf/CLIGHT,NULL));// ReceiverMeasurement not known yet
+								gpsmeas.push_back(new SVMeasurement(svID,r8buf/CLIGHT,NULL));// ReceiverMeasurement not known yet
 								DBGMSG(debugStream,TRACE,"SV" << svID << " pr=" << r8buf/CLIGHT << " trkStat= " << (int) u1buf);
 							}
 						}
@@ -280,7 +280,7 @@ bool Ublox::readLog(string fname,int mjd)
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
-	DBGMSG(debugStream,INFO,ephemeris.size() << " ephemeris entries read");
+	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	
 	exit(0);
 	
