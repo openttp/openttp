@@ -36,7 +36,7 @@ use POSIX qw(strftime);
 use Getopt::Std;
 
 use subs qw(MyPrint);
-use vars qw($opt_c $opt_d $opt_h $opt_i $opt_m $opt_n $opt_o $opt_p $opt_q $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
+use vars qw($opt_a $opt_c $opt_d $opt_f $opt_h $opt_i $opt_m $opt_n $opt_o $opt_p $opt_q $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
 
 $VERSION = "2.0.1";
 
@@ -65,9 +65,11 @@ $CALIONO=$MDIO;
 $REFDIFF=$REFGPS;
 $MATCHEPHEM=0;
 
+$OUTPUTDIR = ".";
+
 $0=~s#.*/##; # strip path from executable name
 
-if (!getopts('c:d:e:him:n:op:q:r:st:vx:y:') || $opt_h){
+if (!getopts('ac:d:e:f:him:n:op:q:r:st:vx:y:') || $opt_h){
 	ShowHelp();	
 	exit;
 }
@@ -99,6 +101,10 @@ if ($opt_t){
 
 if ($opt_i){
 	$IONOCORR=0;
+}
+
+if ($opt_f){
+	$OUTPUTDIR=$opt_f;
 }
 
 $refrxext = "cctf";
@@ -134,7 +140,7 @@ if ($opt_p){$refrxprefix=$opt_p;}
 $calrxprefix="";
 if ($opt_q){$calrxprefix=$opt_q;}
 
-open LOG, ">$refrxname.$calrxname.report.txt";
+open LOG, ">$OUTPUTDIR/$refrxname.$calrxname.report.txt";
 
 MyPrint "$0 version $VERSION\n\n";
 MyPrint "Run " . (strftime "%a %b %e %H:%M:%S %Y", gmtime)."\n\n";
@@ -205,13 +211,13 @@ if ($opt_r){
 }
 
 # Dump REFGPS data for later plotting
-open(OUT, ">$refrxname.refgps.all.txt"); 
+open(OUT, ">$OUTPUTDIR/$refrxname.refgps.all.txt"); 
 for ($i=0;$i<$#ref;$i++){
 	print OUT "$ref[$i][$MJD] $ref[$i][$STTIME] $ref[$i][$REFGPS]\n";
 }
 close(OUT);
 
-open(OUT, ">$calrxname.refgps.all.txt");
+open(OUT, ">$OUTPUTDIR/$calrxname.refgps.all.txt");
 for ($i=0;$i<$#ref;$i++){
 	print OUT "$ref[$i][$MJD] $ref[$i][$STTIME] $ref[$i][$REFGPS]\n";
 }
@@ -341,50 +347,57 @@ if ($caldf){
 }
 
 # Ask for real delays
+
 $refdelay[$REPINTDLY]=$refdelay[$CCTFINTDLY];
 $refdelay[$REPCABDLY]=$refdelay[$CCTFCABDLY];
 $refdelay[$REPREFDLY]=$refdelay[$CCTFREFDLY];
-print "REF/HOST receiver ($refrx)\n";
-print "reported internal  delay [$refdelay[$REPINTDLY] ns]?";
-$stuff = <STDIN>;
-chomp $stuff;	
-if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
-	$refdelay[$REPINTDLY]=$stuff;
-}
-print "reported cable     delay [$refdelay[$REPCABDLY] ns]?";
-$stuff = <STDIN>;
-chomp $stuff;
-if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
-	$refdelay[$REPCABDLY]=$stuff;
-}
-print "reported reference delay [$refdelay[$REPREFDLY] ns]?";
-$stuff = <STDIN>;
-chomp $stuff;
-if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
-	$refdelay[$REPREFDLY]=$stuff;
+
+if (!(defined $opt_a)){
+	print "REF/HOST receiver ($refrx)\n";
+	print "reported internal  delay [$refdelay[$REPINTDLY] ns]?";
+	$stuff = <STDIN>;
+	chomp $stuff;	
+	if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
+		$refdelay[$REPINTDLY]=$stuff;
+	}
+	print "reported cable     delay [$refdelay[$REPCABDLY] ns]?";
+	$stuff = <STDIN>;
+	chomp $stuff;
+	if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
+		$refdelay[$REPCABDLY]=$stuff;
+	}
+	print "reported reference delay [$refdelay[$REPREFDLY] ns]?";
+	$stuff = <STDIN>;
+	chomp $stuff;
+	if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
+		$refdelay[$REPREFDLY]=$stuff;
+	}
 }
 
 $caldelay[$REPINTDLY]=$caldelay[$CCTFINTDLY];
 $caldelay[$REPCABDLY]=$caldelay[$CCTFCABDLY];
 $caldelay[$REPREFDLY]=$caldelay[$CCTFREFDLY];
-print "\nCAL/TRAVELLING receiver ($calrx)\n";
-print "reported internal  delay [$caldelay[$CCTFINTDLY] ns]?";
-$stuff = <STDIN>;
-chomp $stuff;	
-if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
-	$caldelay[$REPINTDLY]=$stuff;
-}
-print "reported cable     delay [$caldelay[$CCTFCABDLY] ns]?";
-$stuff = <STDIN>;
-chomp $stuff;
-if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
-	$caldelay[$REPCABDLY]=$stuff;
-}
-print "reported reference delay [$caldelay[$CCTFREFDLY] ns]?";
-$stuff = <STDIN>;
-chomp $stuff;
-if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
-	$caldelay[$REPREFDLY]=$stuff;
+
+if (!(defined $opt_a)){
+	print "\nCAL/TRAVELLING receiver ($calrx)\n";
+	print "reported internal  delay [$caldelay[$CCTFINTDLY] ns]?";
+	$stuff = <STDIN>;
+	chomp $stuff;	
+	if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
+		$caldelay[$REPINTDLY]=$stuff;
+	}
+	print "reported cable     delay [$caldelay[$CCTFCABDLY] ns]?";
+	$stuff = <STDIN>;
+	chomp $stuff;
+	if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
+		$caldelay[$REPCABDLY]=$stuff;
+	}
+	print "reported reference delay [$caldelay[$CCTFREFDLY] ns]?";
+	$stuff = <STDIN>;
+	chomp $stuff;
+	if ($stuff=~/^([+-]?\d+\.?\d*|\.\d+)$/){
+		$caldelay[$REPREFDLY]=$stuff;
+	}
 }
 
 MyPrint "\nREF/HOST receiver reported delays($refrx)\n";
@@ -472,7 +485,7 @@ MyPrint "slope $B1 ps/day SD $sB1 ps/day\n";
 MyPrint "RMS of residuals $rms ns\n";
 MyPrint "\n###########################################################\n";
 
-print "Report in $refrxname.$calrxname.report.txt\n";
+print "Report in $OUTPUTDIR/$refrxname.$calrxname.report.txt\n";
 if (`which gnuplot` eq ""){
 	print "Can't find gnuplot so skipping plots\n";
 	close LOG;
@@ -480,7 +493,7 @@ if (`which gnuplot` eq ""){
 }
 
 # Dump stuff for plotting
-open(OUT, ">$refrxname.$calrxname.matches.txt");
+open(OUT, ">$OUTPUTDIR/$refrxname.$calrxname.matches.txt");
 for ($i=0;$i<=$#matches;$i++){
 	print OUT "$matches[$i][0] $matches[$i][1] $matches[$i][2] $matches[$i][3] $matches[$i][4] $matches[$i][5] $matches[$i][6]\n"; 
 }
@@ -489,7 +502,7 @@ close OUT;
 $tlast = int($matches[0][0]*86400);
 $nav=0;
 $av=0;
-open(OUT, ">$refrxname.$calrxname.av.matches.txt");
+open(OUT, ">$OUTPUTDIR/$refrxname.$calrxname.av.matches.txt");
 for ($i=0;$i<=$#matches;$i++){
 	if (int($matches[$i][0]*86400) == $tlast){
 		$nav++;
@@ -517,9 +530,9 @@ $ym=0.02;
 $xstep = (1.0-2.0*$xm)/$nc;
 $ystep = (1.0-2.0*$ym)/$nr;
 
-open(OUT, ">plotcmds.gnuplot");
+open(OUT, ">$OUTPUTDIR/plotcmds.gnuplot");
 print OUT "set terminal postscript portrait dashed \"Helvetica\" 10\n";
-print OUT "set output \"$refrxname.$calrxname.ps\"\n";
+print OUT "set output \"$OUTPUTDIR/$refrxname.$calrxname.ps\"\n";
 print OUT "set multiplot\n";
 print OUT "set nolabel\n";
 print OUT "set size   $xstep, $ystep\n";
@@ -534,22 +547,22 @@ print OUT "set title \"REF:$refrxname filtered tracks\"\n";
 $x0=$xm;
 $y0=$ym;
 print OUT "set origin $x0 , $y0\n";
-print OUT "plot \"$refrxname.$calrxname.matches.txt\" using 1:2 with points pt 6 ps 0.5\n";
+print OUT "plot \"$OUTPUTDIR/$refrxname.$calrxname.matches.txt\" using 1:2 with points pt 6 ps 0.5\n";
 
 print OUT "set title \"CAL:$calrxname filtered tracks\"\n";
 $y0 +=$ystep;
 print OUT "set origin $x0 , $y0\n";
-print OUT "plot \"$refrxname.$calrxname.matches.txt\" using 1:3 with points pt 6 ps 0.5\n";
+print OUT "plot \"$OUTPUTDIR/$refrxname.$calrxname.matches.txt\" using 1:3 with points pt 6 ps 0.5\n";
 
 print OUT "set title \"REF($refrxname) - CAL($calrxname) (filtered)\"\n";
 $y0 +=$ystep;
 print OUT "set origin $x0 , $y0\n";
-print OUT "plot \"$refrxname.$calrxname.matches.txt\" using 1:4 with points pt 6 ps 0.5,\"$refrxname.$calrxname.av.matches.txt\" using 1:2 with lines\n";
+print OUT "plot \"$OUTPUTDIR/$refrxname.$calrxname.matches.txt\" using 1:4 with points pt 6 ps 0.5,\"$OUTPUTDIR/$refrxname.$calrxname.av.matches.txt\" using 1:2 with lines\n";
 
 close OUT;
 
-`gnuplot  plotcmds.gnuplot`;
-print "Plots in $refrxname.$calrxname.ps\n";
+`gnuplot  $OUTPUTDIR/plotcmds.gnuplot`;
+print "Plots in $OUTPUTDIR/$refrxname.$calrxname.ps\n";
 
 close LOG;
 
@@ -557,9 +570,11 @@ close LOG;
 sub ShowHelp
 {
 	print "Usage: $0 [options] ref_rx_directory cal_rx_directory start_MJD stop_MJD\n\n";
+	print "-a        accept delays in header (no prompts)\n";
 	print "-c  <modeled|measured> set ionospheric correction used for CAL receiver\n";
 	print "-d  <val> set maximum DSG (default=". $DSGMAX/10.0. " ns)\n";
 	print "-e  <val> set elevation mask (default = $ELEVMASK degrees)\n";
+	print "-f  <val> output folder\n";
 	print "-h        show this help\n";
 	print "-i        ionosphere correction is used (zero baseline data assumed otherwise)\n";
 	print "-m  <val> name to use for REF receiver in output (default = \"ref\")\n";
