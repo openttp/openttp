@@ -30,9 +30,6 @@
 #include "Antenna.h"
 #include "Debug.h"
 #include "GPS.h"
-#include "Receiver.h"
-#include "ReceiverMeasurement.h"
-#include "SVMeasurement.h"
 #include "Troposphere.h"
 
 #define MU 3.986005e14 // WGS 84 value of the earth's gravitational constant for GPS USER
@@ -48,7 +45,117 @@ extern int verbosity;
 
 #define CLIGHT 299792458.0
 
-bool GPS::satXYZ(EphemerisData *ed,double t,double *Ek,double x[3])
+GPS::GPS():GNSSSystem()
+{
+	n="GPS";
+}
+
+GPS::~GPS()
+{
+}
+
+void GPS::addEphemeris(EphemerisData *ed)
+{
+	// Check whether this is a duplicate
+	int issue;
+	for (issue=0;issue < (int) sortedEphemeris[ed->SVN].size();issue++){
+		if (sortedEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
+			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
+			return;
+		}
+	}
+	
+	if (ephemeris.size()>0){
+
+		// Update the ephemeris list - this is time-ordered
+		std::vector<EphemerisData *>::iterator it;
+		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
+				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
+				ephemeris.insert(it,ed);
+				break;
+			}
+		}
+		
+		if (it == ephemeris.end()){ // got to end, so append
+			DBGMSG(debugStream,4,"appending " << ed->t_OC);
+			ephemeris.push_back(ed);
+		}
+		
+		// Update the ephemeris hash - 
+		if (sortedEphemeris[ed->SVN].size() > 0){
+			std::vector<EphemerisData *>::iterator it;
+			for (it=sortedEphemeris[ed->SVN].begin(); it<sortedEphemeris[ed->SVN].end(); it++){
+				if (ed->t_OC < (*it)->t_OC){ 
+					DBGMSG(debugStream,4,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
+					sortedEphemeris[ed->SVN].insert(it,ed);
+					break;
+				}
+			}
+			if (it == sortedEphemeris[ed->SVN].end()){ // got to end, so append
+				DBGMSG(debugStream,4,"hash appending " << ed->t_OC);
+				sortedEphemeris[ed->SVN].push_back(ed);
+			}
+		}
+		else{ // first one for this SVN
+			DBGMSG(debugStream,4,"first for svn " << (int) ed->SVN);
+			sortedEphemeris[ed->SVN].push_back(ed);
+		}
+	}
+	else{ //first one
+		DBGMSG(debugStream,4,"first eph ");
+		ephemeris.push_back(ed);
+		sortedEphemeris[ed->SVN].push_back(ed);
+		return;
+	}
+}
+
+GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow)
+{
+	EphemerisData *ed = NULL;
+	double dt,tmpdt;
+	
+	if (sortedEphemeris[svn].size()==0)
+		return ed;
+				
+	for (unsigned int i=0;i<sortedEphemeris[svn].size();i++){
+		tmpdt=sortedEphemeris[svn][i]->t_oe - tow;
+		
+		// algorithm as per previous software
+		if (ed==NULL && tmpdt >=0 && fabs(tmpdt) < 0.1*86400){ // first time
+			dt=fabs(tmpdt);
+			ed=sortedEphemeris[svn][i];
+		}
+		else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 ) && fabs(tmpdt) < 0.1*86400){
+			dt=fabs(tmpdt);
+			ed=sortedEphemeris[svn][i];
+		}
+	}
+				
+	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_oe="<< ((ed!=NULL)?(int)(ed->t_oe):-1));
+	return ed;
+}
+
+bool GPS::currentLeapSeconds(int mjd,int *leapsecs)
+{
+	if (!(UTCdata.dtlS == 0 && UTCdata.dt_LSF == 0)){ 
+		// Figure out when the leap second is/was scheduled; we only have the low
+		// 8 bits of the week number in WN_LSF, but we know that "the
+		// absolute value of the difference between the untruncated WN and Wlsf
+		// values shall not exceed 127" (ICD 20.3.3.5.2.4, p122)
+		int gpsWeek=int ((mjd-44244)/7);
+		int gpsSchedWeek=(gpsWeek & ~0xFF) | UTCdata.WN_LSF;
+		while ((gpsWeek-gpsSchedWeek)> 127) {gpsSchedWeek+=256;}
+		while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
+		int gpsSchedMJD=44244+7*gpsSchedWeek+UTCdata.DN;
+		// leap seconds is either tls or tlsf depending on past/future schedule
+		(*leapsecs)=(mjd>=gpsSchedMJD? UTCdata.dt_LSF : UTCdata.dtlS);
+		return true;
+	}
+	return false;
+}
+
+bool GPS::satXYZ(GPS::EphemerisData *ed,double t,double *Ek,double x[3])
 {
 	// t is GPS system time at time of transmission
 	
@@ -89,7 +196,7 @@ bool GPS::satXYZ(EphemerisData *ed,double t,double *Ek,double x[3])
 	return true;
 }
 
-double GPS::sattime(EphemerisData *ed,double Ek,double tsv,double toc)
+double GPS::sattime(GPS::EphemerisData *ed,double Ek,double tsv,double toc)
 {
 	// SV clock correction as per ICD 20.3.3.3.3.1
 	double trel= F*ed->e*ed->sqrtA*sin(Ek);
@@ -149,7 +256,7 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 } // ionnodelay
 
-bool GPS::getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, Antenna *ant,
+bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 	EphemerisData *ed,
 	double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 	double *azimuth,double *elevation,int *ioe){
@@ -213,8 +320,8 @@ bool GPS::getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, A
 				*tropo = Troposphere::delayModel(*elevation,ant->height);
 				
 				*iono = ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
-					rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,
-					rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3);
+					ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
+					ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
 				
 				ok=true;
 			}

@@ -22,49 +22,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __RINEX_H_
-#define __RINEX_H_
+#ifndef __GNSS_SYSTEM_H_
+#define __GNSS_SYSTEM_H_
 
-#include <fstream>
 #include <string>
-#include <vector>
 
-#include "GPS.h"
-
-class Antenna;
-class Counter;
-class EphemerisData;
-class MeasurementPair;
-class Receiver;
-
-using namespace std;
-
-class RINEX
+class GNSSSystem
 {
 	
 	public:
 		
-		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
+		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08,QZSS=0x10};
+		enum Code {C1=0x01,P1=0x02,P2=0x04,E1=0x08,B1=0x10};
 		
-		RINEX();
-		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
-		bool writeNavigationFile(Receiver *rx,int ver,string fname,int mjd);
+		GNSSSystem(){};
+		~GNSSSystem(){};
 		
-		bool readNavigationFile(Receiver *rx,int constellation,string fname);
+		std::string name(){return n;}
 		
-		string observer;
-		string agency;
-		
-	private:
-		
-		void init();
-		
-		GPS::EphemerisData* getGPSEphemeris(ifstream *fin,unsigned int *lineCount);
-		void parseParam(string &str,int start,int len,int *val);
-		void parseParam(string &str,int start,int len,float *val);
-		void parseParam(string &str,int start,int len,double *val);
-		bool get4DParams(ifstream *fin,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
-		
+	protected:
+		string n; // system name
 };
 
 #endif

@@ -26,25 +26,117 @@
 #define __GPS_H_
 
 #include <time.h>
+#include <vector>
 
-	class Antenna;
-	class EphemerisData;
-	class Receiver;
-	class ReceiverMeasurement;
-	class SVMeasurement;
+#include "GNSSSystem.h"
+
+class Antenna;
+class ReceiverMeasurement;
+class SVMeasurement;
+
+typedef double DOUBLE;
+typedef float  SINGLE;
+typedef unsigned char UINT8;
+typedef signed char SINT8;
+typedef unsigned short UINT16;
+typedef short SINT16;
+typedef int SINT32;
+typedef unsigned int UINT32;
+
+class GPS: public GNSSSystem
+{
+	public:
 	
-	namespace GPS {
-		bool satXYZ(EphemerisData *ed,double t,double *Ek,double x[3]);
-		double sattime(EphemerisData *ed,double Ek,double tsv,double toc);
-		double ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
-			float alpha0,float alpha1,float alpha2,float alpha3,
-			float beta0,float beta1,float beta2,float beta3);
-		bool getPseudorangeCorrections(Receiver *rx,double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,
-			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
-			double *azimuth,double *elevation, int *ioe);
-		void UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
-			unsigned int *tow,unsigned int *truncatedWN=NULL,unsigned int*fullWN=NULL);
-	}
+	class IonosphereData
+	{
+		public:
+			SINGLE a0,a1,a2,a3;
+			SINGLE B0,B1,B2,B3;
+	};
+
+	class UTCData
+	{
+		public:
+			DOUBLE A0;
+			SINGLE A1;
+			SINT16 dtlS;
+			SINGLE t_ot;
+			UINT16 WN_t,WN_LSF,DN;
+			SINT16 dt_LSF;
+	};
+
+	class EphemerisData
+	{
+		public:
+			UINT8 SVN;
+			SINGLE t_ephem;
+			UINT16 week_number;
+			UINT8 SV_accuracy_raw;
+			UINT8 SV_health;
+			UINT16 IODC;
+			SINGLE t_GD;
+			SINGLE t_OC;
+			SINGLE a_f2;
+			SINGLE a_f1;
+			SINGLE a_f0;
+			SINGLE SV_accuracy;
+			UINT8 IODE;
+			SINGLE C_rs;
+			SINGLE delta_N;
+			DOUBLE M_0;
+			SINGLE C_uc;
+			DOUBLE e;
+			SINGLE C_us;
+			DOUBLE sqrtA;
+			SINGLE t_oe;
+			SINGLE C_ic;
+			DOUBLE OMEGA_0;
+			SINGLE C_is;
+			DOUBLE i_0;
+			SINGLE C_rc;
+			DOUBLE OMEGA;
+			SINGLE OMEGADOT;
+			SINGLE IDOT;
+			DOUBLE Axis;
+			DOUBLE n;
+			DOUBLE r1me2;
+			DOUBLE OMEGA_N;
+			DOUBLE ODOT_n;
+	};
+	
+	GPS();
+	~GPS();
+	
+	static const int NSATS=32;
+	
+	IonosphereData ionoData;
+	UTCData UTCdata;
+	std::vector<EphemerisData *> ephemeris;
+			
+	void addEphemeris(EphemerisData *);
+	vector<EphemerisData *> sortedEphemeris[NSATS+1];
+	EphemerisData *nearestEphemeris(int,int);
+
+	bool satXYZ(EphemerisData *ed,double t,double *Ek,double x[3]);
+	
+	double sattime(EphemerisData *ed,double Ek,double tsv,double toc);
+	
+	double ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
+		float alpha0,float alpha1,float alpha2,float alpha3,
+		float beta0,float beta1,float beta2,float beta3);
+	
+	bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,
+		double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
+		double *azimuth,double *elevation, int *ioe);
+	
+	void UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
+		unsigned int *tow,unsigned int *truncatedWN=NULL,unsigned int*fullWN=NULL);
+	
+	bool currentLeapSeconds(int mjd,int *leapsecs);
+	
+};
 
 #endif
+
+
 

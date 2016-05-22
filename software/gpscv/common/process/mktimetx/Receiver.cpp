@@ -57,7 +57,7 @@ Receiver::Receiver(Antenna *ant)
 	ppsOffset=0;
 	commissionYYYY=1999;
 	dualFrequency=false;
-	codes=C1;
+	codes=GNSSSystem::C1;
 }
 
 Receiver::~Receiver()
@@ -79,81 +79,12 @@ unsigned int Receiver::memoryUsage()
 // protected
 //
 
-bool Receiver::setCurrentLeapSeconds(int mjd,UTCData &utcd)
-{
-	if (!(utcData.dtlS == 0 && utcData.dt_LSF == 0)){ 
-		// Figure out when the leap second is/was scheduled; we only have the low
-		// 8 bits of the week number in WN_LSF, but we know that "the
-		// absolute value of the difference between the untruncated WN and Wlsf
-		// values shall not exceed 127" (ICD 20.3.3.5.2.4, p122)
-		int gpsWeek=int ((mjd-44244)/7);
-		int gpsSchedWeek=(gpsWeek & ~0xFF) | utcData.WN_LSF;
-		while ((gpsWeek-gpsSchedWeek)> 127) {gpsSchedWeek+=256;}
-		while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
-		int gpsSchedMJD=44244+7*gpsSchedWeek+utcData.DN;
-		// leap seconds is either tls or tlsf depending on past/future schedule
-		leapsecs=(mjd>=gpsSchedMJD? utcData.dt_LSF : utcData.dtlS);
-		return true;
-	}
-	return false;
-}
-
-void Receiver::addGPSEphemeris(EphemerisData *ed)
-{
-	// Check whether this is a duplicate
-	int issue;
-	for (issue=0;issue < (int) sortedGPSEphemeris[ed->SVN].size();issue++){
-		if (sortedGPSEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
-			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
-			return;
-		}
-	}
+//bool Receiver::setCurrentLeapSeconds(int mjd,UTCData &utcd)
+//{
 	
-	if (ephemeris.size()>0){
+//}
 
-		// Update the ephemeris list - this is time-ordered
-		std::vector<EphemerisData *>::iterator it;
-		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
-			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
-				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
-				ephemeris.insert(it,ed);
-				break;
-			}
-		}
-		
-		if (it == ephemeris.end()){ // got to end, so append
-			DBGMSG(debugStream,4,"appending " << ed->t_OC);
-			ephemeris.push_back(ed);
-		}
-		
-		// Update the ephemeris hash - 
-		if (sortedGPSEphemeris[ed->SVN].size() > 0){
-			std::vector<EphemerisData *>::iterator it;
-			for (it=sortedGPSEphemeris[ed->SVN].begin(); it<sortedGPSEphemeris[ed->SVN].end(); it++){
-				if (ed->t_OC < (*it)->t_OC){ 
-					DBGMSG(debugStream,4,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
-					sortedGPSEphemeris[ed->SVN].insert(it,ed);
-					break;
-				}
-			}
-			if (it == sortedGPSEphemeris[ed->SVN].end()){ // got to end, so append
-				DBGMSG(debugStream,4,"hash appending " << ed->t_OC);
-				sortedGPSEphemeris[ed->SVN].push_back(ed);
-			}
-		}
-		else{ // first one for this SVN
-			DBGMSG(debugStream,4,"first for svn " << (int) ed->SVN);
-			sortedGPSEphemeris[ed->SVN].push_back(ed);
-		}
-	}
-	else{ //first one
-		DBGMSG(debugStream,4,"first eph ");
-		ephemeris.push_back(ed);
-		sortedGPSEphemeris[ed->SVN].push_back(ed);
-		return;
-	}
-	
-}
+
 
 void Receiver::deleteMeasurements(std::vector<SVMeasurement *> &meas)
 {
@@ -261,53 +192,7 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 	
 }
 
-EphemerisData *Receiver::nearestEphemeris(int constellation,int svn,int tow)
-{
-	EphemerisData *ed = NULL;
-	double dt,tmpdt;
-	switch (constellation){
-		case Receiver::GPS:
-			{
-				if (sortedGPSEphemeris[svn].size()==0)
-					return ed;
-				
-				for (unsigned int i=0;i<sortedGPSEphemeris[svn].size();i++){
-					tmpdt=sortedGPSEphemeris[svn][i]->t_oe - tow;
-		
-					// algorithm as per previous software
-					if (ed==NULL && tmpdt >=0 && fabs(tmpdt) < 0.1*86400){ // first time
-						dt=fabs(tmpdt);
-						ed=sortedGPSEphemeris[svn][i];
-					}
-					else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 ) && fabs(tmpdt) < 0.1*86400){
-						dt=fabs(tmpdt);
-						ed=sortedGPSEphemeris[svn][i];
-					}
-					
-				}
-				
-				// If we didn't find a prior ephemeris, just find the nearest
-				// Helps with Resolution T
-// 				if (ed == NULL){
-// 					ed=sortedGPSEphemeris[svn][0];
-// 					dt=fabs(ed->t_oe - tow);
-// 					for (unsigned int i=1;i<sortedGPSEphemeris[svn].size();i++){
-// 						tmpdt=sortedGPSEphemeris[svn][i]->t_oe - tow;
-// 						if (fabs(tmpdt) < dt){
-// 							ed=sortedGPSEphemeris[svn][i];
-// 							dt=fabs(ed->t_oe - tow);
-// 						}
-// 					}
-// 				}
-				
-			}
-			break;
-		default:
-			break;
-	}
-	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_oe="<< ((ed!=NULL)?(int)(ed->t_oe):-1));
-	return ed;
-}
+
 
 
 	

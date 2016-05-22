@@ -36,7 +36,7 @@
 
 #define APP_NAME "mktimetx"
 #define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Malcolm Lawn"
-#define APP_VERSION "0.1.0"
+#define APP_VERSION "0.1.1"
 #define APP_CONFIG "gpscv.conf"
 
 #define CVACUUM 299792458
@@ -52,16 +52,27 @@ class MeasurementPair;
 
 class CGGTTSOutput{
 	public:
+		
+		enum EphemerisSource{ GNSSReceiver, UserSupplied};
+		
 		CGGTTSOutput();
-		CGGTTSOutput(int constellation,int code,string path,string calID,double internalDelay):
+		CGGTTSOutput(int constellation,int code,string path,string calID,double internalDelay,
+			int ephemerisSource,string ephemerisPath,string ephemerisFile
+			):
 			constellation(constellation),code(code),path(path),
-			calID(calID),internalDelay(internalDelay){};
+			calID(calID),internalDelay(internalDelay),
+			ephemerisSource(ephemerisSource),ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile){};
 		
 		int constellation;
 		int code;
 		string path;
 		string calID;
 		double internalDelay;
+		
+		int ephemerisSource;
+		string ephemerisPath;
+		string ephemerisFile;
+		
 };
 
 class Application

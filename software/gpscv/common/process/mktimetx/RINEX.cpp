@@ -55,16 +55,12 @@ double URA[]={2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
 // Public methods
 //
 		
-RINEX::RINEX(Antenna *a,Counter *c,Receiver *r)
+RINEX::RINEX()
 {
-	ant=a;
-	cntr=c;
-	rx=r;
-	
 	init();
 }
 
-bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
+bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
 {
 	char buf[81];
 	FILE *fout;
@@ -77,10 +73,10 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 	
 	char obs;
 	switch (rx->constellations){
-		case Receiver::GPS: obs='G';break;
-		case Receiver::GLONASS: obs='R';break;
-		case Receiver::GALILEO: obs='E';break;
-		case Receiver::BEIDOU:obs='X';break; // not defined yet
+		case GNSSSystem::GPS: obs='G';break;
+		case GNSSSystem::GLONASS: obs='R';break;
+		case GNSSSystem::GALILEO: obs='E';break;
+		case GNSSSystem::BEIDOU:obs='X';break; // not defined yet
 		default: obs= 'M';break;
 		
 	}
@@ -121,21 +117,21 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 		{
 			int nobs=0;
 			string obsTypes="";
-			if (rx->constellations & Receiver::GPS) {
-				if (rx->codes & Receiver::C1){
+			if (rx->constellations & GNSSSystem::GPS) {
+				if (rx->codes & GNSSSystem::C1){
 					nobs++;
 					obsTypes += "    C1";
 				}
-				if (rx->codes & Receiver::P1){
+				if (rx->codes & GNSSSystem::P1){
 					nobs++;
 					obsTypes += "    P1";
 				}
-				if (rx->codes & Receiver::P2){
+				if (rx->codes & GNSSSystem::P2){
 					nobs++;
 					obsTypes += "    P2";
 				}
 			}
-			if (rx->constellations & Receiver::GLONASS) {
+			if (rx->constellations & GNSSSystem::GLONASS) {
 				if ( (string::npos == obsTypes.find("C1") ) ){  // if C1 not there
 					obsTypes = "    C1" + obsTypes;
 					nobs++;
@@ -150,16 +146,16 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 		{
 			int nobs=0;
 			string obsTypes="";
-			if (rx->constellations & Receiver::GPS) {
-				if (rx->codes & Receiver::C1){
+			if (rx->constellations & GNSSSystem::GPS) {
+				if (rx->codes & GNSSSystem::C1){
 					nobs++;
 					obsTypes += " C1C";
 				}
-				if (rx->codes & Receiver::P1){
+				if (rx->codes & GNSSSystem::P1){
 					nobs++;
 					obsTypes += " C1P";
 				}
-				if (rx->codes & Receiver::P2){
+				if (rx->codes & GNSSSystem::P2){
 					nobs++;
 					obsTypes += " C2P";
 				}
@@ -266,7 +262,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 					
 					// Order is C1,P1,P2
 					
-					if (rx->codes & Receiver::C1){
+					if (rx->codes & GNSSSystem::C1){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->gps.size();svc++){
 							if (rm->gps[svc]->svn == svns[sv]){
@@ -278,7 +274,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
 					}
 					
-					if (rx->codes & Receiver::P1){
+					if (rx->codes & GNSSSystem::P1){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->gpsP1.size();svc++){
 							if (rm->gpsP1[svc]->svn == svns[sv]){
@@ -290,7 +286,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
 					}
 					
-					if (rx->codes & Receiver::P2){
+					if (rx->codes & GNSSSystem::P2){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->gpsP2.size();svc++){
 							if (rm->gpsP2[svc]->svn == svns[sv]){
@@ -324,7 +320,7 @@ bool RINEX::writeObservationFile(int ver,string fname,int mjd,int interval, Meas
 	return true;
 }
 
-bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
+bool RINEX::writeNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 {
 	char buf[81];
 	FILE *fout;
@@ -357,11 +353,11 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 			strftime(buf,80,"%d-%b-%y %T",tgmt);
 			fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			fprintf(fout,"%2s%12.4e%12.4e%12.4e%12.4e%10s%-20s\n","",
-				rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,"","ION ALPHA");
+				rx->gps.ionoData.a0,rx->gps.ionoData.a1,rx->gps.ionoData.a2,rx->gps.ionoData.a3,"","ION ALPHA");
 			fprintf(fout,"%2s%12.4e%12.4e%12.4e%12.4e%10s%-20s\n","",
-				rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3,"","ION BETA");
+				rx->gps.ionoData.B0,rx->gps.ionoData.B1,rx->gps.ionoData.B2,rx->gps.ionoData.B3,"","ION BETA");
 			fprintf(fout,"%3s%19.12e%19.12e%9d%9d %-20s\n","",
-				rx->utcData.A0,rx->utcData.A1,(int) rx->utcData.t_ot, gpsWeek,"DELTA-UTC: A0,A1,T,W"); // FIXME gpsWeek is NOT right !
+				rx->gps.UTCdata.A0,rx->gps.UTCdata.A1,(int) rx->gps.UTCdata.t_ot, gpsWeek,"DELTA-UTC: A0,A1,T,W"); // FIXME gpsWeek is NOT right !
 			break;
 		}
 		case V3:
@@ -370,10 +366,10 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
 			fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			fprintf(fout,"GPSA %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
-					rx->ionoData.a0,rx->ionoData.a1,rx->ionoData.a2,rx->ionoData.a3,"","IONOSPHERIC CORR");
+					rx->gps.ionoData.a0,rx->gps.ionoData.a1,rx->gps.ionoData.a2,rx->gps.ionoData.a3,"","IONOSPHERIC CORR");
 			fprintf(fout,"GPSB %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
-					rx->ionoData.B0,rx->ionoData.B1,rx->ionoData.B2,rx->ionoData.B3,"","IONOSPHERIC CORR");
-			fprintf(fout,"GPUT %17.10e%16.9e%7d%5d %5s %2d %-20s\n",rx->utcData.A0,rx->utcData.A1,(int) rx->utcData.t_ot,gpsWeek," ", 0,"TIME SYSTEM CORR");
+					rx->gps.ionoData.B0,rx->gps.ionoData.B1,rx->gps.ionoData.B2,rx->gps.ionoData.B3,"","IONOSPHERIC CORR");
+			fprintf(fout,"GPUT %17.10e%16.9e%7d%5d %5s %2d %-20s\n",rx->gps.UTCdata.A0,rx->gps.UTCdata.A1,(int) rx->gps.UTCdata.t_ot,gpsWeek," ", 0,"TIME SYSTEM CORR");
 			break;
 		}
 	}
@@ -389,14 +385,14 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 	tmGPS0.tm_sec=tmGPS0.tm_min=tmGPS0.tm_hour=0;
 	tmGPS0.tm_mday=6;tmGPS0.tm_mon=0;tmGPS0.tm_year=1980-1900,tmGPS0.tm_isdst=0;
 	time_t tGPS0=mktime(&tmGPS0);
-	for (unsigned int i=0;i<rx->ephemeris.size();i++){
+	for (unsigned int i=0;i<rx->gps.ephemeris.size();i++){
 			
 		// Account for GPS rollover:
 		// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
 		// GPS week 1024 begins midnight 21/22 Aug 1999, MJD 51412
 		// GPS week 2048 begins midnight 6/7 Apr 2019, MJD 58580
 		int tmjd=mjd;
-		int GPSWeek=rx->ephemeris[i]->week_number;
+		int GPSWeek=rx->gps.ephemeris[i]->week_number;
 		
 		while (tmjd>=51412) {
 			GPSWeek+=1024;
@@ -405,7 +401,7 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 		if (-1==lastGPSWeek){lastGPSWeek=GPSWeek;}
 		// Convert GPS week + $Toc to epoch as year, month, day, hour, min, sec
 		// Note that the epoch should be specified in GPS time
-		double Toc=rx->ephemeris[i]->t_OC;
+		double Toc=rx->gps.ephemeris[i]->t_OC;
 		if (-1==lastToc) {lastToc = Toc;}
 		// If GPS week is unchanged and Toc has gone backwards by more than 2 days, increment GPS week
 		if ((GPSWeek == lastGPSWeek) && (Toc-lastToc < -2*86400)){
@@ -437,9 +433,9 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 			case V2:
 			{
 				int yy = tmGPS->tm_year-100*(tmGPS->tm_year/100);
-				fprintf(fout,"%02d %02d %02d %02d %02d %02d%5.1f%19.12e%19.12e%19.12e\n",rx->ephemeris[i]->SVN,
+				fprintf(fout,"%02d %02d %02d %02d %02d %02d%5.1f%19.12e%19.12e%19.12e\n",rx->gps.ephemeris[i]->SVN,
 					yy,tmGPS->tm_mon+1,tmGPS->tm_mday,hour,minute,(float) second,
-					rx->ephemeris[i]->a_f0,rx->ephemeris[i]->a_f1,rx->ephemeris[i]->a_f2);
+					rx->gps.ephemeris[i]->a_f0,rx->gps.ephemeris[i]->a_f1,rx->gps.ephemeris[i]->a_f2);
 				
 				snprintf(buf,80,"%%3s%%19.12e%%19.12e%%19.12e%%19.12e\n");
 			
@@ -447,9 +443,9 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 			}
 			case V3:
 			{
-				fprintf(fout,"G%02d %4d %02d %02d %02d %02d %02d%19.12e%19.12e%19.12e\n",rx->ephemeris[i]->SVN,
+				fprintf(fout,"G%02d %4d %02d %02d %02d %02d %02d%19.12e%19.12e%19.12e\n",rx->gps.ephemeris[i]->SVN,
 					tmGPS->tm_year+1900,tmGPS->tm_mon+1,tmGPS->tm_mday,hour,minute,second,
-					rx->ephemeris[i]->a_f0,rx->ephemeris[i]->a_f1,rx->ephemeris[i]->a_f2);
+					rx->gps.ephemeris[i]->a_f0,rx->gps.ephemeris[i]->a_f1,rx->gps.ephemeris[i]->a_f2);
 				
 				snprintf(buf,80,"%%4s%%19.12e%%19.12e%%19.12e%%19.12e\n");
 				
@@ -458,25 +454,25 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 		}
 		
 		fprintf(fout,buf," ", // broadcast orbit 1
-					(double) rx->ephemeris[i]->IODE,rx->ephemeris[i]->C_rs,rx->ephemeris[i]->delta_N,rx->ephemeris[i]->M_0);
+					(double) rx->gps.ephemeris[i]->IODE,rx->gps.ephemeris[i]->C_rs,rx->gps.ephemeris[i]->delta_N,rx->gps.ephemeris[i]->M_0);
 				
 		fprintf(fout,buf," ", // broadcast orbit 2
-			rx->ephemeris[i]->C_uc,rx->ephemeris[i]->e,rx->ephemeris[i]->C_us,rx->ephemeris[i]->sqrtA);
+			rx->gps.ephemeris[i]->C_uc,rx->gps.ephemeris[i]->e,rx->gps.ephemeris[i]->C_us,rx->gps.ephemeris[i]->sqrtA);
 		
 		fprintf(fout,buf," ", // broadcast orbit 3
-			rx->ephemeris[i]->t_oe,rx->ephemeris[i]->C_ic,rx->ephemeris[i]->OMEGA_0,rx->ephemeris[i]->C_is);
+			rx->gps.ephemeris[i]->t_oe,rx->gps.ephemeris[i]->C_ic,rx->gps.ephemeris[i]->OMEGA_0,rx->gps.ephemeris[i]->C_is);
 		
 		fprintf(fout,buf," ", // broadcast orbit 4
-			rx->ephemeris[i]->i_0,rx->ephemeris[i]->C_rc,rx->ephemeris[i]->OMEGA,rx->ephemeris[i]->OMEGADOT);
+			rx->gps.ephemeris[i]->i_0,rx->gps.ephemeris[i]->C_rc,rx->gps.ephemeris[i]->OMEGA,rx->gps.ephemeris[i]->OMEGADOT);
 		
 		fprintf(fout,buf," ", // broadcast orbit 5
-			rx->ephemeris[i]->IDOT,1.0,(double) GPSWeek,0.0);
+			rx->gps.ephemeris[i]->IDOT,1.0,(double) GPSWeek,0.0);
 	
 		fprintf(fout,buf," ", // broadcast orbit 6
-			URA[rx->ephemeris[i]->SV_accuracy_raw],(double) rx->ephemeris[i]->SV_health,rx->ephemeris[i]->t_GD,(double) rx->ephemeris[i]->IODC);
+			URA[rx->gps.ephemeris[i]->SV_accuracy_raw],(double) rx->gps.ephemeris[i]->SV_health,rx->gps.ephemeris[i]->t_GD,(double) rx->gps.ephemeris[i]->IODC);
 		
 		fprintf(fout,buf," ", // broadcast orbit 7
-			rx->ephemeris[i]->t_ephem,4.0,0.0,0.0);
+			rx->gps.ephemeris[i]->t_ephem,4.0,0.0,0.0);
 	}
 	
 	fclose(fout);
@@ -485,7 +481,7 @@ bool RINEX::writeNavigationFile(int ver,string fname,int mjd)
 }
 
 
-bool RINEX::readNavigationFile(string fname,int GNSSsystem){
+bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	
 	unsigned int lineCount=0;
 	
@@ -504,7 +500,6 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 		getline(fin,line);
 		lineCount++;
 		if (string::npos != line.find("RINEX VERSION")){
-			double ver;
 			parseParam(line,1,12,&RINEXver);
 			break;
 		}
@@ -516,42 +511,46 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 	}
 	
 	DBGMSG(debugStream,TRACE,"RINEX version is" << RINEXver);
-	//int ibuf;
-	//double dbuf;
+	
 	while (!fin.eof()){
 		getline(fin,line);
 		lineCount++;
 		if (RINEXver == 2){
-			if (string::npos != line.find("ION ALPHA")){
-				std::replace( line.begin(), line.end(), 'D', 'E');
-				parseParam(line,3,14, &(rx->ionoData.a0));
-				parseParam(line,15,26,&(rx->ionoData.a1));
-				parseParam(line,27,38,&(rx->ionoData.a2));
-				parseParam(line,39,50,&(rx->ionoData.a3));
-				DBGMSG(debugStream,TRACE,"read ION ALPHA " << rx->ionoData.a0 << " " << rx->ionoData.a1 << " " << rx->ionoData.a2 << " " << rx->ionoData.a3);
-				
+			if (constellation == GNSSSystem::GPS){
+				if (string::npos != line.find("ION ALPHA")){
+					std::replace( line.begin(), line.end(), 'D', 'E');
+					parseParam(line,3,14, &(rx->gps.ionoData.a0));
+					parseParam(line,15,26,&(rx->gps.ionoData.a1));
+					parseParam(line,27,38,&(rx->gps.ionoData.a2));
+					parseParam(line,39,50,&(rx->gps.ionoData.a3));
+					DBGMSG(debugStream,TRACE,"read ION ALPHA " << rx->gps.ionoData.a0 << " " << rx->gps.ionoData.a1 << " " << rx->gps.ionoData.a2 << " " << rx->gps.ionoData.a3);
+					
+				}
+				else if (string::npos != line.find("ION BETA")){
+					std::replace( line.begin(), line.end(), 'D', 'E');
+					parseParam(line,3,14, &(rx->gps.ionoData.B0));
+					parseParam(line,15,26,&(rx->gps.ionoData.B1));
+					parseParam(line,27,38,&(rx->gps.ionoData.B2));
+					parseParam(line,39,50,&(rx->gps.ionoData.B3));
+					DBGMSG(debugStream,TRACE,"read ION BETA " << rx->gps.ionoData.B0 << " " << rx->gps.ionoData.B1 << " " << rx->gps.ionoData.B2 << " " << rx->gps.ionoData.B3);
+				}
+				else if (string::npos != line.find("DELTA-UTC:")){
+					std::replace( line.begin(), line.end(), 'D', 'E');
+					parseParam(line,4,22,&(rx->gps.UTCdata.A0));
+					parseParam(line,23,41,&(rx->gps.UTCdata.A1));
+					parseParam(line,42,50,&(rx->gps.UTCdata.t_ot));
+				}
+				else if  (string::npos != line.find("LEAP SECONDS")){
+					parseParam(line,1,6,&(rx->leapsecs));
+					DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
+				}
+				else if (string::npos != line.find("END OF HEADER")) 
+					break;
+			} // if constellation == GNSSSystem::GPS
+			else if (constellation == GNSSSystem::GLONASS){
+				// FIXME coming soon
 			}
-			if (string::npos != line.find("ION BETA")){
-				std::replace( line.begin(), line.end(), 'D', 'E');
-				parseParam(line,3,14, &(rx->ionoData.B0));
-				parseParam(line,15,26,&(rx->ionoData.B1));
-				parseParam(line,27,38,&(rx->ionoData.B2));
-				parseParam(line,39,50,&(rx->ionoData.B3));
-				DBGMSG(debugStream,TRACE,"read ION BETA " << rx->ionoData.B0 << " " << rx->ionoData.B1 << " " << rx->ionoData.B2 << " " << rx->ionoData.B3);
-			}
-			else if (string::npos != line.find("DELTA-UTC:")){
-				std::replace( line.begin(), line.end(), 'D', 'E');
-				parseParam(line,4,22,&(rx->utcData.A0));
-				parseParam(line,23,41,&(rx->utcData.A1));
-				parseParam(line,42,50,&(rx->utcData.t_ot));
-			}
-			else if  (string::npos != line.find("LEAP SECONDS")){
-				parseParam(line,1,6,&(rx->leapsecs));
-				DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
-			}
-			else if (string::npos != line.find("END OF HEADER")) break;
-		}
-		
+		} // if (RINEXver == 2)
 	}
 	
 	if (fin.eof()){
@@ -561,11 +560,16 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 	
 	while (!fin.eof()){
 		
-		switch (GNSSsystem){
-			case Receiver::GPS:
+		switch (constellation){
+			case GNSSSystem::GPS:
 			{
-				EphemerisData *ed = getGPSEphemeris(&fin,&lineCount);
-				if (NULL != ed) rx->ephemeris.push_back(ed);
+				GPS::EphemerisData *ed = getGPSEphemeris(&fin,&lineCount);
+				if (NULL != ed) rx->gps.ephemeris.push_back(ed);
+				break;
+			}
+			case GNSSSystem::GLONASS:
+			{
+				// FIXME coming soon
 				break;
 			}
 			default:
@@ -580,7 +584,7 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 	//	app->logMessage("Empty navigation file " + fname);
 	//	return false;
 	//}
-	DBGMSG(debugStream,TRACE,"Read " << rx->ephemeris.size() << " entries");
+	DBGMSG(debugStream,TRACE,"Read " << rx->gps.ephemeris.size() << " GPS entries");
 	return true;
 }
 
@@ -589,8 +593,8 @@ bool RINEX::readNavigationFile(string fname,int GNSSsystem){
 // Private members
 //
 
-EphemerisData* RINEX::getGPSEphemeris(ifstream *fin,unsigned int *lineCount){
-	EphemerisData *ed = NULL;
+GPS::EphemerisData* RINEX::getGPSEphemeris(ifstream *fin,unsigned int *lineCount){
+	GPS::EphemerisData *ed = NULL;
 	
 	string line;
 	
@@ -607,7 +611,7 @@ EphemerisData* RINEX::getGPSEphemeris(ifstream *fin,unsigned int *lineCount){
 		return NULL;
 	}
 	
-	ed = new EphemerisData();
+	ed = new GPS::EphemerisData();
 	
 	int ibuf;
 	double dbuf;
