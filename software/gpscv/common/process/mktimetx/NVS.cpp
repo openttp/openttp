@@ -192,16 +192,18 @@ bool NVS::readLog(string fname,int mjd)
 						// from the nominal measurement time. Note that this is how the measurement time is
 						// given by the Javad receiver, as a +/- offset from the nominal. This is all necessary 
 						// so that the interpolation function works correctly
-						// FIXME tmfracs may be poorly named. 
-						rmeas->tmfracs = (tmeasUTC/1000.0 - int(tmeasUTC/1000.0))-1.0; 
+						// FIXME tmfracs is poorly named. 
+						rmeas->tmfracs = (tmeasUTC/1000.0 - int(tmeasUTC/1000.0)); 
+						if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
 						
 						for (unsigned int i=0;i<gpsmeas.size();i++)
 							gpsmeas.at(i)->rm=rmeas; // code measurements are not reported with ms ambiguities
 						rmeas->gps=gpsmeas;
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
-						//fprintf(stderr,"PC=%02d:%02d:%02d rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d\n",
-						//	pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,tmeasUTC/1000.0,(int) gpstow,(int) weekNum);
+						// KEEP THIS it's useful for debugging measurement-time related problems
+						//fprintf(stderr,"PC=%02d:%02d:%02d rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d tmfracs=%g\n",
+						//	pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,tmeasUTC/1000.0,(int) rmeas->gpstow,(int) weekNum,rmeas->tmfracs );
 					}
 				} // if (gps.size() > 0)
 				
@@ -263,7 +265,7 @@ bool NVS::readLog(string fname,int mjd)
 						return false;
 					}
 					HexToBin((char *) msg.substr(21*2,sizeof(FP64)*2).c_str(),sizeof(FP64),(unsigned char *) &sawtooth);
-					sawtooth = sawtooth * 1.0E-9; // convert from ns to seconds
+					sawtooth = - sawtooth * 1.0E-9; // convert from ns to seconds and fix sign
 					currentMsgs |= MSG72;
 					continue;
 				}
@@ -438,6 +440,31 @@ bool NVS::readLog(string fname,int mjd)
 		return false;
 	}
 	
+	// Pass through the data to realign the sawtooth correction.
+	// This could be done in the main loop but it's more flexible this way.
+	// For the NVS, the sawtooth correction applies to the next second
+	// If we're missing the sawtooth correction because of eg a gap in the data
+	// then we'll just use the current sawtooth. 
+	
+	double prevSawtooth=measurements.at(0)->sawtooth;
+	time_t    tPrevSawtooth=mktime(&(measurements.at(0)->tmUTC));
+	int nBadSawtoothCorrections =1; // first is bad !
+	// First point is untouched
+	for (unsigned int i=1;i<measurements.size();i++){
+		double sawTmp = measurements.at(i)->sawtooth;
+		time_t tTmp= mktime(&(measurements.at(i)->tmUTC));
+		if (tTmp - tPrevSawtooth == 1){
+			measurements.at(i)->sawtooth = prevSawtooth;
+		}
+		else{
+			// do nothing - the current value is the best guess
+			nBadSawtoothCorrections++;
+		}
+		prevSawtooth=sawTmp;
+		tPrevSawtooth=tTmp;
+	}
+	
+	
 	// The NVS sometime reports what appears to be an incorrect pseudorange after picking up an SV
 	// If you wanted to filter these out, this is where you should do it
 	
@@ -447,7 +474,7 @@ bool NVS::readLog(string fname,int mjd)
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
-	
+	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
 	return true;
 	
 }

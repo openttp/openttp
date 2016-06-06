@@ -120,7 +120,10 @@ GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow)
 				
 	for (unsigned int i=0;i<sortedEphemeris[svn].size();i++){
 		tmpdt=sortedEphemeris[svn][i]->t_oe - tow;
-		
+		// handle week rollover
+		if (tmpdt < -5*86400){ 
+			tmpdt += 7*86400;
+		}
 		// algorithm as per previous software
 		if (ed==NULL && tmpdt >=0 && fabs(tmpdt) < 0.1*86400){ // first time
 			dt=fabs(tmpdt);
