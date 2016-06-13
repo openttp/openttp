@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <cmath>
+#include <stdint.h>
 
 #include <iostream>
 #include <iomanip>
@@ -67,8 +68,32 @@ typedef long double FP80   ; // WARNING 80 bits on x86 but 64 bits on ARM
 #define MSGF5 0x08
 
 // Current problems with NVS driver
-// Get OK output for V2E if I  misalign measurement TOW timestamps by 1 s from UTC & PC
-// V1 CGGTTS produces bad ouput beacuse it is using the wrong TOW (doesn't used the recorded value)
+// None known ...
+
+// Utility function so that we can handle FP80 on ARM
+// For some values of interest, a double has sufficient precision
+// For others, best to check on x86
+
+double FP80toFP64(uint8_t *buf)
+{
+	// little - endian ....
+	double sign=1.0;
+	if ((buf[9] & 0x80) != 0x00)
+		sign=-1.0;
+	uint32_t exponent = ((buf[9]& 0x7f)<<8) + buf[8];
+	//printf("sign = %i raw exp = %i exp = %i \n",(int) sign, (int) exponent, (int) exponent - 16383);
+	uint64_t mantissa;
+	memcpy(&mantissa,buf,sizeof(uint64_t));
+	// Is this a normalized number ?
+	double normalizeCorrection;
+	if ((mantissa & 0x8000000000000000) != 0x00)
+		normalizeCorrection = 1;
+	else
+		normalizeCorrection = 0;
+	mantissa &= 0x7FFFFFFFFFFFFFFF;
+	
+	return sign * pow(2,(int) exponent - 16383) * (normalizeCorrection + (double) mantissa/((uint64_t)1 << 63));
+}
 
 NVS::NVS(Antenna *ant,string m):Receiver(ant)
 {
@@ -231,7 +256,7 @@ bool NVS::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr((39+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf);
 						HexToBin((char *) msg.substr((55+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&flags);
 						// FIXME use flags to filter measurements 
-						DBGMSG(debugStream,2,pctime << " svn "<< (int) svn << " pr " << fp64buf*1.0E-3 << " flags " << (int) flags);
+						DBGMSG(debugStream,TRACE,pctime << " svn "<< (int) svn << " pr " << fp64buf*1.0E-3 << " flags " << (int) flags);
 						if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
 							SVMeasurement *svm = new SVMeasurement(svn,fp64buf*1.0E-3,NULL);
 							svm->dbuf3=svm->meas;
@@ -296,9 +321,18 @@ bool NVS::readLog(string fname,int mjd)
 			
 			if(msgid=="74"){ // Time scale parameters (validity of time scales) 
 				if (msg.size()==51*2){
+					unsigned char fp80buf[10];
+					
+					HexToBin((char *) msg.substr(0*2,2*sizeof(FP80)).c_str(),10,fp80buf);
+					double gpsRxOffset = FP80toFP64(fp80buf);
+					
+					HexToBin((char *) msg.substr(20*2,2*sizeof(FP80)).c_str(),10,fp80buf);
+					double gpsUTCOffset = FP80toFP64(fp80buf);
+					
 					INT8U validity;
 					HexToBin((char *) msg.substr(50*2,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &validity);
 					currentMsgs |= MSG74;
+					DBGMSG(debugStream,TRACE,"0x74 GPS-Rx = " << setprecision(16) << gpsRxOffset << " GPS-UTC = " <<  gpsUTCOffset);
 				}
 				else{
 					DBGMSG(debugStream,WARNING,"0x74 msg wrong size at line "<<linecount);
