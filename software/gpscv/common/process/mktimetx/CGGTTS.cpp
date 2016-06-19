@@ -252,7 +252,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 
 				GPS::EphemerisData *ed=NULL;
 				npts=0;
-				for ( int q=0;q<nqfits;q++){
+				for ( unsigned int q=0;q<nqfits;q++){
 					if (ed==NULL) // use only one ephemeris for each track
 							ed = rx->gps.nearestEphemeris(sv,gpsTOW[q]);
 					if (NULL == ed) ephemerisMisses++;
@@ -281,7 +281,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				int t=0;
 				
 				GPS::EphemerisData *ed=NULL;
-				while (t<svtrk[sv].size()){
+				while (t< (int) svtrk[sv].size()){
 					svtrk[sv].at(t)->dbuf2=0.0;
 					ReceiverMeasurement *rxmt = svtrk[sv].at(t)->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);

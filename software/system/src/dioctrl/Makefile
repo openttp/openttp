@@ -3,8 +3,8 @@ CC = gcc
 INCLUDE = 
 LDFLAGS= 
 LIBS= 
-#CFLAGS= -Wall -O -DUSE_PARALLEL_PORT
-CFLAGS= -Wall -O -DUSE_SIO8186x
+CFLAGS= -Wall -O -DUSE_PARALLEL_PORT
+#CFLAGS= -Wall -O -DUSE_SIO8186x
 OBJECTS = dioctrl.o
 
 .SUFFIXES: .o .c
@@ -17,8 +17,8 @@ $(OBJECTS): %.o:%.c
 $(PROGRAM): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $(PROGRAM) $(OBJECTS) $(LIBS)
 
-clean:
+clean: 
 	rm -f *.o $(PROGRAM)
 
-install:
+install: $(PROGRAM)
 	cp $(PROGRAM) /usr/local/bin

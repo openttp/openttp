@@ -18,6 +18,9 @@ $(OBJECTS): %.o:%.cpp
 $(PROGRAM): $(OBJECTS)
 	$(CXX) $(LDFLAGS) -o $(PROGRAM) $(OBJECTS) $(LIBS)
 
+install: $(PROGRAM)
+	cp $(PROGRAM) /usr/local/bin
+
 clean:
 	rm -f *.o $(PROGRAM)
 

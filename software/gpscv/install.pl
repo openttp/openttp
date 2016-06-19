@@ -29,7 +29,6 @@
 # Modification history
 # 
 
-
 use English;
 use Getopt::Std;
 use Carp;
@@ -39,12 +38,14 @@ use POSIX;
 
 use vars qw($opt_d $opt_h $opt_i $opt_t $optu $opt_v);
 
-$VERSION = "install.pl version 0.1";
+$0=~s#.*/##;	# strip path
+
+$VERSION = "version 0.1";
 
 $ECHO=1;
 $UNKNOWN=-1;
-$INSTALLFROMSRC=0;
-$INSTALLFROMDIST=1;
+#$INSTALLFROMSRC=0;
+#$INSTALLFROMDIST=1;
 $GPSCVUSER=$ENV{USER};
 
 @receivers = (
@@ -61,7 +62,7 @@ if (!getopts('nvhi:tu:d') || $opt_h){
 }
 
 if ($opt_v){
-	print "$VERSION\n";
+	print "$0 $VERSION\n";
 	exit;
 }
 
@@ -77,7 +78,7 @@ if (!($ret =~/$GPSCVUSER/)){
 }
 $HOME="/home/$GPSCVUSER";
 
-open (LOG,">$HOME/install.log");
+open (LOG,">./install.log");
 #`chown $GPSCVUSER. $HOME/install.log`;
 
 Log ("\n\n+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
@@ -141,6 +142,7 @@ if ($opt_i){
 			exit(1);
 		}
 		`rm -rf $INSTALLDIR`;
+		mkdir $INSTALLDIR;
 	}
 }
 
@@ -182,12 +184,14 @@ for ($i=0;$i<=$#dirs;$i++){
 	}
 }
 
+InstallFromSource();
+
 FINISH:
 
 Log("\nFinished installation :-)\n",$ECHO);
 print("\n\n!!! Please look at the sample configuration files in $CONFIGS -\n".
 	"you will need to remove 'sample' from their names to use them.\n");
-print "\n\nA log of the installation has been saved in $HOME/install.log\n"; 
+print "\n\nA log of the installation has been saved in ./install.log\n"; 
 print "\t\t\n";
 print "\t\t  o\n";
 print "\t\t   o\n";
@@ -208,13 +212,13 @@ exit;
 # ------------------------------------------------------------------------
 sub Showhelp
 {
-	print "install.pl $VERSION\n";
-	print "-d make distribution only\n";
-	print "-h print help\n";
-	print "-i <path> alternate install path, relative to user's home directory\n";
-	print "-t verbose\n";
-	print "-u <user> install in this user's home directory\n";
-	print "-v print version\n";
+	print "$0 $VERSION\n";
+	print "\t-d make distribution only\n";
+	print "\t-h print help\n";
+	print "\t-i <path> alternate install path, relative to user's home directory\n";
+	print "\t-t verbose\n";
+	print "\t-u <user> install in this user's home directory\n";
+	print "\t-v print version\n";
 }
 
 # ------------------------------------------------------------------------
@@ -258,7 +262,7 @@ sub DetectReceiver{
 	my $rxModel = lc $Config{"receiver:model"};
 	for ($i=0;$i<=$#receivers;$i++){
 		if (($rxManufacturer eq lc $receivers[$i][0]) && ($rxModel eq lc $receivers[$i][1] || $receivers[$i][1] eq "any")) {
-			Log("Detected $receivers[$i][0] $receivers[$i][1]\n",$ECHO);
+			Log("Detected configuration for $receivers[$i][0] $receivers[$i][1]\n",$ECHO);
 			$receiver=$i;
 			last;
 		}
@@ -269,7 +273,7 @@ sub DetectReceiver{
 #---------------------------------------------------------------------------------
 sub ChooseReceiver
 {
-	print "\nSelect your GPS receiver:\n";
+	print '\nSelect your GPS receiver:\n';
 	$first = 1;
 	$last = $#receivers + 1;
 	ASK:
@@ -301,7 +305,7 @@ sub ArchiveSystem
 	}
 	mkdir $archive;
 	
-	my @stdbackups = ("bin","etc","logs","firmware","process");
+	my @stdbackups = ('bin','etc','logs','firmware','process');
 	for ($i=0;$i<=$#stdbackups;$i++){
 		$src= "$HOME/$stdbackups[$i]";
 		if (-e $src){
@@ -312,27 +316,40 @@ sub ArchiveSystem
 }
 
 #-----------------------------------------------------------------------------------
-sub InstallFromSource
+sub CompileTarget
 {
-	Log ("\nCompiling the processing software ...\n",$ECHO);
+	my ($target,$targetDir)= @_;
+	Log ("\nCompiling $target ...\n",$ECHO);
+	my $cwd = getcwd();
 	
-	return;
-	
-	$out = `cd common/process/mktimetx && make clean && make 2>&1 && cd ../../..`;
+	$out = `cd $targetDir && make clean && make 2>&1 && cd $cwd`;
 	if ($opt_t) {print $out;}
 	if ($? >> 8){
-		Log ("\nSoftware compilation failed :-(\n",$ECHO);
+		Log ("\nCompilation of $target failed :-(\n",$ECHO);
 		exit(1);
 	}
+}
 
-	Log("\nInstalling processing software ...\n",$ECHO);
-	Install("common/process/mktimetx/*",$PROCESS);
+#-----------------------------------------------------------------------------------
+sub InstallFromSource
+{
+	CompileTarget('mktimetx','common/process/mktimetx');
+	CompileTarget('prs10c','common/prs10c');
+	
+	Log("\nInstalling executables in $BIN\n",$ECHO);
+	
+	Install("common/process/mktimetx/*",$BIN);
+	Install("common/prs10c/*",$BIN);
+	Install("common/bin/*",$BIN);
+	Install("common/javad/*.pl",$BIN);
+	Install("common/nvs/*.pl",$BIN);
+	Install("common/trimble/*.pl",$BIN);
 	
 	Log("\nInstalling configuration files in $CONFIGS\n",$ECHO);
-	Install("common/etc/*",$CONFIGS);
 	
-	Log("\nInstalling receiver scripts in $BIN\n",$ECHO);
-	Install("$receiverDirs[$receiver]/*",$BIN);
+	Install("common/etc/*",$CONFIGS);
+	Install("common/javad/*.conf",$CONFIGS);
+	
 }
 
 
