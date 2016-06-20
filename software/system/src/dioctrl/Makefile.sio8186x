@@ -1,10 +1,10 @@
-PROGRAM = ppsd
+PROGRAM = dioctrl
 CC = gcc
 INCLUDE = 
 LDFLAGS= 
 LIBS= 
-CFLAGS= -Wall -O -DUSE_PARALLEL_PORT
-OBJECTS = ppsd.o
+CFLAGS= -Wall -O -DUSE_SIO8186x
+OBJECTS = dioctrl.o
 
 .SUFFIXES: .o .c
 
@@ -16,9 +16,8 @@ $(OBJECTS): %.o:%.c
 $(PROGRAM): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $(PROGRAM) $(OBJECTS) $(LIBS)
 
-install: $(PROGRAM)
-	cp ppsd.conf /usr/local/etc
-	cp $(PROGRAM) /usr/local/bin
-
-clean:
+clean: 
 	rm -f *.o $(PROGRAM)
+
+install: $(PROGRAM)
+	cp $(PROGRAM) /usr/local/bin

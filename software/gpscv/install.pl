@@ -322,12 +322,14 @@ sub CompileTarget
 	Log ("\nCompiling $target ...\n",$ECHO);
 	my $cwd = getcwd();
 	
-	$out = `cd $targetDir && make clean && make 2>&1 && cd $cwd`;
+	chdir $targetDir;
+	$out = `make clean && make 2>&1`;
 	if ($opt_t) {print $out;}
 	if ($? >> 8){
 		Log ("\nCompilation of $target failed :-(\n",$ECHO);
 		exit(1);
 	}
+	chdir $cwd;
 }
 
 #-----------------------------------------------------------------------------------

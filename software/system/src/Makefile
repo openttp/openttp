@@ -3,7 +3,7 @@ CFLAGS= -Wall
 LIBS = -lm
 INCLUDE=
 TARGETS= mjd  lockport 
-INSTALLS = ${TARGETS} kickstart.pl
+INSTALLS = ${TARGETS} kickstart.pl sysmonitor.pl
 DEFINES =
 INSTALLDIR=/usr/local/bin
 SHELL=/bin/bash
@@ -21,18 +21,19 @@ lockport: lockport.o
 
 mjd.o: mjd.c 
 
-
 lockport.o: lockport.c
 
-install:
+install: ${TARGETS}
 	@ echo "Installing to ${INSTALLDIR}"
-	@ cp ${TARGETS} ${INSTALLDIR}
-	@ chown root. ${INSTALLDIR}/${TARGETS}
+	@ cp ${INSTALLS} ${INSTALLDIR}
+	@ chown root. ${INSTALLDIR}/${INSTALLS}
 	
 	@ cat /etc/issue | grep Red; if [ $$? -eq 0 ]; then \
 		chown root.lock ${INSTALLDIR}/lockport; \
 		chmod g+s ${INSTALLDIR}/lockport; \
 	fi
+	
+	@ cp sysmonitor.conf /usr/local/etc
 	
 	@ # perl -e "print qq(@INC)"
 	@ if [ -d /usr/local/lib/site_perl ]; then \

@@ -24,7 +24,7 @@ hashtable.o:configurator.h
 list.o: configurator.h
 
 install: libconfigurator.a
-	cp libconfigurator.a /usr/local/lib; \
+	cp libconfigurator.a /usr/local/lib
 	cp configurator.h /usr/local/include
 	chmod a+r /usr/local/lib/libconfigurator.a
 	chmod a+r /usr/local/include/configurator.h

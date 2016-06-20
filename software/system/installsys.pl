@@ -36,16 +36,14 @@ use Carp;
 use FileHandle;
 use POSIX;
 
-use vars qw($opt_h $opt_t $opt_v);
+use vars qw($opt_h $opt_m $opt_t $opt_v);
 
 $0=~s#.*/##;	# strip path
-
-
 
 $VERSION = "version 0.1";
 $ECHO=1;
 
-if (!getopts('htv') || $opt_h){
+if (!getopts('hmtv') || $opt_h){
 	ShowHelp();	
 	exit;
 }
@@ -55,16 +53,19 @@ if ($opt_v){
 	exit;
 }
 
-#if ($EFFECTIVE_USER_ID >0){
-#	print "$0 must be run as superuser!\n";
-#	exit;
-#}
+if ($EFFECTIVE_USER_ID >0){
+	print "$0 must be run as superuser!\n";
+	exit;
+}
 
 open (LOG,">./installsys.log");
 
-# CompileTarget('libconfigurator','src/libconfigurator','install');
-# CompileTarget('dioctrl','src/dioctrl','install');
-# CompileTarget('okbitloader','src/okbitloader','install');
+CompileTarget('libconfigurator','src/libconfigurator','install');
+CompileTarget('dioctrl','src/dioctrl','install');
+CompileTarget('lcdmon','src/lcdmon','install');
+#CompileTarget('okbitloader','src/okbitloader','install');
+#CompileTarget('okcounterd','src/okcounterd','install');
+CompileTarget('ppsd','src/ppsd','install');
 close LOG;
 
 # ------------------------------------------------------------------------
@@ -72,6 +73,7 @@ sub ShowHelp
 {
 	print "$0 $VERSION\n";
 	print "\t-h print help\n";
+	print "\t-m minimal installation\n";
 	print "\t-t verbose\n";
 	print "\t-v print version\n";
 	print "\nMust be run as superuser\n";
@@ -95,30 +97,17 @@ sub CompileTarget
 	Log ("\nCompiling $target ...\n",$ECHO);
 	my $cwd = getcwd();
 	chdir $targetDir;
+	
 	if (-e 'configure.pl'){
-		my $out = `./configure.pl`;
-		if ($opt_t) {print $out;}
+		my $configout = `./configure.pl`;
+		if ($opt_t) {print $configout;}
 	}
 	
-	my $out = `make clean && make $makeargs 2>&1 && cd $cwd`;
-	if ($opt_t) {print $out;}
+	my $makeout = `make clean && make $makeargs 2>&1`;
+	if ($opt_t) {print $makeout;}
 	if ($? >> 8){
 		Log ("\nCompilation/installation of $target failed :-(\n",$ECHO);
 		exit(1);
 	}
-}
-
-# ------------------------------------------------------------------------
-sub Install
-{
-	my $dst = $_[1];
-	my @files = glob($_[0]);
-	
-	
-	for ($i=0;$i<=$#files;$i++){
-		if (!(-d $files[$i]) && ((-x $files[$i]) || ($files[$i] =~ /\.conf|\.setup/) )){
-			`cp -a $files[$i] $dst`;
-			Log ("\tInstalled $files[$i] to $dst\n",$opt_t);
-		}
-	}
+	chdir $cwd;
 }

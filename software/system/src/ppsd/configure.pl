@@ -23,26 +23,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# Mainly, detect whether we should compile against OpenOK or OKFrontPanel
+# FIXME detect SIO8186x
 
-$processor = `uname -p`;
-chomp $processor;
+$Makefile='Makefile.parport';
 
-if ($processor =~ /x86_64|i386|i686/){
-	# Check for library 
-	$libok = `ldconfig -p | grep libokFrontPanel`;
-	chomp $libok;
-	if ($libok){
-		$Makefile="Makefile.OKFrontPanel";
-	}
-	else{
-		print "(Couldn't find libokFrontPanel)\n";
-		$Makefile="Makefile.OpenOK";
-	}
-}
-elsif ($processor =~ /arm/){
-	$Makefile="Makefile.OpenOK";
-}
-print "$processor detected - using $Makefile\n";
 `cp $Makefile Makefile`;
-
