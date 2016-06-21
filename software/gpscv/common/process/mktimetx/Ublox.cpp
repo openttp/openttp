@@ -53,19 +53,22 @@ extern Application *app;
 
 #define MAX_CHANNELS 16 // max channels per constellation
 
-// types used by ublox receivers
+// types used by ublox receivers     
+typedef signed char    I1;
 typedef unsigned char  U1;
-typedef signed   short I2;
+typedef unsigned char  X1;
+typedef unsigned short U2;
+typedef short          I2;
 typedef int            I4;
 typedef unsigned int   U4;
 typedef float          R4;
 typedef double         R8;
 
 // messages that are parsed
-
-#define MSG0122 0x01
-#define MSG0215 0x02
-#define MSG0D01 0x04
+#define MSG0121 0x01
+#define MSG0122 0x02
+#define MSG0215 0x04
+#define MSG0D01 0x08
 
 Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 {
@@ -100,6 +103,12 @@ bool Ublox::readLog(string fname,int mjd)
 	
 	I4 sawtooth;
 	I4 clockBias;
+	R8 measTOW;
+	U2 measGPSWN;
+	I1 measLeapSecs;
+	
+	U2 UTCyear;
+	U1 UTCmon,UTCday,UTChour,UTCmin,UTCsec,UTCvalid;
 	
 	U1 u1buf;
 	I4 i4buf;
@@ -154,7 +163,8 @@ bool Ublox::readLog(string fname,int mjd)
 						
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
-						//fprintf(stderr,"PC=%02d:%02d:%02d rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d\n",
+						//fprintf(stderr,"PC=%02d:%02d:%02d\n",pchh,pcmm,pcss);
+						//rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d\n",
 						//	pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,tmeasUTC/1000.0,(int) gpstow,(int) weekNum);
 					}
 				} // if (gpsmeas.size() > 0)
@@ -166,8 +176,10 @@ bool Ublox::readLog(string fname,int mjd)
 					HexToBin((char *) msg.substr(11*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 					unsigned int nmeas=u1buf;
 					if (msg.size() == (2+16+nmeas*32)*2){
-						HexToBin((char *) msg.substr(0*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &r8buf); //measurement TOW
-						DBGMSG(debugStream,TRACE,"Measurement tow " << r8buf);
+						HexToBin((char *) msg.substr(0*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &measTOW); //measurement TOW
+						HexToBin((char *) msg.substr(8*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &measGPSWN); // full WN
+						HexToBin((char *) msg.substr(10*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &measLeapSecs);
+						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
 						for (unsigned int m=0;m<nmeas;m++){
 							HexToBin((char *) msg.substr((36+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //GNSS id
 							if (u1buf == 0){
@@ -199,8 +211,14 @@ bool Ublox::readLog(string fname,int mjd)
 			if(msgid == "0d01"){
 				
 				if (msg.size()==(16+2)*2){
+					X1 TPflags,TPrefInfo;
+					U4 TPTOW;
+					HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &TPTOW);
 					HexToBin((char *) msg.substr(8*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &sawtooth);
-					DBGMSG(debugStream,TRACE,"sawtooth=" << sawtooth << " ps");
+					HexToBin((char *) msg.substr(14*2,2*sizeof(X1)).c_str(),sizeof(X1),(unsigned char *) &TPflags);
+					HexToBin((char *) msg.substr(15*2,2*sizeof(X1)).c_str(),sizeof(X1),(unsigned char *) &TPrefInfo);
+					DBGMSG(debugStream,TRACE,currpctime << " tow= " << (int) TPTOW << " sawtooth=" << sawtooth << " ps" << std::hex << " flags=0x" << (unsigned int) TPflags << 
+						" ref=0x" << (unsigned int) TPrefInfo << std::dec);
 					currentMsgs |= MSG0D01;
 				}
 				else{
@@ -210,17 +228,40 @@ bool Ublox::readLog(string fname,int mjd)
 			// 0x0135 UBX-NAV-SAT satellite information
 			
 			// 0x0121 UBX-NAV-TIME-UTC UTC time solution
+			if(msgid == "0121"){
+				if (msg.size()==(20+2)*2){
+					HexToBin((char *) msg.substr(12*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &UTCyear);
+					HexToBin((char *) msg.substr(14*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &UTCmon);
+					HexToBin((char *) msg.substr(15*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &UTCday);
+					HexToBin((char *) msg.substr(16*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &UTChour);
+					HexToBin((char *) msg.substr(17*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &UTCmin);
+					HexToBin((char *) msg.substr(18*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &UTCsec);
+					HexToBin((char *) msg.substr(19*2,2*sizeof(X1)).c_str(),sizeof(X1),(unsigned char *) &UTCvalid);
+					DBGMSG(debugStream,TRACE,currpctime << " UTC:" << UTCyear << " " << (int) UTCmon << " " << (int) UTCday << " "
+						<< (int) UTChour << ":" << (int) UTCmin << ":" << (int) UTCsec << " valid=" << (unsigned int) UTCvalid);
+					if (UTCvalid & 0x04)
+						currentMsgs |= MSG0121;
+					else{
+						DBGMSG(debugStream,WARNING,"UTC not valid yet");
+					}
+				}
+				else{
+					DBGMSG(debugStream,WARNING,"Bad 0121 message size");
+				}
+				continue;
+			}
 			
 			// 0x0122 UBX-NAV-CLOCK clock solution  (clock bias)
 			if(msgid == "0122"){
 				if (msg.size()==(20+2)*2){
 						HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf); // GPS tow of navigation epoch (ms)
 						HexToBin((char *) msg.substr(4*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &clockBias); // in ns
+						
 						DBGMSG(debugStream,TRACE,"GPS tow=" << u4buf << "ms" << " clock bias=" << clockBias << " ns");
 						currentMsgs |= MSG0122;
 				}
 				else{
-					DBGMSG(debugStream,WARNING,"Bad 0b02 message size");
+					DBGMSG(debugStream,WARNING,"Bad 0122 message size");
 				}
 				continue;
 			}
