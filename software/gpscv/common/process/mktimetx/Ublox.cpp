@@ -272,6 +272,31 @@ bool Ublox::readLog(string fname,int mjd)
 	}
 	
 	
+	// Pass through the data to realign the sawtooth correction.
+	// This could be done in the main loop but it's more flexible this way.
+	// For the ublox, the sawtooth correction applies to the next second
+	// If we're missing the sawtooth correction because of eg a gap in the data
+	// then we'll just use the current sawtooth. 
+	
+	double prevSawtooth=measurements.at(0)->sawtooth;
+	time_t    tPrevSawtooth=mktime(&(measurements.at(0)->tmUTC));
+	int nBadSawtoothCorrections =1; // first is bad !
+	// First point is untouched
+	for (unsigned int i=1;i<measurements.size();i++){
+		double sawTmp = measurements.at(i)->sawtooth;
+		time_t tTmp= mktime(&(measurements.at(i)->tmUTC));
+		if (tTmp - tPrevSawtooth == 1){
+			measurements.at(i)->sawtooth = prevSawtooth;
+		}
+		else{
+			// do nothing - the current value is the best guess
+			nBadSawtoothCorrections++;
+		}
+		measurements.at(i)->sawtooth = prevSawtooth;// FIXME
+		prevSawtooth=sawTmp;
+		tPrevSawtooth=tTmp;
+	}
+	
 	// The Ublox sometime reports what appears to be an incorrect pseudorange after picking up an SV
 	// If you wanted to filter these out, this is where you should do it
 	
@@ -282,7 +307,6 @@ bool Ublox::readLog(string fname,int mjd)
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	
-	exit(0);
 	
 	return true;
 	
