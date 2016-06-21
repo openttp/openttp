@@ -246,6 +246,10 @@ main(
 	long twait;
 	struct timeval tv;
 
+#ifdef USE_PARALLEL_PORT
+	int j;
+#endif
+	
 #ifdef USE_SIO8186x
 	unsigned char dout;
 	unsigned char datagpio0;

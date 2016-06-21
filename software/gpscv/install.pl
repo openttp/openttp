@@ -29,7 +29,6 @@
 # Modification history
 # 
 
-
 use English;
 use Getopt::Std;
 use Carp;
@@ -37,66 +36,59 @@ use FileHandle;
 use TFLibrary;
 use POSIX;
 
-use vars qw($opt_d $opt_h $opt_t $optu $opt_v);
+use vars qw($opt_d $opt_h $opt_i $opt_t $optu $opt_v);
 
-$VERSION = "install.pl version 0.1";
+$0=~s#.*/##;	# strip path
+
+$VERSION = "version 0.1";
+
 $ECHO=1;
-
-# Receivers
 $UNKNOWN=-1;
-$TRIMBLE=0;
-@receivers = ($TRIMBLE);
-@receiverNames = ("Trimble");
-@receiverDirs  = ("trimble");
-
+#$INSTALLFROMSRC=0;
+#$INSTALLFROMDIST=1;
 $GPSCVUSER=$ENV{USER};
 
-$INSTALLFROMSRC=0;
-$INSTALLFROMDIST=1;
+@receivers = (
+	["Trimble","Resolution T"], # manufacturer, model
+	["Javad","any"],
+	["NVS","NV08C"]
+);
 
-getopts('nvhtu:d');
-unless (defined $opt_t) {$opt_t=0;}
+$receiver=$UNKNOWN;
+
+if (!getopts('nvhi:tu:d') || $opt_h){
+	ShowHelp();	
+	exit;
+}
+
+if ($opt_v){
+	print "$0 $VERSION\n";
+	exit;
+}
 
 if (defined $opt_u){
 	$GPSCVUSER=$opt_u;
 }
-$HOME="/home/$GPSCVUSER";
 
-if ($opt_v){
-	print "$VERSION\n";
-	exit;
-}
-
-if ($opt_h){
-	print "install.pl $VERSION\n";
-	print "-d make distribution only\n";
-	print "-h print help\n";
-	print "-t verbose\n";
-	print "-u <user> install in this users home directory\n";
-	print "-v print version\n";
-	exit;
-}
-
-# Set the gpscv user
 $ret = `grep $GPSCVUSER /etc/passwd`;
 if (!($ret =~/$GPSCVUSER/)){
 	print "\nThe GPSCV user ($GPSCVUSER) was not detected\n";
-	print "Please specify the user with the -u option\n";
+	print "Please check the user name\n";
 	exit;
 }
+$HOME="/home/$GPSCVUSER";
 
-open (LOG,">$HOME/install.log");
+open (LOG,">./install.log");
 #`chown $GPSCVUSER. $HOME/install.log`;
 
-Log ("\n\n+++++++++++++++++++++++++++++++++++\n",$ECHO);
+Log ("\n\n+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
 Log ("+   OpenTTP GPSCV software installation\n",$ECHO);
 Log ("+   $VERSION\n",$ECHO);
-Log ("+++++++++++++++++++++++++++++++++++\n",$ECHO);
-
+Log ("+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
 
 # Detect the operating system version
 @os =(
-			["Red Hat Enterprise Linux WS release 6","rhel6"],
+			["Red Hat Enterprise Linux WS release 6","rhel6"], # first entry is OS-defined string, second is our name
 			["Centos 6","centos6"],
 			["Ubuntu 14.04","ubuntu14"]
 			);
@@ -124,19 +116,9 @@ else{
 	$osid = $os[$i][1];
 }
 
-# Determine the installation method
-$installMethod = $INSTALLFROMDIST;
-if (-e "dist"){
-	Log("\nInstalling from a binary distribution\n",$ECHO);
-}
-else{
-	$installMethod = $INSTALLFROMSRC;
-	Log("\nInstalling from source\n",$ECHO);
-}
-
 # Detect whether there is an existing installation that we are upgrading
 $upgrade=0;
-$config= "/home/$GPSCVUSER/etc/cggtts.conf";
+$config= "$HOME/etc/gpscv.conf";
 if (-e $config){
 	Log("\nDetected an existing installation\n",$ECHO);
 	Log("\nUsing $config for configuration\n",$ECHO);
@@ -147,11 +129,27 @@ else {
 	Log("\nAn existing installation was not detected\n",$ECHO);
 }
 
+$INSTALLDIR=$HOME;
+if ($opt_i){
+	$INSTALLDIR="$HOME/$opt_i";
+	if (!(-e $INSTALLDIR)){
+		die "Unable to create $INSTALLDIR" unless(mkdir $INSTALLDIR);
+		Log("Created $INSTALLDIR",$ECHO);
+	}
+	else{
+		print "\n$INSTALLDIR already exists\n";
+		if (!GetYesNo("Delete it?","Deleting $INSTALLDIR")){
+			exit(1);
+		}
+		`rm -rf $INSTALLDIR`;
+		mkdir $INSTALLDIR;
+	}
+}
+
 # Detect/choose GPS receiver
-$INSTALLDIR="/home/$GPSCVUSER";
 if ($opt_d){
 	ChooseReceiver();
-	$DIST="$osid-".$receiverNames[$receiver];
+	$DIST="$osid";
 	$INSTALLDIR="dist/$DIST";
 	if (!(-e $INSTALLDIR)) {`mkdir -p $INSTALLDIR`;}
 }
@@ -159,41 +157,13 @@ else {
 	if (!DetectReceiver()){
 		ChooseReceiver();
 	}
-	$DIST="$osid-".$receiverNames[$receiver];
+	$DIST="$osid";
 }
 
-
-# Offer choice of a test installation if this is an upgrade
-if (!$opt_d && $upgrade){
-	print "\nA test-only installation can be done. This will allow validation of the new\n";
-	print "software by processing existing data and comparing the results with CGGTTS\n";
-	print "data created by the current processing software.\n";
-	print "The existing software and configuration will not be affected.\n";
-	$testInstall=GetYesNo("\nDo you want to do a test install","Test install");
-	
-	if ($testInstall){
-		$INSTALLDIR = "$INSTALLDIR/test-install";
-		Log("The test installation will be in $INSTALLDIR\n",$ECHO);
-		if (-e "$INSTALLDIR"){
-			Log("$INSTALLDIR already exists\n",$ECHO);
-			$zap=GetYesNo("Is it OK to remove this directory?","Remove $INSTALLDIR");
-			if ($zap){
-				`rm -rf $INSTALLDIR`;
-			}
-			else{
-				print "Not sure what you want to do, so ...\n";
-				exit;
-			}
-		}
-		mkdir $INSTALLDIR;
-	}
-}
-
-if (!($testInstall || $opt_d)){ ArchiveSystem(); } 
+if ($INSTALLDIR eq $HOME){ ArchiveSystem(); } 
 
 $BIN = "$INSTALLDIR/bin";
 $CGGTTS = "$INSTALLDIR/cggtts";
-$PROCESS = "$INSTALLDIR/process";
 $CONFIGS = "$INSTALLDIR/etc";
 $LOGS = "$INSTALLDIR/logs";
 $DATA = "$INSTALLDIR/raw";
@@ -201,7 +171,7 @@ $RINEX = "$INSTALLDIR/rinex";
 
 Log ("\n*** Creating installation directories in $INSTALLDIR\n",$ECHO);
 
-@dirs = ($BIN,$PROCESS,$CONFIGS,$LOGS,$DATA,$CGGTTS,$RINEX);
+@dirs = ($BIN,$CONFIGS,$LOGS,$DATA,$CGGTTS,$RINEX);
 
 for ($i=0;$i<=$#dirs;$i++){
 	Log ("$dirs[$i]",$opt_t);
@@ -214,20 +184,14 @@ for ($i=0;$i<=$#dirs;$i++){
 	}
 }
 
-if ($installMethod==$INSTALLFROMDIST){
-	InstallFromBinaryDistribution();
-}
-else{
-	InstallFromSource();
-}
-
+InstallFromSource();
 
 FINISH:
 
 Log("\nFinished installation :-)\n",$ECHO);
 print("\n\n!!! Please look at the sample configuration files in $CONFIGS -\n".
 	"you will need to remove 'sample' from their names to use them.\n");
-print "\n\nA log of the installation has been saved in $HOME/install.log\n"; 
+print "\n\nA log of the installation has been saved in ./install.log\n"; 
 print "\t\t\n";
 print "\t\t  o\n";
 print "\t\t   o\n";
@@ -244,6 +208,18 @@ print "\t\t====\n";
 
 close LOG;
 exit;
+
+# ------------------------------------------------------------------------
+sub Showhelp
+{
+	print "$0 $VERSION\n";
+	print "\t-d make distribution only\n";
+	print "\t-h print help\n";
+	print "\t-i <path> alternate install path, relative to user's home directory\n";
+	print "\t-t verbose\n";
+	print "\t-u <user> install in this user's home directory\n";
+	print "\t-v print version\n";
+}
 
 # ------------------------------------------------------------------------
 sub Log
@@ -280,11 +256,16 @@ sub GetYesNo
 	return ( ($ans eq "y") || ($ans eq "Y"));	
 }
 
-# ------------------------------------------------------------
+# --------------------------------------------------------------------------
 sub DetectReceiver{
-	if ($Config{"receiver:manufacturer"}=~/Trimble/){
-		$receiver=$TRIMBLE;
-		Log("Detected Trimble receiver\n",$ECHO);
+	my $rxManufacturer = lc $Config{"receiver:manufacturer"};
+	my $rxModel = lc $Config{"receiver:model"};
+	for ($i=0;$i<=$#receivers;$i++){
+		if (($rxManufacturer eq lc $receivers[$i][0]) && ($rxModel eq lc $receivers[$i][1] || $receivers[$i][1] eq "any")) {
+			Log("Detected configuration for $receivers[$i][0] $receivers[$i][1]\n",$ECHO);
+			$receiver=$i;
+			last;
+		}
 	}
 	return ($receiver != $UNKNOWN);
 }
@@ -292,13 +273,12 @@ sub DetectReceiver{
 #---------------------------------------------------------------------------------
 sub ChooseReceiver
 {
-	print "\nSelect your GPS receiver:\n";
+	print '\nSelect your GPS receiver:\n';
 	$first = 1;
 	$last = $#receivers + 1;
 	ASK:
-	for ($i=$first;$i<=$last;$i++)
-	{
-		print "  [$i] ",$receiverNames[$i-1],"\n";
+	for ($i=$first;$i<=$last;$i++){
+		print "  [$i] $receivers[$i-1][0] $receivers[$i-1][1]\n";
 	}
 	print "Choose ($first-$last): ";
 	$receiver = <STDIN>;
@@ -313,8 +293,7 @@ sub ArchiveSystem
 	Log("\nArchiving the existing system ...\n",$ECHO);
 	# What do we do
 	#		mv process/*
-	my $home = "/home/$GPSCVUSER";
-	my $archive="$home/archive";
+	my $archive="$HOME/archive";
 	my ($i,$src);
 
 	if (!(-e $archive)){mkdir $archive;}
@@ -326,9 +305,9 @@ sub ArchiveSystem
 	}
 	mkdir $archive;
 	
-	@stdbackups = ("bin","etc","logs","firmware","process");
+	my @stdbackups = ('bin','etc','logs','firmware','process');
 	for ($i=0;$i<=$#stdbackups;$i++){
-		$src= "$home/$stdbackups[$i]";
+		$src= "$HOME/$stdbackups[$i]";
 		if (-e $src){
 			Log("Backing up $src\n",$opt_t);
 			`cp -a $src $archive`;
@@ -337,46 +316,42 @@ sub ArchiveSystem
 }
 
 #-----------------------------------------------------------------------------------
-sub InstallFromBinaryDistribution
+sub CompileTarget
 {
-	$instimage = "$DIST.tgz";
-	if (!-e ("dist/$instimage")){
-		print "There is no binary distribution $instimage for your system\n";
-		exit;
+	my ($target,$targetDir)= @_;
+	Log ("\nCompiling $target ...\n",$ECHO);
+	my $cwd = getcwd();
+	
+	chdir $targetDir;
+	$out = `make clean && make 2>&1`;
+	if ($opt_t) {print $out;}
+	if ($? >> 8){
+		Log ("\nCompilation of $target failed :-(\n",$ECHO);
+		exit(1);
 	}
-	
-	$tmpdir = "dist/$DIST";
-	if (!(-e $tmpdir)){mkdir $tmpdir;}
-	`cp dist/$instimage $tmpdir`;
-	Log("\nDecompressing installation image\n",$ECHO);
-	`cd $tmpdir && tar -xzf $instimage`;
-	
-	Log("\nCopying files\n",$ECHO);
-	
-	Log("\nInstalling processing software ...\n",$ECHO);
-	
+	chdir $cwd;
 }
 
 #-----------------------------------------------------------------------------------
 sub InstallFromSource
 {
-	Log ("\nCompiling the processing software ...\n",$ECHO);
+	CompileTarget('mktimetx','common/process/mktimetx');
+	CompileTarget('prs10c','common/prs10c');
 	
-	$out = `cd common/process/mktimetx && make clean && make 2>&1 && cd ../../..`;
-	if ($opt_t) {print $out;}
-	if ($? >> 8){
-		Log ("\nSoftware compilation failed :-(\n",$ECHO);
-		exit(1);
-	}
-
-	Log("\nInstalling processing software ...\n",$ECHO);
-	Install("common/process/mktimetx/*",$PROCESS);
+	Log("\nInstalling executables in $BIN\n",$ECHO);
+	
+	Install("common/process/mktimetx/*",$BIN);
+	Install("common/prs10c/*",$BIN);
+	Install("common/bin/*",$BIN);
+	Install("common/javad/*.pl",$BIN);
+	Install("common/nvs/*.pl",$BIN);
+	Install("common/trimble/*.pl",$BIN);
 	
 	Log("\nInstalling configuration files in $CONFIGS\n",$ECHO);
-	Install("common/etc/*",$CONFIGS);
 	
-	Log("\nInstalling receiver scripts in $BIN\n",$ECHO);
-	Install("$receiverDirs[$receiver]/*",$BIN);
+	Install("common/etc/*",$CONFIGS);
+	Install("common/javad/*.conf",$CONFIGS);
+	
 }
 
 

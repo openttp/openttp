@@ -3,7 +3,7 @@ CXX = g++
 INCLUDE = -I/usr/local/include 
 LDFLAGS= 
 LIBS= -lconfigurator
-CXXFLAGS= -Wall -DDEBUG -g
+CXXFLAGS= -Wall -Wno-unused-variable -DDEBUG -g
 CFGFLAGS= 
 OBJECTS = Application.o Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o  ReceiverMeasurement.o \
 	CGGTTS.o RINEX.o \

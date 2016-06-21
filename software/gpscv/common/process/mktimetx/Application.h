@@ -35,7 +35,7 @@
 #include <configurator.h>
 
 #define APP_NAME "mktimetx"
-#define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Malcolm Lawn"
+#define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Louis Marais,Malcolm Lawn"
 #define APP_VERSION "0.1.1"
 #define APP_CONFIG "gpscv.conf"
 
