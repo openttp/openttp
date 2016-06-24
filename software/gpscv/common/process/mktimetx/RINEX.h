@@ -52,8 +52,11 @@ class RINEX
 		
 		bool readNavigationFile(Receiver *rx,int constellation,string fname);
 		
+		string makeFileName(string pattern,int mjd);
+		
 		string observer;
 		string agency;
+
 		
 	private:
 		

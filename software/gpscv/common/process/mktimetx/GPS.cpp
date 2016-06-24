@@ -54,6 +54,24 @@ GPS::~GPS()
 {
 }
 
+
+void GPS::deleteEphemeris()
+{
+	DBGMSG(debugStream,TRACE,"deleting rx ephemeris");
+	
+	while(! ephemeris.empty()){
+		EphemerisData  *tmp= ephemeris.back();
+		delete tmp;
+		ephemeris.pop_back();
+	}
+	
+	for (unsigned int s=0;s<=NSATS;s++){
+		sortedEphemeris[s].clear(); // nothing left to delete 
+	}
+}
+
+
+// Adding to the ephemeris this way builds the sorted ephemeris
 void GPS::addEphemeris(EphemerisData *ed)
 {
 	// Check whether this is a duplicate

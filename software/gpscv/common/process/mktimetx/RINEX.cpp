@@ -30,6 +30,7 @@
 #include <cstdio>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/regex.hpp> // nb C++11 has this
 
 #include "Antenna.h"
 #include "Application.h"
@@ -40,7 +41,7 @@
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 #include "RINEX.h"
-
+#include "Utility.h"
 
 extern Application *app;
 extern ostream *debugStream;
@@ -564,7 +565,7 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 			case GNSSSystem::GPS:
 			{
 				GPS::EphemerisData *ed = getGPSEphemeris(&fin,&lineCount);
-				if (NULL != ed) rx->gps.ephemeris.push_back(ed);
+				if (NULL != ed) rx->gps.addEphemeris(ed);
 				break;
 			}
 			case GNSSSystem::GLONASS:
@@ -584,10 +585,27 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	//	app->logMessage("Empty navigation file " + fname);
 	//	return false;
 	//}
-	DBGMSG(debugStream,TRACE,"Read " << rx->gps.ephemeris.size() << " GPS entries");
+	DBGMSG(debugStream,INFO,"Read " << rx->gps.ephemeris.size() << " GPS entries");
 	return true;
 }
 
+string RINEX::makeFileName(string pattern,int mjd)
+{
+	string ret="";
+	int year,mon,mday,yday;
+	Utility::MJDtoDate(mjd,&year,&mon,&mday,&yday);
+	int yy = year - (year/100)*100;
+	
+	boost::regex rnx1("(\\w{4})[D|d]{3}(0\\.)[Y|y]{2}([nNoO])");
+	boost::smatch matches;
+	if (boost::regex_search(pattern,matches,rnx1)){
+		char tmp[16];
+		// this is ugly but C++ stream manipulators are even uglier
+		snprintf(tmp,15,"%s%03d%s%02d%s",matches[1].str().c_str(),yday,matches[2].str().c_str(),yy,matches[3].str().c_str());
+		ret = tmp;
+	}
+	return ret;
+}
 
 //
 // Private members
