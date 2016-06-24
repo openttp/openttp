@@ -61,7 +61,7 @@
 #include "SVMeasurement.h"
 #include "Timer.h"
 #include "TrimbleResolution.h"
-#include "Ublox.h"
+//#include "Ublox.h"
 #include "Utility.h"
 
 extern Application *app;
@@ -266,11 +266,14 @@ void Application::run()
 		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
 			if (CGGTTSoutputs.at(i).ephemerisSource==CGGTTSOutput::UserSupplied){
 				if (CGGTTSoutputs.at(i).constellation == GNSSSystem::GPS){
+					receiver->gps.deleteEphemeris();
 					RINEX rnx;
-					//if (rnx.readNavigationFile()){
-					//	rxEphemeris = receiver->ephemeris; // save it
-					//	ephemerisReplaced = true;
-					//}
+					string fname=rnx.makeFileName(CGGTTSoutputs.at(i).ephemerisFile,MJD);
+					string navFile=CGGTTSoutputs.at(i).ephemerisPath+"/"+fname;
+					DBGMSG(debugStream,INFO,"using nav file " << navFile);
+					if (rnx.readNavigationFile(receiver,GNSSSystem::GPS,navFile)){
+						
+					}
 				}
 			}
 			CGGTTS cggtts(antenna,counter,receiver);
@@ -293,10 +296,7 @@ void Application::run()
 		
 			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
 			cggtts.writeObservationFile(CGGTTSfile,MJD,mpairs,TICenabled);
-			
-			if (ephemerisReplaced){
-				//receiver->ephemeris=rxEphemeris;
-			}
+	
 		}
 	} // if createCGGTTS
 	
@@ -590,7 +590,7 @@ bool Application::loadConfig()
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
 			int ephemerisSource=CGGTTSOutput::GNSSReceiver;
-			string ephemerisPath,ephemerisFile;
+			string ephemerisFile,ephemerisPath;
 			
 			for (unsigned int i=0;i<configs.size();i++){
 				string calID="";
@@ -801,9 +801,9 @@ bool Application::loadConfig()
 		else if (rxManufacturer.find("NVS") != string::npos){
 			receiver = new NVS(antenna,rxModel); 
 		}
-		else if (rxManufacturer.find("ublox") != string::npos){
-			receiver = new Ublox(antenna,rxModel); 
-		}
+		//else if (rxManufacturer.find("ublox") != string::npos){
+		//	receiver = new Ublox(antenna,rxModel); 
+		//}
 		else{
 			cerr << "Unknown receiver manufacturer " << rxManufacturer << endl;
 		}

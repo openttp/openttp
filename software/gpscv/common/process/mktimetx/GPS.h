@@ -107,6 +107,8 @@ class GPS: public GNSSSystem
 	GPS();
 	~GPS();
 	
+	virtual void deleteEphemeris();
+		
 	static const int NSATS=32;
 	
 	IonosphereData ionoData;
@@ -134,6 +136,7 @@ class GPS: public GNSSSystem
 	
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
+		
 };
 
 #endif

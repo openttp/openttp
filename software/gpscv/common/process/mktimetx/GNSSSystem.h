@@ -38,6 +38,8 @@ class GNSSSystem
 		GNSSSystem(){};
 		~GNSSSystem(){};
 		
+		virtual void deleteEphemeris(){};
+		
 		std::string name(){return n;}
 		
 	protected:
