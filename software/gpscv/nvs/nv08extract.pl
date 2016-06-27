@@ -341,7 +341,7 @@ while ($s = <RXDATA>) {
 					{ 
 						my($mode) = "STATIC";
 						if($modeflag == 1) { $mode = "DYNAMIC"; }
-						print "$dts  Geocentric coordinates of antenna (WGS-84). Receiver mode is $mode.\n";
+						print "$tstamp  Geocentric coordinates of antenna (WGS-84). Receiver mode is $mode.\n";
 						printf("          [X(m),Y(m),Z(m)]: %19.12e %19.12e %19.12e\n",$antX,$antY,$antZ);
 						printf("          [RMS errors (m)]: %19.12e %19.12e %19.12e\n",$rmsantX,$rmsantY,$rmsantZ);
 					}
@@ -484,6 +484,13 @@ sub decodeMsgF5
 
 sub decodeMsgF6
 {
+	my $m=$_[0];
+	my @data=();
+	if (length($m) != (49*2)){
+		return @data;
+	}
+	@data=unpack "d6c",(pack "H*",$m);
+	return @data;
 }
 
 sub decodeMsgF7

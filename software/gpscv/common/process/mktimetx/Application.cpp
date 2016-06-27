@@ -64,12 +64,13 @@
 //#include "Ublox.h"
 #include "Utility.h"
 
-extern Application *app;
 extern ostream *debugStream;
 extern string   debugFileName;
 extern ofstream debugLog;
 extern int verbosity;
 extern bool shortDebugMessage;
+
+Application *app;
 
 static struct option longOptions[] = {
 		{"configuration",required_argument, 0,  0 },
@@ -735,6 +736,8 @@ bool Application::loadConfig()
 		}
 	}
 	
+	DBGMSG(debugStream,TRACE,"parsed CGGTTS config ");
+	
 	// RINEX generation
 	if (setConfig(last,"rinex","create",stmp,false)){
 		boost::to_upper(stmp);
@@ -771,6 +774,8 @@ bool Application::loadConfig()
 		if (!setConfig(last,"rinex","agency",agency)) configOK=false;
 	}
 	
+	DBGMSG(debugStream,TRACE,"parsed RINEX config");
+	
 	// Antenna
 	if (!setConfig(last,"antenna","marker name",antenna->markerName)) configOK=false;
 	if (!setConfig(last,"antenna","marker number",antenna->markerNumber)) configOK=false;
@@ -787,6 +792,8 @@ bool Application::loadConfig()
 
 	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z,
 		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
+	
+	DBGMSG(debugStream,TRACE,"parsed Antenna config");
 	
 	// Receiver
 	string rxModel,rxManufacturer;
@@ -841,12 +848,18 @@ bool Application::loadConfig()
 			counter->flipSign=true;
 	}
 	
+	DBGMSG(debugStream,TRACE,"parsed Receiver config");
+	
 	if (!setConfig(last,"counter","file extension",counterExtension,false)) configOK=false;
+	
+	DBGMSG(debugStream,TRACE,"parsed Counter config");
 	
 	// Delays
 	//if (!setConfig(last,"delays","internal",&internalDelay)) configOK=false;
 	if (!setConfig(last,"delays","antenna cable",&antCableDelay)) configOK=false;
 	if (!setConfig(last,"delays","reference cable",&refCableDelay)) configOK=false;
+	
+	DBGMSG(debugStream,TRACE,"parsed Delays config");
 	
 	// Paths
 
@@ -874,7 +887,11 @@ bool Application::loadConfig()
 	if (setConfig(last,"paths","processing log",path))
 		processingLogPath=relativeToAbsolutePath(path);
 	
+	DBGMSG(debugStream,TRACE,"parsed Paths config");
+	
 	setConfig(last,"misc","gzip",gzip);
+	
+	DBGMSG(debugStream,TRACE,"parsed Misc config");
 	
 	return configOK;
 }

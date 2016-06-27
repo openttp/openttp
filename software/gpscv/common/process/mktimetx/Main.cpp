@@ -50,7 +50,7 @@ ofstream debugLog;
 int verbosity=1;
 bool shortDebugMessage=false;
 
-Application *app;
+extern Application *app;
 
 int main(
 	int argc,
@@ -63,7 +63,7 @@ int main(
 	
 	debugStream= NULL;
 	
-	app = new Application(argc,argv);
+	new Application(argc,argv); // this will initialize 'app'
 	app->run();
 	
 	return EXIT_SUCCESS;
