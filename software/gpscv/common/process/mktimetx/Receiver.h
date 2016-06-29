@@ -43,6 +43,7 @@ class Receiver
 {
 	public:
 	
+		enum SawtoothPhase {CurrentSecond,NextSecond,ReceiverSpecified};
 		
 		Receiver(Antenna *);
 		virtual ~Receiver();
@@ -73,6 +74,8 @@ class Receiver
 		virtual bool readLog(string,int){return true;} // must be reimplemented
 		
 		vector<ReceiverMeasurement *> measurements;
+		
+		int sawtoothPhase; // pps to apply sawtooth correction to
 		
 		GPS gps;
 		

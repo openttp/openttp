@@ -841,6 +841,20 @@ bool Application::loadConfig()
 	if (!setConfig(last,"receiver","pps offset",&receiver->ppsOffset)) configOK=false;
 	if (!setConfig(last,"receiver","file extension",receiverExtension,false)) configOK=false;
 	
+	if (!setConfig(last,"receiver","sawtooth phase",stmp,false)){
+		boost::to_lower(stmp);
+		if (stmp == "current second")
+			receiver->sawtoothPhase=Receiver::CurrentSecond;
+		else if (stmp == "next second")
+			receiver->sawtoothPhase=Receiver::NextSecond;
+		else if (stmp == "receiver specified")
+			receiver->sawtoothPhase=Receiver::ReceiverSpecified;
+		else
+			cerr << "Unrecognized option for sawtooth phase: " << stmp << endl;
+	}
+	else
+		configOK=false;
+	
 	// Counter
 	if (setConfig(last,"counter","flip sign",stmp,false)){
 		boost::to_upper(stmp);
