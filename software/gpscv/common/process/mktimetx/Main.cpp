@@ -62,12 +62,7 @@ int main(
 	tzset();
 	
 	debugStream= NULL;
-	
-<<<<<<< HEAD
-	new Application(argc,argv);
-=======
 	new Application(argc,argv); // this will initialize 'app'
->>>>>>> cb9a65291a92d4f5302b55218388000faacf4a4f
 	app->run();
 	
 	return EXIT_SUCCESS;
