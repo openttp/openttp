@@ -572,21 +572,19 @@ bool Application::loadConfig()
 	}
 	
 	bool configOK=true;
-	bool configResult;
 	int itmp=2;
 	string stmp;
 	
 	// CGGTTS generation
-	if ((configResult=setConfig(last,"cggtts","create",stmp,false))){
+	if ((setConfig(last,"cggtts","create",stmp,&configOK,false))){
 		boost::to_upper(stmp);
 		if (stmp=="NO"){
 			createCGGTTS=false;
 		}
 	}
-	configOK = configOK && configResult;
-	
+
 	if (createCGGTTS){
-		if ((configResult=setConfig(last,"cggtts","outputs",stmp))){
+		if (setConfig(last,"cggtts","outputs",stmp,&configOK)){
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
@@ -595,7 +593,7 @@ bool Application::loadConfig()
 			
 			for (unsigned int i=0;i<configs.size();i++){
 				string calID="";
-				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp)){
+				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp,&configOK)){
 					boost::to_upper(stmp);
 					if (stmp == "GPS")
 						constellation = GNSSSystem::GPS;
@@ -613,7 +611,7 @@ bool Application::loadConfig()
 						continue;
 					}
 				}
-				if (setConfig(last,configs.at(i).c_str(),"code",stmp)){
+				if (setConfig(last,configs.at(i).c_str(),"code",stmp,&configOK)){
 					boost::to_upper(stmp);
 					if (stmp=="C1")
 						code=GNSSSystem::C1;
@@ -631,14 +629,13 @@ bool Application::loadConfig()
 						continue;
 					}
 				}
-				setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,false);
+				setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,&configOK,false);
 				double intdly=0.0;
-				if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly)){
-					configOK=false;
+				if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK)){
 					continue;
 				}
 				
-				if (setConfig(last,configs.at(i).c_str(),"ephemeris",stmp)){
+				if (setConfig(last,configs.at(i).c_str(),"ephemeris",stmp,&configOK,false)){
 					boost::to_upper(stmp);
 					if (stmp == "RECEIVER"){
 						ephemerisSource=CGGTTSOutput::GNSSReceiver;
@@ -646,12 +643,10 @@ bool Application::loadConfig()
 					else if (stmp=="USER"){
 						// path and pattern are now required
 						ephemerisSource=CGGTTSOutput::UserSupplied;
-						if (!setConfig(last,configs.at(i).c_str(),"ephemeris path",ephemerisPath)){
-							configOK=false;
+						if (!setConfig(last,configs.at(i).c_str(),"ephemeris path",ephemerisPath,&configOK,true)){
 							continue;
 						}
-						if (!setConfig(last,configs.at(i).c_str(),"ephemeris file",ephemerisFile)){
-							configOK=false;
+						if (!setConfig(last,configs.at(i).c_str(),"ephemeris file",ephemerisFile,&configOK,true)){
 							continue;
 						}
 					}
@@ -662,20 +657,18 @@ bool Application::loadConfig()
 					}
 				}
 		
-				if (setConfig(last,configs.at(i).c_str(),"path",stmp)){ // got everything
+				if (setConfig(last,configs.at(i).c_str(),"path",stmp,&configOK)){ // got everything
 					// FIXME check compatibility of constellation+code
 					stmp=relativeToAbsolutePath(stmp);
 					ephemerisPath = relativeToAbsolutePath(ephemerisPath);
 					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly,
 						ephemerisSource,ephemerisPath,ephemerisFile));
 				}
-				else{
-					configOK=false;
-				}
+				
 			} // for
 		} // if setConfig
 		
-		if (setConfig(last,"cggtts","version",stmp,false)){
+		if (setConfig(last,"cggtts","version",stmp,&configOK,false)){
 			boost::to_upper(stmp);
 			if (stmp=="V1")
 				CGGTTSversion=CGGTTS::V1;
@@ -686,17 +679,15 @@ bool Application::loadConfig()
 				configOK=false;
 			}
 		}
-		else{
-			configOK=false;
-		}
+	
 		
-		if (!setConfig(last,"cggtts","reference",CGGTTSref)) configOK=false;
-		if (!setConfig(last,"cggtts","lab",CGGTTSlab)) configOK=false;
-		if (!setConfig(last,"cggtts","comments",CGGTTScomment,false)) configOK=false;
-		if (!setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength,false)) configOK=false;
-		if (!setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG,false)) configOK=false;
-		if (!setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation,false)) configOK=false;
-		if (setConfig(last,"cggtts","naming convention",stmp,false)){
+		setConfig(last,"cggtts","reference",CGGTTSref,&configOK);
+		setConfig(last,"cggtts","lab",CGGTTSlab,&configOK);
+		setConfig(last,"cggtts","comments",CGGTTScomment,&configOK,false);
+		setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength,&configOK,false);
+		setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG,&configOK,false);
+		setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation,&configOK,false);
+		if (setConfig(last,"cggtts","naming convention",stmp,&configOK,false)){
 			boost::to_upper(stmp);
 			if (stmp == "BIPM")
 				CGGTTSnamingConvention = BIPM;
@@ -707,12 +698,12 @@ bool Application::loadConfig()
 				configOK=false;
 			}
 			if (CGGTTSnamingConvention == BIPM){
-				if (!setConfig(last,"cggtts","lab id",CGGTTSlabCode)) configOK=false;
-				if (!setConfig(last,"cggtts","receiver id",CGGTTSreceiverID)) configOK=false;
+				setConfig(last,"cggtts","lab id",CGGTTSlabCode,&configOK);
+				setConfig(last,"cggtts","receiver id",CGGTTSreceiverID,&configOK);
 			}
 		}
 		
-		if (setConfig(last,"cggtts","revision date",stmp)){
+		if (setConfig(last,"cggtts","revision date",stmp,&configOK)){
 			std::vector<std::string> vals;
 			boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
 			if (vals.size()==3){
@@ -731,25 +722,19 @@ bool Application::loadConfig()
 				configOK=false;
 			}
 		}
-		else{
-			configOK=false;
-		}
 	}
 	
 	DBGMSG(debugStream,TRACE,"parsed CGGTTS config ");
 	
 	// RINEX generation
-	if (setConfig(last,"rinex","create",stmp,false)){
+	if (setConfig(last,"rinex","create",stmp,&configOK,false)){
 		boost::to_upper(stmp);
 		if (stmp=="NO")
 			createRINEX=false;
 	}
-	else{
-		configOK=false;
-	}
 	
 	if (createRINEX){
-		if (setConfig(last,"rinex","version",&itmp)){
+		if (setConfig(last,"rinex","version",&itmp,&configOK)){
 			switch (itmp)
 			{
 				case 2:RINEXversion=RINEX::V2;break;
@@ -757,38 +742,33 @@ bool Application::loadConfig()
 				default:configOK=false;
 			}
 		}
-		else{
-			configOK=false;
-		}
 		
-		if (setConfig(last,"rinex","observer",observer)){
+		if (setConfig(last,"rinex","observer",observer,&configOK)){
 			if (observer=="user"){
 				char *uenv;
 				if ((uenv = getenv("USER")))
 					observer=uenv;
 			}
 		}
-		else{
-			configOK=false;
-		}
-		if (!setConfig(last,"rinex","agency",agency)) configOK=false;
+
+		setConfig(last,"rinex","agency",agency,&configOK);
 	}
 	
 	DBGMSG(debugStream,TRACE,"parsed RINEX config");
 	
 	// Antenna
-	if (!setConfig(last,"antenna","marker name",antenna->markerName)) configOK=false;
-	if (!setConfig(last,"antenna","marker number",antenna->markerNumber)) configOK=false;
-	if (!setConfig(last,"antenna","marker type",antenna->markerType)) configOK=false;
-	if (!setConfig(last,"antenna","antenna number",antenna->antennaNumber)) configOK=false;
-	if (!setConfig(last,"antenna","antenna type",antenna->antennaType)) configOK=false;
-	if (!setConfig(last,"antenna","x",&(antenna->x))) configOK=false;
-	if (!setConfig(last,"antenna","y",&(antenna->y))) configOK=false;
-	if (!setConfig(last,"antenna","z",&(antenna->z))) configOK=false;
-	if (!setConfig(last,"antenna","delta h",&(antenna->deltaH),false)) configOK=false;
-	if (!setConfig(last,"antenna","delta e",&(antenna->deltaE),false)) configOK=false;
-	if (!setConfig(last,"antenna","delta n",&(antenna->deltaN),false)) configOK=false;
-	if (!setConfig(last,"antenna","frame",antenna->frame)) configOK=false;
+	setConfig(last,"antenna","marker name",antenna->markerName,&configOK);
+	setConfig(last,"antenna","marker number",antenna->markerNumber,&configOK);
+	setConfig(last,"antenna","marker type",antenna->markerType,&configOK);
+	setConfig(last,"antenna","antenna number",antenna->antennaNumber,&configOK);
+	setConfig(last,"antenna","antenna type",antenna->antennaType,&configOK);
+	setConfig(last,"antenna","x",&(antenna->x),&configOK);
+	setConfig(last,"antenna","y",&(antenna->y),&configOK);
+	setConfig(last,"antenna","z",&(antenna->z),&configOK);
+	setConfig(last,"antenna","delta h",&(antenna->deltaH),&configOK,false);
+	setConfig(last,"antenna","delta e",&(antenna->deltaE),&configOK,false);
+	setConfig(last,"antenna","delta n",&(antenna->deltaN),&configOK,false);
+	setConfig(last,"antenna","frame",antenna->frame,&configOK);
 
 	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z,
 		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
@@ -797,8 +777,9 @@ bool Application::loadConfig()
 	
 	// Receiver
 	string rxModel,rxManufacturer;
-	if (!setConfig(last,"receiver","model",rxModel)) configOK=false;
-	if ((configResult = setConfig(last,"receiver","manufacturer",rxManufacturer))){
+	setConfig(last,"receiver","model",rxModel,&configOK);
+	
+	if (setConfig(last,"receiver","manufacturer",rxManufacturer,&configOK)){
 		if (rxManufacturer.find("Trimble") != string::npos){
 			receiver = new TrimbleResolution(antenna,rxModel); 
 		}
@@ -812,16 +793,13 @@ bool Application::loadConfig()
 		//	receiver = new Ublox(antenna,rxModel); 
 		//}
 		else{
-			cerr << "Unknown receiver manufacturer " << rxManufacturer << endl;
+			cerr << "A valid receiver model/manufacturer has not been configured - exiting" << endl;
+			exit(EXIT_FAILURE);
 		}
 	}
 	
-	if (NULL==receiver){ // bail out, since no receiver object
-		cerr << "A valid receiver model/manufacturer has not been configured - exiting" << endl;
-		exit(EXIT_FAILURE);
-	}
 	
-	if (setConfig(last,"receiver","observations",stmp,false)){
+	if (setConfig(last,"receiver","observations",stmp,&configOK,false)){
 		boost::to_upper(stmp);
 		if (stmp.find("GPS") != string::npos)
 			receiver->constellations |=GNSSSystem::GPS;
@@ -834,14 +812,13 @@ bool Application::loadConfig()
 		if (stmp.find("QZSS") != string::npos)
 			receiver->constellations |=GNSSSystem::QZSS;
 	}
-	else
-		configOK=false;
 	
-	setConfig(last,"receiver","version",receiver->version); 
-	if (!setConfig(last,"receiver","pps offset",&receiver->ppsOffset)) configOK=false;
-	if (!setConfig(last,"receiver","file extension",receiverExtension,false)) configOK=false;
 	
-	if (setConfig(last,"receiver","sawtooth phase",stmp,false)){
+	setConfig(last,"receiver","version",receiver->version,&configOK,false); 
+	setConfig(last,"receiver","pps offset",&receiver->ppsOffset,&configOK);
+	setConfig(last,"receiver","file extension",receiverExtension,&configOK,false);
+	
+	if (setConfig(last,"receiver","sawtooth phase",stmp,&configOK,false)){
 		boost::to_lower(stmp);
 		if (stmp == "current second")
 			receiver->sawtoothPhase=Receiver::CurrentSecond;
@@ -849,12 +826,14 @@ bool Application::loadConfig()
 			receiver->sawtoothPhase=Receiver::NextSecond;
 		else if (stmp == "receiver specified")
 			receiver->sawtoothPhase=Receiver::ReceiverSpecified;
-		else
+		else{
 			cerr << "Unrecognized option for sawtooth phase: " << stmp << endl;
+			configOK=false;
+		}
 	}
 	
 	// Counter
-	if (setConfig(last,"counter","flip sign",stmp,false)){
+	if (setConfig(last,"counter","flip sign",stmp,&configOK,false)){
 		boost::to_upper(stmp);
 		if (stmp=="YES")
 			counter->flipSign=true;
@@ -862,94 +841,108 @@ bool Application::loadConfig()
 	
 	DBGMSG(debugStream,TRACE,"parsed Receiver config");
 	
-	if (!setConfig(last,"counter","file extension",counterExtension,false)) configOK=false;
+	setConfig(last,"counter","file extension",counterExtension,&configOK,false);
 	
 	DBGMSG(debugStream,TRACE,"parsed Counter config");
 	
 	// Delays
 	//if (!setConfig(last,"delays","internal",&internalDelay)) configOK=false;
-	if (!setConfig(last,"delays","antenna cable",&antCableDelay)) configOK=false;
-	if (!setConfig(last,"delays","reference cable",&refCableDelay)) configOK=false;
+	setConfig(last,"delays","antenna cable",&antCableDelay,&configOK);
+	setConfig(last,"delays","reference cable",&refCableDelay,&configOK);
 	
 	DBGMSG(debugStream,TRACE,"parsed Delays config");
 	
 	// Paths
 
 	string path="";	
-	if (setConfig(last,"paths","rinex",path))
+	if (setConfig(last,"paths","rinex",path,&configOK))
 		RINEXPath=relativeToAbsolutePath(path);
 	
 	path="";
-	if (setConfig(last,"paths","receiver data",path))
+	if (setConfig(last,"paths","receiver data",path,&configOK))
 		receiverPath=relativeToAbsolutePath(path);
 	
 	path="";
-	if (setConfig(last,"paths","counter data",path))
+	if (setConfig(last,"paths","counter data",path,&configOK))
 		counterPath=relativeToAbsolutePath(path);
 	
 	path="";
-	if (setConfig(last,"paths","tmp",path))
+	if (setConfig(last,"paths","tmp",path,&configOK))
 		tmpPath=relativeToAbsolutePath(path);
 	
 	path="";
-	if (setConfig(last,"paths","cggtts",path))
+	if (setConfig(last,"paths","cggtts",path,&configOK))
 		CGGTTSPath=relativeToAbsolutePath(path);
 	
 	path="";
-	if (setConfig(last,"paths","processing log",path))
+	if (setConfig(last,"paths","processing log",path,&configOK,false))
 		processingLogPath=relativeToAbsolutePath(path);
 	
 	DBGMSG(debugStream,TRACE,"parsed Paths config");
 	
-	setConfig(last,"misc","gzip",gzip);
+	setConfig(last,"misc","gzip",gzip,&configOK,false);
 	
 	DBGMSG(debugStream,TRACE,"parsed Misc config");
 	
 	return configOK;
 }
 
-bool Application::setConfig(ListEntry *last,const char *section,const char *token,string &val,bool required)
+bool Application::setConfig(ListEntry *last,const char *section,const char *token,string &val,bool *ok,bool required)
 {
 	char *stmp;
 	if (list_get_string(last,section,token,&stmp)){
+		// ok is not set
 		val=stmp;
 	}
 	else{
 		int err = config_file_get_last_error(NULL,0);
 		if (err==TokenNotFound && required){
 			cerr << "Missing entry for " << section << "::" << token << endl;
+			*ok = false;
+			return false;
+		}
+		else if (err==TokenNotFound){
+			// ok is not false
 			return false;
 		}
 		else if (err==ParseFailed){
 			cerr << "Syntax error in " << section << "::" << token << endl;
+			*ok = false;
 			return false;
 		}
 	}
 	return true;
 }
 
-bool Application::setConfig(ListEntry *last,const char *section,const char *token,double *val,bool required)
+bool Application::setConfig(ListEntry *last,const char *section,const char *token,double *val,bool *ok,bool required)
 {
 	double dtmp;
 	if (list_get_double(last,section,token,&dtmp)){
 		*val=dtmp;
+		// ok is not set
 		return true;
 	}
 	else{
 		int err = config_file_get_last_error(NULL,0);
 		if (err==TokenNotFound && required){
 			cerr << "Missing entry for " << section << "::" << token << endl;
+			*ok = false;
+			return false;
+		}
+		else if (err==TokenNotFound){
+			// ok is not false
 			return false;
 		}
 		else if (err==ParseFailed){
 			cerr << "Syntax error in " << section << "::" << token << endl;
+			*ok=false;
 			return false;
 		}
 	}
 	return true;
 }
 
-bool Application::setConfig(ListEntry *last,const char *section,const char *token,int *val,bool required)
+bool Application::setConfig(ListEntry *last,const char *section,const char *token,int *val,bool *ok,bool required)
 {
 	int itmp;
 	if (list_get_int(last,section,token,&itmp)){
@@ -960,10 +953,16 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 		int err = config_file_get_last_error(NULL,0);
 		if (err==TokenNotFound && required){
 			cerr << "Missing entry for " << section << "::" << token << endl;
+			*ok = false;
+			return false;
+		}
+		else if (err==TokenNotFound){
+			// ok is not false
 			return false;
 		}
 		else if (err==ParseFailed){
 			cerr << "Syntax error in " << section << "::" << token << endl;
+			*ok = false;
 			return false;
 		}
 	}
