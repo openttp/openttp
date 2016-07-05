@@ -154,7 +154,7 @@ bool Ublox::readLog(string fname,int mjd)
 						measurements.push_back(rmeas);
 						
 						rmeas->sawtooth=-sawtooth*1.0E-12; // units are ps, must be subtracted from TIC measurement
-						//rmeas->timeOffset=rxTimeOffset;
+						rmeas->timeOffset=clockBias*1.0E-9; // units are ns WARNING no sign convention defined yet ...
 						
 						int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
@@ -165,12 +165,11 @@ bool Ublox::readLog(string fname,int mjd)
 						
 						// GPSTOW is used for pseudorange estimations
 						// note: this is rounded because measurements are interpolated on a 1s grid
-						rmeas->gpstow=measTOW/1000;  
-						rmeas->gpswn=measGPSWN; // note: this is NOT truncated. Not currently used 
+						rmeas->gpstow=measTOW;  
+						rmeas->gpswn=measGPSWN % 1024; // Converted to truncaed WN. Not currently used 
 						
 						// UTC time of measurement
 						// We could use other time information to calculate this eg gpstow,gpswn and leap seconds
-						// but we'll just use the 46 message
 						rmeas->tmUTC.tm_sec=UTCsec;
 						rmeas->tmUTC.tm_min=UTCmin;
 						rmeas->tmUTC.tm_hour=UTChour;
@@ -179,11 +178,23 @@ bool Ublox::readLog(string fname,int mjd)
 						rmeas->tmUTC.tm_year=UTCyear-1900;
 						rmeas->tmUTC.tm_isdst=0;
 						
+						// Calculate GPS time of measurement 
+						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn);
+						struct tm *tmGPS = gmtime(&tgps);
+						rmeas->tmGPS=*tmGPS;
+						
+						for (unsigned int sv=0;sv<gpsmeas.size();sv++){
+							gpsmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
+							gpsmeas.at(sv)->rm=rmeas;
+						}
+						rmeas->gps=gpsmeas;
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
-						//fprintf(stderr,"PC=%02d:%02d:%02d\n",pchh,pcmm,pcss);
-						//rx =%02d:%02d:%02d tmeasUTC=%8.6f gpstow=%d gpswn=%d\n",
-						//	pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,tmeasUTC/1000.0,(int) gpstow,(int) weekNum);
+						// KEEP THIS it's useful for debugging measurement-time related problems
+						fprintf(stderr,"PC=%02d:%02d:%02d msg0121=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d\n",
+							pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+							(int) rmeas->gpstow,(int) rmeas->gpswn );
+						
 					}
 				} // if (gpsmeas.size() > 0)
 				
@@ -194,10 +205,10 @@ bool Ublox::readLog(string fname,int mjd)
 					HexToBin((char *) msg.substr(11*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 					unsigned int nmeas=u1buf;
 					if (msg.size() == (2+16+nmeas*32)*2){
-						HexToBin((char *) msg.substr(0*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &measTOW); //measurement TOW
+						HexToBin((char *) msg.substr(0*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &measTOW); //measurement TOW (s)
 						HexToBin((char *) msg.substr(8*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &measGPSWN); // full WN
 						HexToBin((char *) msg.substr(10*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &measLeapSecs);
-						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
+						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << setprecision(12) << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
 						for (unsigned int m=0;m<nmeas;m++){
 							HexToBin((char *) msg.substr((36+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //GNSS id
 							if (u1buf == 0){
@@ -207,8 +218,8 @@ bool Ublox::readLog(string fname,int mjd)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); 
-								gpsmeas.push_back(new SVMeasurement(svID,r8buf/CLIGHT,NULL));// ReceiverMeasurement not known yet
-								DBGMSG(debugStream,TRACE,"SV" << svID << " pr=" << r8buf/CLIGHT << " trkStat= " << (int) u1buf);
+								gpsmeas.push_back(new SVMeasurement(svID,r8buf/CLIGHT+0.016,NULL));// ReceiverMeasurement not known yet
+								DBGMSG(debugStream,TRACE,"SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) u1buf);
 							}
 						}
 						currentMsgs |= MSG0215;
@@ -231,8 +242,8 @@ bool Ublox::readLog(string fname,int mjd)
 				if (msg.size()==(16+2)*2){
 					X1 TPflags,TPrefInfo;
 					U4 TPTOW;
-					HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &TPTOW);
-					HexToBin((char *) msg.substr(8*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &sawtooth);
+					HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &TPTOW); // (ms)
+					HexToBin((char *) msg.substr(8*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &sawtooth); // (ps)
 					HexToBin((char *) msg.substr(14*2,2*sizeof(X1)).c_str(),sizeof(X1),(unsigned char *) &TPflags);
 					HexToBin((char *) msg.substr(15*2,2*sizeof(X1)).c_str(),sizeof(X1),(unsigned char *) &TPrefInfo);
 					DBGMSG(debugStream,TRACE,currpctime << " tow= " << (int) TPTOW << " sawtooth=" << sawtooth << " ps" << std::hex << " flags=0x" << (unsigned int) TPflags << 
@@ -327,7 +338,7 @@ bool Ublox::readLog(string fname,int mjd)
 	
 	if (!gotUTCdata){
 		app->logMessage("failed to find ionosphere/UTC parameters - no 0b02 messages");
-		return false;
+		//return false; // FIXME temporary
 	}
 	
 	
