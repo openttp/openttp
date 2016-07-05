@@ -107,6 +107,8 @@ class GPS: public GNSSSystem
 	GPS();
 	~GPS();
 	
+	virtual void deleteEphemeris();
+		
 	static const int NSATS=32;
 	
 	IonosphereData ionoData;
@@ -129,11 +131,15 @@ class GPS: public GNSSSystem
 		double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 		double *azimuth,double *elevation, int *ioe);
 	
-	void UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
+	static void UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 		unsigned int *tow,unsigned int *truncatedWN=NULL,unsigned int*fullWN=NULL);
+	
+	static void GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLeapSeconds,struct tm *tmUTC);
+	static time_t GPStoUnix(unsigned int tow, unsigned int truncatedWN);
 	
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
+		
 };
 
 #endif

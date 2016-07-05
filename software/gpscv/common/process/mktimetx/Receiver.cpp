@@ -58,6 +58,7 @@ Receiver::Receiver(Antenna *ant)
 	commissionYYYY=1999;
 	dualFrequency=false;
 	codes=GNSSSystem::C1;
+	sawtoothPhase=CurrentSecond;
 }
 
 Receiver::~Receiver()

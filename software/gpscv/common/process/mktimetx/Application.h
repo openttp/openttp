@@ -104,9 +104,9 @@ class Application
 		
 		
 		bool loadConfig();
-		bool setConfig(ListEntry *,const char *,const char *,string &,bool required=true);
-		bool setConfig(ListEntry *,const char *,const char *,double *,bool required=true);
-		bool setConfig(ListEntry *,const char *,const char *,int *,bool required=true);
+		bool setConfig(ListEntry *,const char *,const char *,string &,bool *ok,bool required=true);
+		bool setConfig(ListEntry *,const char *,const char *,double *,bool *ok,bool required=true);
+		bool setConfig(ListEntry *,const char *,const char *,int *,bool *ok, bool required=true);
 		
 		bool writeRIN2CGGTTSParamFile(Receiver *,Antenna *,string);
 		
