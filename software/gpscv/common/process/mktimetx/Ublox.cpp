@@ -78,12 +78,14 @@ Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 	constellations=GNSSSystem::GPS;
 	codes=GNSSSystem::C1;
 	channels=32;
-	if (modelName == "LEA8"){
+	if (modelName == "LEA8MT"){
 		// For the future
+	}
+	else if (modelName == "NEO8MT"){
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
-		app->logMessage("Assuming LEA8");
+		app->logMessage("Assuming LEA8MT");
 	}
 }
 
@@ -123,7 +125,7 @@ bool Ublox::readLog(string fname,int mjd)
 	gotIonoData=false;
 	
 	unsigned int currentMsgs=0;
-	unsigned int reqdMsgs = MSG0122 | MSG0215 | MSG0D01 ;
+	unsigned int reqdMsgs =  MSG0121 | MSG0122 | MSG0215 | MSG0D01 ;
 
   if (infile.is_open()){
     while ( getline (infile,line) ){
@@ -151,7 +153,7 @@ bool Ublox::readLog(string fname,int mjd)
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 						measurements.push_back(rmeas);
 						
-						rmeas->sawtooth=sawtooth*1.0E-12; // units are ps
+						rmeas->sawtooth=-sawtooth*1.0E-12; // units are ps, must be subtracted from TIC measurement
 						//rmeas->timeOffset=rxTimeOffset;
 						
 						int pchh,pcmm,pcss;
@@ -160,6 +162,22 @@ bool Ublox::readLog(string fname,int mjd)
 							rmeas->pcmm=pcmm;
 							rmeas->pcss=pcss;
 						}
+						
+						// GPSTOW is used for pseudorange estimations
+						// note: this is rounded because measurements are interpolated on a 1s grid
+						rmeas->gpstow=measTOW/1000;  
+						rmeas->gpswn=measGPSWN; // note: this is NOT truncated. Not currently used 
+						
+						// UTC time of measurement
+						// We could use other time information to calculate this eg gpstow,gpswn and leap seconds
+						// but we'll just use the 46 message
+						rmeas->tmUTC.tm_sec=UTCsec;
+						rmeas->tmUTC.tm_min=UTCmin;
+						rmeas->tmUTC.tm_hour=UTChour;
+						rmeas->tmUTC.tm_mday=UTCday;
+						rmeas->tmUTC.tm_mon=UTCmon-1;
+						rmeas->tmUTC.tm_year=UTCyear-1900;
+						rmeas->tmUTC.tm_isdst=0;
 						
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
@@ -333,7 +351,6 @@ bool Ublox::readLog(string fname,int mjd)
 			// do nothing - the current value is the best guess
 			nBadSawtoothCorrections++;
 		}
-		measurements.at(i)->sawtooth = prevSawtooth;// FIXME
 		prevSawtooth=sawTmp;
 		tPrevSawtooth=tTmp;
 	}
@@ -347,7 +364,7 @@ bool Ublox::readLog(string fname,int mjd)
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
-	
+	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
 	
 	return true;
 	
