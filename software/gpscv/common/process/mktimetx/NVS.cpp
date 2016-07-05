@@ -125,7 +125,7 @@ bool NVS::readLog(string fname,int mjd)
 	string line;
 	int linecount=0;
 	
-	string msgid,currpctime,pctime,msg,gpstime;
+	string msgid,currpctime,pctime="",msg,gpstime;
 	
 	float rxTimeOffset; // single
 	FP64 sawtooth;     // units are ns
@@ -181,7 +181,7 @@ bool NVS::readLog(string fname,int mjd)
 						rmeas->timeOffset=rxTimeOffset;
 						if (rxTimeOffset !=0){ // FIXME this is here until we get sufficient experience !
 							// Occur at ms rollovers
-							cerr << "FIXME rxTimeoffset = " << rxTimeOffset << "\n";
+							cerr << "FIXME " << pctime << " rxTimeoffset = " << rxTimeOffset << "\n";
 						}
 						int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
@@ -230,11 +230,11 @@ bool NVS::readLog(string fname,int mjd)
 						// pchh,pcmm,pcss,msg46hh,msg46mm,msg46ss,msg72TOW,tmeasUTC/1000.0,(int) rmeas->gpstow,(int) weekNum,rmeas->tmfracs );
 					} // if (gps.size() > 0)
 				}
-				else{ // throw away the whole second
+				else if (pctime != ""){ // throw away the whole second
 					deleteMeasurements(gpsmeas);
 					currentMsgs = 0;
 					duplicateMessages=false;
-					DBGMSG(debugStream,INFO," Duplicate messages at " << pctime);
+					DBGMSG(debugStream,INFO," Duplicate/missing messages at " << pctime);
 				}
 			}
 			
