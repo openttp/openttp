@@ -431,18 +431,19 @@ void Application::init()
 	if ((penv = getenv("HOME"))){
 		homeDir=penv;
 	}
+	rootDir=homeDir;
 	
 	logFile = "mktimetx.log";
-	processingLogPath =  homeDir+"/logs";
-	configurationFile = homeDir+"/etc/gpscv.conf";
-	counterPath = homeDir+"/raw";
+	processingLogPath =  rootDir+"/logs";
+	configurationFile = rootDir+"/etc/gpscv.conf";
+	counterPath = rootDir+"/raw";
 	counterExtension= "tic";
-	receiverPath= homeDir+"/raw";
+	receiverPath= rootDir+"/raw";
 	receiverExtension="rx";
-	RINEXPath=homeDir+"/rinex";
-	CGGTTSPath=homeDir+"/cggtts";
+	RINEXPath=rootDir+"/rinex";
+	CGGTTSPath=rootDir+"/cggtts";
 	CGGTTSnamingConvention=Plain;
-	tmpPath=homeDir+"/tmp";
+	tmpPath=rootDir+"/tmp";
 	
 	gzip="/bin/gzip";
 	
@@ -459,7 +460,7 @@ string Application::relativeToAbsolutePath(string path)
 		if (path.at(0) == '/')
 			absPath = path;
 		else 
-			absPath=homeDir+"/"+path;
+			absPath=rootDir+"/"+path;
 	}
 	return absPath;
 }
@@ -574,6 +575,43 @@ bool Application::loadConfig()
 	bool configOK=true;
 	int itmp=2;
 	string stmp;
+	
+	// Paths
+	// Parse first so that other paths can be constructed correctly
+	//
+	
+	string path="";	
+	
+	if (setConfig(last,"paths","root",path,&configOK,false)){
+		rootDir=path;
+		if (rootDir.at(0) != '/')
+			rootDir=homeDir+"/"+rootDir;
+	}
+	
+	if (setConfig(last,"paths","rinex",path,&configOK))
+		RINEXPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","receiver data",path,&configOK))
+		receiverPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","counter data",path,&configOK))
+		counterPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","tmp",path,&configOK))
+		tmpPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","cggtts",path,&configOK))
+		CGGTTSPath=relativeToAbsolutePath(path);
+	
+	path="";
+	if (setConfig(last,"paths","processing log",path,&configOK,false))
+		processingLogPath=relativeToAbsolutePath(path);
+	
+	DBGMSG(debugStream,TRACE,"parsed Paths config");
 	
 	// CGGTTS generation
 	if ((setConfig(last,"cggtts","create",stmp,&configOK,false))){
@@ -852,33 +890,7 @@ bool Application::loadConfig()
 	
 	DBGMSG(debugStream,TRACE,"parsed Delays config");
 	
-	// Paths
-
-	string path="";	
-	if (setConfig(last,"paths","rinex",path,&configOK))
-		RINEXPath=relativeToAbsolutePath(path);
 	
-	path="";
-	if (setConfig(last,"paths","receiver data",path,&configOK))
-		receiverPath=relativeToAbsolutePath(path);
-	
-	path="";
-	if (setConfig(last,"paths","counter data",path,&configOK))
-		counterPath=relativeToAbsolutePath(path);
-	
-	path="";
-	if (setConfig(last,"paths","tmp",path,&configOK))
-		tmpPath=relativeToAbsolutePath(path);
-	
-	path="";
-	if (setConfig(last,"paths","cggtts",path,&configOK))
-		CGGTTSPath=relativeToAbsolutePath(path);
-	
-	path="";
-	if (setConfig(last,"paths","processing log",path,&configOK,false))
-		processingLogPath=relativeToAbsolutePath(path);
-	
-	DBGMSG(debugStream,TRACE,"parsed Paths config");
 	
 	setConfig(last,"misc","gzip",gzip,&configOK,false);
 	

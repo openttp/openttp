@@ -145,6 +145,7 @@ class Application
 		int interval;
 		int RINEXversion;
 		string homeDir;
+		string rootDir;
 		string configurationFile;
 		string counterPath,counterExtension,counterFile;
 		string receiverPath,receiverExtension,receiverFile;
