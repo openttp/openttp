@@ -36,6 +36,7 @@
 				- Added -h and -v switches.
 	 24-04-2008 v1.5.1 MJW  - minor compiler fixups
 	            v1.6   MJW  - -t option for today's MJD
+	 2016-07-10 v1.7   MJW  - -y option for DOY
 */	
 
 #include <stdio.h>
@@ -46,10 +47,12 @@
 #include <time.h>
 #include <string.h>
 
-#define VERSION "1.6"
+#define VERSION "1.7"
 
 static void date_to_mjd(int day, int month, int year);
 static void mjd_to_date(long mjd);
+static void mjd_to_yday(long mjd);
+
 char args[] = "-u +' '%d' '%m' '%Y";
 
 
@@ -63,15 +66,13 @@ int argc,char *argv[])
   time_t tnow;
 	struct tm *gmt;
 	
-  if(argc == 1)
-  {
+  if(argc == 1){
     scanf("%d %d %d",& day, &month, &year);
     date_to_mjd(day, month, year);
     exit(EXIT_SUCCESS);
   }
 	
-  if(argc == 5 && strcmp(argv[1], "-d" ) == 0)
-  {
+  if(argc == 5 && strcmp(argv[1], "-d" ) == 0){
     day   = atoi(argv[2]);
     month = atoi(argv[3]);
     year  = atoi(argv[4]);
@@ -80,27 +81,33 @@ int argc,char *argv[])
     exit(EXIT_SUCCESS);
   }
 	
-  if(argc == 3 && strcmp(argv[1], "-m" ) == 0)
-  {
+  if(argc == 3 && strcmp(argv[1], "-m" ) == 0){
     mjd = atoi(argv[2]);
     mjd_to_date(mjd);
     printf("\n");
     exit(EXIT_SUCCESS);
   }
  
-  if(argc == 2 && strcmp(argv[1], "-h" ) == 0)
-  {
-     printf("\nmjd version %s\n\n",VERSION);
-     printf("usage: mjd [-d DD MM YYYY] [-m MJD] [-h] [-v]\n\n");
+  if(argc == 3 && strcmp(argv[1], "-y" ) == 0){
+    mjd = atoi(argv[2]);
+    mjd_to_yday(mjd);
+    printf("\n");
+    exit(EXIT_SUCCESS);
+  }
+  
+  if(argc == 2 && strcmp(argv[1], "-h" ) == 0){
+    printf("\nmjd version %s\n\n",VERSION);
+    printf("usage: mjd [-d DD MM YYYY] [-m MJD] [-y MJD] [-h] [-v]\n\n");
 
-     printf("Options:-\n\n");
-     printf("        -d        : convert date to MJD\n");
-     printf("        -m        : convert MJD to date\n");
-		 printf("        -t        : today's MJD\n");
-     printf("        -h        : this help\n");
-     printf("        -v        : version number\n\n");
-     printf("See also the man page for 'mjd'\n\n");
-     exit(EXIT_SUCCESS);
+    printf("Options:-\n\n");
+    printf("\t-d\t: convert date to MJD\n");
+    printf("\t-m\t: convert MJD to date\n");
+    printf("\t-y\t: convert MJD to DOY year\n");
+    printf("\t-t\t: show today's MJD\n");
+    printf("\t-h\t: show this help\n");
+    printf("\t-v\t: show version\n\n");
+    printf("See also the man page for 'mjd'\n\n");
+    exit(EXIT_SUCCESS);
   }
 	
   if(argc == 2 && strcmp(argv[1], "-v" ) == 0)
@@ -109,7 +116,7 @@ int argc,char *argv[])
     exit(EXIT_SUCCESS);
   }
 	
-	if(argc == 2 && strcmp(argv[1], "-t" ) == 0)
+  if(argc == 2 && strcmp(argv[1], "-t" ) == 0)
   {
 		tnow = time(NULL);
 		if (!(gmt=gmtime(&tnow)))
@@ -123,9 +130,9 @@ int argc,char *argv[])
   }
 	
   printf("mjd: invalid option or wrong number of parameters\n");
-  printf("usage: mjd [-d DD MM YYYY] [-m MJD] [-t] [-h] [-v]\n");
+  printf("usage: mjd [-d DD MM YYYY] [-m MJD] [-y MJD] [-t] [-h] [-v]\n");
 	
-	return EXIT_FAILURE;
+  return EXIT_FAILURE;
 } 
 
 void date_to_mjd(int day, int month, int year)
@@ -151,6 +158,31 @@ void mjd_to_date(long mjd)
   printf("%2d %2d %4d", day, month,year);
 }
 
+void mjd_to_yday(long mjd){
+  int  day, month, year;
+  long julian;
+  double y2;
+  struct tm tmptm;
+  
+  julian = mjd  + 2400001l;
+  y2 = julian - 1721119.1+floor(0.75 * floor((julian - 1684594.75)/36524.25));
+  day = floor(y2-floor(365.25*floor(y2/365.25))+122.2);
+  year = floor(y2/365.25)+floor(day/429);
+  month = floor(day/30.61)-1-floor(day/429)*12;
+  day = day - floor(30.61*floor(day/30.61));
+  
+  tmptm.tm_sec=tmptm.tm_min=tmptm.tm_hour=0;
+  tmptm.tm_mday=day;
+  tmptm.tm_mon=month-1;
+  tmptm.tm_year=year-1900;
+  tmptm.tm_isdst=0;
+  
+  mktime(&tmptm);
+  
+  printf("%d %d",tmptm.tm_yday+1,year);
+}
+
+
 /* ---------------------------------------------------------------------------
 
 # Man page for mjd. convert to mjd.1 using
@@ -163,7 +195,7 @@ mjd - MJD (Modified Julian Day) to/from Date conversion.
 
 =head1 SYNOPSIS
 
-B<mjd> C<[ -d DATE][ -m MJD]>
+B<mjd> C<[ -d DATE][ -m MJD] [-y MJD] [-t] [-v]>
 
 =head1 DESCRIPTION
 
@@ -173,7 +205,7 @@ B<mjd> converts a date to an MJD and vice versa. Output MJD's are truncated to
 =head1 OPTIONS
 
 If no option is given, then mjd implicitly does a date-to-MJD conversion.
-This is for compatability with older versions of B<mjd> which had no options.
+This is for compatibility with older versions of B<mjd> which had no options.
 Input is via console or pipe (see EXAMPLES and NOTE).
 
 =over 8
@@ -185,6 +217,10 @@ Convert a date to an MJD.  Output is a 5-digit MJD.
 =item B<-m MJD>
 
 Convert an MJD to a date. Output is in form  DD  MM YYYY.
+
+=item B<-y MJD>
+
+Convert an MJD to day of year (1..366) and year. Output is in the form DOY YYYY.
 
 =back
 
@@ -200,13 +236,13 @@ B<mjd -m 51231> returns 1 1 1999.
 =head1 NOTE
 
 When no switch is used, the MJD is returned without a linefeed (for 
-compatability with earlier versions of mjd). If input is on the command line,
+compatibility with earlier versions of mjd). If input is on the command line,
 then output has a line-feed appended.
 
 =head1 BUGS
 
 No prompts are given in this version of mjd. No range checking is done on
-input; type in nonsense and get nonsence back!  
+input; type in nonsense and get nonsense back!  
 
 Range is (27)00000 to (27)99999, ie 17 Nov 1858 to 31 Aug 2132!
 
