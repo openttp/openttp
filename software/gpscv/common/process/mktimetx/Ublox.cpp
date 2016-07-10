@@ -52,6 +52,8 @@ extern Application *app;
 #define CLIGHT 299792458.0
 
 #define MAX_CHANNELS 16 // max channels per constellation
+#define SLOPPINESS 0.99
+#define CLOCKSTEP  0.001
 
 // types used by ublox receivers     
 typedef signed char    I1;
@@ -153,7 +155,7 @@ bool Ublox::readLog(string fname,int mjd)
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 						measurements.push_back(rmeas);
 						
-						rmeas->sawtooth=-sawtooth*1.0E-12; // units are ps, must be subtracted from TIC measurement
+						rmeas->sawtooth=sawtooth*1.0E-12; // units are ps, must be added to TIC measurement
 						rmeas->timeOffset=clockBias*1.0E-9; // units are ns WARNING no sign convention defined yet ...
 						
 						int pchh,pcmm,pcss;
@@ -165,7 +167,7 @@ bool Ublox::readLog(string fname,int mjd)
 						
 						// GPSTOW is used for pseudorange estimations
 						// note: this is rounded because measurements are interpolated on a 1s grid
-						rmeas->gpstow=measTOW;  
+						rmeas->gpstow=rint(measTOW);  
 						rmeas->gpswn=measGPSWN % 1024; // Converted to truncaed WN. Not currently used 
 						
 						// UTC time of measurement
@@ -183,17 +185,23 @@ bool Ublox::readLog(string fname,int mjd)
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
+						rmeas->tmfracs = measTOW - (int)(measTOW); 
+						if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
+						
 						for (unsigned int sv=0;sv<gpsmeas.size();sv++){
+							gpsmeas.at(sv)->dbuf3 = gpsmeas.at(sv)->meas; // save for debugging
 							gpsmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
+							// Now subtract the ms part so that ms ambiguity resolution works
+							gpsmeas.at(sv)->meas -= 1.0E-3*floor(gpsmeas.at(sv)->meas/1.0E-3);
 							gpsmeas.at(sv)->rm=rmeas;
 						}
 						rmeas->gps=gpsmeas;
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
 						// KEEP THIS it's useful for debugging measurement-time related problems
-						fprintf(stderr,"PC=%02d:%02d:%02d msg0121=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d\n",
-							pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
-							(int) rmeas->gpstow,(int) rmeas->gpswn );
+					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
+						//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+						//(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 						
 					}
 				} // if (gpsmeas.size() > 0)
@@ -369,7 +377,43 @@ bool Ublox::readLog(string fname,int mjd)
 	// The Ublox sometime reports what appears to be an incorrect pseudorange after picking up an SV
 	// If you wanted to filter these out, this is where you should do it
 	
-	//interpolateMeasurements(measurements);
+	// Fix 1 ms ambiguities/steps in the pseudorange
+	// Do this initially and then every time a step is detected
+	
+	for (int prn=1;prn<=32;prn++){
+		unsigned int lasttow=99999999,currtow=99999999;
+		double lastmeas,currmeas;
+		double corr=0.0;
+		bool first=true;
+		bool ok=false;
+		for (unsigned int i=0;i<measurements.size();i++){
+			for (unsigned int m=0;m < measurements[i]->gps.size();m++){
+				if (prn==measurements[i]->gps[m]->svn){
+					lasttow=currtow;
+					lastmeas=currmeas;
+					currmeas=measurements[i]->gps[m]->meas;
+					currtow=measurements[i]->gpstow;
+					
+					DBGMSG(debugStream,TRACE,prn << " " << currtow << " " << currmeas << " ");
+					if (first){
+						first=false;
+						ok = resolveMsAmbiguity(measurements[i],measurements[i]->gps[m],&corr);
+					}
+					else if (currtow > lasttow){ // FIXME better test of gaps
+						if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
+							DBGMSG(debugStream,TRACE,"first/step " << prn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+							ok = resolveMsAmbiguity(measurements[i],measurements[i]->gps[m],&corr);
+						}
+					}
+					if (ok) measurements[i]->gps[m]->meas += corr;
+					break;
+				}
+				
+			}
+		}
+	}
+	
+	interpolateMeasurements(measurements);
 	// Note that after this, tmfracs is now zero and all measurements have been interpolated to a 1 s grid
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
