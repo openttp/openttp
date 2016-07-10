@@ -24,6 +24,7 @@
 
 #include <cmath>
 #include <time.h>
+#include <gsl/gsl_multifit.h>
 
 #include "Utility.h"
 
@@ -88,8 +89,38 @@ bool Utility::linearFit(double x[], double y[],int n,double xinterp,double *yint
 }
 
 bool Utility::quadFit(double x[], double y[],int n,double xinterp,double *yinterp){
-	double c,m,rmsResidual;
-	linearFit(x,y,n,xinterp,yinterp,&c,&m,&rmsResidual); // FIXME
+	//double c,m,rmsResidual;
+	//linearFit(x,y,n,xinterp,yinterp,&c,&m,&rmsResidual); // FIXME
+	
+	double chisq;
+  gsl_matrix *X, *cov;
+  gsl_vector *Y, *c;
+	
+	X = gsl_matrix_alloc (n, 3);
+	Y = gsl_vector_alloc (n);
+	c = gsl_vector_alloc (3);
+	cov = gsl_matrix_alloc (3, 3);
+
+	for (int i = 0; i < n; i++){    
+		gsl_matrix_set (X, i, 0, 1.0);
+		gsl_matrix_set (X, i, 1, x[i]);
+		gsl_matrix_set (X, i, 2, x[i]*x[i]);
+		gsl_vector_set (Y, i, y[i]);
+	}
+  
+	gsl_multifit_linear_workspace * work = gsl_multifit_linear_alloc (n, 3);
+	gsl_multifit_linear (X, Y, c, cov,&chisq, work);
+	gsl_multifit_linear_free (work);
+	
+	#define C(i) (gsl_vector_get(c,(i)))
+	
+	*yinterp = C(0) + C(1)*xinterp + C(2)*xinterp*xinterp;
+	
+	gsl_matrix_free (X);
+  gsl_vector_free (Y);
+  gsl_vector_free (c);
+  gsl_matrix_free (cov);
+	
 	return true;
 }
 

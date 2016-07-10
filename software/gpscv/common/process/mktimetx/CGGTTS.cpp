@@ -260,7 +260,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 					double refsyscorr,refsvcorr,iono,tropo,az,el;
 					// FIXME MDIO needs to change for L2
 					// getPseudorangeCorrections will check for NULL ephemeris
-					if (rx->gps.getPseudorangeCorrections(gpsTOW[q],uncorrprange[q],ant,ed,
+					if (rx->gps.getPseudorangeCorrections(gpsTOW[q],uncorrprange[q],ant,ed,code,
 							&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 						tutc[npts]=tutc[q]; // ok to overwrite, because npts <= q
 						svaz[npts]=az;
@@ -292,7 +292,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
 						// getPseudorangeCorrections will check for NULL ephemeris
-						if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,svtrk[sv].at(t)->meas,ant,ed,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,svtrk[sv].at(t)->meas,ant,ed,code,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
 							svel[npts]=el;

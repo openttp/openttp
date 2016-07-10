@@ -127,7 +127,7 @@ class GPS: public GNSSSystem
 		float alpha0,float alpha1,float alpha2,float alpha3,
 		float beta0,float beta1,float beta2,float beta3);
 	
-	bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,
+	bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,int signal,
 		double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 		double *azimuth,double *elevation, int *ioe);
 	
