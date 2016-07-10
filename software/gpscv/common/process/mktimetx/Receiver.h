@@ -87,6 +87,7 @@ class Receiver
 		
 		void deleteMeasurements(std::vector<SVMeasurement *> &);
 		void interpolateMeasurements(std::vector<ReceiverMeasurement *> &);
+		bool resolveMsAmbiguity(ReceiverMeasurement *,SVMeasurement *,double *);
 		
 		bool gotUTCdata,gotIonoData;
 		

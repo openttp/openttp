@@ -24,6 +24,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <iomanip>
 #include <ostream>
 
 #include "Debug.h"
@@ -193,6 +194,67 @@ void Receiver::interpolateMeasurements(std::vector<ReceiverMeasurement *> &meas)
 	
 }
 
+#define OMEGA_E_DOT 7.2921151467e-5
+#define CLIGHT 299792458.0
+
+bool Receiver::resolveMsAmbiguity(ReceiverMeasurement *rxm, SVMeasurement *svm, double *corr)
+{
+	*corr=0.0;
+	bool ok=false;
+	// find closest ephemeris entry
+	GPS::EphemerisData *ed = gps.nearestEphemeris(svm->svn,rxm->gpstow);
+	if (ed != NULL){
+		double x[3],Ek;
+		
+		int igpslt = rxm->gpstow; // take integer part of GPS local time (but it's integer anyway ...) 
+		int gpsDayOfWeek = igpslt/86400; 
+		//  if it is near the end of the day and toc->hour is < 6, then the ephemeris is from the next day.
+		int tmpgpslt = igpslt % 86400;
+		double toc=ed->t_OC; // toc is clock data reference time
+		int tocDay=(int) toc/86400;
+		toc-=86400*tocDay;
+		int tocHour=(int) toc/3600;
+		toc-=3600*tocHour;
+		int tocMinute=(int) toc/60;
+		toc-=60*tocMinute;
+		int tocSecond=toc;
+		if (tmpgpslt >= (86400 - 6*3600) && (tocHour < 6))
+			  gpsDayOfWeek++;
+		toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
+	
+		// Calculate clock corrections (ICD 20.3.3.3.3.1)
+		double gpssvt= rxm->gpstow - svm->meas;
+		double clockCorrection = ed->a_f0 + ed->a_f1*(gpssvt - toc) + ed->a_f2*(gpssvt - toc)*(gpssvt - toc); // SV PRN code phase offset
+		double tk = gpssvt - clockCorrection;
+		
+		double range,ms,svdist,svrange,ax,ay,az;
+		if (gps.satXYZ(ed,tk,&Ek,x)){
+			double trel =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
+			range = svm->meas + clockCorrection + trel - ed->t_GD;
+			// Correction for Earth rotation (Sagnac) (ICD 20.3.3.4.3.4)
+			ax = antenna->x - OMEGA_E_DOT * antenna->y * range;
+			ay = antenna->y + OMEGA_E_DOT * antenna->x * range;
+			az = antenna->z ;
+			
+			svrange= (svm->meas+clockCorrection) * CLIGHT;
+			svdist = sqrt( (x[0]-ax)*(x[0]-ax) + (x[1]-ay)*(x[1]-ay) + (x[2]-az)*(x[2]-az));
+			double err  = (svrange - svdist);
+			ms   = (int)((-err/CLIGHT *1000)+0.5)/1000.0;
+			*corr = ms;
+			ok=true;
+		}
+		else{
+			DBGMSG(debugStream,1,"Failed");
+			ok=false;
+		}
+		DBGMSG(debugStream,3, (int) svm->svn << " " << svm->meas << " " << std::fixed << std::setprecision(6) << " " << rxm->gpstow << " " << tk << " " 
+		  << gpsDayOfWeek << " " << toc << " " << clockCorrection << " " << range << " " << (int) (ms*1000) << " " << svdist << " " << svrange
+			<< " " << sqrt((antenna->x-ax)*(antenna->x-ax)+(antenna->y-ay)*(antenna->y-ay)+(antenna->z-az)*(antenna->z-az))
+			<< " " << Ek << " " << x[0] << " " << x[1] << " " << x[2]);
+
+	}
+	return ok;
+}
 
 
 

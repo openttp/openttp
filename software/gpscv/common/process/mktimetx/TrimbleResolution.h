@@ -46,7 +46,6 @@ class TrimbleResolution:public Receiver
 	protected:
 	
 	private:
-		bool resolveMsAmbiguity(ReceiverMeasurement *,SVMeasurement *,double *);
 		
 		int appvermajor,appverminor,appmonth,appday,appyear;
 		int corevermajor,coreverminor,coremonth,coreday,coreyear;
