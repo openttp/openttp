@@ -130,7 +130,7 @@ int argc,char *argv[])
   }
 	
   printf("mjd: invalid option or wrong number of parameters\n");
-  printf("usage: mjd [-d DD MM YYYY] [-m MJD] [-t] [-h] [-v]\n");
+  printf("usage: mjd [-d DD MM YYYY] [-m MJD] [-y MJD] [-t] [-h] [-v]\n");
 	
   return EXIT_FAILURE;
 } 
@@ -195,7 +195,7 @@ mjd - MJD (Modified Julian Day) to/from Date conversion.
 
 =head1 SYNOPSIS
 
-B<mjd> C<[ -d DATE][ -m MJD]>
+B<mjd> C<[ -d DATE][ -m MJD] [-y MJD] [-t] [-v]>
 
 =head1 DESCRIPTION
 
@@ -205,7 +205,7 @@ B<mjd> converts a date to an MJD and vice versa. Output MJD's are truncated to
 =head1 OPTIONS
 
 If no option is given, then mjd implicitly does a date-to-MJD conversion.
-This is for compatability with older versions of B<mjd> which had no options.
+This is for compatibility with older versions of B<mjd> which had no options.
 Input is via console or pipe (see EXAMPLES and NOTE).
 
 =over 8
@@ -217,6 +217,10 @@ Convert a date to an MJD.  Output is a 5-digit MJD.
 =item B<-m MJD>
 
 Convert an MJD to a date. Output is in form  DD  MM YYYY.
+
+=item B<-y MJD>
+
+Convert an MJD to day of year (1..366) and year. Output is in the form DOY YYYY.
 
 =back
 
@@ -232,13 +236,13 @@ B<mjd -m 51231> returns 1 1 1999.
 =head1 NOTE
 
 When no switch is used, the MJD is returned without a linefeed (for 
-compatability with earlier versions of mjd). If input is on the command line,
+compatibility with earlier versions of mjd). If input is on the command line,
 then output has a line-feed appended.
 
 =head1 BUGS
 
 No prompts are given in this version of mjd. No range checking is done on
-input; type in nonsense and get nonsence back!  
+input; type in nonsense and get nonsense back!  
 
 Range is (27)00000 to (27)99999, ie 17 Nov 1858 to 31 Aug 2132!
 
