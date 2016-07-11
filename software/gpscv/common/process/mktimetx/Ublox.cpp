@@ -199,12 +199,16 @@ bool Ublox::readLog(string fname,int mjd)
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
 						// KEEP THIS it's useful for debugging measurement-time related problems
-					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
-						//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
-						//(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
+					fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
+						pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+						(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 						
-					}
-				} // if (gpsmeas.size() > 0)
+					}// if (gpsmeas.size() > 0)
+				} 
+				else{
+					DBGMSG(debugStream,1,pctime << " reqd message missing, flags = " << currentMsgs);
+					deleteMeasurements(gpsmeas);
+				}
 				
 				pctime=currpctime;
 				currentMsgs = 0;
