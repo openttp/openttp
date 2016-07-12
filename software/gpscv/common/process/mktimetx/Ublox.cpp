@@ -199,9 +199,13 @@ bool Ublox::readLog(string fname,int mjd)
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
 						// KEEP THIS it's useful for debugging measurement-time related problems
-					fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
-						pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
-						(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
+					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
+					//	pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+					//	(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
+					
+					fprintf(stderr,"%02d:%02d:%02d %02d:%02d:%02d %02d:%02d:%02d %d %d %.12lf %g %g\n",
+					pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+					(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 						
 					}// if (gpsmeas.size() > 0)
 				} 
@@ -331,8 +335,8 @@ bool Ublox::readLog(string fname,int mjd)
 					DBGMSG(debugStream,WARNING,"Empty ephemeris");
 				}
 				else if (msg.size()==(104+2)*2){
-					HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
-					DBGMSG(debugStream,TRACE,"Ephemeris for SV" << u4buf);
+					GPS::EphemerisData *ed = decodeEphemeris(msg);
+					gps.addEphemeris(ed);
 				}
 				else{
 					DBGMSG(debugStream,WARNING,"Bad 0b31 message size");
@@ -417,7 +421,7 @@ bool Ublox::readLog(string fname,int mjd)
 		}
 	}
 	
-	interpolateMeasurements(measurements);
+	// interpolateMeasurements(measurements);
 	// Note that after this, tmfracs is now zero and all measurements have been interpolated to a 1 s grid
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
@@ -427,4 +431,55 @@ bool Ublox::readLog(string fname,int mjd)
 	
 	return true;
 	
+}
+
+
+GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
+{
+	U4 u4buf;
+	HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	GPS::EphemerisData* ed= new GPS::EphemerisData();
+	ed->SVN=u4buf;
+	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
+	
+	// To use the MID macro, LSB is bit 0, m is first bit, n is last bit
+	#define LAST(k,n) ((k) & ((1<<(n))-1))
+	#define MID(k,m,n) LAST((k)>>(m),((n)-(m)+1)) 
+	
+	// Data is in bits 0-23
+	// To translate from ICD numbering b24 (ICD) -> b0 (ublox)
+	// subframe 1
+	// word 3
+	HexToBin((char *) msg.substr(8*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	
+	ed->week_number = MID(u4buf,14,23);
+	ed->SV_accuracy=MID(u4buf,8,11);
+	ed->SV_health=MID(u4buf,2,7);
+	unsigned char IODCbits=MID(u4buf,0,1);
+	
+	fprintf(stderr,"%i %08x %i %i %i %02x\n",(int) ed->SVN,u4buf, (int) ed->week_number,
+		(int) ed->SV_accuracy, ed->SV_health, IODCbits);
+	
+	// word 7 Tgd b17-b24 (ICD) CHECKED
+	HexToBin((char *) msg.substr(24*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed char tGD = MID(u4buf,0,7); // signed, scaled by 2^-31
+	ed->t_GD =  (double) tGD / (double) pow(2,31);
+	
+	fprintf(stderr,"%08x %.12e\n",u4buf,ed->t_GD);
+	
+	// word 8 t_OC b9-b24 (ICD)
+	HexToBin((char *) msg.substr(28*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	ed->t_OC = 16*MID(u4buf,0,15);
+	fprintf(stderr,"%08x %e\n",u4buf,ed->t_OC);
+	
+	// word 9 a_f2 8b, a_f1 16b
+	
+	// word 10 a_f0 b1-b22
+	HexToBin((char *) msg.substr(36*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	int tmp = (MID(u4buf,2,23) << 10);
+	tmp = tmp >> 10;
+	ed->a_f0 = (double) tmp /(double) pow(2,31); // signed, scaled by 2^-31
+	fprintf(stderr,"%08x %.12e\n",u4buf,ed->a_f0);
+	
+	return ed;
 }

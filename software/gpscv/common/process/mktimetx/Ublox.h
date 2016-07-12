@@ -45,7 +45,8 @@ class Ublox:public Receiver
 	
 	private:
 	
-	
+		GPS::EphemerisData *decodeEphemeris(string);
+		
 };
 
 #endif

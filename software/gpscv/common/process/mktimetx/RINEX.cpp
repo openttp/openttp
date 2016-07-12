@@ -516,7 +516,7 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	while (!fin.eof()){
 		getline(fin,line);
 		lineCount++;
-		if (RINEXver == 2){
+		if (RINEXver <3){
 			if (constellation == GNSSSystem::GPS){
 				if (string::npos != line.find("ION ALPHA")){
 					std::replace( line.begin(), line.end(), 'D', 'E');
