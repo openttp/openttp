@@ -433,6 +433,7 @@ bool Ublox::readLog(string fname,int mjd)
 	
 }
 
+#define ICD_PI 3.1415926535898
 
 GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 {
@@ -472,14 +473,48 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	ed->t_OC = 16*MID(u4buf,0,15);
 	fprintf(stderr,"%08x %e\n",u4buf,ed->t_OC);
 	
-	// word 9 a_f2 8b, a_f1 16b
+	// word 9 a_f2 b1-b8, a_f1 b9-b24 // CHECKED a_f1
+	HexToBin((char *) msg.substr(32*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed char af2 = MID(u4buf,16,23);
+	ed->a_f2 = af2/pow(2,55);
+	signed short af1= MID(u4buf,0,15);
+	ed->a_f1 = (double) af1/(double) pow(2,43);
 	
-	// word 10 a_f0 b1-b22
+	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->a_f1,ed->a_f2);
+	if (ed->a_f2 != 0.0) fprintf(stderr,"BING!\n");
+
+	// word 10 a_f0 b1-b22 // CHECKED
 	HexToBin((char *) msg.substr(36*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	int tmp = (MID(u4buf,2,23) << 10);
 	tmp = tmp >> 10;
 	ed->a_f0 = (double) tmp /(double) pow(2,31); // signed, scaled by 2^-31
 	fprintf(stderr,"%08x %.12e\n",u4buf,ed->a_f0);
+	
+	// data frame 2
+	// word 3
+	// IODE b1-b8 // CHECKED
+	HexToBin((char *) msg.substr(40*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	ed->IODE = MID(u4buf,16,23);
+	// C_rs b9-b24 // CHECKED
+	signed short Crs= MID(u4buf,0,15);
+	ed->C_rs= (double) Crs/ (double) 32.0;
+	fprintf(stderr,"%08x %i %.12e\n",u4buf,ed->IODE,ed->C_rs);
+	
+	// word 4
+	// deltaN b1-b16 // CHECKED nb this is a SINGLE so differences in 7 or 8th digit in RINEX files
+	HexToBin((char *) msg.substr(44*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed short deltaN=MID(u4buf,8,23);
+	ed->delta_N = ICD_PI*(double) deltaN/(double) pow(2,43); // GPS units are semi-circles/s, RINEX units are rad/s
+	// M_0 (upper 8 bits) b17-b24
+	unsigned int upbits =  MID(u4buf,0,7) << 24;
+	
+	// word 5
+	// M_0 (lower 24 bits) b1-b24 // CHECKED
+	HexToBin((char *) msg.substr(48*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	unsigned int lowbits = MID(u4buf,0,23);
+	
+	ed->M_0 = ICD_PI * ((double) ((int) (upbits | lowbits)))/ (double) pow(2,31);
+	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->delta_N, ed->M_0);
 	
 	return ed;
 }
