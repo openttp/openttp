@@ -443,11 +443,13 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	ed->SVN=u4buf;
 	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
 	
+	cerr << "EPH" << endl;
+
 	// To use the MID macro, LSB is bit 0, m is first bit, n is last bit
 	#define LAST(k,n) ((k) & ((1<<(n))-1))
 	#define MID(k,m,n) LAST((k)>>(m),((n)-(m)+1)) 
 	
-	// Data is in bits 0-23
+	// Data is in bits 0-23, parity bits are discarded by ublox
 	// To translate from ICD numbering b24 (ICD) -> b0 (ublox)
 	// subframe 1
 	// word 3
@@ -456,22 +458,29 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	ed->week_number = MID(u4buf,14,23);
 	ed->SV_accuracy=MID(u4buf,8,11);
 	ed->SV_health=MID(u4buf,2,7);
-	unsigned char IODCbits=MID(u4buf,0,1);
+	// IODC b23-b24 (upper bits)
+	unsigned int hibits=MID(u4buf,0,1);
+	hibits = hibits << 8;
 	
-	fprintf(stderr,"%i %08x %i %i %i %02x\n",(int) ed->SVN,u4buf, (int) ed->week_number,
-		(int) ed->SV_accuracy, ed->SV_health, IODCbits);
+	fprintf(stderr,"%i %08x %i %i %i\n",(int) ed->SVN,u4buf, (int) ed->week_number,
+		(int) ed->SV_accuracy, ed->SV_health);
 	
-	// word 7 Tgd b17-b24 (ICD) CHECKED
+	// word 7 
 	HexToBin((char *) msg.substr(24*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	//Tgd b17-b24 (ICD) CHECKED
 	signed char tGD = MID(u4buf,0,7); // signed, scaled by 2^-31
 	ed->t_GD =  (double) tGD / (double) pow(2,31);
 	
 	fprintf(stderr,"%08x %.12e\n",u4buf,ed->t_GD);
 	
-	// word 8 t_OC b9-b24 (ICD)
+	// word 8
 	HexToBin((char *) msg.substr(28*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	// IODC b1-b8 (lower bits) // CHECKED
+	unsigned int lobits = MID(u4buf,16,23);
+	ed->IODC = hibits | lobits;
+	// t_OC b9-b24 (ICD)
 	ed->t_OC = 16*MID(u4buf,0,15);
-	fprintf(stderr,"%08x %e\n",u4buf,ed->t_OC);
+	fprintf(stderr,"%08x %e %i\n",u4buf,ed->t_OC,(int) ed->IODC);
 	
 	// word 9 a_f2 b1-b8, a_f1 b9-b24 // CHECKED a_f1
 	HexToBin((char *) msg.substr(32*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
@@ -506,15 +515,116 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	signed short deltaN=MID(u4buf,8,23);
 	ed->delta_N = ICD_PI*(double) deltaN/(double) pow(2,43); // GPS units are semi-circles/s, RINEX units are rad/s
 	// M_0 (upper 8 bits) b17-b24
-	unsigned int upbits =  MID(u4buf,0,7) << 24;
+	hibits =  MID(u4buf,0,7) << 24;
 	
 	// word 5
 	// M_0 (lower 24 bits) b1-b24 // CHECKED
 	HexToBin((char *) msg.substr(48*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
-	unsigned int lowbits = MID(u4buf,0,23);
+	lobits = MID(u4buf,0,23);
 	
-	ed->M_0 = ICD_PI * ((double) ((int) (upbits | lowbits)))/ (double) pow(2,31);
+	ed->M_0 = ICD_PI * ((double) ((int) (hibits | lobits)))/ (double) pow(2,31);
 	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->delta_N, ed->M_0);
+	
+	// word 6
+	// C_uc b1-b16 // CHECKED
+	HexToBin((char *) msg.substr(52*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed short Cuc=MID(u4buf,8,23);
+	ed->C_uc = (double) Cuc/(double) pow(2,29);
+	// e b17-b24 (upper 8 bits)
+	hibits =  MID(u4buf,0,7) << 24;
+	
+	// word 7
+	// e b1-b24 (lower 24 bits) // CHECKED
+	HexToBin((char *) msg.substr(56*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	lobits = MID(u4buf,0,23);
+	ed->e = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,33);
+	fprintf(stderr,"%08x %.12e %.12e \n",u4buf,ed->C_uc,ed->e);
+	
+	// word 8
+	// C_us b1-b16 // CHECKED
+	HexToBin((char *) msg.substr(60*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed short Cus=MID(u4buf,8,23);
+	ed->C_us = (double) Cus/(double) pow(2,29);
+	// sqrtA b1-b8 (upper bits)
+	hibits =  MID(u4buf,0,7) << 24;
+	
+	// word 9
+	//sqrtA b1-b24 (lower bits) // CHECKED
+	HexToBin((char *) msg.substr(64*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	lobits = MID(u4buf,0,23);
+	ed->sqrtA = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,19);
+	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_us,ed->sqrtA);
+	
+	// word 10
+	// t_OE b1-b16 // CHECKED
+	HexToBin((char *) msg.substr(68*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	unsigned short toe=MID(u4buf,8,23);
+	ed->t_oe = toe * 16;
+	fprintf(stderr,"%08x %.12e \n",u4buf,ed->t_oe);
+	
+	// data frame 3
+	// word 3
+	// C_ic b1-b16 // CHECKED
+	HexToBin((char *) msg.substr(72*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed short Cic=MID(u4buf,8,23);
+	ed->C_ic = (double) Cic/(double) pow(2,29);
+	// OMEGA_0 b17-b24 (upper bits)
+	hibits =  MID(u4buf,0,7) << 24;
+	
+	// word 4
+	// OMEGA_0 b1-b24 lower bits // CHECKED
+	HexToBin((char *) msg.substr(76*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	lobits = MID(u4buf,0,23);
+	ed->OMEGA_0 = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
+	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_ic,ed->OMEGA_0);
+	
+	// word 5
+	// C_is b1-b16 // CHECKED
+	HexToBin((char *) msg.substr(80*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed short Cis=MID(u4buf,8,23);
+	ed->C_is= (double) Cis/(double) pow(2,29);
+	// i_0 b17-b24 (upper bits)
+	hibits =  MID(u4buf,0,7) << 24;
+	
+	// word 6
+	// i_0 b1-b24 (lower bits) // CHECKED
+	HexToBin((char *) msg.substr(84*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	lobits = MID(u4buf,0,23);
+	ed->i_0 = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
+	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_is,ed->i_0);
+	
+	// word 7
+	// C_rc b1-b16 // CHECKED
+	HexToBin((char *) msg.substr(88*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	signed short Crc=MID(u4buf,8,23);
+	ed->C_rc= (double) Crc/32.0;
+	// OMEGA b17-b24 (upper bits)
+	hibits =  MID(u4buf,0,7) << 24;
+	
+	// word 8
+	// OMEGA b1-b24 (lower bits) // CHECKED
+	HexToBin((char *) msg.substr(92*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	lobits = MID(u4buf,0,23);
+	ed->OMEGA = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
+	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_rc,ed->OMEGA);
+	
+	
+	// word 9
+	// OMEGA_DOT b1-b24 // CHECKED
+	HexToBin((char *) msg.substr(96*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	int odot = (MID(u4buf,0,23)) << 8;
+	odot = odot >> 8;	
+	ed->OMEGADOT = ICD_PI * (double) (odot)/ (double) pow(2,43);
+	fprintf(stderr,"%08x %.12e\n",u4buf,ed->OMEGADOT);
+
+	// word 10
+	// IODE b1-b8 (repeated to facilitate checking for data cutovers) ... but which one should I use ???
+	// IDOT b9-b22 // CHECKED
+	HexToBin((char *) msg.substr(100*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	int idot = (MID(u4buf,2,15)) << 18;
+	idot = idot >> 18;
+	ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
+	fprintf(stderr,"%08x %.12e\n",u4buf,ed->IDOT);
 	
 	return ed;
 }
