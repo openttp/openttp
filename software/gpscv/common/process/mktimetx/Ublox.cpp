@@ -50,6 +50,7 @@ extern ostream *debugStream;
 extern Application *app;
 
 #define CLIGHT 299792458.0
+#define ICD_PI 3.1415926535898
 
 #define MAX_CHANNELS 16 // max channels per constellation
 #define SLOPPINESS 0.99
@@ -115,6 +116,7 @@ bool Ublox::readLog(string fname,int mjd)
 	U1 UTCmon,UTCday,UTChour,UTCmin,UTCsec,UTCvalid;
 	
 	U1 u1buf;
+	I2 i2buf;
 	I4 i4buf;
 	U4 u4buf;
 	R4 r4buf;
@@ -203,9 +205,9 @@ bool Ublox::readLog(string fname,int mjd)
 					//	pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
 					//	(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 					
-					fprintf(stderr,"%02d:%02d:%02d %02d:%02d:%02d %02d:%02d:%02d %d %d %.12lf %g %g\n",
-					pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
-					(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
+					//fprintf(stderr,"%02d:%02d:%02d %02d:%02d:%02d %02d:%02d:%02d %d %d %.12lf %g %g\n",
+					//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+					//(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 						
 					}// if (gpsmeas.size() > 0)
 				} 
@@ -319,6 +321,38 @@ bool Ublox::readLog(string fname,int mjd)
 			if (!gotUTCdata){
 				if(msgid == "0b02"){
 					if (msg.size()==(72+2)*2){
+						HexToBin((char *) msg.substr(4*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &(gps.UTCdata.A0)); 
+						HexToBin((char *) msg.substr(12*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &r8buf);
+						gps.UTCdata.A1=r8buf;
+						HexToBin((char *) msg.substr(20*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &i4buf);
+						gps.UTCdata.t_ot = i4buf;
+						HexToBin((char *) msg.substr(24*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &i2buf);
+						gps.UTCdata.WN_t=i2buf;
+						HexToBin((char *) msg.substr(26*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &i2buf);
+						leapsecs = i2buf;
+						HexToBin((char *) msg.substr(28*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &i2buf);
+						gps.UTCdata.WN_LSF=i2buf;
+						HexToBin((char *) msg.substr(30*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &i2buf);
+						gps.UTCdata.DN=i2buf;
+						HexToBin((char *) msg.substr(32*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &i2buf);
+						gps.UTCdata.dt_LSF=i2buf;
+						
+						HexToBin((char *) msg.substr(36*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.a0));
+						HexToBin((char *) msg.substr(40*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.a1));
+						//gps.ionoData.a1 /= ICD_PI;
+						HexToBin((char *) msg.substr(44*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.a2));
+						//gps.ionoData.a2 /= (ICD_PI*ICD_PI);
+						HexToBin((char *) msg.substr(48*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.a3));
+						//gps.ionoData.a3 /= (ICD_PI*ICD_PI*ICD_PI);
+						
+						HexToBin((char *) msg.substr(52*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.B0));
+						HexToBin((char *) msg.substr(56*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.B1));
+						//gps.ionoData.B1 /= ICD_PI;
+						HexToBin((char *) msg.substr(60*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.B2));
+						//gps.ionoData.B2 /= (ICD_PI*ICD_PI);
+						HexToBin((char *) msg.substr(64*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.B3));
+						//gps.ionoData.B3 /= (ICD_PI*ICD_PI*ICD_PI);
+						
 						gotUTCdata=true;
 						gotIonoData=true;
 					}
@@ -433,8 +467,6 @@ bool Ublox::readLog(string fname,int mjd)
 	
 }
 
-#define ICD_PI 3.1415926535898
-
 GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 {
 	U4 u4buf;
@@ -443,7 +475,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	ed->SVN=u4buf;
 	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
 	
-	cerr << "EPH" << endl;
+	//cerr << "EPH" << endl;
 
 	// To use the MID macro, LSB is bit 0, m is first bit, n is last bit
 	#define LAST(k,n) ((k) & ((1<<(n))-1))
@@ -462,8 +494,8 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	unsigned int hibits=MID(u4buf,0,1);
 	hibits = hibits << 8;
 	
-	fprintf(stderr,"%i %08x %i %i %i\n",(int) ed->SVN,u4buf, (int) ed->week_number,
-		(int) ed->SV_accuracy, ed->SV_health);
+	//fprintf(stderr,"%i %08x %i %i %i\n",(int) ed->SVN,u4buf, (int) ed->week_number,
+	//	(int) ed->SV_accuracy, ed->SV_health);
 	
 	// word 7 
 	HexToBin((char *) msg.substr(24*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
@@ -471,7 +503,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	signed char tGD = MID(u4buf,0,7); // signed, scaled by 2^-31
 	ed->t_GD =  (double) tGD / (double) pow(2,31);
 	
-	fprintf(stderr,"%08x %.12e\n",u4buf,ed->t_GD);
+	//fprintf(stderr,"%08x %.12e\n",u4buf,ed->t_GD);
 	
 	// word 8
 	HexToBin((char *) msg.substr(28*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
@@ -480,7 +512,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	ed->IODC = hibits | lobits;
 	// t_OC b9-b24 (ICD)
 	ed->t_OC = 16*MID(u4buf,0,15);
-	fprintf(stderr,"%08x %e %i\n",u4buf,ed->t_OC,(int) ed->IODC);
+	//fprintf(stderr,"%08x %e %i\n",u4buf,ed->t_OC,(int) ed->IODC);
 	
 	// word 9 a_f2 b1-b8, a_f1 b9-b24 // CHECKED a_f1
 	HexToBin((char *) msg.substr(32*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
@@ -489,7 +521,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	signed short af1= MID(u4buf,0,15);
 	ed->a_f1 = (double) af1/(double) pow(2,43);
 	
-	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->a_f1,ed->a_f2);
+	//fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->a_f1,ed->a_f2);
 	if (ed->a_f2 != 0.0) fprintf(stderr,"BING!\n");
 
 	// word 10 a_f0 b1-b22 // CHECKED
@@ -497,7 +529,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	int tmp = (MID(u4buf,2,23) << 10);
 	tmp = tmp >> 10;
 	ed->a_f0 = (double) tmp /(double) pow(2,31); // signed, scaled by 2^-31
-	fprintf(stderr,"%08x %.12e\n",u4buf,ed->a_f0);
+	//fprintf(stderr,"%08x %.12e\n",u4buf,ed->a_f0);
 	
 	// data frame 2
 	// word 3
@@ -507,7 +539,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	// C_rs b9-b24 // CHECKED
 	signed short Crs= MID(u4buf,0,15);
 	ed->C_rs= (double) Crs/ (double) 32.0;
-	fprintf(stderr,"%08x %i %.12e\n",u4buf,ed->IODE,ed->C_rs);
+	//fprintf(stderr,"%08x %i %.12e\n",u4buf,ed->IODE,ed->C_rs);
 	
 	// word 4
 	// deltaN b1-b16 // CHECKED nb this is a SINGLE so differences in 7 or 8th digit in RINEX files
@@ -523,7 +555,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	lobits = MID(u4buf,0,23);
 	
 	ed->M_0 = ICD_PI * ((double) ((int) (hibits | lobits)))/ (double) pow(2,31);
-	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->delta_N, ed->M_0);
+	//fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->delta_N, ed->M_0);
 	
 	// word 6
 	// C_uc b1-b16 // CHECKED
@@ -538,7 +570,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	HexToBin((char *) msg.substr(56*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	lobits = MID(u4buf,0,23);
 	ed->e = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,33);
-	fprintf(stderr,"%08x %.12e %.12e \n",u4buf,ed->C_uc,ed->e);
+	//fprintf(stderr,"%08x %.12e %.12e \n",u4buf,ed->C_uc,ed->e);
 	
 	// word 8
 	// C_us b1-b16 // CHECKED
@@ -553,14 +585,14 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	HexToBin((char *) msg.substr(64*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	lobits = MID(u4buf,0,23);
 	ed->sqrtA = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,19);
-	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_us,ed->sqrtA);
+	//fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_us,ed->sqrtA);
 	
 	// word 10
 	// t_OE b1-b16 // CHECKED
 	HexToBin((char *) msg.substr(68*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	unsigned short toe=MID(u4buf,8,23);
 	ed->t_oe = toe * 16;
-	fprintf(stderr,"%08x %.12e \n",u4buf,ed->t_oe);
+	//fprintf(stderr,"%08x %.12e \n",u4buf,ed->t_oe);
 	
 	// data frame 3
 	// word 3
@@ -576,7 +608,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	HexToBin((char *) msg.substr(76*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	lobits = MID(u4buf,0,23);
 	ed->OMEGA_0 = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
-	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_ic,ed->OMEGA_0);
+	//fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_ic,ed->OMEGA_0);
 	
 	// word 5
 	// C_is b1-b16 // CHECKED
@@ -591,7 +623,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	HexToBin((char *) msg.substr(84*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	lobits = MID(u4buf,0,23);
 	ed->i_0 = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
-	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_is,ed->i_0);
+	//fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_is,ed->i_0);
 	
 	// word 7
 	// C_rc b1-b16 // CHECKED
@@ -606,7 +638,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	HexToBin((char *) msg.substr(92*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	lobits = MID(u4buf,0,23);
 	ed->OMEGA = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
-	fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_rc,ed->OMEGA);
+	//fprintf(stderr,"%08x %.12e %.12e\n",u4buf,ed->C_rc,ed->OMEGA);
 	
 	
 	// word 9
@@ -615,7 +647,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	int odot = (MID(u4buf,0,23)) << 8;
 	odot = odot >> 8;	
 	ed->OMEGADOT = ICD_PI * (double) (odot)/ (double) pow(2,43);
-	fprintf(stderr,"%08x %.12e\n",u4buf,ed->OMEGADOT);
+	//fprintf(stderr,"%08x %.12e\n",u4buf,ed->OMEGADOT);
 
 	// word 10
 	// IODE b1-b8 (repeated to facilitate checking for data cutovers) ... but which one should I use ???
@@ -624,7 +656,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	int idot = (MID(u4buf,2,15)) << 18;
 	idot = idot >> 18;
 	ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
-	fprintf(stderr,"%08x %.12e\n",u4buf,ed->IDOT);
+	//fprintf(stderr,"%08x %.12e\n",u4buf,ed->IDOT);
 	
 	return ed;
 }
