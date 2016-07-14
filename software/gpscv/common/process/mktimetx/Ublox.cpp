@@ -73,6 +73,7 @@ typedef double         R8;
 #define MSG0215 0x04
 #define MSG0D01 0x08
 
+
 Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 {
 	modelName=m;
@@ -359,10 +360,10 @@ bool Ublox::readLog(string fname,int mjd)
 					else{
 						DBGMSG(debugStream,WARNING,"Bad 0b02 message size");
 					}
+					continue;
 				}
-				continue;
 			}
-			
+		
 			// Ephemeris
 			if(msgid == "0b31"){
 				if (msg.size()==(8+2)*2){
@@ -376,7 +377,7 @@ bool Ublox::readLog(string fname,int mjd)
 					DBGMSG(debugStream,WARNING,"Bad 0b31 message size");
 				}
 				continue;
-			}
+			} // ephemeris
 		}
 	} // infile is open
 	else{
@@ -475,7 +476,7 @@ GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
 	ed->SVN=u4buf;
 	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
 	
-	//cerr << "EPH" << endl;
+	// cerr << "EPH" << endl;
 
 	// To use the MID macro, LSB is bit 0, m is first bit, n is last bit
 	#define LAST(k,n) ((k) & ((1<<(n))-1))
