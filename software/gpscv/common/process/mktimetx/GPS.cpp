@@ -394,39 +394,39 @@ void GPS::UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 
 // Convert GPS time to UTC time
 // 
+
+// FIXME Make reference time an explicit parameter ?
 void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLeapSeconds,
 	struct tm *tmUTC)
 {
-	time_t tUTC = 315964800 + tow + truncatedWN*7*86400 - nLeapSeconds;
-	
 	// Now fix the truncated week number.
 	// We'll require that it be later than
 	// 2016-01-01 00:00:00 UTC == 1451606400 Unix time
 	// which means it will bomb after I retire, and will then be Somebody Else's Problem
-	
-	int nRollovers = (1451606400 - tUTC)/(86400*7*1024); // mus be +ve since at least one rollover has taken place
-	if (nRollovers < 0){
-		cerr << "GPS time earlier than reference time - unable to resolve WN" << endl;
+	if (truncatedWN > 1023){
+		cerr << "GPS::GPStoUTC() truncated WN > 1023" << endl;
 		exit(EXIT_FAILURE);
 	}
-	tUTC += nRollovers * 1024*7*86400;
+	time_t tUTC = 315964800 + tow + (truncatedWN+1024)*7*86400 - nLeapSeconds; // there's been one rollover, so add it
+	
+	// tUTC - ref time must be greater than zero
+	// If not, add another rollover
+	if (tUTC-1451606400 < 0)
+		tUTC += 1024*7*86400;
+	
 	gmtime_r(&tUTC,tmUTC);
 }
 
  time_t GPS::GPStoUnix(unsigned int tow, unsigned int truncatedWN){
-	time_t tGPS = 315964800 + tow + truncatedWN*7*86400;
-	
-	// Now fix the truncated week number.
-	// We'll require that it be later than
-	// 2016-01-01 00:00:00 UTC == 1451606400 Unix time
-	// which means it will bomb after I retire, and will then be Somebody Else's Problem
-	
-	int nRollovers = (1451606400 - tGPS)/(86400*7*1024); // mus be +ve since at least one rollover has taken place
-	if (nRollovers < 0){
-		cerr << "GPS time earlier than reference time - unable to resolve WN" << endl;
+	 
+	// See above ...
+	if (truncatedWN > 1023){
+		cerr << "GPS::GPStoUnix() truncated WN > 1023" << endl;
 		exit(EXIT_FAILURE);
 	}
-	tGPS += nRollovers * 1024*7*86400;
+	time_t tGPS = 315964800 + tow + (truncatedWN+1024)*7*86400;
+	if (tGPS-1451606400 < 0)
+		tGPS += 1024*7*86400;
 	return tGPS;
 }
 

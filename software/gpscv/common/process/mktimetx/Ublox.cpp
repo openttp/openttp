@@ -171,7 +171,7 @@ bool Ublox::readLog(string fname,int mjd)
 						// GPSTOW is used for pseudorange estimations
 						// note: this is rounded because measurements are interpolated on a 1s grid
 						rmeas->gpstow=rint(measTOW);  
-						rmeas->gpswn=measGPSWN % 1024; // Converted to truncaed WN. Not currently used 
+						rmeas->gpswn=measGPSWN % 1024; // Converted to truncated WN. Not currently used 
 						
 						// UTC time of measurement
 						// We could use other time information to calculate this eg gpstow,gpswn and leap seconds
@@ -184,12 +184,15 @@ bool Ublox::readLog(string fname,int mjd)
 						rmeas->tmUTC.tm_isdst=0;
 						
 						// Calculate GPS time of measurement 
+						// FIXME why do this ? why not just convert from UTC ? and full WN is known anyway
 						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn);
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
-						rmeas->tmfracs = measTOW - (int)(measTOW); 
-						if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
+						//rmeas->tmfracs = measTOW - (int)(measTOW); 
+						//if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
+						
+						rmeas->tmfracs=0.0;
 						
 						for (unsigned int sv=0;sv<gpsmeas.size();sv++){
 							gpsmeas.at(sv)->dbuf3 = gpsmeas.at(sv)->meas; // save for debugging
@@ -202,8 +205,8 @@ bool Ublox::readLog(string fname,int mjd)
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 						
 						// KEEP THIS it's useful for debugging measurement-time related problems
-					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
-					//	pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%4d %02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
+					//	pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_year+1900,rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
 					//	(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 					
 					//fprintf(stderr,"%02d:%02d:%02d %02d:%02d:%02d %02d:%02d:%02d %d %d %.12lf %g %g\n",
