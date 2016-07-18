@@ -2,8 +2,30 @@
 
 \documentclass[11pt,a4paper,openany,oneside]{book}
 
-\usepackage{hyperref} 
+\usepackage{hyperref}  
+\usepackage{listings}
 
+\newcommand{\ci}[1]{\hspace*{1cm} {\small\texttt{#1}}}
+\newcommand{\cc}[1]{{\small\texttt{#1}}}
+
+\newenvironment{description*}%
+  {\setlength{\parskip}{0pt}%
+	 \begin{description}%
+		\setlength{\topsep}{-12pt}%
+		\setlength{\itemindent}{-12pt}%
+    \setlength{\itemsep}{0pt}%
+		\setlength{\itemsep}{0pt}}%
+  {\end{description}}
+
+\newenvironment{enumerate*}%
+  {\begin{enumerate}%
+		\setlength{\topsep}{-12pt}%
+		\setlength{\itemindent}{-12pt}%
+    \setlength{\itemsep}{0pt}%
+		\setlength{\parindent}{0pt}}%
+  {\end{enumerate}}
+  
+  
 \begin{document}
 
 \begin{titlepage}
@@ -27,7 +49,12 @@ Copyright 2016 OpenTTP
 \listoffigures
 \listoftables
 
-
+\lstset{
+	xleftmargin=24pt,
+	basewidth=0.5em,
+	basicstyle=\ttfamily,
+	escapechar=\%
+}
 
 %% ****************************************************************************************
 \chapter{mtimetx}

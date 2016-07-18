@@ -1,0 +1,292 @@
+%%  export TEXINPUTS=.:/home/mjw/src/manuals/common:
+
+\documentclass[11pt,a4paper,openany,oneside]{book}
+
+\usepackage{hyperref} 
+\usepackage{listings}
+
+\newcommand{\ci}[1]{\hspace*{1cm} {\small\texttt{#1}}}
+\newcommand{\cc}[1]{{\small\texttt{#1}}}
+
+\newenvironment{description*}%
+  {\setlength{\parskip}{0pt}%
+	 \begin{description}%
+		\setlength{\topsep}{-12pt}%
+		\setlength{\itemindent}{-12pt}%
+    \setlength{\itemsep}{0pt}%
+		\setlength{\itemsep}{0pt}}%
+  {\end{description}}
+
+\newenvironment{enumerate*}%
+  {\begin{enumerate}%
+		\setlength{\topsep}{-12pt}%
+		\setlength{\itemindent}{-12pt}%
+    \setlength{\itemsep}{0pt}%
+		\setlength{\parindent}{0pt}}%
+  {\end{enumerate}}
+  
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+{\Huge OpenTTP manual}
+\end{center}
+
+\vspace*{4cm}
+\begin{center}
+Version 1.0
+\end{center}
+
+\begin{center}
+Copyright 2016 OpenTTP
+\end{center}
+
+\end{titlepage}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\lstset{
+	xleftmargin=24pt,
+	basewidth=0.5em,
+	basicstyle=\ttfamily,
+	escapechar=\%
+}
+
+%% ****************************************************************************************
+\chapter{Introduction}
+%% ****************************************************************************************
+
+\section{What is OpenTTP?}
+
+\section{GPS common-view}
+
+\section{The OpenTTP reference platform}
+
+\section{Supported hardware}
+
+	\subsection{GNSS receivers}
+	
+	\begin{description*}
+		\item[Javad] (older, GRIL receivers)
+		\item[Trimble] Resolution T
+		\item[NVS] NV08
+		\item[ublox] Neo8MT
+	\end{description*}
+	
+	Note: OpenTTP uses a custom file format for logging GPS receiver data. It does not read native receiver binary-format files.
+	
+	Guidance on testing a receiver for suitability for time-transfer, and writing software to process
+	the receiver's data, is given in the OpenTTP Developer's Guide.
+	
+	\subsection{Counter/timers}
+	
+	\begin{description*}
+		\item Agilent 5313x, using IOTech GPIB to RS232 converter
+		\item SRS PRS10 (using the input 1 pps time-tagging function)
+		\item OpenTTP multichannel counter
+	\end{description*}
+	
+%% ****************************************************************************************
+\chapter{Getting started}
+%% ****************************************************************************************
+
+\section{Software installation requirements}
+
+In addition to a basic Linux development environment, you will need the development packages for:
+\begin{description*}
+	\item[\cc{boost}]   
+	\item[\cc{libgsl}] GNU scientific library
+\end{description*}
+
+Depending on your Linux installation, you may also need
+\begin{description*}
+	\item[\cc{Time::HiRes}] Perl library
+\end{description*}
+
+\section{Building and installing the software}
+
+Two scripts are provided for installing the software.
+\begin{lstlisting}
+software/system/installsys.pl
+software/gpscv/install.pl
+\end{lstlisting}
+
+\cc{installsys.pl} must be run first, because it installs  libraries which are needed by the GPSCV software.
+
+Run-time options can be viewed by running the script with the '-h' option.
+
+\section{A minimal software setup}
+
+Some users may only be interested in the core software that OpenTTP provides so that they can use
+it with their own hardware. This section describes the minimum setup required for operation.
+
+\subsection{Software}
+
+The OpenTTP software is comprised of various C/C++ applications and Perl scripts.
+
+You will need:
+\begin{description*}
+	\item \cc{TFLibrary.pm}
+	\item \cc{libconfigurator}
+	\item \cc{lockport} utility to create a UUCP lock file
+	\item \cc{mktimetx} creates time-transfer files
+	\item one of the OpenTTP-provided scripts to log your receiver
+	\item one of the OpenTTP-provided scripts to log your counter/timer
+\end{description*}
+
+You must use one of the OpenTTP receiver logging scripts because \cc{mktimetx} expects a custom file-format. In particular, the
+receiver's native binary formats are not readable by \cc{mktimetx}. Similarly, OpenTTP uses a custom file
+format for the counter-timer measurement files, although in this case, conversion from another format
+will probably be straight-forward. Most likely users will have to provide their own software for
+logging their counter/timer, given the large number of possible devices here, and the limited
+support within OpenTTP.
+
+You may find the following useful:
+\begin{description*}
+	\item[kickstart.pl] for automatic start of logging processes
+	\item[runmktimetx.pl] for automated processing, and reprocessing of
+	\item[ziplogs.pl] for log file compression
+\end{description*}	
+
+Sample configuration files can be found in \cc{software/gpscv/common/etc}.
+The user running the logging and processing needs the following directories (or equivalents - most paths
+can be configured via the general configuration file, \ref{sgpscvconf}.
+
+\begin{description*}
+	\item[\cc{bin}]
+	\item[\cc{cggtts}]
+	\item[\cc{etc}]
+	\item[\cc{logs}]
+	\item[\cc{raw}]
+	\item[\cc{rinex}]
+	\item[\cc{tmp}]
+\end{description*}
+
+
+%% ****************************************************************************************
+\chapter{GPSCV software}
+%% ****************************************************************************************
+
+\section{Configuration file format \label{sConfigFileFormat}}
+
+Configuration files use a common format and are plain text files, designed to be easily edited via a command-line
+editor because in many applications, only shell access to the system will be available.
+
+The file is divided into sections, with section names delimited by square brackets [ ]. Entries in each section
+are of the form:
+\begin{lstlisting}
+	 key = value
+\end{lstlisting}
+For example,
+\begin{lstlisting}
+	 [Receiver]
+	 manufacturer = Trimble
+	 model = Resolution T
+\end{lstlisting}
+defines a section 'Receiver' and the receiver's manufacturer and model. 
+We will use the notation \cc{Section::Key} to describe keys. For example,
+\cc{Receiver::model} and \cc{Receiver::manufacturer} describes the two keys above.
+
+Keys are not case-sensitive. Comments begin with a '\#'.
+
+Some entries define a list of sections. For example, the comma-separated list of values for 'outputs' 
+\begin{lstlisting}
+	[CGGTTS]
+	outputs = C1-code,P1-code,P2-code
+\end{lstlisting}
+defines three sections: \cc{C1-code}, P1-code, P2-code.
+
+
+\section{gpscv.conf - the core configuration file \label{sgpscvconf} }
+
+A single configuration file, \cc{gpscv.conf}, provides configuration information to most of the
+OpenTTP software. 
+gpscv.conf is used by mktimex, receiver logging scripts, TIC logging scripts,receiver utilities and so on.
+
+It uses the format described in \ref{sConfigFileFormat}.
+\section{mktimetx}
+
+\cc{mktimetx} is the core OpenTTP application. It creates CGGTTS and RINEX-format time-transfer files.
+
+
+\section{runmktimetx.pl}
+
+\section{Counter/timer logging scripts}
+
+\subsection{hp5313xlog.pl}
+
+There is a file \cc{hp5313x.cmds} which lists the SCPI commands used to configure the counter.
+For example:
+\begin{lstlisting}
+:FUNC 'TINT 1,2'                # time interval
+:SENS:EVEN1:LEVEL:ABS 1.0       # trigger level 1 volt
+:SENS:EVEN2:LEVEL:ABS 1.0       #
+:SENS:EVEN1:SLOP POS            # trigger on positive slope
+:SENS:EVEN2:SLOP POS
+:INP1:ATT 1                     # input attenuation x1
+:INP2:ATT 1
+:INP1:COUP DC                   # coupling DC
+:INP2:COUP DC
+:INP1:IMP 50                    # impedance 50 ohms
+:INP2:IMP 50
+\end{lstlisting}
+
+\subsection{okxemlog.pl}
+
+The OpenTTP reference platform includes a multi-channel TIC
+
+It has the following specific configuration file entries:
+
+\section{Receiver logging scripts}
+
+\subsection{jnslog.pl}
+
+There is a file \cc{counter.conf} which lists the commands used to configure the receiver.
+
+\subsection{nvslog.pl}
+
+The NVS receiver is entirely configured using the script.
+
+\subsection{restlog.pl}
+
+The Resolution T receiver is entirely configured using the script.
+
+\subsection{ubloxlog.pl}
+
+The ublox receiver is entirely configured using the script.
+
+\section{Receiver utilities}
+
+\subsection{Trimble Resolution T}
+
+\subsection{NVS NV08}
+
+\subsection{ublox}
+
+\subsection{Javad}
+
+
+%% ****************************************************************************************
+\chapter{System software}
+%% ****************************************************************************************
+
+\section{kickstart.pl}
+
+\section{mjd}
+
+\section{ziplogs.pl}
+
+\include{srcs/lcdmonitor}
+
+\section{libraries}
+
+\subsection{libconfigurator}
+
+\subsection{TFLibrary.pm}
+
+
+\end{document}
+
