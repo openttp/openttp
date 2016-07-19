@@ -109,11 +109,13 @@ $save = "";
 my($sawmax) = -999.9;
 my($sawmin) = 999.9;
 my($sawmaxtime,$sawmintime);
+my ($hh,$mm,$ss,$tods);
 
 while ($s = <RXDATA>) {
 		chomp $s;
 		($msgID,$tstamp,$msg) = split /\s+/,$s;
-		
+		($hh,$mm,$ss) = split /:/,$tstamp;
+		$tods = $hh*3600+ $mm+60+$ss;
 		switch ($msgID)
 		{
 			# Time, date and time zone message - response to 23h 
@@ -254,21 +256,7 @@ while ($s = <RXDATA>) {
 					($gpsint,$glonassint,$gpsutc,$glonassutc,$gpsglonass,$dataflag) = decodeMsg74($msg);
 					if($dataflag < 32)
 					{
-						#print "$dts\n";
-						print "$dts     $dataflag\n";
-						printf ("Internal timescale offsets - GPS: %14.9f ms               GLONASS: %14.9f ms\n",$gpsint,$glonassint);
-						printf ("Time scale shifts - GPS from UTC: %14.9f ms  GLONASS from UTC(SU): %14.9f ms\n",$gpsutc,$glonassutc);
-						printf ("          GPS shift from GLONASS: %14.9f ms\n",$gpsglonass);
-						#print "\$dataflag: $dataflag\n";
-						# Check the dataflag: 
-						#             0x01 = GPS time valid, 0x02 = GLONASS time valid,
-						#             0x04 = UTC time is valid, and 0x08 = UTC(SU) time is valid,
-						#             so 0x0F means all scales are valid
-						if($dataflag & 1){ $ret = "GPS time OK  ";      } else { $ret = "GPS time BAD "; }
-						if($dataflag & 2){ $ret .= "GLONASS time OK  "; } else { $ret .= "GLONASS time BAD "; }
-						if($dataflag & 4){ $ret .= "UTC time OK  ";     } else { $ret .= "UTC time BAD "; }
-						if($dataflag & 8){ $ret .= "UTC(SU) time OK ";  } else { $ret .= "UTC(SU) time BAD"; }
-						print "$ret\n";
+						printf("$tods %14.12f %14.12f %14.12f %14.12f %14.12f\n",$gpsint,$glonassint,$gpsutc,$glonassutc,$gpsglonass); 
 					}
 				}
 			} 
@@ -461,6 +449,17 @@ sub decodeMsg73
 
 sub decodeMsg74
 {
+	my $m=$_[0];
+	if (length($m) != (51*2)){
+		return "";
+	}
+	my @data=unpack "a50",(pack "H*",$m);
+	my $par1 = FP80toFP64( $data[0],0,10);
+	my $par2 = FP80toFP64(substr $data[0],10,10);
+	my $par3 = FP80toFP64(substr $data[0],20,10);
+	my $par4 = FP80toFP64(substr $data[0],30,10);
+	my $par5 = FP80toFP64(substr $data[0],40,10);
+	return ($par1,$par2,$par3,$par4,$par5,1);
 }
 
 sub decodeMsg88
@@ -497,6 +496,30 @@ sub decodeMsgF7
 {
 }
 
+
+sub FP80toFP64
+{
+	my $buf = $_[0];
+	my @b = unpack 'C' x length $buf, $buf; # convert from string to array of unsigned char
+	# little - endian ....
+	my $sign=1.0;
+	if (($b[9] & 0x80) != 0x00){
+		$sign=-1.0;
+	}
+	my $exponent = (($b[9] & 0x7f)<<8) + $b[8];
+	my $mantissa=unpack "q",$buf; # mantissa is 64 bits - won't work on some platforms
+	#Is this a normalized number ?
+	my $normalizeCorrection;
+	if (($mantissa & 0x8000000000000000) != 0x00){
+		$normalizeCorrection = 1;
+	}
+	else{
+		$normalizeCorrection = 0;
+	}
+	$mantissa &= 0x7FFFFFFFFFFFFFFF;
+	
+	return $sign * pow(2,$exponent - 16383) * ($normalizeCorrection + $mantissa/pow(2,63));
+}
 
 
 #----------------------------------------------------------------------------
