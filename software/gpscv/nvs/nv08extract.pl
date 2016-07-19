@@ -114,8 +114,12 @@ my ($hh,$mm,$ss,$tods);
 while ($s = <RXDATA>) {
 		chomp $s;
 		($msgID,$tstamp,$msg) = split /\s+/,$s;
-		($hh,$mm,$ss) = split /:/,$tstamp;
-		$tods = $hh*3600+ $mm+60+$ss;
+		if (defined $tstamp){
+			($hh,$mm,$ss) = split /:/,$tstamp;
+			if (defined $hh && defined $mm && defined $ss){
+				$tods = $hh*3600+ $mm*60+$ss;
+			}
+		}
 		switch ($msgID)
 		{
 			# Time, date and time zone message - response to 23h 
