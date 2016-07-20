@@ -148,6 +148,7 @@ bool NVS::readLog(string fname,int mjd)
 	unsigned int currentMsgs=0;
 	unsigned int reqdMsgs = MSG46 | MSG72 | MSG74 | MSGF5;
 	bool duplicateMessages=false;
+	double gpsUTCOffset;
 	
   if (infile.is_open()){
     while ( getline (infile,line) ){
@@ -268,8 +269,9 @@ bool NVS::readLog(string fname,int mjd)
 							// FIXME use flags to filter measurements 
 							DBGMSG(debugStream,TRACE,pctime << " svn "<< (int) svn << " pr " << fp64buf*1.0E-3 << " flags " << (int) flags);
 							if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
-								SVMeasurement *svm = new SVMeasurement(svn,fp64buf*1.0E-3,NULL);
-								svm->dbuf3=svm->meas;
+								double svmeas = fp64buf*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
+								SVMeasurement *svm = new SVMeasurement(svn,svmeas,NULL);
+								svm->dbuf3=svmeas;
 								gpsmeas.push_back(svm); 
 							}
 							else{
@@ -364,7 +366,7 @@ bool NVS::readLog(string fname,int mjd)
 					double gpsRxOffset = FP80toFP64(fp80buf);
 					
 					HexToBin((char *) msg.substr(20*2,2*10).c_str(),10,fp80buf);
-					double gpsUTCOffset = FP80toFP64(fp80buf);
+					gpsUTCOffset = FP80toFP64(fp80buf);
 					
 					INT8U validity;
 					HexToBin((char *) msg.substr(50*2,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &validity);
