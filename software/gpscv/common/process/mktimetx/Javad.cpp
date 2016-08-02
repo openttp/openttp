@@ -254,6 +254,12 @@ bool Javad::readLog(string fname,int mjd)
 					// For each tracked satellite, get the pseudorange for each code
 					for (unsigned int chan=0; chan < nSats; chan++){
 						
+						// FIXME ignore GLONASS for the present
+						// GPS USID 1..37, GLONASS 38..69,70 
+						if (trackedSVs[chan] > 37){
+							continue;
+						}
+						
 						if (codes & GNSSSystem::C1){
 							bool ok=true;
 							// Check that PLLs are locked for each channel before we use the data
