@@ -286,13 +286,13 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 	bool ok=false;
 	
 	// ICD 20.3.3.3.3.2
-	double tGDcorr=1.0;
+	double freqCorr=1.0; 
 	switch (signal){
 		case GNSSSystem::C1: case GNSSSystem::P1:
-			tGDcorr=1.0;
+			freqCorr=1.0;
 			break;
 		case GNSSSystem::P2:
-			tGDcorr=77.0*77.0/(60.0*60.0);
+			freqCorr=77.0*77.0/(60.0*60.0);
 			break;
 		default:
 			break;
@@ -327,7 +327,7 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 		double range,svdist,svrange,ax,ay,az;
 		if (GPS::satXYZ(ed,tk,&Ek,x)){
 			double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
-			range = pRange + clockCorrection + relativisticCorrection - tGDcorr*ed->t_GD;
+			range = pRange + clockCorrection + relativisticCorrection - freqCorr*ed->t_GD;
 			// Sagnac correction (ICD 20.3.3.4.3.4)
 			ax = ant->x - OMEGA_E_DOT * ant->y * range;
 			ay = ant->y + OMEGA_E_DOT * ant->x * range;
@@ -348,12 +348,12 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 			
 			if(fabs(err/CLIGHT) < 1000.0e-9){
 			
-				*refsyscorr=(clockCorrection + relativisticCorrection - tGDcorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
-				*refsvcorr =(                  relativisticCorrection - tGDcorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
+				*refsyscorr=(clockCorrection + relativisticCorrection - freqCorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
+				*refsvcorr =(                  relativisticCorrection - freqCorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
 									
 				*tropo = Troposphere::delayModel(*elevation,ant->height);
 				
-				*iono = ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
+				*iono = freqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
 					ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
 					ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
 				
