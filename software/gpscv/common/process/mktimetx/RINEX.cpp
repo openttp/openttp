@@ -239,7 +239,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						for (unsigned int sv=0;sv<svns.size();sv++){
 							svcount++;
 							fprintf(fout,"G%02d",svns[sv]);
-							if ((nsv > 12) && ((svcount % 12)==1)){ // more to do, so start a new line
+							if ((nsv > 12) && ((svcount % 12)==0)){ // more to do, so start a continuation line
 								fprintf(fout,"\n%32s","");
 							}
 						}
