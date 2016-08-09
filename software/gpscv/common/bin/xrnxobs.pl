@@ -68,7 +68,7 @@ while ($line=<IN>){
 			print "The observation $obs is not present\n";
 			exit;
 		}
-		@obstypes= split " ",$line;
+		@obstypes= split " ",( substr $line,0,60);
 		$nobs=$obstypes[0];
 		for ($i=1;$i<=$nobs;$i++){
 			if ($obstypes[$i] eq $obs){
@@ -87,6 +87,8 @@ while ($line=<IN>){
 while ($line=<IN>){
 	if ($rnxver == 2){
 		print $line;
+		next if $line=~/COMMENT/;
+		next if (!($line=~/G|R/));
 		$line =~ s/^\s+//;
 		chomp $line;
 		@obsinfo = split " ",$line;
