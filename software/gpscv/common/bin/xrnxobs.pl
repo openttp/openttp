@@ -27,7 +27,10 @@
 
 # Modification history
 # 2015-08-20 MJW First version
+# 2016-08-09 MJW Handle more than 12 observations properly. Handle blank entries in RINEX observation records
 #
+
+use POSIX qw(floor ceil);
 
 $obs=$ARGV[0];
 $fin=$ARGV[1];
@@ -50,6 +53,8 @@ if ($verinfo[1] =~ /2\.\d+/){
 }
 elsif ($verinfo[1] =~ /3\.\d+/){
 	$rnxver=3;
+	print "Sorry,RINEX V3 is not supported\n";
+	exit;
 }
 
 if ($rnxver == 0){
@@ -82,25 +87,56 @@ while ($line=<IN>){
 while ($line=<IN>){
 	if ($rnxver == 2){
 		print $line;
+		$line =~ s/^\s+//;
+		chomp $line;
 		@obsinfo = split " ",$line;
-		@svns = split /G|R/,$obsinfo[7];
+		$svnlist = $obsinfo[7];
+		@svns = split /G|R/,$svnlist;
 		if ($svns[0] > 12){
-			$line=<IN>; # lazy
-			print $line;
+			$todo= floor($svns[0]/12);
+			for ($i=0;$i<$todo;$i++){
+				$line=<IN>; # lazy
+				print $line;
+				chomp $line;
+				$line =~ s/^\s+//;
+				$svnlist .= $line;
+			}
+			@svns = split /G|R/,$svnlist;
 		}
 		for ($i=0;$i<$svns[0];$i++){
-			$line=<IN>;
-			chomp $line;
-			@meas=split " ",$line;
-			printf "%16s\n",$meas[$obscol];
+			$nlines = ceil($nobs/5); # could be more than one line of measurements per SV
+			$line = "";
+			for ($l=0;$l<$nlines;$l++){ # so read lines, concatenating them
+				# FIXME untested for multiline observations
+				$ll=<IN>;
+				chomp $ll;
+				$line .= $ll;
+			}
+		
+			# Decompose the string, FORTRAN-like
+			$len = length($line);
+			# Each field should be 16 characters long
+			# Round up the length to the next multiple of 16
+			$nfields = ceil($len/16);
+			# print STDERR "Missing observation len=$len nfields=$nfields\n";
+			for ($f=0;$f<$nfields;$f++){
+				$val = substr $line, $f*16, (($f+1)*16<=$len?16:$len-$f*16);
+				# print STDERR "$f $val\n";
+				if ($f == $obscol){
+					# Is it a number ?
+					if ($val =~/\d+\.\d+/){
+						printf "%16s\n",$val;
+					}
+					else{ # nahh
+						printf "%16s\n","0.00000";
+					}
+					last;
+				}
+			}
+			
 		}
 	}
 	elsif ($rnxver == 3){
-		next unless ($line=~/^>/);
-		@obs=split /\s+/,$line;
-		for ($i=0;$i<$obs[8];$i++){
-			
-		}
 	}
 }
 close(IN);
