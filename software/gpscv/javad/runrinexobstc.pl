@@ -74,7 +74,7 @@ if ($opt_v){
 	exit;
 }
 
-$maxAge = $opt_a;
+$maxAge = $MAX_AGE;
 if (defined $opt_a){
 	$maxAge=$opt_a;
 }
