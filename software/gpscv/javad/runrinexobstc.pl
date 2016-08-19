@@ -113,6 +113,14 @@ if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
 $rxDataPath = TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
 $rnxDataPath= TFMakeAbsolutePath($Init{"paths:rinex l1l2"},$home);
 
+$tmp = '/tmp/';
+if (defined $Init{"receiver:file extension"} ){
+
+}
+
+AddRINEXHeader("");
+exit;
+
 if (!$opt_x){
 	for ($mjd=$mjdStart;$mjd <= $mjdStop;$mjd++){
 		Debug("Processing $mjd");
@@ -229,4 +237,32 @@ sub Debug
 	if ($opt_d){
 		printf STDERR "$_[0]\n";
 	}
+}
+
+# -------------------------------------------------------------------------
+sub AddRINEXHeader
+{
+	my $rnxin = $_[0];
+	open(OUT,">rnx.tmp");
+	printf OUT "%9s%11s%-20s%1s%-19s%-20s\n","2.11","","O","G","","RINEX VERSION / TYPE"; # GPS only!
+	
+	printf OUT "%-60s%-20s\n",$Init{"antenna:marker name"},"MARKER NAME";
+	printf OUT "%-20s%40s%-20s\n",$Init{"antenna:marker number"},"","MARKER NUMBER";
+	printf OUT "%-20s%-40s%-20s\n",$Init{"rinex:observer"},$Init{"rinex:agency"},"OBSERVER / AGENCY";
+	my $sn ="xxxxxx";
+	my $ver="xxxxxx";
+	printf OUT "%-20s%-20s%-20s%-20s\n",$sn,$Init{"receiver:model"},$ver,"REC # / TYPE / VERS";
+	my $x=$Init{"antenna:x"};
+	$x =~ s/[a-zA-Z]//g;
+	my $y=$Init{"antenna:y"};
+	$y =~ s/[a-zA-Z]//g;
+	my $z=$Init{"antenna:z"};
+	$z =~ s/[a-zA-Z]//g;
+	printf OUT "%-20s%-20s%-20s%-20s\n",$Init{"antenna:antenna number"},$Init{"antenna:antenna type"}," ","ANT # / TYPE";
+	printf OUT "%14.4lf%14.4lf%14.4lf%-18s%-20s\n",$x,$y,$z," ","APPROX POSITION XYZ";
+	printf OUT "%14.4lf%14.4lf%14.4lf%-18s%-20s\n",$Init{"antenna:delta h"},$Init{"antenna:delta e"},$Init{"antenna:delta n"}," ","ANTENNA: DELTA H/E/N";
+	printf OUT "%6d%54s%-20s\n",0," ","LEAP SECONDS";
+	printf OUT "%60s%-20s\n","","END OF HEADER";
+	
+	close OUT;
 }
