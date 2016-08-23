@@ -51,7 +51,8 @@ $GPSCVUSER=$ENV{USER};
 @receivers = (
 	["Trimble","Resolution T"], # manufacturer, model
 	["Javad","any"],
-	["NVS","NV08C"]
+	["NVS","NV08C"],
+	["ublox","NEO8T"]
 );
 
 $receiver=$UNKNOWN;
@@ -89,7 +90,7 @@ Log ("+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
 # Detect the operating system version
 @os =(
 			["Red Hat Enterprise Linux WS release 6","rhel6"], # first entry is OS-defined string, second is our name
-			["Centos 6","centos6"],
+			["CentOS release 6","centos6"],
 			["Ubuntu 14.04","ubuntu14"]
 			);
 
@@ -210,7 +211,7 @@ close LOG;
 exit;
 
 # ------------------------------------------------------------------------
-sub Showhelp
+sub ShowHelp
 {
 	print "$0 $VERSION\n";
 	print "\t-d make distribution only\n";
@@ -225,7 +226,9 @@ sub Showhelp
 sub Log
 {
 	my ($msg,$flags)=@_;
-	if ($flags == $ECHO) {print $msg;}
+	if (defined $flags){
+		if ($flags == $ECHO) {print $msg;}
+	}
 	print LOG $msg;
 }
 
@@ -273,7 +276,7 @@ sub DetectReceiver{
 #---------------------------------------------------------------------------------
 sub ChooseReceiver
 {
-	print '\nSelect your GPS receiver:\n';
+	print "\nSelect your GPS receiver:\n";
 	$first = 1;
 	$last = $#receivers + 1;
 	ASK:
@@ -346,6 +349,7 @@ sub InstallFromSource
 	Install("common/javad/*.pl",$BIN);
 	Install("common/nvs/*.pl",$BIN);
 	Install("common/trimble/*.pl",$BIN);
+	Install("common/ublox/*.pl",$BIN);
 	
 	Log("\nInstalling configuration files in $CONFIGS\n",$ECHO);
 	
