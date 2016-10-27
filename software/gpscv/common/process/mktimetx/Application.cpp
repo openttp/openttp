@@ -108,7 +108,7 @@ Application::Application(int argc,char **argv)
 	// Process the command line options
 	// These override anything in the configuration file, default or specified
 	int longIndex;
-	char c;
+	int c;
 	string RINEXHeaderFile("");
 	
 	while ((c=getopt_long(argc,argv,"hm:",longOptions,&longIndex)) != -1)
