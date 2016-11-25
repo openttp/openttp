@@ -41,6 +41,8 @@ use Time::HiRes qw( gettimeofday );
 
 use vars qw($opt_c $opt_d $opt_h $opt_v);
 
+sub CheckForOldAlarm;
+
 #
 # Monitored -- class to monitor something of interest
 #
@@ -75,16 +77,11 @@ sub new
 
 package main;
 
-use POSIX;
-use Getopt::Std;
-use TFLibrary;
-use vars qw($opt_c $opt_d $opt_h $opt_v);
-
 $AUTHORS="Michael Wouters";
 $VERSION="1.0";
 
-$MAX_FILE_AGE=30;
-$BOOT_GRACE_TIME=30; # wait at least this long after boot to let processes start
+$MAX_FILE_AGE=60;
+$BOOT_GRACE_TIME=60; # wait at least this long after boot to let processes start
 
 # $ALARM_AUDIBLE=0x01; # removed: just annoying
 # $ALARM_EMAIL=0x02; # removed: delegated to Alerter
@@ -94,6 +91,8 @@ $ALARM_LOG=0x08;
 $ALARM_ALERTER=0x20;
 $ALARM_SYSLOG=0x40;
 $ALARM_STATUS_FILE=0x80;
+
+$DEFAULT_ALARMS = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
 
 $ALARM_THRESHOLD=60;
 
@@ -214,9 +213,10 @@ if (defined $Init{'ntpd refclocks'}){
 			}
 			$mon = new Monitored("NTP", "NTP refclk $name dead", "NTP $name dead",99,\&CheckNTPRefClock);
 			$mon->{refid}=$Init{"$clk:refid"};
-			$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+			$mon->{methods} = $DEFAULT_ALARMS;
 			$mon->{threshold}=$alarmThreshold;
 			push @monitors,$mon;
+			CheckForOldAlarm($mon);
 			Debug("Added $clk ($name)");
 		}else{
 			ErrorExit("$clk:refid undefined");
@@ -228,44 +228,47 @@ if (defined $Init{'ntpd refclocks'}){
 
 # $mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
 # $mon->{statusFile}=$refStatusFile;
-# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# $mon->{methods} = $DEFAULT_ALARMS;
 # $mon->{threshold}=$alarmThreshold;
 # push @monitors,$mon;
 
-# $mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
-# $mon->{statusFile}=$refStatusFile;
-# $mon->{oscillator}=$refOscillator;
-# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
-# $mon->{threshold}=$alarmThreshold;
-# push @monitors,$mon;
+$mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
+$mon->{statusFile}=$refStatusFile;
+$mon->{oscillator}=$refOscillator;
+$mon->{methods} = $DEFAULT_ALARMS;
+$mon->{threshold}=$alarmThreshold;
+push @monitors,$mon;
 
-# $mon = new Monitored("Oscillator", "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
-# $mon->{statusFile}=$refStatusFile;
-# $mon->{oscillator}=$refOscillator;
-# $mon->{threshold}=$alarmThreshold;
-# push @monitors,$mon;
-
-# if ($checkRefPower){
-# 	$mon = new Monitored("Oscillator", "Reference power failure", "Ref power failure",99,\&CheckRefPowerFlag);
-# 	$mon->{powerFlag}=$refPowerFlag;
-# 	$mon->{oscillator}=$refOscillator;
-# $mon->{threshold}=$alarmThreshold;
-# 	push @monitors,$mon;
-# }
-
-$mon = new Monitored("GPS", "GPS logging not running", "GPS not logging",99,\&CheckGPSLogging);
-$mon->{statusFile}=$rxStatusFile;
-$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+$mon = new Monitored("Oscillator", "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
+$mon->{statusFile}=$refStatusFile;
+$mon->{methods} = $DEFAULT_ALARMS;
+$mon->{oscillator}=lc $refOscillator;
 $mon->{threshold}=$alarmThreshold;
 CheckForOldAlarm($mon);
 push @monitors,$mon;
 
-# $mon = new Monitored("GPS", "GPS insufficient satellites", "GPS low sats",99,\&CheckGPSSignal);
-# $mon->{statusFile}=$rxStatusFile;
-# $mon->{receiver}=$receiver;
-# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
-# $mon->{threshold}=$alarmThreshold;
-# push @monitors,$mon;
+if ($checkRefPower){
+	$mon = new Monitored("Oscillator", "Reference power failure", "Ref power failure",99,\&CheckRefPowerFlag);
+	$mon->{powerFlag}=$refPowerFlag;
+	$mon->{methods} = $DEFAULT_ALARMS;
+	$mon->{oscillator}=$refOscillator;
+	$mon->{threshold}=$alarmThreshold;
+	push @monitors,$mon;
+}
+
+$mon = new Monitored("GPS", "GPS logging not running", "GPS not logging",99,\&CheckGPSLogging);
+$mon->{statusFile}=$rxStatusFile;
+$mon->{methods} = $DEFAULT_ALARMS;
+$mon->{threshold}=$alarmThreshold;
+CheckForOldAlarm($mon);
+push @monitors,$mon;
+
+$mon = new Monitored("GPS", "GPS insufficient satellites", "GPS low sats",99,\&CheckGPSSignal);
+$mon->{statusFile}=$rxStatusFile;
+$mon->{receiver}=$receiver;
+$mon->{methods} = $DEFAULT_ALARMS;;
+$mon->{threshold}=$alarmThreshold;
+push @monitors,$mon;
 
 # Check for RAID
 if (-e $MDSTAT){
@@ -276,6 +279,7 @@ if (-e $MDSTAT){
 			$mon = new Monitored("PC", 'RAID disk failure', 'RAID failure',99,\&CheckRAID);
 			$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
 			push @monitors,$mon;
+			CheckForOldAlarm($mon);
 			last;
 		}
 	}
@@ -362,14 +366,15 @@ sub CheckForOldAlarm()
 	my $mon=$_[0];
 	my ($tvnow_secs,$tvnow_usecs) = gettimeofday;
 	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; 
-	
-	$mon->{errLastClear}=0;
-	$mon->{errLastUpdate}=$tvnow;	
-	$mon->{errRunTime} =  $mon->{threshold}; # set run time for error to maximum
-	$mon->{isError} =1;
-	
-	Debug("Old error found:".$mon->{shortMsg});
-	
+	my $fout = $alarmPath."/". ($mon->{shortMsg});
+	if (-e $fout){
+		$mon->{errLastClear}=0;
+		$mon->{errLastUpdate}=$tvnow;	
+		$mon->{errRunTime} =  $mon->{threshold}; # set run time for error to maximum
+		$mon->{isError} =1;
+		
+		Debug("Old error found:".$mon->{shortMsg});
+	}	
 }
 
 # -------------------------------------------------------------------------
@@ -452,15 +457,34 @@ sub CheckRefLocked
 	Debug("\n-->CheckRefLocked");
 	my $mon = $_[0];
 	my $statusFile = $mon->{statusFile};
+	my $line;
 	if (-e $statusFile){
 		open(IN,"<$statusFile");
 		if ($mon->{oscillator} eq 'prs10'){
 			my @statFlags = split /\s+/,<IN>;
-			Debug("Got PRS10 status:");
+			close IN;
+			Debug('Got PRS10 status');
 			if ($#statFlags == 5){
 				return  (!(($statFlags[3] & 0x01) || ($statFlags[1] & 0x01)) );
 			}
 			# don't report an error if it failed to parse - maybe we read it as it changed
+			Debug("Error parsing $statusFile");
+		}
+		elsif ($mon->{oscillator} eq 'gpsdo'){
+			while ($line=<IN>){
+				if ($line=~/GPSDO\s+health/){
+					Debug("Got GPSDO status:");
+					if ($line =~ /:\s+0x0/){
+						Debug('GPSDO healthy');
+						return 1;
+					}
+					else {
+						Debug('GPSDO unhealthy');
+						return 0;
+					}
+				}
+			}
+			close IN;
 			Debug("Error parsing $statusFile");
 		}
 		close IN;
@@ -546,7 +570,6 @@ sub CheckRAID
 {
 	Debug("\n-->CheckRAID UNIMPLEMENTED");
 }
-
 
 # -------------------------------------------------------------------------
 sub SetError{
@@ -696,8 +719,6 @@ sub ClearError{
 	}
 	return 0; # error still persisting 
 }
-
-
 
 # -------------------------------------------------------------------------
 sub SysmonitorLog{
