@@ -143,7 +143,9 @@ sub ShowHelp
 sub Log
 {
 	my ($msg,$flags)=@_;
-	if ($flags == $ECHO) {print $msg;}
+	if (defined $flags){
+		if ($flags == $ECHO) {print $msg;}
+	}
 	print LOG $msg;
 }
 

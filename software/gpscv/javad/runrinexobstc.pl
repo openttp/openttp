@@ -23,6 +23,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+# runrinexobstc.pl
+# Runs rinexobstc, adds header based on gpscv.conf and can be used to process missed files
+#
 # 2016-08-17 MJW First version. A minimal script
 #
 
@@ -71,8 +74,8 @@ if ($opt_v){
 	exit;
 }
 
-$opt_a = $MAX_AGE;
-if ($opt_a){
+$maxAge = $MAX_AGE;
+if (defined $opt_a){
 	$maxAge=$opt_a;
 }
 
@@ -113,13 +116,10 @@ if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
 $rxDataPath = TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
 $rnxDataPath= TFMakeAbsolutePath($Init{"paths:rinex l1l2"},$home);
 
-$tmp = '/tmp/';
-if (defined $Init{"receiver:file extension"} ){
-
+$tmpPath = '/tmp/';
+if (defined $Init{"paths:tmp"} ){
+	$tmpPath = TFMakeAbsolutePath($Init{"paths:tmp"},$home);
 }
-
-AddRINEXHeader("");
-exit;
 
 if (!$opt_x){
 	for ($mjd=$mjdStart;$mjd <= $mjdStop;$mjd++){
@@ -144,6 +144,7 @@ if (!$opt_x){
 			Debug("Recompressing ...");
 			`gzip $rxin`;
 		}
+		AddRINEXHeader($rnxOut);
 	}
 }
 else{
@@ -174,11 +175,12 @@ else{
 				Debug("Recompressing ...");
 				`gzip $rxin`;
 			}
+			AddRINEXHeader($rnxOut);
 		}
 		else{
 			Debug("$rnxOut is OK");
 		}
-	} 
+	}	
 }
 
 # End of main program
@@ -242,12 +244,19 @@ sub Debug
 # -------------------------------------------------------------------------
 sub AddRINEXHeader
 {
+	# Checked alll required field present
 	my $rnxin = $_[0];
-	open(OUT,">rnx.tmp");
-	printf OUT "%9s%11s%-20s%1s%-19s%-20s\n","2.11","","O","G","","RINEX VERSION / TYPE"; # GPS only!
+	@tobs=GetFirstRINEXObservation($rnxin);
+	Debug("Adding RINEX header");
 	
+	my $rnxout = "$tmpPath/rinex.tmp";
+	open(OUT,">$rnxout");
+	printf OUT "%9s%11s%-20s%1s%-19s%-20s\n","2.11","","O","G","","RINEX VERSION / TYPE"; # GPS only!
+	my @gmt = gmtime(time); 
+	my $datestr = sprintf "%04d%02d%02d %02d%02d%02d UTC",$gmt[5]+1900,$gmt[4]+1,$gmt[3],$gmt[2],$gmt[1],$gmt[0];
+	printf OUT "%-20s%-20s%-20s%-20s\n","rinexobstc v2.2",$Init{"rinex:agency"},$datestr,"PGM / RUN BY / DATE";
 	printf OUT "%-60s%-20s\n",$Init{"antenna:marker name"},"MARKER NAME";
-	printf OUT "%-20s%40s%-20s\n",$Init{"antenna:marker number"},"","MARKER NUMBER";
+	printf OUT "%-20s%40s%-20s\n",$Init{"antenna:marker number"},"","MARKER NUMBER"; # not required
 	printf OUT "%-20s%-40s%-20s\n",$Init{"rinex:observer"},$Init{"rinex:agency"},"OBSERVER / AGENCY";
 	my $sn ="xxxxxx";
 	my $ver="xxxxxx";
@@ -261,8 +270,26 @@ sub AddRINEXHeader
 	printf OUT "%-20s%-20s%-20s%-20s\n",$Init{"antenna:antenna number"},$Init{"antenna:antenna type"}," ","ANT # / TYPE";
 	printf OUT "%14.4lf%14.4lf%14.4lf%-18s%-20s\n",$x,$y,$z," ","APPROX POSITION XYZ";
 	printf OUT "%14.4lf%14.4lf%14.4lf%-18s%-20s\n",$Init{"antenna:delta h"},$Init{"antenna:delta e"},$Init{"antenna:delta n"}," ","ANTENNA: DELTA H/E/N";
-	printf OUT "%6d%54s%-20s\n",0," ","LEAP SECONDS";
+	printf OUT "%6d%6d%6d%42s%-20s\n",1,1,0,"","WAVELENGTH FACT L1/2";
+	printf OUT "%6d%6s%6s%6s%6s%6s%6s%6s%6s%6s%-20s\n",5,"L1","L2","C1","P1","P2","","","","","# / TYPES OF OBSERV";
+	printf OUT "%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",$tobs[0]+2000,$tobs[1],$tobs[2],$tobs[3],$tobs[4],$tobs[5]," ", "GPS"," ","TIME OF FIRST OBS";
+	# printf OUT "%6d%54s%-20s\n",0," ","LEAP SECONDS"; # optional, so leave it out
 	printf OUT "%60s%-20s\n","","END OF HEADER";
-	
 	close OUT;
+	
+	`cat $rnxin >> $rnxout`;
+	`mv $rnxout $rnxin`;
+	
+}
+
+# -------------------------------------------------------------------------
+sub GetFirstRINEXObservation
+{
+	open (IN,"<$_[0]");
+	while ($l=<IN>){
+		if ($l =~/^\s*(\d+)\s*(\d+)\s*(\d+)\s*(\d+)\s*(\d+)\s*(\d+\.\d+)/){
+			return ($1,$2,$3,$4,$5,$6);
+		}
+	}
+	close(IN);
 }

@@ -783,11 +783,11 @@ bool Javad::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr(12*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 						gps.UTCdata.t_ot=u4buf;
 						HexToBin((char *) msg.substr(16*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &(gps.UTCdata.WN_t));
-						HexToBin((char *) msg.substr(18*2,2*sizeof(I1)).c_str(),sizeof(I2),(unsigned char *) &(gps.UTCdata.dtlS));
+						HexToBin((char *) msg.substr(18*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &(sint8buf));
+						gps.UTCdata.dtlS=sint8buf;
 						HexToBin((char *) msg.substr(19*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &uint8buf);
 						gps.UTCdata.DN=uint8buf;
 						HexToBin((char *) msg.substr(20*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &(gps.UTCdata.WN_LSF));
-				
 						HexToBin((char *) msg.substr(22*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &sint8buf);
 						gps.UTCdata.dt_LSF=sint8buf;
 						DBGMSG(debugStream,TRACE,"UTC parameters: dtLS=" << gps.UTCdata.dtlS << ",dt_LSF=" << gps.UTCdata.dt_LSF);

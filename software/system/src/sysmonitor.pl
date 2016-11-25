@@ -56,13 +56,13 @@ sub new
 		alerterID=>shift,
 		testfn => shift, # function which is called to test monitored condition
 		methods => shift, # alert methods to use 
-		threshold=> 10,  # delay (in s) after which to raise an alarm
+		threshold=> 60,  # delay (in s) after which to raise an alarm
 		maxPerDay=> 6, # maximum alarms per day
 		nToday=>0,
 		lastDay=>0,
 		errLastUpdate => 0, #last time an error was updated
 		errLastClear => 0, # last time an error cleared
-		errTime => 0,  # time error  has been true 
+		errRunTime => 0,  # time error  has been true 
 		isError => 0,   # flags error 
 	};
 	bless $self,$class;
@@ -84,21 +84,22 @@ $AUTHORS="Michael Wouters";
 $VERSION="1.0";
 
 $MAX_FILE_AGE=30;
-$BOOT_GRACE_TIME=30;
+$BOOT_GRACE_TIME=30; # wait at least this long after boot to let processes start
 
-# $ALARM_AUDIBLE=0x01; # deprecated: just annoying
-# $ALARM_EMAIL=0x02; # deprecated: delegated to Alerter
-# $ALARM_SMS=0x04; # deprecated: delegated to Alerter
+# $ALARM_AUDIBLE=0x01; # removed: just annoying
+# $ALARM_EMAIL=0x02; # removed: delegated to Alerter
+# $ALARM_SMS=0x04; # removed: delegated to Alerter
 $ALARM_LOG=0x08;
-# $ALARM_SNMP=0x1; # deprecated: delegated to Alerter
+# $ALARM_SNMP=0x1; # removed: delegated to Alerter
 $ALARM_ALERTER=0x20;
 $ALARM_SYSLOG=0x40;
 $ALARM_STATUS_FILE=0x80;
 
+$ALARM_THRESHOLD=60;
+
 $MDSTAT='/proc/mdstat';
 
-$root = '/usr/local';
-
+$ROOT = '/usr/local';
 
 # Check command line
 if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
@@ -115,8 +116,9 @@ if ($opt_v){
 	exit;
 }
 
-if (-d "$root/log") {$logPath="$root/log";} else {die "$logPath missing"}; 
-if (-d "$root/etc")  {$configPath="$root/etc";} else {die "$configPath missing";};
+# Normally, this script is run as a system daemon, so we use /usr/local
+if (-d "$ROOT/log") {$logPath="$ROOT/log";} else {die "$logPath missing"}; 
+if (-d "$ROOT/etc")  {$configPath="$ROOT/etc";} else {die "$configPath missing";};
 
 # Read this application's .conf
 
@@ -128,18 +130,21 @@ if (defined $opt_c){
 if (!(-e $configFile)){
 	ErrorExit("The configuration file $configFile was not found!\n");
 }
+Debug("Using config $configFile");
 
 %Init = &TFMakeHash2($configFile,(tolower=>1));
 
 $alarmPath= $logPath.'/alarms/';
 if (defined $Init{"alarm path"}){
-	$alarmPath = TFMakeAbsolutePath($alarmPath,$root);
+	$alarmPath = TFMakeAbsolutePath($Init{"alarm path"},$ROOT);
 }
+Debug("Alarm path = $alarmPath");
 
 $logFile = $logPath.'/sysmonitor.log';
 if (defined $Init{'log file'}){
-	$logFile = TFMakeAbsoluteFilePath($logFile,$root,$logPath);
+	$logFile = TFMakeAbsoluteFilePath($Init{'log file'},$ROOT,$logPath);
 }
+Debug("Log file = $logFile");
 
 $gpscvHome ='/home/cvgps';
 if (defined $Init{'gpscv account'}){
@@ -155,6 +160,13 @@ $alerterQueue = '/usr/local/log/alert.log';
 if (defined $Init{'alerter queue'}){
 	$alerterQueue = $Init{'alerter queue'};
 }
+Debug("Alerter queue = $logFile");
+
+$alarmThreshold = $ALARM_THRESHOLD;
+if (defined $Init{'alarm threshold'}){
+	$alarmThreshold = $Init{'alarm threshold'};
+}
+Debug("Alarm threshold = $alarmThreshold");
 
 # Read the system gpscv.conf
 $gpscvConfigFile = $gpscvHome.'/etc/gpscv.conf';
@@ -203,6 +215,7 @@ if (defined $Init{'ntpd refclocks'}){
 			$mon = new Monitored("NTP", "NTP refclk $name dead", "NTP $name dead",99,\&CheckNTPRefClock);
 			$mon->{refid}=$Init{"$clk:refid"};
 			$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+			$mon->{threshold}=$alarmThreshold;
 			push @monitors,$mon;
 			Debug("Added $clk ($name)");
 		}else{
@@ -216,35 +229,42 @@ if (defined $Init{'ntpd refclocks'}){
 # $mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
 # $mon->{statusFile}=$refStatusFile;
 # $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# $mon->{threshold}=$alarmThreshold;
 # push @monitors,$mon;
 
 # $mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
 # $mon->{statusFile}=$refStatusFile;
 # $mon->{oscillator}=$refOscillator;
 # $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# $mon->{threshold}=$alarmThreshold;
 # push @monitors,$mon;
 
 # $mon = new Monitored("Oscillator", "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
 # $mon->{statusFile}=$refStatusFile;
 # $mon->{oscillator}=$refOscillator;
+# $mon->{threshold}=$alarmThreshold;
 # push @monitors,$mon;
 
 # if ($checkRefPower){
 # 	$mon = new Monitored("Oscillator", "Reference power failure", "Ref power failure",99,\&CheckRefPowerFlag);
 # 	$mon->{powerFlag}=$refPowerFlag;
 # 	$mon->{oscillator}=$refOscillator;
+# $mon->{threshold}=$alarmThreshold;
 # 	push @monitors,$mon;
 # }
 
-# $mon = new Monitored("GPS", "GPS logging not running", "GPS not logging",99,\&CheckGPSLogging);
-# $mon->{statusFile}=$rxStatusFile;
-# $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
-# push @monitors,$mon;
+$mon = new Monitored("GPS", "GPS logging not running", "GPS not logging",99,\&CheckGPSLogging);
+$mon->{statusFile}=$rxStatusFile;
+$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+$mon->{threshold}=$alarmThreshold;
+CheckForOldAlarm($mon);
+push @monitors,$mon;
 
 # $mon = new Monitored("GPS", "GPS insufficient satellites", "GPS low sats",99,\&CheckGPSSignal);
 # $mon->{statusFile}=$rxStatusFile;
 # $mon->{receiver}=$receiver;
 # $mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
+# $mon->{threshold}=$alarmThreshold;
 # push @monitors,$mon;
 
 # Check for RAID
@@ -332,6 +352,24 @@ sub Debug
 	if ($opt_d){
 		printf STDERR "$_[0]\n";
 	}
+}
+
+# -------------------------------------------------------------------------
+# On startup, check for an alarm, and set run time for error to maximum
+# It should then clear 
+sub CheckForOldAlarm()
+{
+	my $mon=$_[0];
+	my ($tvnow_secs,$tvnow_usecs) = gettimeofday;
+	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; 
+	
+	$mon->{errLastClear}=0;
+	$mon->{errLastUpdate}=$tvnow;	
+	$mon->{errRunTime} =  $mon->{threshold}; # set run time for error to maximum
+	$mon->{isError} =1;
+	
+	Debug("Old error found:".$mon->{shortMsg});
+	
 }
 
 # -------------------------------------------------------------------------
@@ -440,7 +478,7 @@ sub CheckGPSLogging
 # -------------------------------------------------------------------------
 sub CheckNTPD
 {
-	Debug("\n-->CheckNTPD");
+	Debug("\n-->CheckNTPD UNIMPLEMENTED");
 }
 
 # -------------------------------------------------------------------------
@@ -448,13 +486,14 @@ sub CheckGPSSignal
 {
 	Debug("\n-->CheckGPSSignal");
 	my $mon=$_[0];
+	my $line;
 	my $statusFile = $mon->{statusFile};
 	if ($mon->{receiver} eq "Trimble"){
 		# format is nsats = xxx
 		if (-e $statusFile){
 			# won't check age
 			open (IN,"<$statusFile");
-			my $line=<IN>;
+			$line=<IN>;
 			chomp $line;
 			close IN;
 			Debug("$mon->{receiver} $line");
@@ -471,7 +510,7 @@ sub CheckGPSSignal
 		# NP HH:MM:SS ,NAVPOS,%C,%6.2F,%1D
 		if (-e $statusFile){
 			open (IN,"<$statusFile");
-			my $line=<IN>;
+			$line=<IN>;
 			chomp $line;
 			close IN;
 			Debug("$mon->{receiver} $line");
@@ -485,6 +524,19 @@ sub CheckGPSSignal
 		return 1;
 	}
 	elsif ($mon->{receiver} eq "NVS"){
+		if (-e $statusFile){
+			open (IN,"<$statusFile");
+			while ($line=<IN>){
+				chomp $line;
+				Debug("$mon->{receiver} $line");
+				if ($line =~ /sats:\s*(\d+)/){
+					return $1>= 4;
+				}
+			}
+			close IN;
+			return 0;
+		}
+		return 1;
 	}
 	return 0;
 }
@@ -492,8 +544,9 @@ sub CheckGPSSignal
 # -------------------------------------------------------------------------
 sub CheckRAID
 {
-	Debug("\n-->CheckRAID");
+	Debug("\n-->CheckRAID UNIMPLEMENTED");
 }
+
 
 # -------------------------------------------------------------------------
 sub SetError{
@@ -502,38 +555,41 @@ sub SetError{
 	my $mon=$_[0];
 	
 	my ($tvnow_secs,$tvnow_usecs) = gettimeofday;
-	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; # double has enough significant figures
-	# Reset time of last clear 
+	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; 
+	
+	# Reset the time of last clear event
 	$mon->{errLastClear}=0;
 	
-	if ($mon->{isError}){ # error condition already running 
-		$mon->{errTime} += $tvnow - $mon->{errLastUpdate};
+	if ($mon->{isError}){ # error condition is already running 
+		$mon->{errRunTime} += $tvnow - $mon->{errLastUpdate};
 		$mon->{errLastUpdate}=$tvnow;
-		if ( $mon->{errTime} >= $mon->{threshold} ){
-			$mon->{errTime} =  $mon->{threshold};
+		if ( $mon->{errRunTime} >= $mon->{threshold} ){
+			$mon->{errRunTime} =  $mon->{threshold};
 		}
-		Debug("Error time = " . $mon->{errTime});
+		Debug("Existing error: running time = " . $mon->{errRunTime});
 		return 0; 
 	}
 	
 	if ($mon->{errLastUpdate}== 0){ # no running error condition yet so initialise 
 		$mon->{errLastUpdate} = $tvnow;
-		$mon->{errTime}=0;
+		$mon->{errRunTime}=0;
 	}
 	
-	$mon->{errTime} += $tvnow - $mon->{errLastUpdate};
+	$mon->{errRunTime} += $tvnow - $mon->{errLastUpdate};
 	$mon->{errLastUpdate}=$tvnow;	
 	
-	Debug("Error time = " . $mon->{errTime});
+	Debug("New error: running time = " . $mon->{errRunTime});
 
 	# If the elapsed time has reached the threshold, an alarm is raised 
-	if ( $mon->{errTime} >= $mon->{threshold} ){
+	if ( $mon->{errRunTime} >= $mon->{threshold} ){
+		Debug("Raising alarm");
 		# Clamp the error run time to the threshold so that the system
 		# recovers quickly from a long-lasting error
-		$mon->{errTime} =  $mon->{threshold};
+		$mon->{errRunTime} =  $mon->{threshold};
 		$mon->{isError} =1;
 		
 		if (($mon->{methods} | $ALARM_LOG)){     # log everything 
+			Debug("Logging");
 			SysmonitorLog($mon->{msg});
 		}
 		
@@ -542,11 +598,13 @@ sub SetError{
 			my $fout = $alarmPath."/". ($mon->{shortMsg});
 			open(OUT,">$fout");
 			close OUT;
+			Debug("Writing to $fout");
 		}
 
 		# Check for day rollover so that the number of alerts for today is reset 
 		my @gmt=gmtime(time);
 		if ($mon->{lastDay} != $gmt[7]){	
+			
 			$mon->{nToday}=0;
 			$mon->{lastDay} = $gmt[7];
 		}
@@ -590,30 +648,31 @@ sub ClearError{
 	}
 	
 	($tvnow_secs,$tvnow_usecs) = gettimeofday;
-	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; # double has enough significant figures
+	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; 
 	
 	if ($mon->{errLastClear}== 0){ # flags first clear event 
 		$mon->{errLastClear}=$tvnow;
 	}
 	
-	$mon->{errTime} -= $tvnow - $mon->{errLastClear}; #decrement 
-			
-	Debug("Error time = ".$mon->{errTime});
-	if ($mon->{isError} && ($mon->{errTime} <= 0.0)){ # error has cleared 
-		my $msg = $mon->{msg}." (cleared)";
+	$mon->{errRunTime} -= $tvnow - $mon->{errLastClear}; # decrement the running time
+	$mon->{errLastClear}=$tvnow;
+	
+	Debug("Error time = ".$mon->{errRunTime});
+	if ($mon->{isError} && ($mon->{errRunTime} <= 0.0)){ # error has cleared 
+		my $msg = $mon->{msg}.' (cleared)';
 		
 		if (($mon->{methods} | $ALARM_LOG))  {
 			SysmonitorLog($msg);
 		}
 		if (($mon->{methods} | $ALARM_STATUS_FILE)){
-				unlink  $alarmPath."/". ($mon->{shortMsg});
+				unlink  $alarmPath.'/'. ($mon->{shortMsg});
 		}
 		
-		if ($mon->{nToday} <=$mon->{maxPerDay}){ #remember to catch last one 
+		if ($mon->{nToday} <=$mon->{maxPerDay}){ # remember to catch last one 
 			my @gmt=gmtime(time);	
 			
 			if (($mon->{methods} | $ALARM_SYSLOG)) {
-				openlog("sysmonitor",LOG_PID,LOG_USER);
+				openlog('sysmonitor',LOG_PID,LOG_USER);
 				syslog(LOG_WARNING,$mon->{msg});
 				closelog();
 			}

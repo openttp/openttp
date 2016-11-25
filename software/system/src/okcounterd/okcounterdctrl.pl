@@ -62,11 +62,14 @@ if ($opt_c){
 	$configFile=$opt_c;
 }
 else{
-	$user = "cvgps";
-	$configFile="/home/$user/etc/gpscv.conf";
+	$user = $ENV{HOME};
+	$configFile="$user/etc/gpscv.conf";
 	if (!(-e $configFile)){
-		print "Unable to find $configFile";
-		exit;
+		$configFile="/home/cvgps/etc/gpscv.conf";
+		if (!(-e $configFile)){
+			print "Unable to find gpscv.conf\n";
+			exit;
+		}
 	}
 }
 
