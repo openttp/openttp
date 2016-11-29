@@ -1,0 +1,9 @@
+[Unit]
+Description=OpenTTP system monitor
+ConditionPathExists=/usr/local/etc/sysmonitor.conf
+
+[Service]
+ExecStart=/usr/local/bin/sysmonitor.pl
+
+[Install]
+WantedBy=multi-user.target
