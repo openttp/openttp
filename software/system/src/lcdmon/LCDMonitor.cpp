@@ -1533,7 +1533,7 @@ void LCDMonitor::configure()
 		else if (0==strcmp(stmp,"NTP"))
 			displayMode = NTP;
 		else if (0==strcmp(stmp,"GPSDO"))
-			displaymode = GPSDO;
+			displayMode = GPSDO;
 		else
 		{
 			ostringstream msg;
