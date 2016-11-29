@@ -62,10 +62,10 @@ sub new
 		maxPerDay=> 6, # maximum alarms per day
 		nToday=>0,
 		lastDay=>0,
-		errLastUpdate => 0, #last time an error was updated
-		errLastClear => 0, # last time an error cleared
-		errRunTime => 0,  # time error  has been true 
-		isError => 0,   # flags error 
+		alarmLastUpdate => 0, #last time an alarm was updated
+		alarmLastClear => 0, # last time an alarm cleared
+		alarmRunTime => 0,  # time alarm  has been true 
+		isAlarm => 0,   # flags alarm 
 	};
 	bless $self,$class;
 	return $self;
@@ -127,7 +127,7 @@ if (defined $opt_c){
 }
 
 if (!(-e $configFile)){
-	ErrorExit("The configuration file $configFile was not found!\n");
+	AlarmExit("The configuration file $configFile was not found!\n");
 }
 Debug("Using config $configFile");
 
@@ -170,7 +170,7 @@ Debug("Alarm threshold = $alarmThreshold");
 # Read the system gpscv.conf
 $gpscvConfigFile = $gpscvHome.'/etc/gpscv.conf';
 if (!(-e $gpscvConfigFile)){
-	ErrorExit("The configuration file $configFile was not found!\n");
+	AlarmExit("The configuration file $configFile was not found!\n");
 }
 
 %GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
@@ -178,11 +178,14 @@ if (!(-e $gpscvConfigFile)){
 $gpscvLogPath=$gpscvHome.'/logs/';
 
 # Check we got the info we need from the config file
- @check=('reference:oscillator','reference:status file','receiver:manufacturer','receiver:status file');
+ @check=('reference:oscillator','reference:status file',
+ 'receiver:manufacturer','receiver:status file',
+ 'counter:status file');
+ 
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
-  unless (defined $GPSCVInit{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
+  unless (defined $GPSCVInit{$tag}) {AlarmExit("No entry for $_ found in $configFile")}
 }
 
 $refOscillator = lc $GPSCVInit{'reference:oscillator'};
@@ -195,6 +198,8 @@ if (defined $GPSCVInit{'reference:power flag'}){
 
 $receiver = $GPSCVInit{'receiver:manufacturer'};
 $rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$gpscvHome,$gpscvLogPath);
+
+$counterStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'counter:status file'},$gpscvHome,$gpscvLogPath);
 
 # Create all the monitors
 @monitors = ();
@@ -219,24 +224,26 @@ if (defined $Init{'ntpd refclocks'}){
 			CheckForOldAlarm($mon);
 			Debug("Added $clk ($name)");
 		}else{
-			ErrorExit("$clk:refid undefined");
+			AlarmExit("$clk:refid undefined");
 		}
 	}
 }
 
 # Reference monitors
 
-# $mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
-# $mon->{statusFile}=$refStatusFile;
-# $mon->{methods} = $DEFAULT_ALARMS;
-# $mon->{threshold}=$alarmThreshold;
-# push @monitors,$mon;
+$mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
+$mon->{statusFile}=$counterStatusFile;
+$mon->{methods} = $DEFAULT_ALARMS;
+$mon->{threshold}=$alarmThreshold;
+CheckForOldAlarm($mon);
+push @monitors,$mon;
 
 $mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
 $mon->{statusFile}=$refStatusFile;
 $mon->{oscillator}=$refOscillator;
 $mon->{methods} = $DEFAULT_ALARMS;
 $mon->{threshold}=$alarmThreshold;
+CheckForOldAlarm($mon);
 push @monitors,$mon;
 
 $mon = new Monitored("Oscillator", "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
@@ -253,6 +260,7 @@ if ($checkRefPower){
 	$mon->{methods} = $DEFAULT_ALARMS;
 	$mon->{oscillator}=$refOscillator;
 	$mon->{threshold}=$alarmThreshold;
+	CheckForOldAlarm($mon);
 	push @monitors,$mon;
 }
 
@@ -268,6 +276,7 @@ $mon->{statusFile}=$rxStatusFile;
 $mon->{receiver}=$receiver;
 $mon->{methods} = $DEFAULT_ALARMS;;
 $mon->{threshold}=$alarmThreshold;
+CheckForOldAlarm($mon);
 push @monitors,$mon;
 
 # Check for RAID
@@ -319,10 +328,10 @@ while (1){
 	for ($i=0;$i<=$#monitors;$i++){
 		my $ret = $monitors[$i]->{testfn}->($monitors[$i]);
 		if ($ret){
-			ClearError($monitors[$i]);
+			ClearAlarm($monitors[$i]);
 		}
 		else{
-			SetError($monitors[$i]);
+			SetAlarm($monitors[$i]);
 		}
 	}
 	
@@ -342,7 +351,7 @@ sub ShowHelp{
 }
 
 #-----------------------------------------------------------------------
-sub ErrorExit {
+sub AlarmExit {
   my $message=shift;
   @_=gmtime(time());
   printf "%04d-%02d-%02d %02d:%02d:%02d $message\n",
@@ -359,7 +368,7 @@ sub Debug
 }
 
 # -------------------------------------------------------------------------
-# On startup, check for an alarm, and set run time for error to maximum
+# On startup, check for an alarm, and set run time for alarm to maximum
 # It should then clear 
 sub CheckForOldAlarm()
 {
@@ -368,12 +377,12 @@ sub CheckForOldAlarm()
 	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; 
 	my $fout = $alarmPath."/". ($mon->{shortMsg});
 	if (-e $fout){
-		$mon->{errLastClear}=0;
-		$mon->{errLastUpdate}=$tvnow;	
-		$mon->{errRunTime} =  $mon->{threshold}; # set run time for error to maximum
-		$mon->{isError} =1;
+		$mon->{alarmLastClear}=0;
+		$mon->{alarmLastUpdate}=$tvnow;	
+		$mon->{alarmRunTime} =  $mon->{threshold}; # set run time for alarm to maximum
+		$mon->{isAlarm} =1;
 		
-		Debug("Old error found:".$mon->{shortMsg});
+		Debug("Old alarm found:".$mon->{shortMsg});
 	}	
 }
 
@@ -405,13 +414,13 @@ sub CheckFile
 		}
 		else{
 			# File may not have been updated yet
-			Debug("Created before boot. Just booted ? " .($uptime < $BOOT_GRACE_TIME));
+			Debug('Created before boot. Just booted? ' .(($uptime < $BOOT_GRACE_TIME)?'Yes':'No'));
 			return ($uptime < $BOOT_GRACE_TIME);
 		}
 	}
 	else{
 		# System may have just booted so to avoid a spurious alarm, allow a grace period
-		Debug("System just booted? ". ($uptime < $BOOT_GRACE_TIME));
+		Debug('System just booted? '. (($uptime < $BOOT_GRACE_TIME)?'Yes':'No'));
 		return ($uptime < $BOOT_GRACE_TIME);
 	}
 	return 0; 
@@ -434,7 +443,7 @@ sub CheckNTPRefClock
 sub CheckTICLogging
 {
 	Debug("\n-->CheckTICLogging");
-	return CheckFile($_[0]->{TICStatusFile});
+	return CheckFile($_[0]->{statusFile});
 }
 
 # -------------------------------------------------------------------------
@@ -467,8 +476,8 @@ sub CheckRefLocked
 			if ($#statFlags == 5){
 				return  (!(($statFlags[3] & 0x01) || ($statFlags[1] & 0x01)) );
 			}
-			# don't report an error if it failed to parse - maybe we read it as it changed
-			Debug("Error parsing $statusFile");
+			# don't report an alarm if it failed to parse - maybe we read it as it changed
+			Debug("Alarm parsing $statusFile");
 		}
 		elsif ($mon->{oscillator} eq 'gpsdo'){
 			while ($line=<IN>){
@@ -485,7 +494,7 @@ sub CheckRefLocked
 				}
 			}
 			close IN;
-			Debug("Error parsing $statusFile");
+			Debug("Alarm parsing $statusFile");
 		}
 		close IN;
 	}
@@ -525,7 +534,7 @@ sub CheckGPSSignal
 				return $1>= 4;
 			}
 		}
-		return 1; # not there or parse error
+		return 1; # not there or parse alarm
 	}
 	elsif ($mon->{receiver} eq "Javad"){
 		# format of the message is
@@ -572,8 +581,8 @@ sub CheckRAID
 }
 
 # -------------------------------------------------------------------------
-sub SetError{
-	Debug("\n-->SetError");
+sub SetAlarm{
+	Debug("\n-->SetAlarm");
 	
 	my $mon=$_[0];
 	
@@ -581,35 +590,35 @@ sub SetError{
 	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; 
 	
 	# Reset the time of last clear event
-	$mon->{errLastClear}=0;
+	$mon->{alarmLastClear}=0;
 	
-	if ($mon->{isError}){ # error condition is already running 
-		$mon->{errRunTime} += $tvnow - $mon->{errLastUpdate};
-		$mon->{errLastUpdate}=$tvnow;
-		if ( $mon->{errRunTime} >= $mon->{threshold} ){
-			$mon->{errRunTime} =  $mon->{threshold};
+	if ($mon->{isAlarm}){ # alarm condition is already running 
+		$mon->{alarmRunTime} += $tvnow - $mon->{alarmLastUpdate};
+		$mon->{alarmLastUpdate}=$tvnow;
+		if ( $mon->{alarmRunTime} >= $mon->{threshold} ){
+			$mon->{alarmRunTime} =  $mon->{threshold};
 		}
-		Debug("Existing error: running time = " . $mon->{errRunTime});
+		Debug("Existing alarm: running time = " . $mon->{alarmRunTime});
 		return 0; 
 	}
 	
-	if ($mon->{errLastUpdate}== 0){ # no running error condition yet so initialise 
-		$mon->{errLastUpdate} = $tvnow;
-		$mon->{errRunTime}=0;
+	if ($mon->{alarmLastUpdate}== 0){ # no running alarm condition yet so initialise 
+		$mon->{alarmLastUpdate} = $tvnow;
+		$mon->{alarmRunTime}=0;
 	}
 	
-	$mon->{errRunTime} += $tvnow - $mon->{errLastUpdate};
-	$mon->{errLastUpdate}=$tvnow;	
+	$mon->{alarmRunTime} += $tvnow - $mon->{alarmLastUpdate};
+	$mon->{alarmLastUpdate}=$tvnow;	
 	
-	Debug("New error: running time = " . $mon->{errRunTime});
+	Debug("New alarm: running time = " . $mon->{alarmRunTime});
 
 	# If the elapsed time has reached the threshold, an alarm is raised 
-	if ( $mon->{errRunTime} >= $mon->{threshold} ){
+	if ( $mon->{alarmRunTime} >= $mon->{threshold} ){
 		Debug("Raising alarm");
-		# Clamp the error run time to the threshold so that the system
-		# recovers quickly from a long-lasting error
-		$mon->{errRunTime} =  $mon->{threshold};
-		$mon->{isError} =1;
+		# Clamp the alarm run time to the threshold so that the system
+		# recovers quickly from a long-lasting alarm
+		$mon->{alarmRunTime} =  $mon->{threshold};
+		$mon->{isAlarm} =1;
 		
 		if (($mon->{methods} | $ALARM_LOG)){     # log everything 
 			Debug("Logging");
@@ -661,27 +670,27 @@ sub SetError{
 }
 
 # -------------------------------------------------------------------------
-sub ClearError{
-	Debug("\n-->ClearError");
+sub ClearAlarm{
+	Debug("\n-->ClearAlarm");
 	
 	my $mon=$_[0];
 
-	if ($mon->{errLastUpdate} ==0){ # no error so return 
+	if ($mon->{alarmLastUpdate} ==0){ # no alarm so return 
 		return 1;
 	}
 	
 	($tvnow_secs,$tvnow_usecs) = gettimeofday;
 	my $tvnow = $tvnow_secs+$tvnow_usecs/1.0E6; 
 	
-	if ($mon->{errLastClear}== 0){ # flags first clear event 
-		$mon->{errLastClear}=$tvnow;
+	if ($mon->{alarmLastClear}== 0){ # flags first clear event 
+		$mon->{alarmLastClear}=$tvnow;
 	}
 	
-	$mon->{errRunTime} -= $tvnow - $mon->{errLastClear}; # decrement the running time
-	$mon->{errLastClear}=$tvnow;
+	$mon->{alarmRunTime} -= $tvnow - $mon->{alarmLastClear}; # decrement the running time
+	$mon->{alarmLastClear}=$tvnow;
 	
-	Debug("Error time = ".$mon->{errRunTime});
-	if ($mon->{isError} && ($mon->{errRunTime} <= 0.0)){ # error has cleared 
+	Debug("Alarm time = ".$mon->{alarmRunTime});
+	if ($mon->{isAlarm} && ($mon->{alarmRunTime} <= 0.0)){ # alarm has cleared 
 		my $msg = $mon->{msg}.' (cleared)';
 		
 		if (($mon->{methods} | $ALARM_LOG))  {
@@ -712,12 +721,12 @@ sub ClearError{
 			}
 		}
 		
-		$mon->{isError}=0;
-		$mon->{errLastUpdate}=0;
+		$mon->{isAlarm}=0;
+		$mon->{alarmLastUpdate}=0;
 		
 		return 1;
 	}
-	return 0; # error still persisting 
+	return 0; # alarm still persisting 
 }
 
 # -------------------------------------------------------------------------
