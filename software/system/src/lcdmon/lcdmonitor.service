@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenTTP LCD status display
+ConditionPathExists=/usr/local/etc/lcdmonitor.conf
+ConditionPathExists=/usr/local/etc/sysinfo.conf
+
+[Service]
+ExecStart=/usr/local/bin/lcdmonitor
+
+[Install]
+WantedBy=multi-user.target

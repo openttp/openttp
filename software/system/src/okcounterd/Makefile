@@ -20,7 +20,6 @@ $(PROGRAM): $(OBJECTS)
 install: $(PROGRAM)
 	@ echo Installing $(PROGRAM)
 	@ cp $(PROGRAM) /usr/local/bin
-	@ cp okcounterd.service /lib/systemd/system
 	@ if [[ `systemctl` =~ -\.mount ]]; then \
 		echo "systemd detected"; \
 		cp okcounterd.service /lib/systemd/system; \

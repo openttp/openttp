@@ -64,19 +64,21 @@ SliderWidget.o: Widget.h SliderWidget.h KeyEvent.h
 Widget.o: KeyEvent.h Widget.h
 
 install: mkversion lcdmonitor lcdconfig
-	-/bin/cp ./lcdmonitor $(BINDIR)
-	-/bin/cp ./lcdconfig  $(BINDIR)
-	-/bin/cp ./lcdmonitor.conf $(ETCDIR)
-	-/bin/cp ./sysinfo.conf $(ETCDIR)
-	chown root. $(BINDIR)/lcdmonitor
-	chmod og-x  $(BINDIR)/lcdmonitor
-	chown root. $(BINDIR)/lcdconfig
-	chmod og-x  $(BINDIR)/lcdconfig
-	chown root. $(ETCDIR)/lcdmonitor.conf
-	chmod og-w  $(ETCDIR)/lcdmonitor.conf
-	chown root. $(ETCDIR)/sysinfo.conf
-	chmod og-w  $(ETCDIR)/sysinfo.conf
-
+	@ install -o root -g root -m 0744 ./lcdmonitor $(BINDIR)
+	@ install -o root -g root -m 0744 ./lcdconfig  $(BINDIR)
+	@ install -o root -g root -m 0644 ./lcdmonitor.conf $(ETCDIR)
+	@ install -o root -g root -m 0644 ./sysinfo.conf $(ETCDIR)
+	@ echo "You will need to edit $(ETCDIR)/sysinfo.conf"
+	@ if [[ `systemctl` =~ -\.mount ]]; then \
+		echo "systemd detected"; \
+		cp lcdmonitor.service /lib/systemd/system; \
+ 		systemctl enable lcdmonitor.service; \
+		systemctl load   lcdmonitor.service; \
+	  elif [[ `/sbin/init --version` =~ upstart ]]; then\
+		echo "upstart detected but UNSUPPORTED";\
+	  else\
+		echo "unsupported init system";\
+	  fi
 clean:
 	rm -f $(LCDMONOBJS) $(LCDCONFIGOBJS) lcdmonitor lcdconfig
 
