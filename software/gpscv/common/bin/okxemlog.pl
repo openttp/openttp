@@ -29,7 +29,8 @@
 # Modification history
 # 2015-06-09 MJW Initial version 0.1
 # 2016-03-21 MJW Remove requirement for configuration file
-#
+# 2016-11-29 MJW Added per-channel status file, for consistency, and for interoperation with sysmonitor.pl
+# 
 
 use POSIX;
 use Errno;
@@ -39,7 +40,7 @@ use TFLibrary;
 
 use vars qw($opt_c $opt_d $opt_h $opt_v);
 
-$VERSION="0.1.0";
+$VERSION="0.1.1";
 $AUTHOR="Michael Wouters";
 
 $alarmTimeout = 120; # SIGAARLM timout 
@@ -87,7 +88,8 @@ if (!(-e $configFile)){
 %Init = &TFMakeHash2($configFile,(tolower=>1));
 
 # Check we got the info we need from the config file
-@check=("counter:port","counter:okxem channel","paths:counter data","counter:file extension","counter:lock file");
+@check=("counter:port","counter:okxem channel","paths:counter data",
+				"counter:file extension","counter:lock file","counter:status file");
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
@@ -120,6 +122,11 @@ else{
 
 $port = $Init{"counter:port"};
 $chan = $Init{"counter:okxem channel"};
+
+$statusFileName =$Init{"counter:status file"};
+if (defined $statusFileName){
+	$statusFileName = TFMakeAbsoluteFilePath($statusFileName,$home,$logpath);
+}
 
 $headerGen="";
 if (defined $Init{"counter:header generator"}){
@@ -187,11 +194,14 @@ while (1)
 		if ($chan == $dfields[0]){
 			$time=sprintf("%02d:%02d:%02d",$hour,$min,$sec);
 			$data = $dfields[3];
-			if (open OUT,">>$file_out")
-			{
-				if ($data > 5.0E8) {$data-=1.0E9;}
+			if ($data > 5.0E8) {$data-=1.0E9;}
+			if (open OUT,">>$file_out"){
 				print OUT $time,"  ",$data*1.0E-9,"\n";
 				close OUT;
+			}
+			if (open $statusFile,">$statusFileName"){
+				print $statusFile $time,"  ",$data*1.0E-9,"\n";
+				close $statusFile;
 			}
 		}
 	}
