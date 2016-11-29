@@ -104,7 +104,11 @@ if (grep (/^kickstart/,@targets)){
 if (grep (/^sysmonitor/,@targets)){
 	MakeDirectory('/usr/local/log');
 	MakeDirectory('/usr/local/log/alarms');
-	InstallScript('src/sysmonitor.pl','/usr/local/bin','src/sysmonitor.conf','/usr/local/etc');
+	InstallScript('src/sysmonitor.pl','/usr/local/bin',
+		'src/sysmonitor.conf','/usr/local/etc',
+		'src/sysmonitor.service','/lib/systemd/system'); # FIXME assumes systemd
+		`systemctl enable sysmonitor.service`;
+		`systemctl load sysmonitor.service`; # seem to need the full name
 }
 
 # Installation of TFLibrary
