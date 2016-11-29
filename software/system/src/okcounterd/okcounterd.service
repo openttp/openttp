@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenTTP counter/timer
+ConditionPathExists=/usr/local/lib/bitfiles/counter.bit
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/okcounterd -b /usr/local/lib/bitfiles/counter.bit
+
+[Install]
+WantedBy=multi-user.target

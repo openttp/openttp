@@ -18,8 +18,20 @@ $(PROGRAM): $(OBJECTS)
 	$(CXX) $(LDFLAGS) -o $(PROGRAM) $(OBJECTS) $(LIBS)
 
 install: $(PROGRAM)
-	cp $(PROGRAM) /usr/local/bin
+	@ echo Installing $(PROGRAM)
+	@ cp $(PROGRAM) /usr/local/bin
+	@ cp okcounterd.service /lib/systemd/system
+	@ if [[ `systemctl` =~ -\.mount ]]; then \
+		echo "systemd detected"; \
+		cp okcounterd.service /lib/systemd/system; \
+ 		systemctl enable okcounterd.service; \
+		systemctl load   okcounterd.service; \
+	  elif [[ `/sbin/init --version` =~ upstart ]]; then\
+		echo "upstart detected";\
+		cp okcounterd.upstart.conf /etc/init/okcounterd.conf;\
+	  else\
+		echo "unsupported init system";\
+	  fi
 	
 clean:
 	rm -f *.o $(PROGRAM)
-
