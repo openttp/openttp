@@ -115,7 +115,9 @@ void LCDConfigure::clearDisplay()
 void LCDConfigure::run()
 {
 	clearDisplay();
-	updateLine(1,"   NMI Australia");
+	//updateLine(1,"   NMI Australia");
+	//            12345678901234567890
+	updateLine(1,"      OpenTTP");
 	updateLine(2,"Time Transfer System");
 	storeState();
 }
@@ -309,12 +311,16 @@ void LCDConfigure::statusLEDsOn()
 {
 	for (int i=0;i<4;i++)
 		updateStatusLED(i,GreenOn);
+	//updateStatusLED(0,GreenOn);
+	//updateStatusLED(1,RedOn);
+	//updateStatusLED(2,GreenOn);
+	//updateStatusLED(3,RedOn);
 }
 
 void LCDConfigure::storeState()
 {
 	outgoing_response.command = 4;
-	outgoing_response.data_length =0;
+	outgoing_response.data_length = 0;
 	send_packet();
 	getResponse();
 }
