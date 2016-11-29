@@ -90,6 +90,7 @@ using namespace::boost;
 
 bool LCDMonitor::timeout=false;
 extern LCDMonitor *app;
+bool showHealth = true;
 
 LCDMonitor::LCDMonitor(int argc,char **argv)
 {
@@ -160,6 +161,7 @@ void LCDMonitor::showSysInfo()
 	int nline=0;
 	
 	ifstream fin(sysInfoConf.c_str());
+	//cout << sysInfoConf << endl;
 	if (!fin.good())
 		mb->setLine(1,"File not found");
 	else
@@ -186,9 +188,9 @@ void LCDMonitor::showSysInfo()
 	delete mb;
 }
 
-
-void LCDMonitor::networkDisable()
-{
+// This does not seem to be called from anywhere...
+void LCDMonitor::networkDisable() // Does this do anything?
+{                                 // No, it does not! 
 	
 	clearDisplay();
 	updateLine(0,"Disabling network");
@@ -198,6 +200,8 @@ void LCDMonitor::networkDisable()
 	log("networking disabled");
 }
 
+
+// Disabled for OpenTTP
 void LCDMonitor::networkConfigDHCP()
 {
 	
@@ -271,6 +275,8 @@ void LCDMonitor::networkConfigDHCP()
 		sleep(2);
 }
 
+
+// Disabled from OpenTTP
 void LCDMonitor::networkConfigStaticIP4()
 {
 	clearDisplay();
@@ -485,6 +491,8 @@ void LCDMonitor::networkConfigStaticIP4()
 		sleep(2);
 }
 
+
+// Disabled for OpenTTP
 void LCDMonitor::restartNetworking()
 {
 	clearDisplay();
@@ -585,7 +593,9 @@ void LCDMonitor::setGPSDisplayMode()
 	displayMode=GPS;
 	MenuItem *mi = displayModeM->itemAt(midGPSDisplayMode);
 	mi->setChecked(true);
-	mi = displayModeM->itemAt(midNTPDisplayMode);
+	mi = displayModeM->itemAt(midNTPDisplayMode);	
+	mi->setChecked(false);
+	mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(false);
 	
 	updateConfig("ui","display mode","GPS");
@@ -598,10 +608,12 @@ void LCDMonitor::setNTPDisplayMode()
 	if (displayMode==NTP) return;
 	
 	displayMode=NTP;
-	MenuItem *mi = displayModeM->itemAt(midGPSDisplayMode);
-	mi->setChecked(false);
-	mi = displayModeM->itemAt(midNTPDisplayMode);
+	MenuItem *mi = displayModeM->itemAt(midNTPDisplayMode);
 	mi->setChecked(true);
+	mi = displayModeM->itemAt(midGPSDisplayMode);
+	mi->setChecked(false);
+	mi = displayModeM->itemAt(midGPSDODisplayMode);
+	mi->setChecked(false);
 	lastNTPtrafficPoll.tv_sec=0;
 	
 	updateConfig("ui","display mode","NTP");
@@ -609,6 +621,24 @@ void LCDMonitor::setNTPDisplayMode()
 	clearDisplay();
 }
 		
+void LCDMonitor::setGPSDODisplayMode()
+{
+	if (displayMode==GPSDO) return;
+	
+	
+	displayMode=GPSDO;
+	MenuItem *mi = displayModeM->itemAt(midGPSDODisplayMode);
+	mi->setChecked(true);
+	mi = displayModeM->itemAt(midGPSDisplayMode);
+	mi->setChecked(false);
+	mi = displayModeM->itemAt(midNTPDisplayMode);
+	mi->setChecked(false);
+	
+	updateConfig("ui","display mode","GPSDO");
+	
+	clearDisplay();
+}
+
 void LCDMonitor::restartGPS()
 {
 	clearDisplay();
@@ -772,10 +802,13 @@ void LCDMonitor::showStatus()
 		{
 			case NTP:
 			{
+				//printf("Getting time of day\n");
 				gettimeofday(&currNTPtrafficPoll,NULL);
 				if (currNTPtrafficPoll.tv_sec - lastNTPtrafficPoll.tv_sec < 60) break;
 			
 				int oldpkts=-1,newpkts=-1,badpkts=-1;
+				//printf("Get NTP stats\n");
+				// OK getNTPstats fails...
 				getNTPstats(&oldpkts,&newpkts,&badpkts);
 				if (oldpkts >=0 && newpkts >=0 && badpkts >=0)
 				{
@@ -806,6 +839,7 @@ void LCDMonitor::showStatus()
 						lastNTPtrafficPoll = currNTPtrafficPoll;
 						lastNTPPacketCount = currNTPPacketCount; 
 					}
+					//printf("Should have NTP stats now\n");
 					
 				}
 				break;
@@ -816,8 +850,10 @@ void LCDMonitor::showStatus()
 				int nsats=0;
 				bool unexpectedEOF;
 				checkGPS(&nsats,prn,&unexpectedEOF); 
+				// Note: NV08C returns GPS and GLONASS sats in prn string, so we must only
+				//       parse the GPS sats - nsats contain the number of GPS sats
 				if (unexpectedEOF)
-					Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF");
+					Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF from checkGPS");
 			
 				if (showPRNs && !unexpectedEOF)
 				{
@@ -825,6 +861,8 @@ void LCDMonitor::showStatus()
 					// Have 15 characters per line == 6 per line
 					std::vector<std::string> sprns;
 					boost::split(sprns,prn,is_any_of(",")); // note that if no split, then input is returned
+					// Reduce the length of the array (if necessary) so that we retain only the GPS PRN numbers
+					sprns.resize(nsats);
 					std::vector<int> prns;
 					for (unsigned int i=0;i<sprns.size();i++)
 					{
@@ -861,6 +899,46 @@ void LCDMonitor::showStatus()
 				{
 					sprintf(buf,"GPS sats=%d",nsats);
 					updateLine(1,buf);
+				}
+				break;
+			}
+			case GPSDO:
+			{
+				std::string status,ffe,EFC,health;
+				bool unexpectedEOF;
+				/*
+				if (!checkGPSDO(status,ffe,EFC,health,&unexpectedEOF))
+					cout << "checkGPSDO() returned false\n";
+				else
+					cout << "checkGPSDO() returned true\n";
+				*/
+				if(checkGPSDO(status,ffe,EFC,health,&unexpectedEOF))
+				{
+					if (unexpectedEOF)
+						Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF from checkGPSDO");
+					else
+					{
+						status = "GPSDO: " + status; //=+ did not work!
+						if (status.length() > 20) status.resize(20);
+						updateLine(1,status);
+						std::string buf;
+						if (ffe.length() > 7) ffe.resize(7);
+						if (EFC.length() > 4) EFC.resize(4);
+						buf = "ffe:" + ffe + " EFC:" + EFC;
+						size_t pos = health.find("-");
+						health.resize(pos);
+						health = "Health: " + health;
+						if(showHealth)
+							updateLine(2,health);
+						else
+							updateLine(2,buf);
+						showHealth = !showHealth;
+					}
+				}
+				else // most likely stale file...
+				{
+					updateLine(1,"GPSDO:");
+					updateLine(2,"");
 				}
 				break;
 			}
@@ -939,7 +1017,8 @@ void LCDMonitor::execMenu()
 	bool showMenu=true;
 	std::stack<Menu *> menus;
 	
-	parseNetworkConfig(); // keep this up to date
+	// No longer required, we removed networking from the menu
+	//parseNetworkConfig(); // keep this up to date
 	
 	int currRow=0;
 	statusLEDsOff();
@@ -1224,12 +1303,17 @@ void LCDMonitor::init()
 	
 	configure();
 	
-	parseNetworkConfig();
+	// No longer required, we removed networking from the menu
+	//parseNetworkConfig();
 	
 	// this will be true for compact systems
 	NTPProtocolVersion=4;
 	NTPMajorVersion=2;
 	NTPMinorVersion=2;
+	
+	// Note: (Louis, 2016-10-25)
+	//  This will not work with ntpq (ntpdc is now deprecated!)
+	//  The mods below will only work with version 4 and newer!
 	
 	detectNTPVersion();
 	if (4==NTPProtocolVersion)
@@ -1243,8 +1327,10 @@ void LCDMonitor::init()
 		else
 		{
 			currPacketsTag="current version";
-			oldPacketsTag="previous version";
-			badPacketsTag="bad version";
+			//oldPacketsTag="previous version";
+			oldPacketsTag="older version";
+			//badPacketsTag="bad version";
+			badPacketsTag="bad length or format";
 		}
 	}
 
@@ -1315,7 +1401,8 @@ void LCDMonitor::configure()
 	
 	poweroffCommand="/sbin/poweroff";
 	rebootCommand="/sbin/shutdown -r now";
-	ntpdRestartCommand="/sbin/service ntpd-nmi restart";
+	//ntpdRestartCommand="/sbin/service ntpd-nmi restart";
+	ntpdRestartCommand="/usr/sbin/service ntp restart";
 	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 
@@ -1445,6 +1532,8 @@ void LCDMonitor::configure()
 			displayMode = GPS;
 		else if (0==strcmp(stmp,"NTP"))
 			displayMode = NTP;
+		else if (0==strcmp(stmp,"GPSDO"))
+			displaymode = GPSDO;
 		else
 		{
 			ostringstream msg;
@@ -1467,7 +1556,7 @@ void LCDMonitor::configure()
 		exit(EXIT_FAILURE);
 	}
 	
-	if (list_get_string_value(last,"receiver","model",&stmp))
+if (list_get_string_value(last,"receiver","model",&stmp))
 		receiverName=stmp;
 	else
 		log("receiver type not found in gpscv.conf");
@@ -1487,6 +1576,11 @@ void LCDMonitor::configure()
 	else
 		log("receiver:status file not found in gpscv.conf");
 		
+	if (list_get_string_value(last,"gpsdo","status file",&stmp))
+		GPSDOStatusFile=stmp;
+	else
+		log("gpsdo:status file not found in gpscv.conf");
+	
 	list_clear(last);
 	
 	
@@ -1561,8 +1655,15 @@ void LCDMonitor::makeMenu()
 	
 	Menu *setupM = new Menu("Setup...");
 	menu->insertItem(setupM);
-
+	WidgetCallback<LCDMonitor> *cb;
+	MenuItem *mi;
 	
+		/*
+		// Commenting out this block effectively removes this option from the
+		// "Setup..." menu.
+		// I had to move the declarations of *cb and *mi out of this block. If this
+		// option is restored, you need to remove the two declares above. Or change
+		// the code below!
 		protocolM = new Menu("Network boot protocol...");
 		setupM->insertItem(protocolM);
 			
@@ -1575,7 +1676,8 @@ void LCDMonitor::makeMenu()
 			midStaticIP4=protocolM->insertItem("Static IPv4...",cb);
 			mi = protocolM->itemAt(midStaticIP4);
 			if (mi != NULL) mi->setChecked(networkProtocol==StaticIPV4);
-			
+		*/
+		
 		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
 		setupM->insertItem("LCD settings...",cb);
 		
@@ -1592,6 +1694,11 @@ void LCDMonitor::makeMenu()
 		  midNTPDisplayMode = displayModeM ->insertItem("NTP",cb);
 			mi = displayModeM->itemAt(midNTPDisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==NTP);
+			
+			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGPSDODisplayMode);
+		  midGPSDODisplayMode = displayModeM ->insertItem("GPSDO",cb);
+			mi = displayModeM->itemAt(midGPSDODisplayMode);
+			if (mi != NULL) mi->setChecked(displayMode==GPSDO);
 			
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
 	menu->insertItem("Show alarms",cb);
@@ -1755,7 +1862,6 @@ bool LCDMonitor::checkAlarms()
 	} 
 	else if (globret == 0)
 	{
-		
 		Dout(dc::trace,"LCDMonitor::checkAlarms()");
 		for (unsigned int i=0;i<aglob.gl_pathc;i++)
 		{
@@ -1764,12 +1870,14 @@ bool LCDMonitor::checkAlarms()
 			size_t pos = msg.find_last_of('/');
 			if (pos != string::npos)
 				msg = msg.substr(pos+1,string::npos);
+			
 			alarms.push_back(msg);
 			Dout(dc::trace,msg);
 		}
 		globfree(&aglob);
 		return false;
 	}
+	
 	
 	return false;
 }
@@ -1782,6 +1890,7 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	if (!ret)
 	{
 		Dout(dc::trace,"LCDMonitor::checkGPS() stale file");
+		//cout << "checkGPS() stale file\n";
 		return false; // don't display stale information
 	}
 
@@ -1790,6 +1899,7 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	if (!fin.good()) // not really going to happen
 	{
 		Dout(dc::trace,"LCDMonitor::checkGPS() stream error");
+		//cout << "checkGPS() stream error\n";
 		return false;
 	}
 
@@ -1799,13 +1909,16 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	while (!fin.eof())
 	{
 		getline(fin,tmp);
-		if (string::npos != tmp.find("sats"))
+		//if (string::npos != tmp.find("sats"))
+		if (string::npos != tmp.find("GPS sats"))
 		{	
 			gotSats=true;
 			std::string sbuf;
-			parseConfigEntry(tmp,sbuf,'=');
+			//parseConfigEntry(tmp,sbuf,'=');
+			parseConfigEntry(tmp,sbuf,':');
 			int ntmp=-1;
 			ntmp=atoi(sbuf.c_str());
+			//cout << "checkGPS - sbuf: " << sbuf << endl << "ntmp: " << ntmp << endl;
 			if (ntmp >=0)
 			{
 				gotSats=true;
@@ -1815,11 +1928,97 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 		else if (string::npos != tmp.find("prns"))
 		{	
 			parseConfigEntry(tmp,prns,'=');
+			//cout << "prns = " << prns << endl;
 		}
 	}
 	fin.close();
 	*unexpectedEOF = !(gotSats || (!prns.empty()));
 	Dout(dc::trace,"LCDMonitor::checkGPS() done");
+	return ret;
+}
+
+bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EFC,std::string &health,bool *unexpectedEOF)
+{
+	
+	*unexpectedEOF=false;
+	bool ret = checkFile(GPSDOStatusFile.c_str());
+	if (!ret)
+	{
+		Dout(dc::trace,"LCDMonitor::checkGPSDO() stale file");
+		//cout << "checkGPSDO() stale file\n";
+		return false; // don't display stale information
+	}
+
+	// status file is current so extract useful stuff
+	std::ifstream fin(GPSDOStatusFile.c_str());
+	if (!fin.good()) // not really going to happen
+	{
+		Dout(dc::trace,"LCDMonitor::checkGPSDO() stream error");
+		//cout << "checkGPSDO() stream error\n";
+		return false;
+	}
+	
+	std::string tmp;
+	
+	while (!fin.eof())
+	{
+		getline(fin,tmp);
+		//cout << tmp << endl;
+		if (string::npos != tmp.find("Lock status                   : "))
+		{	
+			parseConfigEntry(tmp,status,'-');
+			//cout << "GPSDO status: >" << status << endl;
+		}
+		else if (string::npos != tmp.find("EFC percentage (%)            : "))
+		{	
+			parseConfigEntry(tmp,EFC,':');
+			//cout << "GPSDO EFC(%): >" << EFC << endl;
+		}
+		else if (string::npos != tmp.find("Estimated frequency accuracy  : "))
+		{	
+			parseConfigEntry(tmp,ffe,':');
+			//cout << "GPSDO ffe: >" << ffe << endl;
+		}
+		else if (string::npos != tmp.find("GPSDO health                  : "))
+		{	
+			parseConfigEntry(tmp,health,':');
+			//cout << "GPSDO health: >" << health << endl;
+		}
+	}
+	fin.close();
+	/*
+	if(status.empty())
+		cout << "checkGPSDO: status empty\n";
+	else
+		cout << "checkGPSDO: status OK\n";
+	
+	if(EFC.empty())
+		cout << "checkGPSDO: EFC empty\n";
+	else
+		cout << "checkGPSDO: EFC OK\n";
+	
+	if(ffe.empty())
+		cout << "checkGPSDO: ffe empty\n";
+	else
+		cout << "checkGPSDO: ffe OK\n";
+	
+	if(health.empty())
+		cout << "checkGPSDO: health empty\n";
+	else
+		cout << "checkGPSDO: health OK\n";
+	*/
+	trim(status); // using boost
+	trim(EFC);
+	trim(ffe);
+	trim(health);
+	*unexpectedEOF = ((status.empty()) || (EFC.empty()) || (ffe.empty()) || (health.empty())) ;
+	/*
+	if (*unexpectedEOF)
+		cout << "checkGPSDO: Unexpected end of file\n";
+	else
+		cout << "checkGPSDO: File length OK!\n";
+	*/
+	Dout(dc::trace,"LCDMonitor::checkGPSDO() done");
 	return ret;
 }
 
@@ -1879,16 +2078,23 @@ bool LCDMonitor::detectNTPVersion()
 	return ret;
 }
 
+// I do not think this is working correctly (with ntpq), because I see no old packets
+// or bad packets. Maybe that is just because the ntp works so nicely on this machine!
+// I said it is not working properly because oldpkts and badpkts are -1 all the time,
+// but that may be just because there are none of these...
+// see the /var/log/ntpstats/sysstats file(s)
+
 void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 {
 	
 	char buf[1024];
 	
-	FILE *fp=popen("/usr/local/bin/ntpdc -c sysstats","r");
+	//FILE *fp=popen("/usr/local/bin/ntpdc -c sysstats","r");
+	// Louis 2016-10-25 ntpdc is deprecated, use ntpq now
+	FILE *fp=popen("/usr/local/bin/ntpq -c sysstats","r");
 	while (fgets(buf,1023,fp) != NULL)
 	{
 		Dout(dc::trace,buf);
-	
 		if (NTPProtocolVersion == 4){
 		
 			if (strstr(buf,currPacketsTag.c_str()))
@@ -1900,6 +2106,8 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 					{
 						sep++;
 						*newpkts=atoi(sep);
+						//printf("For newpkts:\n%s",buf);
+						
 					}
 				}
 			}
@@ -1912,6 +2120,7 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 					{
 						sep++;
 						*oldpkts=atoi(sep);
+						//printf("For oldpkts:\n%s",buf);
 					}
 				}
 			}
@@ -1924,12 +2133,14 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 					{
 						sep++;
 						*badpkts=atoi(sep);
+						//printf("For badpkts:\n%s",buf);
 					}
 				}
 			}
 		}
 	}
 	pclose(fp);
+	//printf("getNTPStats() oldpkts: %d newpkts %d badpkts %d\n\n",*oldpkts,*newpkts,*badpkts);
 	Dout(dc::trace,"getNTPstats() " << *oldpkts << " " << *newpkts << " " << *badpkts);
 }
 
@@ -1948,6 +2159,8 @@ bool LCDMonitor::checkFile(const char *fname)
 	//fprintf(stderr,"squealer_check_file(): %s modified %i rebooted %i\n",fname,
 	//		(int) statbuf.st_mtime,(int) (ttime - info.uptime));
 	
+	//cout << "checkFile() - file name: " << fname << endl;
+	
 	if (retval == 0) /* file exists */
 	{
 		/* Was it created since the last boot */
@@ -1957,17 +2170,20 @@ bool LCDMonitor::checkFile(const char *fname)
 			if (ttime - statbuf.st_mtime < MAX_FILE_AGE)
 			{
 				Dout(dc::trace,"LCDMonitor::checkFile(): " << fname << " ok");
+				//cout << "checkFile() - file OK\n";
 				return true;
 			}
 			else
 			{
 				Dout(dc::trace,"LCDMonitor::checkFile(): " << fname <<" too old");
+				//cout << "checkFile() - file too old " << ttime - statbuf.st_mtime << endl;
 				return false;
 			}
 		}
 		else
 		{
 			Dout(dc::trace,"LCDMonitor::checkFile(): " << fname <<" predates boot");
+			//cout << "checkFile() - file predates boot " << statbuf.st_mtime << " > " << ttime - info.uptime << endl;
 			return false; /* predates boot */
 		}
 		
@@ -1976,6 +2192,7 @@ bool LCDMonitor::checkFile(const char *fname)
 	{
 		/* Have we just booted ? OK if we have */
 		Dout(dc::trace,"LCDMonitor::checkFile(): " << fname << "doesn't exist");
+		//cout << "File does not exist!\n";
 		return (info.uptime < BOOT_GRACE_PERIOD);
 	}
 	

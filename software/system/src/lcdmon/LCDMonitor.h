@@ -68,6 +68,7 @@ class LCDMonitor:public CFA635
 		void LCDConfig();
 		void setGPSDisplayMode();
 		void setNTPDisplayMode();
+		void setGPSDODisplayMode();
 		
 		void restartGPS();
 		void restartNtpd();
@@ -77,7 +78,7 @@ class LCDMonitor:public CFA635
 	private:
 	
 		enum LEDState {Off,RedOn,GreenOn,Unknown};
-		enum DisplayMode {GPS,NTP};
+		enum DisplayMode {GPS,NTP,GPSDO};
 		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
 		
 		static void signalHandler(int);
@@ -108,6 +109,8 @@ class LCDMonitor:public CFA635
 		
 		bool checkAlarms();
 		bool checkGPS(int *,std::string &,bool *);
+		//              Status        ffe           EFC%          health
+		bool checkGPSDO(std::string &,std::string &,std::string &,std::string &,bool *);
 		bool detectNTPVersion();
 		void getNTPstats(int *,int *,int *);
 		
@@ -143,7 +146,7 @@ class LCDMonitor:public CFA635
 		bool showPRNs;
 
 		Menu *menu,*displayModeM,*protocolM;
-		int midGPSDisplayMode,midNTPDisplayMode; // some menu items we want to track
+		int midGPSDisplayMode,midNTPDisplayMode,midGPSDODisplayMode; // some menu items we want to track
 		int midDHCP,midStaticIP4,midStaticIP6;
 		
 		std::string logFile;
@@ -156,7 +159,7 @@ class LCDMonitor:public CFA635
 		std::string DNSconf,networkConf,eth0Conf;
 		
 		std::string receiverName;
-		std::string refStatusFile,GPSStatusFile; 
+		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile; 
 		
 		// some settings
 		int intensity;
