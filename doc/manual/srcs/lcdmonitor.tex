@@ -1,9 +1,9 @@
 \section{lcdmonitor}
 
-\cc{lcdmonitor} runs the lcd display on the front panel of the base unit.
+\cc{lcdmonitor} runs the lcd display on the front panel of the  unit.
 
 \subsection{usage}
-\cc{lcdmonitor} is automatically started by an entry in \cc{/etc/inittab}. It can be run on
+\cc{lcdmonitor} is automatically started by the system's init system. On Debian, this is \cc{systemd}. It can be run on
 the command line for debugging purposes. The command line options are
 \begin{description*}
 	\item[-d]	run in debugging mode
@@ -70,11 +70,11 @@ The entry in the configuration file looks like:
 \begin{lstlisting}
 GPSCV user = cvgps
 \end{lstlisting}
-{\bfseries CCTF config}\\
-This defines the location of the file \cc{cctf.setup}.
+{\bfseries gpscv config}\\
+This defines the location of the file \cc{gpscv.conf}.
 The entry in the configuration file looks like:
 \begin{lstlisting}
-CCTF config = /home/cvgps/etc/cctf.setup
+GPSCV config = /home/cvgps/etc/gpscv.conf
 \end{lstlisting}
 {\bfseries GPS restart command}\\
 This specifies the command used to restart the GPS receiver. Note that since

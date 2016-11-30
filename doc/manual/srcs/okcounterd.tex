@@ -1,0 +1,29 @@
+\section{okcounterd}
+
+\cc{okcounterd} provides the interface to the Opal Kelly FPGA development board when configured as a multichannel counter.
+It communicates with user processes via port 21577.
+
+\cc{okcounterd} recognizes the following commands, sent as plain text:
+\begin{description*}
+	\item[CONFIGURE]
+	\item[QUERY CONFIGURATION]
+	\item[LISTEN]
+\end{description*}
+
+\subsection{usage}
+\cc{okcounterd} is automatically started by the system's init system. On Debian, this is \cc{systemd}. It can be run on
+the command line for debugging purposes. The command line options are
+\begin{description*}
+	\item[-b] \<bitfile\> load the specified bitfile (the full path is needed)
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+To run \cc{okcounterd} on the command line, you will need to disable the system service
+and kill any running \cc{okcounterd} process.
+
+\subsection{configuration file \label{confformat}}
+\cc{okcounterd} doesn't use a configuration file.
+
+\subsection{log file}
+\cc{okcounterd} doesn't produce a log file.
