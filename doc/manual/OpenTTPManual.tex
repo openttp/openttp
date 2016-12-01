@@ -4,6 +4,7 @@
 
 \usepackage{hyperref} 
 \usepackage{listings}
+\usepackage{graphicx}
 
 \newcommand{\ci}[1]{\hspace*{1cm} {\small\texttt{#1}}}
 \newcommand{\cc}[1]{{\small\texttt{#1}}}
@@ -114,9 +115,10 @@ software/system/installsys.pl
 software/gpscv/install.pl
 \end{lstlisting}
 
-\cc{installsys.pl} must be run first, because it installs  libraries which are needed by the GPSCV software.
+\cc{installsys.pl} must be run first, because it installs libraries which are needed by the GPSCV software.
 
-Run-time options can be viewed by running the script with the '-h' option.
+Run-time options can be viewed by running the script with the '-h' option. In particular, \cc{installsys.pl}
+has options to list the available installation targets and to install particular targets.
 
 \section{A minimal software setup}
 
@@ -147,7 +149,7 @@ support within OpenTTP.
 You may find the following useful:
 \begin{description*}
 	\item[kickstart.pl] for automatic start of logging processes
-	\item[runmktimetx.pl] for automated processing, and reprocessing of
+	\item[runmktimetx.pl] for automated processing, and reprocessing
 	\item[ziplogs.pl] for log file compression
 \end{description*}	
 
@@ -164,6 +166,13 @@ can be configured via the general configuration file, \ref{sgpscvconf}.
 	\item[\cc{rinex}]
 	\item[\cc{tmp}]
 \end{description*}
+
+%% ****************************************************************************************
+\chapter{System hardware}
+%% ****************************************************************************************
+
+\section{Multi-channel counter/timer}
+\include{srcs/counter}
 
 
 %% ****************************************************************************************
@@ -186,9 +195,9 @@ For example,
 	 manufacturer = Trimble
 	 model = Resolution T
 \end{lstlisting}
-defines a section 'Receiver' and the receiver's manufacturer and model. 
-We will use the notation \cc{Section::Key} to describe keys. For example,
-\cc{Receiver::model} and \cc{Receiver::manufacturer} describes the two keys above.
+defines a section `Receiver' and the receiver's manufacturer and model. 
+We use the notation \cc{Section::Key} to describe keys. For example,
+\cc{Receiver::model} and \cc{Receiver::manufacturer} describe the two keys above.
 
 Keys are not case-sensitive. Comments begin with a '\#'.
 
@@ -197,7 +206,7 @@ Some entries define a list of sections. For example, the comma-separated list of
 	[CGGTTS]
 	outputs = C1-code,P1-code,P2-code
 \end{lstlisting}
-defines three sections: \cc{C1-code}, P1-code, P2-code.
+defines three sections: \cc{C1-code}, \cc{P1-code}, and \cc{P2-code}.
 
 
 \section{gpscv.conf - the core configuration file \label{sgpscvconf} }
@@ -212,7 +221,9 @@ It uses the format described in \ref{sConfigFileFormat}.
 \cc{mktimetx} is the core OpenTTP application. It creates CGGTTS and RINEX-format time-transfer files.
 
 
-\section{runmktimetx.pl}
+\section{runmktimetx.pl \label{runmktimetx}}
+
+\include{srcs/runmktimetx}
 
 \section{Counter/timer logging scripts}
 
@@ -244,7 +255,7 @@ It has the following specific configuration file entries:
 
 \subsection{jnslog.pl}
 
-There is a file \cc{counter.conf} which lists the commands used to configure the receiver.
+There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
 
 \subsection{nvslog.pl}
 
@@ -276,6 +287,11 @@ The ublox receiver is entirely configured using the script.
 \section{kickstart.pl}
 
 \section{mjd}
+
+\section{okcounterd}
+\include{srcs/okcounterd}
+
+\section{okcounterdctl.pl}
 
 \section{ziplogs.pl}
 

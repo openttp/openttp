@@ -1,0 +1,26 @@
+
+\cc{runmktimetx.pl} provides a convenient way to process multiple days of data and to run any missed processing.
+
+	
+\subsection{usage}
+\cc{runmktimetx.pl} is normally run as a \cc{cron} job.
+
+To run on the command line, use
+\begin{lstlisting}
+runmktimetx.pl [OPTION] \textellipsis [Start MJD  [Stop MJD]]
+\end{lstlisting}
+If an MJD or MJD range is not specified, the previous day is processed.
+
+The options are
+\begin{description*}
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-x] run missed processing
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+\cc{runmktimetx.pl} uses \cc{gpscv.conf}.
+
+\subsection{log file}
+\cc{runmktimetx.pl} doesn't produce a log file.
