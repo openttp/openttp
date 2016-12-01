@@ -95,8 +95,9 @@ bool showHealth = true;
 LCDMonitor::LCDMonitor(int argc,char **argv)
 {
 
-
-	char c;
+	//char c;  <-- issue with the way Debian on BBB returns values from getopt
+	// char is an unsigned type here, and EOF returns -1, so it just sits here forever
+	int c;
 	while ((c=getopt(argc,argv,"hvd")) != EOF)
 	{
 		switch(c)
@@ -110,7 +111,7 @@ LCDMonitor::LCDMonitor(int argc,char **argv)
 	init();
 	
 	makeMenu();
-	
+
 }
 
 LCDMonitor::~LCDMonitor()
@@ -276,7 +277,7 @@ void LCDMonitor::networkConfigDHCP()
 }
 
 
-// Disabled from OpenTTP
+// Disabled for OpenTTP
 void LCDMonitor::networkConfigStaticIP4()
 {
 	clearDisplay();
@@ -1263,7 +1264,7 @@ void LCDMonitor::init()
 	pid_t oldpid;
 	
 	
-	logFile=DEFAULT_LOG_FILE;
+	logFile = DEFAULT_LOG_FILE;
 	
 	lockFile = DEFAULT_LOCK_FILE;
 	
@@ -1484,7 +1485,6 @@ void LCDMonitor::configure()
 	else
 		log("GPS restart command not found in config file");
 
-	
 	// OS
 	if (list_get_string_value(last,"OS","reboot command",&stmp))
 		rebootCommand= stmp;
@@ -1547,7 +1547,7 @@ void LCDMonitor::configure()
 	//
 	// Parse gpscv.conf
 	//
-	
+
 	if (!configfile_parse_as_list(&last,gpscvConfig.c_str()))
 	{
 		ostringstream msg;
@@ -1555,8 +1555,8 @@ void LCDMonitor::configure()
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
-	
-if (list_get_string_value(last,"receiver","model",&stmp))
+
+	if (list_get_string_value(last,"receiver","model",&stmp))
 		receiverName=stmp;
 	else
 		log("receiver type not found in gpscv.conf");
@@ -1570,19 +1570,18 @@ if (list_get_string_value(last,"receiver","model",&stmp))
 		refStatusFile=stmp;
 	else
 		log("reference:status not found in gpscv.conf");
-			
+	
 	if (list_get_string_value(last,"receiver","status file",&stmp))
 		GPSStatusFile=stmp;
 	else
 		log("receiver:status file not found in gpscv.conf");
-		
+	
 	if (list_get_string_value(last,"gpsdo","status file",&stmp))
 		GPSDOStatusFile=stmp;
 	else
 		log("gpsdo:status file not found in gpscv.conf");
 	
 	list_clear(last);
-	
 	
 	//
 	// Parse sysmon.conf
@@ -1603,7 +1602,7 @@ if (list_get_string_value(last,"receiver","model",&stmp))
 	}
 	else
 		log("Status File Directory not found in sysmonitor.conf");
-				
+	
 	list_clear(last);
 	
 }
