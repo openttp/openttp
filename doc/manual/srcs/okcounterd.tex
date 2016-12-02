@@ -1,20 +1,23 @@
+
+\section{okcounterd \label{sokcounterd}}
+
 \cc{okcounterd} provides the interface to the Opal Kelly FPGA development board when configured as a multi-channel counter.
 It communicates with user processes via port 21577 (it's the date ``Star Wars'' premiered).
 
 \cc{okcounterd} recognizes the following commands, sent as plain text:
 \begin{description*}
-	\item[CONFIGURE GPIO 0\\|1] enables/disables the system GPIO.
-	\item[CONFIGURE PPSSOURCE n] selects the input channel of the counter which is
+	\item[] CONFIGURE GPIO $0\vert1$ enables/disables the system GPIO.
+	\item[] CONFIGURE PPSSOURCE n selects the input channel of the counter which is
 	routed to the output 1 pps. 
-	\item[QUERY CONFIGURATION] reads the device configuration register. \cc{okcounterd} sends
+	\item[] QUERY CONFIGURATION reads the device configuration register. \cc{okcounterd} sends
 	a plain text response.
-	\item[LISTEN] registers a process to receive counter-timer readings.
+	\item[] LISTEN registers a process to receive counter-timer readings.
 \end{description*}
 \cc{okcounterdctrl.pl} provides a convenient way to send commands.
 
 Counter/timer data sent by \cc{okcounterd} is in the following format:
 \begin{lstlisting}
-channel\_number  timestamp (s) timestamp ($\mu$s) reading (ns)
+channel_number  timestamp (s) timestamp ($\mu$s) reading (ns)
 \end{lstlisting}
 Channel numbers are indexed from 1.
 
@@ -22,9 +25,9 @@ Channel numbers are indexed from 1.
 \cc{okcounterd} is automatically started by the system's init system. On Debian, this is \cc{systemd}. 
 It can be run manually for debugging purposes.
 
-The command line options are
+The command line options are:
 \begin{description*}
-	\item[-b] <bitfile> load the specified bitfile (the full path is needed)
+	\item[-b] \textless bitfile\textgreater load the specified bitfile (the full path is needed)
 	\item[-d]	run in debugging mode
 	\item[-h]	print help and exit
 	\item[-v]	print version information and exit
@@ -32,7 +35,7 @@ The command line options are
 To manually run \cc{okcounterd}, you will need to disable the system service
 and kill any running \cc{okcounterd} process.
 
-\subsection{configuration file \label{confformat}}
+\subsection{configuration file}
 \cc{okcounterd} doesn't use a configuration file.
 
 \subsection{log file}

@@ -1,0 +1,81 @@
+
+\section{mktimetx}
+
+\cc{mktimetx} is the core OpenTTP application.
+It creates CGGTTS and RINEX-format time-transfer files.
+
+\subsection{usage}
+
+The command line options are
+\begin{description*}
+	\item[--configuration \textless file \textgreater] 
+	\item[--counterpath \textless path \textgreater]	
+	\item[--comment \textless string>] comment for the CGGTTS file	
+	\item[--debug \textless file \textgreater]	turn on debugging to \cc{file}. To debug to \cc{stderr}, just use `stderr'.
+	\item[--disable-tic] disable the use of counter/timer measurements in 
+	\item[--help] show help
+	\item[--no-navigation] disable output of a RINEX navigation file
+	\item[--receiver-path \textless path \textgreater]
+	\item[--short-debug-message]
+	\item[--sv-diagnostics] save raw measurements for each SV in a file. Each SV is in a separate file.
+	\item[--timing-diagnostics] save timing diagnostics in a file
+	\item[--verbosity \textless 1-4 \textgreater] set the debugging verbosity
+	\item[--version] print version information	
+\end{description*}
+
+\subsection{configuration file}
+
+\cc{mktimtex} uses the \cc{gpscv.conf}.
+
+Keys used by it include:
+\begin{lstlisting}
+antenna::antenna number
+antenna::antenna type
+antenna::delta h (optional)
+antenna::delta e (optional)
+antenna::delta h (optional)
+antenna::frame
+antenna::marker name
+antenna::marker number
+antenna::marker type
+antenna::x
+antenna::y
+antenna::z
+cggtts::comments (optional)
+cggtts::create (optional - if set to 'no' then no other cggtts keys are needed)
+cggtts::lab
+cggtts::lab id (if cggtts::naming convention is 'BIPM')
+cggtts::maximum dsg (optional)
+cggtts::minimum track length (optional)
+cggtts::naming convention (optional)
+cggtts::outputs
+cggtts::receiver id (if cggtts::naming convention is 'BIPM')
+cggtts::reference
+cggtts::revision date
+cggtts::version
+counter::file extension (optional)
+counter::flip sign (optional)
+delays::antenna cable
+delays::reference cable
+misc::gzip (optional)
+paths::cggtts
+paths::counter data
+paths::receiver data
+paths::processing log (optional)
+paths::rinex
+paths::root (optional)
+paths::tmp
+receiver::file extension (optional)
+receiver::manufacturer
+receiver::model
+receiver::observations (optional)
+receiver::pps offset
+receiver::sawtooth phase (optional)
+receiver::version (optional)
+rinex::agency
+rinex::create (optional - if set to 'no' then no other rinex keys are needed)
+rinex::observer
+rinex::version
+\end{lstlisting}
+
+\subsection{log file}

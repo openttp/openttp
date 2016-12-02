@@ -1,0 +1,95 @@
+\section{sysmonitor.pl \label{ssysmonitor}}
+
+\cc{sysmonitor.pl} monitors the system status and provides notification of alarm conditions via 
+files written to a specified directory, and via calling the alarm delivery system. In particular, 
+\cc{lcdmonitor} reads this directory to pick up current alarms.
+
+Some of the conditions currently monitored include:
+\begin{itemize}
+\item TIC logging running (via it's status file)
+\item reference oscillator logging running
+\item reference is locked
+\item reference has lost power (PRS10 only)
+\item GPS logging running
+\item GPS receiver is tracking sufficient satellites
+\item RAID status (where RAID is used)
+\item NTP reference clocks are healthy
+\end{itemize}
+
+The run time for an alarm must integrate up to the configured threshold before an alarm is issued. 
+Similarly, the run time for a clearing alarm must integrate to zero before a clear is issued.
+
+\subsection{usage}
+\cc{sysmonitor.pl} is normally started by the init system, for example by \cc{systemd} on Debian.
+
+To run \cc{sysmonitor.pl} on the command line, use:
+\begin{lstlisting}
+sysmonitor.pl [OPTION]
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater]	use the specified configuration file 
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+To manually run \cc{okcounterd}, you may need to disable the system service
+and kill any running \cc{okcounterd} process.
+
+\subsection{configuration file}
+
+The configuration file uses the format described in \ref{sConfigFileFormat}.\\
+
+{\bfseries alarm path}\\
+This defines the  directory to which alarm notifications are written.\\
+\textit{Example:}
+\begin{lstlisting}
+alarm path = /usr/local/log/alarms
+\end{lstlisting}
+{\bfseries alarm threshold}\\
+This defines the  threshold at which alarms are raised. The units are seconds.\\
+\textit{Example:}
+\begin{lstlisting}
+alarm threshold = 60
+\end{lstlisting}
+{\bfseries alerter queue}\\
+Alarms can be delivered by other methods using \cc{alerter}. This entry defines the queue used by \cc{alerter}.
+\textit{Example:}
+\begin{lstlisting}
+alerter queue = /usr/local/log/alert.log
+\end{lstlisting}
+{\bfseries gpscv account}\\
+This defines the account used for GPSCV processing (and implicitly, the location of \cc{gpscv.conf}).\\
+\textit{Example:}
+\begin{lstlisting}
+gpscv account = cvgps
+\end{lstlisting}
+{\bfseries log file}\\
+This defines the file used for logging of sysmonitor's operation and alarm events.\\
+\textit{Example:}
+\begin{lstlisting}
+log file = /usr/local/log/sysmonitor.log
+\end{lstlisting}
+{\bfseries ntp account}\\
+This defines the account used for NTP-related logging and processing.\\
+\textit{Example:}
+\begin{lstlisting}
+ntp account = ntp-admin
+\end{lstlisting}
+{\bfseries ntpd refclocks}\\
+This specifies a list of sections, each of which defines an \cc{ntpd} refclock that is to be monitored.\\
+\textit{Example:}
+\begin{lstlisting}
+ntpd refclocks = PPS,NMEA
+\end{lstlisting}
+
+An \cc{ntpd} refclock section looks like:\\
+\begin{lstlisting}
+[NMEA]
+refid = 127.127.20.0
+name = NMEA
+\end{lstlisting}
+
+
+\subsection{log file}
+\cc{sysmonitor.pl} creates a log file. The default file is \cc{/usr/local/log/sysmonitor.log}

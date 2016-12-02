@@ -1,0 +1,195 @@
+\section{gpscv.conf - the core configuration file \label{sgpscvconf} }
+
+A single configuration file, \cc{gpscv.conf}, provides configuration information to most of the
+OpenTTP software. 
+\cc{gpscv.conf} is used by \cc{mktimetx}, receiver logging scripts, TIC logging scripts,receiver utilities and so on.
+
+It uses the format described in \ref{sConfigFileFormat}.
+
+\subsection{[CGGTTS] section}
+
+Entries in this section control the format and content of CGGTTS files and filtering applied to CGGTTS tracks.
+
+{\bfseries BIPM cal id}\\
+This defines CAL\_ID for the internal delay, as used in v2E CGGTTS headers.\\
+\textit{Example:}
+\begin{lstlisting}
+BIPM cal id=none
+\end{lstlisting}
+{\bfseries comments}\\
+This defines COMMENTS in the CGGTTS header.\\
+\textit{Example:}
+\begin{lstlisting}
+comments=none
+\end{lstlisting}
+{\bfseries create}\\
+This defines whether or not CGGTTS files will be generated.\\
+\textit{Example:}
+\begin{lstlisting}
+create=yes
+\end{lstlisting}
+{\bfseries comments}\\
+This defines COMMENTS in the CGGTTS header.\\
+\textit{Example:}
+\begin{lstlisting}
+comments=none
+\end{lstlisting}
+{\bfseries ephemeris}\\
+This defines whether to use the receiver-provided ephemeris or a user-provided ephemeris (via a RINEX navigation file).
+If a user-provided ephemeris is specified then \cc{ephemeris path} and \cc{ephemeris file} 
+must also be specified.\\
+\textit{Example:}
+\begin{lstlisting}
+ephemeris=receiver
+\end{lstlisting}
+{\bfseries ephemeris file}\\
+This specifies a pattern for user-provided RINEX navigation files.
+Currently, only patterns of the form \cc{XXXXddd0.yyn} are recognized.\\
+\textit{Example:}
+\begin{lstlisting}
+ephemeris file=SYDNddd0.yyn
+\end{lstlisting}
+{\bfseries ephemeris path}\\
+This specifies the path to user-provided RINEX navigation files.\\
+\textit{Example:}
+\begin{lstlisting}
+ephemeris path=igsproducts
+\end{lstlisting}
+{\bfseries internal delay}\\
+This defines INT DLY in the CGGTTS header. The units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+INT DLY=0.0
+\end{lstlisting}
+{\bfseries lab id}\\
+This defines the two-character lab code used for creating BIPM-style file names, as per the V2E specification.\\
+\textit{Example:}
+\begin{lstlisting}
+lab id=AU
+\end{lstlisting}
+{\bfseries maximum DSG}\\
+CGGTTS tracks with DSG lower than this will be filtered out. 
+The units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+maximum DSG = 10.0
+\end{lstlisting}
+{\bfseries minimum elevation}\\
+CGGTTS tracks lower than this will be filtered out. 
+The units are degrees.\\
+\textit{Example:}
+\begin{lstlisting}
+minimum elevation = 10
+\end{lstlisting}
+{\bfseries minimum track length}\\
+CGGTTS tracks shorter than this will be filtered out. Tracks meeting the criterion are not necessarily contiguous.
+The units are seconds.\\
+\textit{Example:}
+\begin{lstlisting}
+minimum track length = 390
+\end{lstlisting}
+{\bfseries naming convention}\\
+Defines the CGGTTS file naming convention. Valid options are `plain' (MJD.cctf) and `BIPM'.
+The \cc{lab id} and \cc{receiver id} should be defined in conjunction with BIPM-style filenames.\\
+\textit{Example:}
+\begin{lstlisting}
+naming convention = BIPM
+\end{lstlisting}
+{\bfseries outputs}\\
+This defines a list of sections which in turn define the desired CGGTTS outputs.\\
+\textit{Example:}
+\begin{lstlisting}
+outputs=CGGTTS-GPS-C1,CGGTTS-GPS-P1,CGGTTS-GPS-P2
+\end{lstlisting}
+{\bfseries reference}\\
+This defines REF in the CGGTTS header.\\
+\textit{Example:}
+\begin{lstlisting}
+reference=UTC(XXX)
+\end{lstlisting}
+{\bfseries receiver id}\\
+This defines the two-character receiver code used for creating BIPM-style file names, 
+as per the V2E specification.\\
+\textit{Example:}
+\begin{lstlisting}
+receiver is=01
+\end{lstlisting}
+{\bfseries revision date}\\
+This defines REV DATE in the CGGTTS header. It must be in the format YYYY-MM-DD.\\
+\textit{Example:}
+\begin{lstlisting}
+revision date = 2015-12-31
+\end{lstlisting}
+{\bfseries version}\\
+This defines the version of CGGTTS output.Valid versions are v1 and v2E. 
+The \cc{lab id} and \cc{receiver id} should be defined in conjunction with v2E ouput\\
+\textit{Example:}
+\begin{lstlisting}
+version = v2E
+\end{lstlisting}
+
+\subsubsection{CGGTTS output sections}
+
+Multiple CGGTTS outputs can be defined, allowing for different constellation and signal combinations.
+An example of a CGGTTS output section is as follows:
+\begin{lstlisting}
+[CGGTTS-GPS-C1]
+constellation=GPS
+code=C1
+path=cggtts
+BIPM cal id = none
+internal delay = 11.0
+\end{lstlisting}
+
+The new entries for a CGGTTS output section are:\\
+{\bfseries code}\\
+This defines the GNSS signal code. Valid values are C1,P1 and P2.\\
+\textit{Example:}
+\begin{lstlisting}
+code=C1
+\end{lstlisting}
+{\bfseries constellation}\\
+This defines the GNSS constellation. Only GPS is supported currently.\\
+\textit{Example:}
+\begin{lstlisting}
+constellation=GPS
+\end{lstlisting}
+{\bfseries path}\\
+This defines the directory in which output files are placed.\\
+\textit{Example:}
+\begin{lstlisting}
+path=cggtts
+\end{lstlisting}
+
+
+\subsection{[RINEX] section}
+
+Entries in this section control the format and content of RINEX files.
+
+{\bfseries agency}\\
+This specifies the value of the AGENCY field which appears in RINEX observation file headers.\\
+\textit{Example:}
+\begin{lstlisting}
+agency=MY AGENCY
+\end{lstlisting}
+{\bfseries create}\\
+This defines whether or not RINEX files will be generated.\\
+\textit{Example:}
+\begin{lstlisting}
+create = yes
+\end{lstlisting}
+{\bfseries users}\\
+This specifies the value of the OBSERVER field which appears in RINEX observation file headers.
+If the observer is specified as `user' then the environment variable USER is used.\\
+\textit{Example:}
+\begin{lstlisting}
+observer=user
+\end{lstlisting}
+{\bfseries version}\\
+This  specifies the version of the RINEX output. Valid versions are 2 and 3.\\
+\textit{Example:}
+\begin{lstlisting}
+version=2
+\end{lstlisting}
+
+
