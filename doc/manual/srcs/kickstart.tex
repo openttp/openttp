@@ -1,0 +1,64 @@
+\section{kickstart.pl \label{s:kickstart}}
+
+\cc{kickstart.pl} is used to periodically check that user processes are running,
+and restart them. It is used to start receiver and counter logging processes, for example.
+
+The lock file for each target contains the running process ID; this is used to test whether the
+target is running.
+
+\subsection{usage}
+
+To run \cc{kickstart.pl} on the command line, use:
+\begin{lstlisting}[mathescape=true]
+kickstart.pl [OPTION] $\ldots$
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+
+{\bfseries targets}\\
+This defines a list of sections, each of which corresponds to a process to monitor.\\
+\textit{Example:}
+\begin{lstlisting}
+targets = restlog , okxem
+\end{lstlisting}
+
+An example target is:
+\begin{lstlisting}
+[okxem]
+target = okxem
+command = bin/okxemlog.pl 
+lock file = logs/okxem.gpscv.lock
+\end{lstlisting}
+
+{\bfseries command}\\
+This defines the command used to start the target. Options can be used.\\
+\textit{Example:}
+\begin{lstlisting}
+command = bin/okxemlog.pl 
+\end{lstlisting}
+
+{\bfseries lock file}\\
+This defines the lock file associated with a target.\\
+\textit{Example:}
+\begin{lstlisting}
+lock file = logs/okxem.gpscv.lock
+\end{lstlisting}
+
+{\bfseries target}\\
+This defines a target identifier. It is used to construct filenames and in logged messages.\\
+\textit{Example:}
+\begin{lstlisting}
+target = okxem
+\end{lstlisting}
+
+\subsection{log file}
+
+\cc{kickstart.pl} produces a log file in the user's home directory, \cc{logs/kickstart.log}. Each time 
+a process is checked, it touches the file \cc{logs/kickstart.target.check}.
