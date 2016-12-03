@@ -64,8 +64,9 @@ if ($opt_v){
 	exit;
 }
 
+$configPath="";
 if (-d "$home/logs") {$logPath="$home/logs";} else {die "$logPath missing"}; 
-if (-d "$home/etc")  {$configPath="$home/etc";} else {die "$configPath missing";};
+if (-d "$home/etc")  {$configPath="$home/etc";} 
 
 my $logFile=  "$logPath/kickstart.log";
 
