@@ -70,9 +70,6 @@ $home=$ENV{HOME};
 if (-d "$home/etc")  {
 	$configpath="$home/etc";
 }
-else{	
-	ErrorExit("No ~/etc directory found!\n");
-} 
 
 $configFile=$configpath."/gziplogs.conf";
 if (defined $opt_c){
