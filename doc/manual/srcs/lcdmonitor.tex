@@ -19,8 +19,8 @@ reread the \cc{inittab} and kill any running \cc{lcdmonitor} process.
 
 The configuration file for \cc{ldcmonitor} is \cc{/usr/local/etc/lcdmonitor.conf}. This file is
 only modifiable by the super-user. The file is divided into
-sections, with section names delimited by square brackets [\space]. Entries in each section
-are of the form:
+sections, with section names delimited by square brackets [\space]. \\
+\textit{Example:}
 \begin{lstlisting}
 token = value
 \end{lstlisting}
@@ -30,15 +30,16 @@ are given below.
 \subsubsection{[General] section}
 
 {\bfseries NTP user}\\
-This  defines the name of the user associated with NTP functions.
-The entry in the configuration file looks like:
+This  defines the name of the user associated with NTP functions.\\
+\textit{Example:}
 \begin{lstlisting}
 NTP user = ntp-admin
 \end{lstlisting}
+
 {\bfseries Squealer config}\\
 This  specifies the location of the configuration file used by \cc{squealer}, a
-program used to detect system problems.
-The entry in the configuration file looks like:
+program used to detect system problems.\\
+\textit{Example:}
 \begin{lstlisting}
 Squealer config = /home/cvgps/etc/squealer.conf
 \end{lstlisting}
@@ -47,86 +48,95 @@ Squealer config = /home/cvgps/etc/squealer.conf
 {\bfseries Show PRNs}\\
 This specifies whether or not to show the PRNs (or Space Vehicle identifiers) of
 GPS satellites being tracked by the receiver. If this is set to zero, then only
-the number of satellites tracked is displayed.
-The entry in the configuration file looks like:
+the number of satellites tracked is displayed.\\
+\textit{Example:}
 \begin{lstlisting}
 Show PRNs=1
 \end{lstlisting}
+
 {\bfseries LCD intensity}\\
-This sets the intensity of the LCD display. Valid values are 0 to 100.
-The entry in the configuration file looks like:
+This sets the intensity of the LCD display. Valid values are 0 to 100.\\
+\textit{Example:}
 \begin{lstlisting}
 LCD intensity=90
 \end{lstlisting}
+
 {\bfseries LCD contrast}\\
-This sets the contrast of the LCD display. Valid values are 0 to 100.
-The entry in the configuration file looks like:
+This sets the contrast of the LCD display. Valid values are 0 to 100.\\
+\textit{Example:}
 \begin{lstlisting}
 LCD contrast=95
 \end{lstlisting}
 
 \subsubsection{[GPSCV] section}
 {\bfseries GPSCV user}\\
-This  defines the name of the user associated with GPSCV functions.
-The entry in the configuration file looks like:
+This  defines the name of the user associated with GPSCV functions.\\
+\textit{Example:}
 \begin{lstlisting}
 GPSCV user = cvgps
 \end{lstlisting}
+
 {\bfseries gpscv config}\\
-This defines the location of the file \cc{gpscv.conf}.
-The entry in the configuration file looks like:
+This defines the location of the file \cc{gpscv.conf}.\\
+\textit{Example:}
 \begin{lstlisting}
 GPSCV config = /home/cvgps/etc/gpscv.conf
 \end{lstlisting}
+
 {\bfseries GPS restart command}\\
 This specifies the command used to restart the GPS receiver. Note that since
 \cc{lcdmonitor} runs as \cc{root}, the restart must be explicitly done
-as \cc{cvgps}.
-The entry in the configuration file looks like:
+as \cc{cvgps}.\\
+\textit{Example:}
 \begin{lstlisting}
 GPS restart command =su - cvgps -c '/home/cvgps/bin/check_rx'
 \end{lstlisting}
+
 {\bfseries GPS logger lock file}\\
 This specifies location of the lock file used by the GPS logging process. It is
-used to determine which process needs to be killed before a restart.
-The entry in the configuration file looks like:
+used to determine which process needs to be killed before a restart.\\
+\textit{Example:}
 \begin{lstlisting}
 GPS logger lock file=/home/cvgps/logs/rx.lock
 \end{lstlisting}
 
 \subsubsection{[OS] section}
 {\bfseries Reboot command}\\
-This specifies the command used to reboot the PC.
-The entry in the configuration file looks like:
+This specifies the command used to reboot the PC.\\
+\textit{Example:}
 \begin{lstlisting}
 Reboot command = /sbin/shutdown -r now
 \end{lstlisting}
+
 {\bfseries Poweroff command}\\
-This specifies the command used to shut down the PC.
-The entry in the configuration file looks like:
+This specifies the command used to shut down the PC.\\
+\textit{Example:}
 \begin{lstlisting}
 Poweroff command = /sbin/shutdown -t 3 -h
 \end{lstlisting}
+
 {\bfseries ntpd restart command}\\
-This specifies the command used to restart \cc{ntpd}.
-The entry in the configuration file looks like:
+This specifies the command used to restart \cc{ntpd}.\\
+\textit{Example:}
 \begin{lstlisting}
 ntpd restart command = /sbin/service ntpd restart
 \end{lstlisting}
 
 \subsubsection{[Network] section}
 {\bfseries DNS}\\
-The entry in the configuration file looks like:
+\textit{Example:}
 \begin{lstlisting}
 DNS = /etc/resolv.conf
 \end{lstlisting}
+
 {\bfseries Network}\\
-The entry in the configuration file looks like:
+\textit{Example:}
 \begin{lstlisting}
 Network = /etc/sysconfig/network
 \end{lstlisting}
+
 {\bfseries Eth0}\\
-The entry in the configuration file looks like:
+\textit{Example:}
 \begin{lstlisting}
 Eth0 = /etc/sysconfig/network-scripts/ifcfg-eth0
 \end{lstlisting}

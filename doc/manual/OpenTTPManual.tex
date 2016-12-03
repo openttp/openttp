@@ -2,12 +2,43 @@
 
 \documentclass[11pt,a4paper,openany,oneside]{book}
 
-\usepackage{hyperref} 
+\usepackage[usenames]{color}
+\usepackage{fancyhdr}
 \usepackage{listings}
 \usepackage{graphicx}
 \usepackage{parskip}
 \usepackage{enumitem}
 \usepackage{latexsym}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{hyperref} % wants to be last
+
+\hypersetup{
+  colorlinks   = true, %Colours links instead of ugly boxes
+  urlcolor     = blue, %Colour for external hyperlinks
+  linkcolor    = blue, %Colour of internal links
+  citecolor   = red %Colour of citations
+}
+
+\pagestyle{fancy}
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter.\ #1}{}} 
+\fancyhead[LE,LO]{\slshape \leftmark}
+\fancyhead[RE,RO]{}
+
+% Define some colours
+\definecolor{OTTPGreen}{rgb}{0,0.341,0}
+
+% Set formats for each heading level
+
+\titleformat{\chapter}
+{}
+{\Huge\bfseries\sffamily\color{OTTPGreen}  \thechapter .\space}
+{0pt}
+{\Huge\bfseries\sffamily\color{OTTPGreen}}
+
+\titleformat*{\section}{\Large\bfseries\sffamily\color{OTTPGreen}}
+\titleformat*{\subsection}{\large\bfseries\sffamily\color{OTTPGreen}}
+\titleformat*{\subsubsection}{\normalsize\bfseries\sffamily\color{OTTPGreen}}
 
 \newcommand{\ci}[1]{\hspace*{1cm} {\small\texttt{#1}}}
 \newcommand{\cc}[1]{{\texttt{#1}}}
@@ -36,16 +67,39 @@
 \begin{titlepage}
 
 \begin{center}
-{\Huge OpenTTP manual}
+\centerline{\includegraphics{figures/ottplogo.png}}
+\end{center}
+
+\vspace*{4cm} 
+
+\begin{center}
+{\Huge The Open Traceable Time Platform}
+\end{center}
+
+\vspace*{4cm} 
+
+\begin{center}
+{\Huge User Manual}
 \end{center}
 
 \vspace*{4cm}
+
 \begin{center}
 Version 1.0
 \end{center}
 
 \begin{center}
-Copyright 2016 OpenTTP
+Copyright 2016 E. Louis Marais, Michael Wouters
+\end{center}
+
+\end{titlepage}
+
+
+\begin{titlepage}
+
+\begin{center}
+{\Large This work is licensed under a Creative \\
+Commons Attribution 4.0 International License.}
 \end{center}
 
 \end{titlepage}
@@ -70,6 +124,16 @@ Copyright 2016 OpenTTP
 \section{GPS common-view}
 
 \section{The OpenTTP reference platform}
+
+The OpenTTP reference platform consists of:
+\begin{itemize}
+\item BeagleBone Black
+\item NVS NV08 GNSS receiver
+\item Opal Kelly XEM6001 FPGA development board
+\item Jackson Labs LTE Lite GPSDO
+\item SSD
+\item CrystalFontz LCD module
+\end{itemize}
 
 \section{Supported hardware}
 
@@ -128,7 +192,7 @@ software/system/installsys.pl
 software/gpscv/install.pl
 \end{lstlisting}
 
-\cc{installsys.pl} must be run first, because it installs libraries which are needed by the GPSCV software.
+\cc{installsys.pl} must be run first (with superuser privileges), because it installs libraries which are needed by the GPSCV software.
 
 Run-time options can be viewed by running the script with the '-h' option. In particular, \cc{installsys.pl}
 has options to list the available installation targets and to install particular targets.
@@ -179,6 +243,33 @@ can be configured via the general configuration file, \ref{sgpscvconf}):
 \chapter{GPSCV software}
 %% ****************************************************************************************
 
+\section{Software overview}
+
+\begin{table}[h]
+\begin{tabular}{l|l|l}
+	& program & \\ 
+	\hline
+GPSCV processing  &  & \\
+	& \hyperlink{h:mktimetx}{mktimetx} & core program\\
+	& \hyperlink{h:runmktimetx}{runmktimetx.pl} & \\
+	\hline
+TIC logging & & \\
+	& \hyperlink{h:hp5313xlog}{hp5313xlog.pl} &\\
+	& \hyperlink{h:okxemlog}{okxemlog.pl} & \\
+	& \hyperlink{h:prs10log}{prs10log.pl} & \\
+	\hline
+GNSS receiver logging & & \\
+	&	\hyperlink{h:jnslog}{jnslog.pl} & Javad\\
+	& \hyperlink{h:nvslog}{nvslog.pl} & NVS\\
+	& \hyperlink{h:restlog}{restlog.pl} & Trimble Resolution T\\
+	& \hyperlink{h:ubloxlog}{ubloxlog.pl} & ublox\\
+GNSS receiver utilities & & \\
+	& \hyperlink{h:restextract}{restextract.pl} & \\
+	\hline
+\end{tabular}
+\caption{GPSCV software overview}
+\end{table}
+
 \section{Configuration file format \label{sConfigFileFormat}}
 
 Configuration files use a common format and are plain text files, designed to be easily edited via a command-line
@@ -195,13 +286,14 @@ For example,
 manufacturer = Trimble
 model = Resolution T
 \end{lstlisting}
-defines a section `Receiver' and the receiver's manufacturer and model. 
-The notation \cc{Section::Key} is used to describe keys. For example,
-\cc{Receiver::model} and \cc{Receiver::manufacturer} describe the two keys above.
+defines a section \cc{Receiver} and the two keys: \cc{manufacturer} and \cc{model}. 
+
+The notation \cc{Section::Key} is used to fully specify keys. For example,
+\cc{Receiver::model} and \cc{Receiver::manufacturer} specify the two keys above.
 
 Keys and section names are not case-sensitive. Comments begin with a '\#'.
 
-Some keys define a list of sections. For example, the comma-separated list of values for 'outputs' 
+Some keys define a list of sections. For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
 \begin{lstlisting}
 [CGGTTS]
 outputs = C1-code,P1-code,P2-code
@@ -214,75 +306,50 @@ defines three sections: \cc{C1-code}, \cc{P1-code}, and \cc{P2-code}.
 
 \input{srcs/runmktimetx}
 
-\section{Counter/timer logging scripts}
+\input{srcs/hp53131xlog.tex}
 
-\subsection{hp5313xlog.pl}
-
-There is a file \cc{hp5313x.cmds} which lists the SCPI commands used to configure the counter.
-For example:
-\begin{lstlisting}
-:FUNC 'TINT 1,2'                # time interval
-:SENS:EVEN1:LEVEL:ABS 1.0       # trigger level 1 volt
-:SENS:EVEN2:LEVEL:ABS 1.0       #
-:SENS:EVEN1:SLOP POS            # trigger on positive slope
-:SENS:EVEN2:SLOP POS
-:INP1:ATT 1                     # input attenuation x1
-:INP2:ATT 1
-:INP1:COUP DC                   # coupling DC
-:INP2:COUP DC
-:INP1:IMP 50                    # impedance 50 ohms
-:INP2:IMP 50
-\end{lstlisting}
-
-\subsection{okxemlog.pl}
-
+\section{okxemlog.pl}
+\hypertarget{h:okxemlog}{}
 The OpenTTP reference platform includes a multi-channel TIC
 
 It has the following specific configuration file entries:
 It also uses:
 
-\section{Receiver logging scripts}
+\section{prs10log.pl}
+\hypertarget{h:prs10log}{}
 
-\subsection{jnslog.pl}
-
+\section{jnslog.pl}
+\hypertarget{h:jnslog}{}
 There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
 
-\subsection{nvslog.pl}
+\section{nvslog.pl}
+\hypertarget{h:nvslog}{}
 
 The NVS receiver is entirely configured using the script.
 
-\subsection{restlog.pl}
+\section{restlog.pl}
+\hypertarget{h:restlog}{}
 
 The Resolution T receiver is entirely configured using the script.
 
-\subsection{ubloxlog.pl}
+\section{ubloxlog.pl}
+\hypertarget{h:ubloxlog}{}
 
 The ublox receiver is entirely configured using the script.
 
-\section{Receiver utilities}
-
-\subsection{Trimble Resolution T}
-
-\subsection{NVS NV08}
-
-\subsection{ublox}
-
-\subsection{Javad}
 
 
 %% ****************************************************************************************
 \chapter{System software}
 %% ****************************************************************************************
 
-\section{kickstart.pl}
+\input{srcs/kickstart}
 
 \input{srcs/mjd}
 
 \input{srcs/okcounterd}
 
-\section{okcounterdctl.pl}
-
-\section{ziplogs.pl}
+\input{srcs/okcounterdctl}
 
 \input{srcs/lcdmonitor}
 
@@ -290,9 +357,11 @@ The ublox receiver is entirely configured using the script.
 
 \subsection{libconfigurator}
 
+\subsection{TFLibrary.pm}
+
 \input{srcs/sysmonitor}
 
-\subsection{TFLibrary.pm}
+\input{srcs/gziplogs}
 
 \end{document}
 

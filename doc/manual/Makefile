@@ -1,4 +1,4 @@
-all: manual-ps manual-pdf
+all: manual
 
 # MANUALS=src/manuals
 LATEXOPTS=
@@ -6,10 +6,7 @@ LATEXOPTS=
 # export TEXINPUTS = .:$(HOME)/$(MANUALS):
 
 
-manual-ps: OpenTTPManual.tex
-	latex $(LATEXOPTS) OpenTTPManual.tex && latex OpenTTPManual.tex && dvips -o OpenTTPManual.ps OpenTTPManual.dvi
-
-manual-pdf: manual-ps
-	ps2pdf OpenTTPManual.ps
+manual: OpenTTPManual.tex
+	pdflatex $(LATEXOPTS) OpenTTPManual.tex && pdflatex OpenTTPManual.tex
 
 OpenTTPManual.tex: srcs/lcdmonitor.tex

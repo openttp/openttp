@@ -1,0 +1,21 @@
+\section{hp5313xlog.pl}
+
+\hypertarget{h:hp5313xlog}{HP and Agilent} 53131 and 53132 counters
+
+\subsection{configuration file}
+
+There is a file \cc{hp5313x.cmds} which lists the SCPI commands used to configure the counter.
+For example:
+\begin{lstlisting}
+:FUNC 'TINT 1,2'                # time interval
+:SENS:EVEN1:LEVEL:ABS 1.0       # trigger level 1 volt
+:SENS:EVEN2:LEVEL:ABS 1.0       #
+:SENS:EVEN1:SLOP POS            # trigger on positive slope
+:SENS:EVEN2:SLOP POS
+:INP1:ATT 1                     # input attenuation x1
+:INP2:ATT 1
+:INP1:COUP DC                   # coupling DC
+:INP2:COUP DC
+:INP1:IMP 50                    # impedance 50 ohms
+:INP2:IMP 50
+\end{lstlisting}

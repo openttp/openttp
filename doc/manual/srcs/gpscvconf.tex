@@ -6,9 +6,126 @@ OpenTTP software.
 
 It uses the format described in \ref{sConfigFileFormat}.
 
-\subsection{[CGGTTS] section}
+\begin{table}[h]
+\begin{tabular}{l|p{10cm}}
+Section & Key \\ \hline
+\hyperlink{h:antenna}{Antenna} & antenna number, antenna type, 
+				delta H, delta N, delta E, frame,
+				marker name, marker number,
+				X, Y, Z\\ \hline
+\hyperlink{h:cggtts}{CGGTTS} & BIPM cal id, comments, create, 
+         ephemeris, ephemeris file, ephemeris path,
+         internal delay, lab id, maximum DSG, minimum elevation,
+         minimum track length, naming convention, outputs, reference,
+         receiver id, revision date, version,
+         code, constellation, path
+         \\ \hline
+\hyperlink{h:delays}{Delays}  & antenna cable, reference cable 
+         \\ \hline
+\hyperlink{h:counter}{Counter} & file extension, GPIB address, header generator, lock file,
+         logger, logger options, okxem channel, port
+				\\ \hline
+\hyperlink{h:misc}{Misc}    & gzip
+				\\ \hline
+\hyperlink{h:paths}{Paths} & CGGTTS, counter data, processing log, receiver data, RINEX, tmp
+				\\ \hline
+\hyperlink{h:receiver}{Receiver} & configuration, elevation mask, logger, logger options, 
+				 manufacturer, model, observations, 
+         port, pps offset, synchronization, pps synchronization delay,
+         status file, timeout
+				\\ \hline
+\hyperlink{h:reference}{Reference} & file extension, logging interval, log path, log status, oscillator, power flag, status file
+        \\ \hline
+\hyperlink{h:rinex}{RINEX}  & agency, create, observer, version
+				\\ \hline
+\end{tabular}
+\caption{Summary of \cc{gpscv.conf} entries}
+\end{table}
 
-Entries in this section control the format and content of CGGTTS files and filtering applied to CGGTTS tracks.
+\subsection{[Antenna] section}
+
+\hypertarget{h:antenna}{}
+{\bfseries antenna number}\\
+This appears as ANTNUM in the RINEX header.\\
+\textit{Example:}
+\begin{lstlisting}
+antenna number=A567456
+\end{lstlisting}
+
+{\bfseries antenna type}\\
+This appears as ANTTYPE in the RINEX header.\\
+\textit{Example:}
+\begin{lstlisting}
+antenna type=Ashtec
+\end{lstlisting}
+
+{\bfseries delta H}\\
+This appears as DELTA H in the RINEX header.\\
+\textit{Example:}
+\begin{lstlisting}
+delta H=0.0
+\end{lstlisting}
+
+{\bfseries delta E}\\
+This appears as DELTA E in the RINEX header.\\
+\textit{Example:}
+\begin{lstlisting}
+delta E=0.0
+\end{lstlisting}
+
+{\bfseries delta N}\\
+This appears as DELTA N in the RINEX header.\\
+\textit{Example:}
+\begin{lstlisting}
+delta N=0.0
+\end{lstlisting}
+
+{\bfseries frame}\\
+This appears as FRAME in the CGGTTS header.\\
+\textit{Example:}
+\begin{lstlisting}
+frame= ITRF2010
+\end{lstlisting}
+
+{\bfseries marker name}\\
+This appears as MARKER NAME in the RINEX header.\\
+\textit{Example:}
+\begin{lstlisting}
+marker name=
+\end{lstlisting}
+
+{\bfseries marker number}\\
+This appears as MARKER NUMBER in the RINEX header.\\
+\textit{Example:}
+\begin{lstlisting}
+marker number=
+\end{lstlisting}
+
+{\bfseries X}\\
+This appears as X in the CGGTTS header and APPROX POSITION XYZ in the RINEXheader.\\
+\textit{Example:}
+\begin{lstlisting}
+X=+4567890.123
+\end{lstlisting}
+
+{\bfseries Y}\\
+This appears as Y in the CGGTTS header and APPROX POSITION XYZ in the RINEXheader.\\
+\textit{Example:}
+\begin{lstlisting}
+Y=+2345678.90
+\end{lstlisting}
+
+{\bfseries Z}\\
+This appears as Z in the CGGTTS header and APPROX POSITION XYZ in the RINEXheader.\\
+\textit{Example:}
+\begin{lstlisting}
+Z=-1234567.890 
+\end{lstlisting}
+
+
+\subsection{[CGGTTS] section }
+
+\hypertarget{h:cggtts}{Entries} in this section control the format and content of CGGTTS files and filtering applied to CGGTTS tracks.
 
 {\bfseries BIPM cal id}\\
 This defines CAL\_ID for the internal delay, as used in v2E CGGTTS headers.\\
@@ -16,24 +133,21 @@ This defines CAL\_ID for the internal delay, as used in v2E CGGTTS headers.\\
 \begin{lstlisting}
 BIPM cal id=none
 \end{lstlisting}
+
 {\bfseries comments}\\
 This defines COMMENTS in the CGGTTS header.\\
 \textit{Example:}
 \begin{lstlisting}
 comments=none
 \end{lstlisting}
+
 {\bfseries create}\\
 This defines whether or not CGGTTS files will be generated.\\
 \textit{Example:}
 \begin{lstlisting}
 create=yes
 \end{lstlisting}
-{\bfseries comments}\\
-This defines COMMENTS in the CGGTTS header.\\
-\textit{Example:}
-\begin{lstlisting}
-comments=none
-\end{lstlisting}
+
 {\bfseries ephemeris}\\
 This defines whether to use the receiver-provided ephemeris or a user-provided ephemeris (via a RINEX navigation file).
 If a user-provided ephemeris is specified then \cc{ephemeris path} and \cc{ephemeris file} 
@@ -42,6 +156,7 @@ must also be specified.\\
 \begin{lstlisting}
 ephemeris=receiver
 \end{lstlisting}
+
 {\bfseries ephemeris file}\\
 This specifies a pattern for user-provided RINEX navigation files.
 Currently, only patterns of the form \cc{XXXXddd0.yyn} are recognized.\\
@@ -49,24 +164,28 @@ Currently, only patterns of the form \cc{XXXXddd0.yyn} are recognized.\\
 \begin{lstlisting}
 ephemeris file=SYDNddd0.yyn
 \end{lstlisting}
+
 {\bfseries ephemeris path}\\
 This specifies the path to user-provided RINEX navigation files.\\
 \textit{Example:}
 \begin{lstlisting}
 ephemeris path=igsproducts
 \end{lstlisting}
+
 {\bfseries internal delay}\\
 This defines INT DLY in the CGGTTS header. The units are ns.\\
 \textit{Example:}
 \begin{lstlisting}
 INT DLY=0.0
 \end{lstlisting}
+
 {\bfseries lab id}\\
 This defines the two-character lab code used for creating BIPM-style file names, as per the V2E specification.\\
 \textit{Example:}
 \begin{lstlisting}
 lab id=AU
 \end{lstlisting}
+
 {\bfseries maximum DSG}\\
 CGGTTS tracks with DSG lower than this will be filtered out. 
 The units are ns.\\
@@ -74,6 +193,7 @@ The units are ns.\\
 \begin{lstlisting}
 maximum DSG = 10.0
 \end{lstlisting}
+
 {\bfseries minimum elevation}\\
 CGGTTS tracks lower than this will be filtered out. 
 The units are degrees.\\
@@ -81,6 +201,7 @@ The units are degrees.\\
 \begin{lstlisting}
 minimum elevation = 10
 \end{lstlisting}
+
 {\bfseries minimum track length}\\
 CGGTTS tracks shorter than this will be filtered out. Tracks meeting the criterion are not necessarily contiguous.
 The units are seconds.\\
@@ -88,6 +209,7 @@ The units are seconds.\\
 \begin{lstlisting}
 minimum track length = 390
 \end{lstlisting}
+
 {\bfseries naming convention}\\
 Defines the CGGTTS file naming convention. Valid options are `plain' (MJD.cctf) and `BIPM'.
 The \cc{lab id} and \cc{receiver id} should be defined in conjunction with BIPM-style filenames.\\
@@ -95,18 +217,21 @@ The \cc{lab id} and \cc{receiver id} should be defined in conjunction with BIPM-
 \begin{lstlisting}
 naming convention = BIPM
 \end{lstlisting}
+
 {\bfseries outputs}\\
 This defines a list of sections which in turn define the desired CGGTTS outputs.\\
 \textit{Example:}
 \begin{lstlisting}
 outputs=CGGTTS-GPS-C1,CGGTTS-GPS-P1,CGGTTS-GPS-P2
 \end{lstlisting}
+
 {\bfseries reference}\\
 This defines REF in the CGGTTS header.\\
 \textit{Example:}
 \begin{lstlisting}
 reference=UTC(XXX)
 \end{lstlisting}
+
 {\bfseries receiver id}\\
 This defines the two-character receiver code used for creating BIPM-style file names, 
 as per the V2E specification.\\
@@ -114,12 +239,14 @@ as per the V2E specification.\\
 \begin{lstlisting}
 receiver is=01
 \end{lstlisting}
+
 {\bfseries revision date}\\
 This defines REV DATE in the CGGTTS header. It must be in the format YYYY-MM-DD.\\
 \textit{Example:}
 \begin{lstlisting}
 revision date = 2015-12-31
 \end{lstlisting}
+
 {\bfseries version}\\
 This defines the version of CGGTTS output.Valid versions are v1 and v2E. 
 The \cc{lab id} and \cc{receiver id} should be defined in conjunction with v2E ouput\\
@@ -148,12 +275,14 @@ This defines the GNSS signal code. Valid values are C1,P1 and P2.\\
 \begin{lstlisting}
 code=C1
 \end{lstlisting}
+
 {\bfseries constellation}\\
 This defines the GNSS constellation. Only GPS is supported currently.\\
 \textit{Example:}
 \begin{lstlisting}
 constellation=GPS
 \end{lstlisting}
+
 {\bfseries path}\\
 This defines the directory in which output files are placed.\\
 \textit{Example:}
@@ -161,10 +290,317 @@ This defines the directory in which output files are placed.\\
 path=cggtts
 \end{lstlisting}
 
+\subsection{[Counter] section}
+
+\hypertarget{h:counter}{}
+
+{\bfseries file extension}\\
+This defines the extension used for time interval measurement files.
+The default is `tic'.\\
+\textit{Example:}
+\begin{lstlisting}
+file extension=tic
+\end{lstlisting}
+
+{\bfseries GPIB address}\\
+For GPIB devices, the GPIB address must be defined.
+\textit{Example:}
+\begin{lstlisting}
+GPIB address=3
+\end{lstlisting}
+
+{\bfseries header generator}\\
+A header for the log file can be optionally added to the log file, using the output
+of a user provided script. Output should be to stdout.
+Each line will have a ``hash'' automatically prepended to it.\\
+\begin{lstlisting}
+header generator=bin/myticheader.pl
+\end{lstlisting}
+
+{\bfseries lock file}\\
+This defines the device lock file, used to prevent multiple instances of the logger
+from being started.\\
+\textit{Example:}
+\begin{lstlisting}
+lockfile = okxem.gpscv.lock
+\end{lstlisting}
+
+{\bfseries logger}\\
+This defines the counter logging script.\\
+\textit{Example:}
+\begin{lstlisting}
+logger=okxemlog.pl
+\end{lstlisting}
+
+{\bfseries logger options}\\
+This defines options passed to the counter logging script.\\
+\textit{Example:}
+\begin{lstlisting}
+logger options=
+\end{lstlisting}
+
+{\bfseries okxem channel}\\
+The OpenTTP counter is multi-channel so the channel to use (1-6) must be specified.\\
+\textit{Example:}
+\begin{lstlisting}
+okxem channel=3
+\end{lstlisting}
+
+{\bfseries port}\\
+This defines the port used to communicate the counter. It's value depends on the type of counter. 
+For the XEM6001, it's a Unix socket. For serial devices, it's a device name like
+\cc{/dev/ttyUSB0}.\\
+\textit{Example:}
+\begin{lstlisting}
+# this is the port used by okcounterd
+port = 21577 
+\end{lstlisting}
+
+\subsection{[Misc section}
+
+\hypertarget{h:misc}{}
+
+{\bfseries gzip}\\
+Defines the compression/decompression program used in conjunction with counter and receiver log files.\\
+\textit{Example:}
+\begin{lstlisting}
+gzip=/bin/gzip 
+\end{lstlisting}
+
+\subsection{[Delays] section}
+
+\hypertarget{h:delays}{}
+
+{\bfseries antenna cable}\\
+This is ANT DLY as used in the CGGTTS header. Units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+antenna cable=0.0
+\end{lstlisting}
+
+{\bfseries reference cable}\\
+This is REF DLY as used in the CGGTTS header. Units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+reference cable=0.0
+\end{lstlisting}
+
+\subsection{[Paths] section}
+
+\hypertarget{h:paths}{Paths} are relative to the user's home directory, unless prefaced with a `/', in which case
+they are interpreted as absolute paths.
+
+{\bfseries CGGTTS}\\
+Defines the default directory used for CGGTTS files.\\
+\textit{Example:}
+\begin{lstlisting}
+CGGTTS=cggtts
+\end{lstlisting}
+
+{\bfseries counter data}\\
+Defines the directory used for TIC data files.\\
+\textit{Example:}
+\begin{lstlisting}
+counter data=
+\end{lstlisting}
+
+{\bfseries processing log}\\
+Defines the directory where the \cc{mktimetx} processing log is written.\\
+\textit{Example:}
+\begin{lstlisting}
+processing log=logs
+\end{lstlisting}
+
+{\bfseries receiver data}\\
+Defines the directory used for GNSS receiver raw data files.\\
+\textit{Example:}
+\begin{lstlisting}
+receiver data=raw
+\end{lstlisting}
+
+{\bfseries RINEX}\\
+Defines the directory used for RINEX files.\\
+\textit{Example:}
+\begin{lstlisting}
+RINEX=rinex
+\end{lstlisting}
+
+{\bfseries tmp}\\
+Defines the directory used for intermediate and debugging files.\\
+\textit{Example:}
+\begin{lstlisting}
+tmp=tmp
+\end{lstlisting}
+
+
+\subsection{[Receiver] section \label{sgcreceiver}}
+
+\hypertarget{h:receiver}{}
+
+{\bfseries configuration}\\
+\\
+\textit{Example:}
+\begin{lstlisting}
+configuration = etc/rx.conf
+\end{lstlisting}
+
+{\bfseries elevation mask}\\
+This sets an elevation mask for tracking os satellites - below this elevation, satellites
+are ignored. The units are degrees. This may not be implemented for all receivers.\\
+\textit{Example:}
+\begin{lstlisting}
+elevation mask = 0
+\end{lstlisting}
+
+{\bfseries logger}\\
+This is the script used to configure and log messages from the GNSS receiver.\\
+\textit{Example:}
+\begin{lstlisting}
+logger = jnslog.pl
+\end{lstlisting}
+
+{\bfseries logger options}\\
+These are options passed to the receiver logging script.\\
+\textit{Example:}
+\begin{lstlisting}
+logger options =
+\end{lstlisting}
+
+{\bfseries manufacturer}\\
+This defines the manufacturer of the receiver. Together with the model and version, 
+this sets how data from the receiver is processed. For a list of supported receivers
+see XX.\\
+\textit{Example:}
+\begin{lstlisting}
+manufacturer = Javad
+\end{lstlisting}
+
+{\bfseries model}\\
+This is the receiver model.For a list of supported receivers
+see XX.\\
+\textit{Example:}
+\begin{lstlisting}
+model = HE_GGD
+\end{lstlisting}
+
+{\bfseries observations}\\
+This is a list of GNSS systems tracked by the receiver. Only GPS is supported
+at present. Although the receiver model defines the possible observations,
+it may be configured to track only one GNSS system, so this entry specifies which
+one is being tracked.\\
+\textit{Example:}
+\begin{lstlisting}
+observations = GPS
+\end{lstlisting}
+
+{\bfseries port}\\
+This is the serial port used for communication with the receiver.\\
+\textit{Example:}
+\begin{lstlisting}
+port = /dev/ttyS0
+\end{lstlisting}
+
+{\bfseries pps offset}\\
+This is an offset programmed into the GNSS receiver. Its purpose is to ensure that the counter
+triggers correctly, particularly HP5313x counters, which will only trigger every two seconds if the 
+start trigger slips slightly behind the stop trigger. It is only useful though if the reference 
+(which by convention is Start) has comparable long-term stability with GPS eg a GPSDO or Cs beam standard.
+The units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+pps offset = 3500
+\end{lstlisting}
+
+{\bfseries pps synchronization}\\
+This is a Javad-specific option. The logging script will force a synchronization of the receiver's
+internal time scale with the input 1 pps.\\
+\textit{Example:}
+\begin{lstlisting}
+pps synchronization = no
+\end{lstlisting}
+
+{\bfseries pps synchronization delay}\\
+This is a Javad-specific option. Synchronization of the receiver's
+internal time scale with the input 1 pps is delayed for this time after reset of the receiver.
+The units are seconds.\\
+\textit{Example:}
+\begin{lstlisting}
+pps synchronization delay = 300
+\end{lstlisting}
+
+{\bfseries status file}\\
+\\
+\textit{Example:}
+\begin{lstlisting}
+status file =
+\end{lstlisting}
+
+{\bfseries timeout}\\
+The logging script will time out and exit if no messages are received for this period.\\
+\textit{Example:}
+\begin{lstlisting}
+timeout = 60
+\end{lstlisting}
+
+\subsection{[Reference] section}
+
+\hypertarget{h:reference}{}
+
+{\bfseries file extension}\\
+This defines the extension used for Reference status logs.\\
+\textit{Example:}
+\begin{lstlisting}
+file extension= .rb
+\end{lstlisting}
+
+{\bfseries logging interval}\\
+This defines the interval between status file updates. The units are seconds.\\
+\textit{Example:}
+\begin{lstlisting}
+logging interval=60
+\end{lstlisting}
+
+{\bfseries log path}\\
+This defines where status logs are written to.\\
+\textit{Example:}
+\begin{lstlisting}
+log path=raw
+\end{lstlisting}
+
+{\bfseries log status}\\
+This enables status logging of the Reference.\\
+\textit{Example:}
+\begin{lstlisting}
+log status=yes
+\end{lstlisting}
+
+{\bfseries oscillator}\\
+This identifies the installed oscillator, so that device-specific handling can be implemented.\\
+\textit{Example:}
+\begin{lstlisting}
+oscillator=PRs10
+\end{lstlisting}
+
+{\bfseries power flag}\\
+This defines the file used to flag that the Reference has lost power, and needs rephasing.
+Currently, this only has meaning for the PRS10. It is used ntpd to disable the refclock
+corresponding to the PRs10's 1 pps.\\
+\textit{Example:}
+\begin{lstlisting}
+power flag=logs/prs10.pwr
+\end{lstlisting}
+
+{\bfseries status file}\\
+In the case of the PRS10, this consists of the six status bytes and sixteen ADC values.\\
+\textit{Example:}
+\begin{lstlisting}
+status file=logs/prs10.status
+\end{lstlisting}
+
 
 \subsection{[RINEX] section}
 
-Entries in this section control the format and content of RINEX files.
+\hypertarget{h:rinex}{Entries} in this section control the format and content of RINEX files.
 
 {\bfseries agency}\\
 This specifies the value of the AGENCY field which appears in RINEX observation file headers.\\
@@ -172,19 +608,22 @@ This specifies the value of the AGENCY field which appears in RINEX observation 
 \begin{lstlisting}
 agency=MY AGENCY
 \end{lstlisting}
+
 {\bfseries create}\\
 This defines whether or not RINEX files will be generated.\\
 \textit{Example:}
 \begin{lstlisting}
 create = yes
 \end{lstlisting}
-{\bfseries users}\\
+
+{\bfseries observer}\\
 This specifies the value of the OBSERVER field which appears in RINEX observation file headers.
 If the observer is specified as `user' then the environment variable USER is used.\\
 \textit{Example:}
 \begin{lstlisting}
 observer=user
 \end{lstlisting}
+
 {\bfseries version}\\
 This  specifies the version of the RINEX output. Valid versions are 2 and 3.\\
 \textit{Example:}

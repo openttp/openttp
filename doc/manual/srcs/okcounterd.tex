@@ -4,6 +4,8 @@
 \cc{okcounterd} provides the interface to the Opal Kelly FPGA development board when configured as a multi-channel counter.
 It communicates with user processes via port 21577 (it's the date ``Star Wars'' premiered).
 
+\cc{okcounterd} does not use a configuration file and does not produce a log file.
+
 \cc{okcounterd} recognizes the following commands, sent as plain text:
 \begin{description*}
 	\item[] CONFIGURE GPIO $0\vert1$ enables/disables the system GPIO.
@@ -16,7 +18,7 @@ It communicates with user processes via port 21577 (it's the date ``Star Wars'' 
 \cc{okcounterdctrl.pl} provides a convenient way to send commands.
 
 Counter/timer data sent by \cc{okcounterd} is in the following format:
-\begin{lstlisting}
+\begin{lstlisting}[mathescape=true]
 channel_number  timestamp (s) timestamp ($\mu$s) reading (ns)
 \end{lstlisting}
 Channel numbers are indexed from 1.
@@ -24,7 +26,9 @@ Channel numbers are indexed from 1.
 \subsection{usage}
 \cc{okcounterd} is automatically started by the system's init system. On Debian, this is \cc{systemd}. 
 It can be run manually for debugging purposes.
-
+\begin{lstlisting}[mathescape=true]
+okcounterd [OPTION] $\ldots$
+\end{lstlisting}
 The command line options are:
 \begin{description*}
 	\item[-b] \textless bitfile\textgreater load the specified bitfile (the full path is needed)
@@ -32,11 +36,5 @@ The command line options are:
 	\item[-h]	print help and exit
 	\item[-v]	print version information and exit
 \end{description*}
-To manually run \cc{okcounterd}, you will need to disable the system service
+To manually run \cc{okcounterd}, you may need to disable the system service
 and kill any running \cc{okcounterd} process.
-
-\subsection{configuration file}
-\cc{okcounterd} doesn't use a configuration file.
-
-\subsection{log file}
-\cc{okcounterd} doesn't produce a log file.

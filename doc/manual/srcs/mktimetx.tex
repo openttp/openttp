@@ -1,6 +1,8 @@
 
 \section{mktimetx}
 
+\hypertarget{h:mktimetx}{}
+
 \cc{mktimetx} is the core OpenTTP application.
 It creates CGGTTS and RINEX-format time-transfer files.
 
@@ -25,57 +27,36 @@ The command line options are
 
 \subsection{configuration file}
 
-\cc{mktimtex} uses the \cc{gpscv.conf}.
+\cc{mktimtex} uses \cc{gpscv.conf}.
+Keys used by it are listed in table \ref{t:gpscvKeys}.
 
-Keys used by it include:
+\begin{table}
+\begin{tabular}{l|p{10cm}}
+Section & Key \\ \hline
+Antenna & antenna number, antenna type, \textit{delta H}, \textit{delta N},
+         \textit{delta E}, frame, marker name, marker number, marker type, 
+         x, y, z \\ \hline
+CGGTTS  & \textit{comments}, \textit{create}, lab, lab id, 
+         \textit{maximum dsg}, \textit{minimum track length},\textit{naming convention},
+         outputs, receiver id, reference, revision date, version\\
+Counter & \textit{file extension}, \textit{flip sign}\\ \hline
+Delays  &  antenna cable, reference cable\\
+Misc & \textit{gzip}\\
+Paths & cggtts, counter data, receiver data, \textit{processing log},
+        rinex, \textit{root}, tmp\\
+Receiver & \textit{file extension}, manufacturer, model,
+          \textit{observations}, pps offset, \textit{sawtooth phase},
+          \textit{version}\\ \hline
+RINEX & agency, \textit{create}, observer, version\\
+\end{tabular}
+\caption{Optional entries are italicised. \label{t:gpscvKeys}}
+\end{table}
+
 \begin{lstlisting}
-antenna::antenna number
-antenna::antenna type
-antenna::delta h (optional)
-antenna::delta e (optional)
-antenna::delta h (optional)
-antenna::frame
-antenna::marker name
-antenna::marker number
-antenna::marker type
-antenna::x
-antenna::y
-antenna::z
-cggtts::comments (optional)
-cggtts::create (optional - if set to 'no' then no other cggtts keys are needed)
-cggtts::lab
-cggtts::lab id (if cggtts::naming convention is 'BIPM')
-cggtts::maximum dsg (optional)
-cggtts::minimum track length (optional)
-cggtts::naming convention (optional)
-cggtts::outputs
-cggtts::receiver id (if cggtts::naming convention is 'BIPM')
-cggtts::reference
-cggtts::revision date
-cggtts::version
-counter::file extension (optional)
-counter::flip sign (optional)
-delays::antenna cable
-delays::reference cable
-misc::gzip (optional)
-paths::cggtts
-paths::counter data
-paths::receiver data
-paths::processing log (optional)
-paths::rinex
-paths::root (optional)
-paths::tmp
-receiver::file extension (optional)
-receiver::manufacturer
-receiver::model
-receiver::observations (optional)
-receiver::pps offset
-receiver::sawtooth phase (optional)
-receiver::version (optional)
-rinex::agency
-rinex::create (optional - if set to 'no' then no other rinex keys are needed)
-rinex::observer
-rinex::version
+
+
+
+
 \end{lstlisting}
 
 \subsection{log file}
