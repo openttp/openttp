@@ -1,0 +1,37 @@
+\section{gziplogs.pl \label{s:gziplogs}}
+
+\cc{gziplogs.pl} is used to manage compression of log files. 
+Typically, it will be run once per day, after UTC0. It requires 
+a configuration file, \cc{gziplogs.conf}, which is expected to be
+in the user's \cc{etc} directory. 
+
+\subsection{usage}
+
+\cc{gziplogs.pl} is normally run as a \cc{cron} job. To run it on the command line, use:
+\begin{lstlisting}[mathescape=true]
+gziplogs.pl [OPTION] $\ldots$
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-m \textless MJD\textgreater] compress files for the given MJD
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+
+The configuration file has a single entry.
+
+{\bfseries files}\\
+This entry defines a comma-separated list of files to compress. Two date specfications, 
+delimited by parentheses, are recognized: YYYYMMDD; and MJD.\\
+\textit{Example:}
+\begin{lstlisting}
+files = raw/{MJD}.rx, raw/{MJD}.tic, raw/{YYYYMMDD}.dat
+\end{lstlisting}
+
+\subsection{logfile}
+
+\cc{gziplogs.pl} doesn't produce a log file.
