@@ -1,0 +1,29 @@
+\section{okcounterdctl.pl \label{s:okcounterdctl}}
+
+\cc{okcounterdctl.pl} provides a convenient way to send commands to \cc{okcounterd}.
+
+\subsection{usage}
+
+To run \cc{okcounterdctl.pl} on the command line, use:
+\begin{lstlisting}[mathescape=true]
+okcounterdctl.pl [OPTION] $\ldots$
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified gpscv configuration file
+	\item[-d]	run in debugging mode
+	\item[-g \textless $0|1$\textgreater] disable/enable the system GPIO
+	\item[-h]	print help and exit
+	\item[-c \textless $1\ldots6$\textgreater] set the PPS OUT source
+	\item[-q] query the counter configuration
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+
+\cc{okcounterdctl.pl} does't have a configuration file but uses
+\cc{gpscv.conf} to determine the port used by \cc{okcounterd}.
+
+\subsection{log file}
+
+\cc{okcounterdctl.pl} doesn't produce a log file.
