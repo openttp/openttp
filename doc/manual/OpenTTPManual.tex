@@ -175,7 +175,7 @@ The OpenTTP reference platform consists of:
 
 In addition to a basic Linux development environment, you will need the development packages for:
 \begin{description*}
-	\item[\cc{boost}]   
+	\item[\cc{boost}]  C++ libraries
 	\item[\cc{libgsl}] GNU scientific library
 \end{description*}
 
@@ -192,7 +192,8 @@ software/system/installsys.pl
 software/gpscv/install.pl
 \end{lstlisting}
 
-\cc{installsys.pl} must be run first (with superuser privileges), because it installs libraries which are needed by the GPSCV software.
+\cc{installsys.pl} must be run first (with superuser privileges), 
+because it installs libraries which are needed by the GPSCV software.
 
 Run-time options can be viewed by running the script with the '-h' option. In particular, \cc{installsys.pl}
 has options to list the available installation targets and to install particular targets.
@@ -213,7 +214,8 @@ As a minimum, you will need:
 	\item one of the OpenTTP-provided scripts to log your counter/timer
 \end{description*}
 
-You must use one of the OpenTTP receiver logging scripts because \cc{mktimetx} expects a custom file-format. In particular, the
+You must use one of the OpenTTP receiver logging scripts for the GNSS receiver because \cc{mktimetx}
+expects a custom file-format \ref{s:DataFileFormat}. In particular, the
 receiver's native binary formats are not readable by \cc{mktimetx}. Similarly, OpenTTP uses a custom file
 format for the counter-timer measurement files, although in this case, conversion from another format
 will probably be straight-forward. Most likely, users will have to provide their own software for
@@ -230,7 +232,9 @@ You may find the following useful:
 Sample configuration files can be found in \cc{software/gpscv/common/etc}.
 The user running the logging and processing needs the following directories (or equivalents - most paths
 can be configured via the general configuration file, \ref{sgpscvconf}):
-\cc{bin}, \cc{cggtts},\cc{etc},\cc{logs},\cc{raw},\cc{rinex},\cc{tmp}.
+\cc{bin}, \cc{cggtts},\cc{etc},\cc{logs},\cc{raw},\cc{rinex},\cc{tmp}. Some of these paths can
+be redefined in the configuration file \cc{gpscv.conf}.
+
 
 %% ****************************************************************************************
 \chapter{System hardware}
@@ -291,7 +295,7 @@ defines a section \cc{Receiver} and the two keys: \cc{manufacturer} and \cc{mode
 The notation \cc{Section::Key} is used to fully specify keys. For example,
 \cc{Receiver::model} and \cc{Receiver::manufacturer} specify the two keys above.
 
-Keys and section names are not case-sensitive. Comments begin with a '\#'.
+Keys and section names are not case-sensitive. Comments begin with a `\#'.
 
 Some keys define a list of sections. For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
 \begin{lstlisting}
@@ -299,6 +303,42 @@ Some keys define a list of sections. For example, the comma-separated list of va
 outputs = C1-code,P1-code,P2-code
 \end{lstlisting}
 defines three sections: \cc{C1-code}, \cc{P1-code}, and \cc{P2-code}.
+
+\section{Data file formats \label{s:DataFileFormat}}
+
+\subsection{GPS receiver}
+
+This text file records messages from the GPS receiver. The messages can be a mix of ASCII and binary messages.
+Binary messages are hexadecimal-encoded. Some logging scripts record ancillary information, 
+such as commands sent to the receiver. Comments are allowed, prefaced by a `\#' character. 
+The `@' character can be used to tag lines containing special information that needs to be parsed by
+the processing software.
+
+Messages are successive lines of the form:
+\begin{lstlisting}
+<message_id> <time_stamp> <message>
+\end{lstlisting}
+\textit{Example:}
+\begin{lstlisting}
+TO 00:00:02 cdfbc75a9a8c353fc5
+\end{lstlisting}
+
+Hex encoding of binary messages results in much larger files but these compress to a size not much larger
+than the original binary data.
+
+\subsection{Time-interval counter}
+
+This text file records the difference between GNSS receiver and the Reference Oscillator 1 pps,
+measured each second. Entries are successive lines of the form:
+\begin{lstlisting}
+<time_of_day> <time_difference>
+\end{lstlisting}
+where the time difference is in seconds.\\
+\textit{Example:}
+\begin{lstlisting}
+00:00:04  +4.0821E-006 
+\end{lstlisting}
+
 
 \input{srcs/gpscvconf}
 

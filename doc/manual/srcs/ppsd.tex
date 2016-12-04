@@ -1,0 +1,30 @@
+\section{ppsd \label{s:ppsd}}
+
+\cc{ppsd} produces a digital pulse on an I/O port, aligned with the system time.
+It works by sleeping until just before the second (plus any programmed delay) rolls over, 
+and then going into a hard loop, polling the time until rollover.
+
+Two I/O ports are presently supported: the standard PC parallel port, and SIO8186x devices.
+The latter are found on some single board computers. For parallel port output, all 8 bits 
+of the data port (pins 2 to 9 on a DB37) are written to.
+
+\cc{ppsd} doesn't produce a log file.
+
+\subsection{usage}
+
+To run \cc{ppsd} on the command line, use:
+\begin{lstlisting}[mathescape=true]
+ppsd [OPTION] $\ldots$
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-o \textless delay\textgreater] set the PPS delay, in microseconds.
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+
+The configuration file, \cc{ppsd.conf} contains a single number, an offset for the output 1 pps, in microseconds.
+
