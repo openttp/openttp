@@ -119,7 +119,7 @@ class LCDMonitor:public CFA635
 		void restartNetworking();
 		bool runSystemCommand(std::string,std::string,std::string);
 		
-		std::string makeAbsoluteFilePath(std::string);
+		std::string relativeToAbsolutePath(std::string,std::string);
 		
 		time_t lastLazyCheck;
 		
@@ -155,7 +155,7 @@ class LCDMonitor:public CFA635
 		std::string sysInfoConf;
 		
 		std::string NTPuser,GPSCVuser;
-		
+		std::string cvgpsHome,ntpadminHome;
 		std::string DNSconf,networkConf,eth0Conf;
 		
 		std::string receiverName;

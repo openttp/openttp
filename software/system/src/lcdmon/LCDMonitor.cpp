@@ -1412,8 +1412,10 @@ void LCDMonitor::configure()
 	ipv4gw  ="192.168.1.1";
 	ipv4ns  ="192.168.1.1";
 	
-	NTPuser="ntpadmin";
+	NTPuser="ntp-admin";
 	GPSCVuser="cvgps";
+	cvgpsHome="/home/cvgps/";
+	ntpadminHome="/home/ntp-admin/";
 	DNSconf="/etc/resolv.conf";
 	networkConf="/etc/sysconfig/network";
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
@@ -1443,8 +1445,10 @@ void LCDMonitor::configure()
 	}
 	
 	// General
-	if (list_get_string_value(last,"General","Ntp user",&stmp))
+	if (list_get_string_value(last,"General","Ntp user",&stmp)){
 		NTPuser=stmp;
+		ntpadminHome = "/home/"+NTPuser+"/";
+	}
 	else
 		log("NTP user not found in config file");
 		
@@ -1470,8 +1474,10 @@ void LCDMonitor::configure()
 		log("Eth0 not found in config file");
 	
 	// GPSCV
-	if (list_get_string_value(last,"GPSCV","GPSCV user",&stmp))
+	if (list_get_string_value(last,"GPSCV","GPSCV user",&stmp)){
 		GPSCVuser=stmp;
+		ntpadminHome = "/home/"+GPSCVuser+"/";
+	}
 	else
 		log("GPSCV user not found in config file");
 
@@ -1562,22 +1568,22 @@ void LCDMonitor::configure()
 		log("receiver type not found in gpscv.conf");
 
 	if (list_get_string_value(last,"receiver","lock file",&stmp))
-		gpsLoggerLockFile=stmp;
+		gpsLoggerLockFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("receiver:lock file not found in gpscv.conf");
 	
 	if (list_get_string_value(last,"reference","status file",&stmp))
-		refStatusFile=stmp;
+		refStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("reference:status not found in gpscv.conf");
 	
 	if (list_get_string_value(last,"receiver","status file",&stmp))
-		GPSStatusFile=stmp;
+		GPSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("receiver:status file not found in gpscv.conf");
 	
 	if (list_get_string_value(last,"gpsdo","status file",&stmp))
-		GPSDOStatusFile=stmp;
+		GPSDOStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("gpsdo:status file not found in gpscv.conf");
 	
@@ -2223,10 +2229,16 @@ bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string 
 	return (sysret==0);
 }
 
-string LCDMonitor::makeAbsoluteFilePath(std::string fpath)
+string LCDMonitor::relativeToAbsolutePath(string path,string rootDir)
 {
-	string absfpath = fpath;
-	return absfpath;
+	string absPath=path;
+	if (path.size() > 0){ 
+		if (path.at(0) == '/')
+			absPath = path;
+		else 
+			absPath=rootDir+path;
+	}
+	return absPath;
 }
 
 void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim)
