@@ -1,0 +1,54 @@
+
+
+\section{rxdelaycal.pl \label{s:rxdelaycal}} 
+
+\hypertarget{h:rxdelaycal}{}
+
+\cc{rxdelaycal.pl} can be used to calibrate the internal delay of a GNSS receiver by comparing CGGTTS time-transfer data.
+It performs a linear fit to the matched data.
+
+It produces a number of files, some of which can be used for further analysis if desired.
+\begin{itemize}
+\item \cc{cal.refgps.all.txt} All REFGPS values for the CAL receiver
+\item \cc{plotcmds.gnuplot} The gnuplot command file, for easy replotting
+\item \cc{ref.cal.av.matches.txt} Matched tracks, averaged over visible SVs
+\item \cc{ref.cal.matches.txt} Matched tracks
+\item \cc{ref.cal.ps} Plot of matched tracks for each receiver, and the difference
+\item \cc{ref.cal.report.txt} A report 
+\item \cc{ref.refgps.all.txt} All REFGPS values for the REF receiver
+\end{itemize}
+
+\subsection{usage}
+
+To run \cc{ppsd} on the command line, use:
+\begin{lstlisting}[mathescape=true]
+rxdelaycal.pl [OPTION] $\ldots$ ref\_rx\_directory cal\_rx\_directory start\_MJD stop\_MJD
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-a]	accept delays in header (no prompts)
+	\item[-c  \textless modeled|measured\textgreater] set ionospheric correction used for CAL receiver
+	\item[-d  \textless dsg\textgreater] set maximum DSG, in ns
+	\item[-e  \textless elevation\textgreater] set elevation mask, in degrees
+	\item[-f  \textless path\textgreater] set output path
+	\item[-h]	print help and exit
+	\item[-i] ionosphere correction is used (zero baseline data assumed otherwise)
+	\item[-m  \textless name\textgreater] name to use for REF receiver in output
+	\item[-n  \textless name\textgreater] name to use for CAL receiver in output
+	\item[-o] filter by matched ephemeris
+	\item[-p \textless prefix\textgreater] prefix to use for constructing REF file name.
+	\item[-q \textless prefix\textgreater] prefix to use for constructing REF file name.
+	\item[-r  \textless modeled|measured\textgreater] set ionospheric correction used for RED receiver
+	\item[-s]  use REFSV instead of REFGPS for calculating delays
+	\item[-t  \textless length\textgreater] set minimum track length for a match, in seconds
+	\item[-m  \textless extension\textgreater] file extension for REF receiver
+	\item[-n  \textless extension\textgreater] file extension for CAL receiver
+	\item[-v]	print version information and exit
+\end{description*}
+
+An example of basic usage is:
+\begin{lstlisting}
+rxdelaycal refdata caldata 57402 57403
+\end{lstlisting}
+In this example, the CGGTTS files are named 57402.cctf and 57403.cctf and are in the refdata and caldata directories.
+
