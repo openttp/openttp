@@ -1,8 +1,11 @@
 
 \section{okcounterd \label{sokcounterd}}
 
+\hypertarget{h:okcounterd}{}
+
 \cc{okcounterd} provides the interface to the Opal Kelly FPGA development board when configured as a multi-channel counter.
 It communicates with user processes via port 21577 (it's the date ``Star Wars'' premiered).
+Mutiple processes can communicate with the daemon so that logging processes can be separated.
 
 \cc{okcounterd} does not use a configuration file and does not produce a log file.
 
@@ -25,7 +28,7 @@ Channel numbers are indexed from 1.
 
 \subsection{usage}
 \cc{okcounterd} is automatically started by the system's init system. On Debian, this is \cc{systemd}. 
-It can be run manually for debugging purposes.
+It can be run manually for debugging purposes. Use:
 \begin{lstlisting}[mathescape=true]
 okcounterd [OPTION] $\ldots$
 \end{lstlisting}

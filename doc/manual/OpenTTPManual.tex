@@ -353,10 +353,15 @@ where the time difference is in seconds.\\
 
 \section{okxemlog.pl}
 \hypertarget{h:okxemlog}{}
-The OpenTTP reference platform includes a multi-channel TIC
+The OpenTTP reference platform includes a multi-channel TIC and this script communicates with the daemon
+\cc{okcounterd}. The script will exit if no data is returned for more than two minutes.
 
 It has the following specific configuration file entries:
-It also uses:
+\cc{channel::okxem channel}.
+
+It also uses:\cc{paths:counter data},
+\cc{counter:;file extension},\cc{counter::lock file},\cc{counter::port},\cc{counter::status file} and 
+\cc{counter::header generator}.
 
 \section{prs10log.pl}
 \hypertarget{h:prs10log}{}

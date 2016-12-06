@@ -311,8 +311,9 @@ GPIB address=3
 
 {\bfseries header generator}\\
 A header for the log file can be optionally added to the log file, using the output
-of a user provided script. Output should be to stdout.
-Each line will have a ``hash'' automatically prepended to it.\\
+of a user provided script. Output should be to \cc{stdout}.
+Each line will have a ``\#'' automatically prepended to it.\\
+\textit{Example:}
 \begin{lstlisting}
 header generator=bin/myticheader.pl
 \end{lstlisting}
