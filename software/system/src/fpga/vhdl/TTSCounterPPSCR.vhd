@@ -1,27 +1,7 @@
-----------------------------------------------------------------------------------
+--------------------------------------------------------------------------
 --
--- The MIT License (MIT)
 --
--- Copyright (c) 2016 Michael J. Wouters
--- 
--- Permission is hereby granted, free of charge, to any person obtaining a copy
--- of this software and associated documentation files (the "Software"), to deal
--- in the Software without restriction, including without limitation the rights
--- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
--- copies of the Software, and to permit persons to whom the Software is
--- furnished to do so, subject to the following conditions:
--- 
--- The above copyright notice and this permission notice shall be included in
--- all copies or substantial portions of the Software.
--- 
--- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
--- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
--- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
--- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
--- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
--- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
--- THE SOFTWARE.
---
+--------------------------------------------------------------------------
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -43,13 +23,13 @@ entity TTSCounterPPSCR is
 		hi_inout  : inout STD_LOGIC_VECTOR(15 downto 0);
 		hi_muxsel : out STD_LOGIC;
 		
-		ct1b  : in STD_LOGIC;
-		ct2b  : in STD_LOGIC;
-		ct3b  : in STD_LOGIC;
-		ct4b  : in STD_LOGIC;
-		ct5b  : in STD_LOGIC;
-		refpps: in STD_LOGIC;
-		gpio  : in STD_LOGIC;
+		ct1b  : in STD_LOGIC; -- GNSS
+		ct2b  : in STD_LOGIC; -- GNSS
+		ct3b  : in STD_LOGIC; -- GNSS
+		ct4b  : in STD_LOGIC; -- external 1 pps
+		ct5b  : in STD_LOGIC; 
+		refpps: in STD_LOGIC; -- from the system REF
+		gpio  : in STD_LOGIC; -- 
 		ppsout : out STD_LOGIC;
 		gpio_en: out STD_LOGIC;
 		
@@ -165,9 +145,9 @@ hi_muxsel  <= '0'; -- required
       CLKDV_DIVIDE => 2.0,                   -- CLKDV divide value
                                              -- (1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,9,10,11,12,13,14,15,16).
       CLKFX_DIVIDE => 1,                     -- Divide value on CLKFX outputs - D - (1-32)
-      CLKFX_MULTIPLY => 2,                   -- Multiply value on CLKFX outputs - M - (2-32)
+      CLKFX_MULTIPLY => 20,                   -- Multiply value on CLKFX outputs - M - (2-32)
       CLKIN_DIVIDE_BY_2 => FALSE,            -- CLKIN divide by two (TRUE/FALSE)
-      CLKIN_PERIOD => 10.0,                  -- Input clock period specified in nS
+      CLKIN_PERIOD => 100.0,                  -- Input clock period specified in nS
       CLKOUT_PHASE_SHIFT => "NONE",          -- Output phase shift (NONE, FIXED, VARIABLE)
       CLK_FEEDBACK => "1X",                  -- Feedback source (NONE, 1X, 2X)
       DESKEW_ADJUST => "SYSTEM_SYNCHRONOUS", -- SYSTEM_SYNCHRNOUS or SOURCE_SYNCHRONOUS
@@ -224,9 +204,12 @@ tic3	: TICounter32 port map (startTrig => trigA,stopTrig =>trigB3,clk=>extclk,
 			tint => tint3, dataReady => dataReady3, ledPulse => ledPulse3);
 
 -- TIC4
+-- TIC4 is triggered differently
+-- Start comes from the external 1 PPS
+-- Stop  comes from the time-transfer GPS Rx 1 PPS
 chan4BTrig: OneShot port map (trigger=>ct4b,clk=>extclk,pulse=>trigB4);
 
-tic4	: TICounter32 port map (startTrig => trigA,stopTrig =>trigB4,clk=>extclk,
+tic4	: TICounter32 port map (startTrig => trigB4,stopTrig =>trigB3,clk=>extclk,
 			tint => tint4, dataReady => dataReady4, ledPulse => ledPulse4);
 
 -- TIC5
@@ -295,6 +278,7 @@ with (sysCtrl(2 downto 0)) select
 
 gpio_en <= sysCtrl(3);
 -- gpio_en <= '1';
+
 ct6b <= gpio; -- default setup is as input to the 6th counter. In other applications, it might be an input to something else
 
 -- outputs to FPGA 'peripherals'
