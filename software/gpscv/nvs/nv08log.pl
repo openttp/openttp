@@ -1,211 +1,222 @@
 #!/usr/bin/perl
-# nv08log.pl 
-# originally called trystuffagain.pl
+# nv08loghex.pl 
 use warnings;
 use strict;
 
-# nvlog.pl
-# based on restlog.pl
+# nv08loghex.pl
+# based on nv08lograw.pl
 #
-# Version 1.0 start date: 2015-06-22 by Louis Marais
-# Last modification date: 2015-06-25
+# Version 1.0 start date: 2015-09-02 by Louis Marais
+# Version 2.0 start date: approx March 2016 by Michael Wouters
+#                         The Trimble SMT360 issue could not be resolved, so Michael
+#                         started code to use the NV08 as the GPS timing receiver for
+#                         the version 3 system.
+# Last modification date: 2016-06-22
 #
-# Versioning held in %Init structure $Init{version} - see approx line 72
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Modification record:
+# ~~~~~~~~~~~~~~~~~~~~
+#   Date               Done by         Notes
+# ~~~~~~~~~~~~~~~~~  ~~~~~~~~~~~~~~~  ~~~~~~~
+# approx March 2016  Michael Wouters  Modified to fit with way other scripts are done -
+# to May 2016                         loads of changes. Some routines added.
+#                                     Also went away from storing stuff as binary, now
+#                                     hex-encoded.
+#                                     'use strict' commented out.
+# 2016-05-26         Louis Marais     Fixed issue with setting of mask angle in 
+#     to                              'ConfigureReceiver' subroutine.
+# 2016-06-27                          Set antenna cable delay to zero in 
+#                                     'ConfigureReceiver' subroutine. Actual antenna
+#                                     cable delay is handled in processing software.
+#                                     'use strict' put back...
+#                                     Added decoding of messages to generate a status
+#                                     message so users can check on performance of 
+#                                     receiver in real time.
+#
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
 
 # Load required libraries
 
-# For measuring time with better granuality than 1 s
 use Time::HiRes qw(gettimeofday);
-# Need the POSIX library so that all the serial port flags are defined
-# They are used in the TFSerialConnect call
 use POSIX;
-# Contains the serial connect subroutine
 use TFLibrary;
-# Declare $tmask and $opt_r globally
-use vars qw($tmask $opt_r);
-# To enable branching on message IDs
+use vars qw($tmask $opt_c $opt_d $opt_h $opt_r $opt_v);
 use Switch;
-# To enable use of 'getopts' (get hold of switches added to the script call)
 use Getopt::Std;
-# library to decode NV08C binary messages
-use NV08C::DecodeMsg qw(decodeMsg46 decodeMsg51 decodeMsg52 decodeMsg60 decodeMsg61 decodeMsg70 decodeMsg72 decodeMsg73 decodeMsg88 decodeMsgE7 hexStr);
+use NV08C::DecodeMsg;
 
 # declare variables - required because of 'use strict'
-my($home,$configpath,$logpath,$lockfile,$pid,$DEBUG,$rx,$rcvrstatus);
-my($now,$mjd,$next,$then,$input,$save,$killed,$tstart,$receiverTimeout);
+my($home,$configPath,$logPath,$lockFile,$pid,$VERSION,$rx,$rxStatus);
+my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
-my($glosats,$hdop,$vdop,$tdop,$nv08id,$dts,$saw);
+my($glosats,$gpssats,$hdop,$vdop,$tdop,$nv08id,$dts,$saw);
 my(%Init);
+my($AUTHORS,$configFile,@info,@required);
 
-# Set default debug status
-$DEBUG=0;
-#$DEBUG=1;
+$AUTHORS = "Louis Marais,Michael Wouters";
+$VERSION = "2.0";
 
-# Find the current user's home directory
-$home=$ENV{HOME};
-
-# For debugging
-Debug(sprintf("\$home: %s",$home));
-
-# Assign path to configuration files
-if (-d "$home/etc")  {$configpath="$home/etc";}  else 
-  {$configpath="$home/Parameter_Files";}
-
-# For debugging
-Debug(sprintf("\$configpath: %s",$configpath));
-
-if (-d "$home/logs")   # -d checks if directory exists
-{
-  $logpath="$home/logs";
-} else {
-  $logpath="$home/Log_Files";
-}
-
-# For debugging
-Debug(sprintf("\$logpath: %s",$logpath));
-
-# Find the filename of this script
 $0=~s#.*/##;
 
-# For debugging
-Debug($0);
+$home=$ENV{HOME};
+$configFile="$home/etc/gpscv.conf";
 
-# Start populating %Init structure
-$Init{version}="1.0";
-$Init{file}=$configpath."/nv08c.setup";
-
-# Make sure configuration file exists
-if (!(-e $Init{file}))
+if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) 
 {
-  print "Configuration file: ",$Init{file}," does not exist.\n";
+  ShowHelp();
   exit;
 }
 
-# For debugging
-Debug(sprintf("\$Init{version}: %s, \$Init{file}: %s",$Init{version},$Init{file}));
-
-if(!(getopts('r')) || !(@ARGV<=2)) 
+if ($opt_v)
 {
-  select STDERR;
-  print "Usage: $0 [-r] [initfile]\n";
-	print "  -r reset receiver on startup\n";
-  print "  The default initialisation file is $Init{file}\n";
+  print "$0 version $VERSION\n";
+  print "Written by $AUTHORS\n";
   exit;
 }
+
+if (!(-d "$home/etc"))  
+{
+  ErrorExit("No ~/etc directory found!\n");
+} 
+
+if (-d "$home/logs")  
+{
+  $logPath="$home/logs";
+} 
+else
+{
+  ErrorExit("No ~/logs directory found!\n");
+}
+
+if (defined $opt_c)
+{
+  $configFile=$opt_c;
+}
+
+if (!(-e $configFile))
+{
+  ErrorExit("A configuration file was not found!\n");
+}
+
+&Initialise($configFile);
 
 # Check for an existing lock file
-$lockfile = $logpath."/gnss_rx.lock";
-
-# For debugging
-Debug(sprintf("\$lockfile: %s",$lockfile));
-
-# Check if the process is already running. Note that this 
-# assumes the user is conscientious about keeping the lock
-# file up to date... You have to write the process id to 
-# the file when you start it, and delete the file when you
-# kill the process.
-if (-e $lockfile) # -e checks of file exists
+# Check the lock file
+$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
+if (-e $lockFile)
 {
-  open(LCK,"<$lockfile");
-  $pid = <LCK>;
-  chomp $pid;
-
-  # For debugging
-  Debug(sprintf("\$pid: %d",$pid));
-
-  # Does the PID (file) exist?
-  if (-e "/proc/$pid")
+  open(LCK,"<$lockFile");
+  @info = split ' ', <LCK>;
+  close LCK;
+  if (-e "/proc/$info[1]")
   {
-    printf STDERR "Process $pid already running\n";
+    printf STDERR "Process $info[1] already running\n";
     exit;
   }
+  else
+  {
+    open(LCK,">$lockFile");
+    print LCK "$0 $$\n";
+    close LCK;
+  }
+}
+else
+{
+  open(LCK,">$lockFile");
+  print LCK "$0 $$\n";
   close LCK;
 }
 
-# Write to the lockfile, telling everyone else we are using the
-# gnss receiver.
-open(LCK,">$lockfile");
-print LCK $$,"\n";
-close LCK;
+$Init{version}=$VERSION;
+$rxStatus=$Init{"receiver:status file"};
+$rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$logPath);
 
-# For debugging:
-if (@ARGV==1) { Debug(sprintf("\@ARGV: %s, \$ARGV[0]: %s",@ARGV,$ARGV[0])); }
+$Init{"paths:receiver data"}=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
 
-# This checks if a filename was passed as part of the call that started the script. 
-# (The argument would be interpreted as a configuration file). 
-# If no argument was passed, the initialisation file defined earlier is assigned to
-# to the ARGV array. Either way the filename of the configuration file is passed to
-# the Initialise subroutine.
-Initialise(@ARGV==1? $ARGV[0] : $Init{file});
-
-# Assign the filename for the receiver status dump (from the configuration file)
-$rcvrstatus = "nv08.status";
-if (defined($Init{"receiver status"})) {$rcvrstatus=$Init{"receiver status"};}
+if (!($Init{"receiver:file extension"} =~ /^\./)) # do we need a period ?
+{
+  $Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
+}
 
 $now=time();
-$mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
+$mjd=int($now/86400) + 40587;	
 OpenDataFile($mjd,1);
 $next=($mjd-40587+1)*86400;	# seconds at next MJD
 $then=0;
 
-# Configure the NV08C for GLONASS operation only, set elevation mask, etc.
+# Configure the NV08C for GPS operation only, set elevation mask, etc.
 ConfigureReceiver();
 
-$input="";
-$save="";
-$killed=0;
-$SIG{TERM}=sub {$killed=1}; # This intercepts the termination signal, and in this case sets
-                            # the variable $killed = 1. This variable controls the main loop.
-                            # Very clever!
+$input = "";
+$save = "";
+$killed = 0;
+# This intercepts the termination signal, and in this case sets
+# the variable $killed = 1. This variable controls the main loop.
+# Very clever!
+$SIG{INT}  = sub { $killed = 1; };  # For 'Ctrl-C'
+$SIG{TERM} = sub { $killed = 1; };  # For 'kill' commands, also those issued by OS
 $tstart = time;
 $tdop = 999.9;
+$gpssats = 0;
 
 $receiverTimeout=600;
 if (defined($Init{"receiver timeout"})) {$receiverTimeout=$Init{"receiver timeout"};}
 $lastMsg=time(); 
 
-LOOP: while (!$killed)
+while (!$killed)
 {
   # see if there is text waiting (every 100 ms)
-  $nfound=select $tmask=$rxmask,undef,undef,0.1;
+  $nfound=select $tmask=$rxmask,undef,undef,0.1; # ... ,0.1;
   next unless $nfound;
+  # For debugging:
+  #print time(),": \$nfound: ",$nfound,"\n";
+  # to prevent sysread attempting to read a negative length:
+  if ($nfound < 0) { $killed = 1; last; }
   # Read until we have a complete message
-  #if (length($input) >= 0)  # Kept getting "negative length" messages when process is killed.
-  #{
-    sysread $rx,$input,$nfound,length($input);    
-  #}
+  sysread $rx,$input,$nfound,length($input);    
   #if($DEBUG) {print hexStr($input);}
+  #print "\$input: ",hexStr($input),"\n";
   # Check to see if we can find the end of a message
   if ($input=~/(\x10+)\x03/)
   {
     if ((length $1) & 1)
     {
       # ETX preceded by odd number of DLE: got the packet termination
+      #$dle = substr $&,0; # <-- this does nothing now, in restlog it strips out first and last character
+      $data = $save.$`.$&;  #$dle;
+      #print "\$data: ",hexStr($data),"\n";
+      # Note on special variables: $& is MATCHED string, $` is PREMATCH string
       # Is the first character a DLE? If not we may have stray bytes
       # transmitted...
       # Strip off first character until string is too short or DLE is found
-      $first = 0x00;
-      while ($first != 0x10) {
-        $first = ord(substr $input,0,1);
-        # strip off first character if we have not found DLE
-        if ($first != 0x10) { $input = substr $input,1; }
-        # Check length: if it is too short, force the exit   
-        if (length($input) <= 3) { $first = 0x10; }
-      }   
+      if (length($data) > 2)
+      {  
+        $first = 0x00;
+        while ($first != 0x10) 
+        {
+          $first = ord(substr $data,0,1);
+          # strip off first character if we have not found DLE, but
+          # only if the string is long enough
+          if (length($data) > 1) {if ($first != 0x10) { $data = substr $data,1; }}
+          # Check length: if it is too short, force the exit   
+          if (length($data) <= 3) { $first = 0x10; }
+        }   
+      }
       # check length to see if we were forced to exit
-      if (length($input) <= 3) { $first = 0x11; }
+      if (length($data) <= 3) { $first = 0x11; }
       if ($first != 0x10)
       {
         printf "! Parse error - bad packet start char 0x%02X\n",$first;
-        # Clear out buffer, ready for next message
-        $input = "";
+        $input = $';
+        # Special variable: $' is POSTMATCH string
       }
       else
       {
-        # Save message to file - in binary format with all characters still attached.
+        # Save message to file -
         $now = time(); # got one - tag the time
         $mjd = int($now/86400) + 40587;
-        saveData($mjd,$input);
+      
         if ($now>=$next)
         {
           # (this way is safer than just incrementing $mjd)
@@ -225,95 +236,57 @@ LOOP: while (!$killed)
           $then=$now;
         }
         # Strip off DLE at start and DLE ETX at end
-        $input = stripDLEandETX ($input);
+        $data = stripDLEandETX ($data);
         # Strip out double DLE in message
-        $input =~ s/\x10\x10/\x10/g;
+        $data =~ s/\x10\x10/\x10/g;
         # Check message ID and call appropriate subroutine
-        $msgID = substr $input,0,1;
-        $msg = substr $input,1;        
+        $msgID = substr $data,0,1;
+        $msg = substr $data,1;      
+        $lastMsg=$now;
+        printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$msg);
         switch ($msgID)
         {
-          case "\x46" 
-          {
-            ($ret,$dts) = decodeMsg46($msg);
-          } 
-          case "\x51"
-          {
-            $ret = decodeMsg51($msg);
-          }
           case "\x52"
           {
-            ($ret,$sats) = decodeMsg52($msg);
-            if ($ret ne "") 
-            {
-            $ret = "\n".
-                   "                               Carrier\n".
-                   "                    Satellite frequency                      Signal\n".
-                   "Satellite    SVN     on-board    slot   Elevation  Azimuth  strength\n".
-                   " System     number    number    number  (degrees) (degrees)  (dBHz)\n\n".
-                   $ret;
-            }  
-            # Write current status to file
-                      # $nv08id,$sats,$glosats,$hdop,$vdop,$tdop
-            writeStatus($nv08id,$sats,$glosats,$hdop,$vdop,$tdop);
-            # Check if the receiver is seeing GLONASS satellites, if it is, set the 
-            # $lastMsg variable to the current time.
-            if ($glosats > 0) { $lastMsg = $now; }
-            # For this running without an antenna, I modified it. So now the software will 
-            # only exit if NOTHING is received for longer than timeout...
-            $lastMsg = $now;
-            # For debugging:
-            #print $dts." : msg52h - No of GLONASS satellites: ",$glosats,"\n";
-            #print $dts." : msg52h - GLONASS satellites: ",$sats,"\n";
-          } 
+            ($ret,$sats) = decodeMsg52(unpack "H*",$msg);           
+            #writeStatus($nv08id,$sats,$glosats,$hdop,$vdop);
+            writeStatus($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop,$tdop);
+          }
           case "\x60"
           {
-            ($ret,$glosats,$hdop,$vdop) = decodeMsg60($msg);
-            # For debugging:
-            #print $dts." : msg60h - No of GLONASS satellites: ",$glosats,"\n";
-          } 
+            ($ret,$gpssats,$glosats,$hdop,$vdop) = decodeMsg60(unpack "H*",$msg);
+          }
           case "\x61"
           {
-            ($ret,$tdop) = decodeMsg61($msg);
-            # For debugging:
-            #print $dts." : msg61h - TDOP: ",$tdop,"\n";
-          } 
+            ($ret,$tdop) = decodeMsg61(unpack "H*",$msg);
+          }
           case "\x70"
           {
-            $ret = decodeMsg70($msg);
-            $nv08id = $ret;
+            $nv08id = decodeMsg70(unpack "H*",$msg);
           } 
           case "\x72"
           {
-            $ret = decodeMsg72($msg);
             # request message 46h (for date and time)
-            sendCmd("\x23");                        
-          } 
-          case "\x73"
-          {
-            ($ret,$saw) = decodeMsg73($msg);
-          } 
-          case "\x88"
-          {
-            $ret = decodeMsg88($msg);
-          } 
-          case "\xE7"
-          {
-            $ret = decodeMsgE7($msg);
-          } 
-          else
-          {
-            $ret = sprintf("Unknown message ID: %s",hexStr($msgID));
+            sendCmd("\x23");
+            # request message 74h (for time scale parameters)
+            sendCmd("\x1E");
           }
-        }                
+        }
         # Clear out buffer, ready for next message
-        $input = "";
-        # For debugging
-        Debug($ret);
+        $save = "";
       }
     }
+    else
+    {
+      # ETX preceded by even number of DLE: DLEs "stuffed", this is packet data
+      # Remove from $input for next search, but save it for later     
+      $save = $save.$`.$&;
+      # Note on special variables: $` is PREMATCH string, $& is MATCHed string
+    }
+    $input = $';	
+    # Note on special variables: $' is POSTMATCH string
   }
-  # The $lastMsg variable is updated when msg52h show that there are GLONASS 
+  # The $lastMsg variable is updated when msg52h show that there are GPS / GLONASS 
   # satellites available.
   if (time()-$lastMsg > $receiverTimeout)
   {
@@ -321,12 +294,12 @@ LOOP: while (!$killed)
     $msg=sprintf("%04d-%02d-%02d %02d:%02d:%02d no satellites visible - exiting\n",
                   $_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
     printf OUT "# ".$msg;
-    goto BYEBYE;	
+    $killed = 1;
   }
 }
 
 BYEBYE:
-if (-e $lockfile) {unlink $lockfile;}
+if (-e $lockFile) {unlink $lockFile;}
 
 @_=gmtime();
 $msg=sprintf ("%04d-%02d-%02d %02d:%02d:%02d $0 killed\n",
@@ -337,58 +310,80 @@ close OUT;
 
 # end of main 
 
+#-----------------------------------------------------------------------------
+sub ShowHelp
+{
+  print "Usage: $0 [OPTIONS] ..\n";
+  print "  -c <file> set configuration file\n";
+  print "  -d debug\n";
+  print "  -h show this help\n";
+  print "  -r reset receiver on startup\n";
+  print "  -v show version\n";
+  print "  The default configuration file is $configFile\n";
+}
+
+#-----------------------------------------------------------------------------
+sub ErrorExit 
+{
+  my $message=shift;
+  @_=gmtime(time());
+  printf "%02d/%02d/%02d %02d:%02d:%02d $message\n",
+    $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
+  exit;
+} # ErrorExit
+
+#-----------------------------------------------------------------------------
+sub Debug
+{
+  if ($opt_d){
+    print strftime("%H:%M:%S",gmtime)." $_[0]\n";
+  }
+} # Debug
+
 #----------------------------------------------------------------------------
 
 sub Initialise 
 {
   my $name=shift; # The name of the configuration file.
-  # For debugging
-  Debug(sprintf("\$name: %s",$name));
-
+  
   # Define the parameters that MUST have values in the configuration file
   # note that all these values come in as lowercase, no matter how they are
   # written in the configuration file
-  my @required=("nv08 port","data path","glonass data extension","receiver status");
-  # Define some variables for later use
-  my ($tag,$err);  
-  # This reads the initialisation file and finds all the setup stuff
-  open IN,$name or die "Could not open initialisation file $name: $!";
-  while (<IN>) {
-    s/#.*//;            # delete comments
-    s/\s+$//;           # and trailing whitespace
-    if (/(.+)=(.+)/) {  # got a parameter?
-      $tag=$1;
-      $tag=~tr/A-Z/a-z/;        
-      $Init{$tag}=$2;
-      # For debugging
-      Debug(sprintf("\$tag: %s, \$Init{\$tag}: %s",$tag,$Init{$tag}));
-    }
+
+  @required=( "paths:receiver data","receiver:file extension","receiver:port","receiver:status file",
+    "receiver:pps offset","receiver:lock file");
+  %Init=&TFMakeHash2($name,(tolower=>1));
+  
+  if (!%Init)
+  {
+    print "Couldn't open $name\n";
+    exit;
   }
-  # check that all required information is present
+  
+  my $err;
+  
+  # Check that all required information is present
   $err=0;
-  foreach (@required) {
-    unless (defined $Init{$_}) {
+  foreach (@required) 
+  {
+    unless (defined $Init{$_}) 
+    {
       print STDERR "! No value for $_ given in $name\n";
       $err=1;
     }
   }
   exit if $err;
 
-  # open the serial port to the receiver
+  # Open the serial port to the receiver
   $rxmask = "";
-  my($port) = $Init{"nv08 port"};
+  my($port) = $Init{"receiver:port"};
   
-  # For debugging
-  Debug(sprintf("\$port: %s",$port));
-
-  unless (`/usr/local/bin/lockport $port $0`==1) {
+  unless (`/usr/local/bin/lockport $port $0`==1) 
+  {
     printf "! Could not obtain lock on $port. Exiting.\n";
     exit;
   }
   $port="/dev/$port" unless $port=~m#/#;
-
-  # For debugging
-  Debug(sprintf("\$port: %s",$port));
 
   # Open port to NV08C UART B (COM2) at 115200 baud, 8 data bits, 1 stop bit,
   # odd parity, no flow control (see paragraph 2, page 8 of 91 in BINR
@@ -399,71 +394,54 @@ sub Initialise
         (ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
          oflag=>0,lflag=>0,cflag=>CS8|CREAD|PARENB|PARODD|HUPCL|CLOCAL));
 
-  # set up a mask which specifies this port for select polling later on
-
+  # Set up a mask which specifies this port for select polling later on
   vec($rxmask,fileno $rx,1)=1;
 
-  print "> Port $port to NV08C (GLONASS) Rx is open\n";
+  print "> Port $port to NV08C (GPS) Rx is open\n";
   # Wait a bit
   sleep(1);
 } # Initialise
 
-#----------------------------------------------------------------------------
-
-sub Debug
-{
-  my($now) = strftime "%H:%M:%S",gmtime;
-  if ($DEBUG) {print "$now $_[0] \n";}
-} # Debug
 
 #----------------------------------------------------------------------------
 
 sub OpenDataFile
 {
   # The first variable passed is the current MJD
-  my($mjd)=$_[0];
-  # The filename is built from the path specified in the configuration file,
-  # the MJD and the file extension specified in the configuration file.
-  # Note that this is the STATUS file for that file, the actual data is written
-  # to the file in BINARY, and we cannot mix text and data in the same file.
-  my($name)=$Init{"data path"}.$mjd.$Init{"glonass data extension"};
-  my($st_name)=$name.".status";
-  # Does the file already exist?
-  my($old)=(-e $name);
-  # open the file
-  open OUT,">>$st_name" or die "Could not write to $name";
-  # All print statements now point to OUT
+  my $mjd=$_[0];
+
+  # Fixup path and extension if needed
+
+  my $ext=$Init{"receiver:file extension"};
+  
+  my $name=$Init{"paths:receiver data"}.$mjd.$ext;
+  my $old=(-e $name); # already there ? May have restarted logging.
+
+  Debug("Opening $name");
+
+  open OUT,">>$name" or die "Could not write to $name";
   select OUT;
   $|=1;
-  # Add comments (headings?) to the file, content depends on value of 
-  # 2nd parameter
   printf "# %s $0 (version $Init{version}) %s\n",
     &TFTimeStamp(),($_[1]? "beginning" : "continuing");
   printf "# %s file $name\n",
     ($old? "Appending to" : "Beginning new");
   printf "\@ MJD=%d\n",$mjd;
-  # All print statements now point to STDOUT
   select STDOUT;
+
 } # OpenDataFile
 
 #----------------------------------------------------------------------------
 
-# Save binary data to file
 
-sub saveData # mjd, data
-{
-  my($mjd,$data) = (shift,shift);
-  if($DEBUG) {
-    print "saveData subroutine\n";
-    print "\$mjd: ",$mjd,"\n";
-    print "\$data: ",hexStr($data),"\n";
-  }
-  my($name) = $Init{"data path"}.$mjd.$Init{"glonass data extension"};
-  open RAW,">>$name" or die "Could not write to $name\n"; 
-  binmode RAW;
-  print RAW $data;
-  close RAW;
-} # saveData
+# +-----------------------------------------------------------------------------+
+# |                                                                             | 
+# |  NOTE1: COMMANDS SETTING STUFF UP COMMENTED OUT TO DEBUG 1PPS "drift" ISSUE |
+# |                                                                             | 
+# |  NOTE2: ANTENNA DELAY CANNED TO -3.5 us TO ALLOW EACH 1PPS TO BE MEASURED   |
+# |                                                                             | 
+# +-----------------------------------------------------------------------------+
+
 
 #----------------------------------------------------------------------------
 
@@ -486,15 +464,17 @@ sub ConfigureReceiver
     # Wait a second
     sleep(1);
   }
-  # Turn off messages for COM1 (UART A) - we are not using it so we may as well turn it off.
-  sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Turn ON NMEA messages on port 1
-#  sendCmd("\x0B\x01\x00\xC2\x01\x00\x01");
+  # Set type of messages for COM1 (UART A) - if we are not using it so we may as well turn it off.
+  #                                        - If we are using it as a source of time of day for NTP,
+  #                                          we need to set it up to send NMEA messages
+  sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Setup for NMEA messages.
+  #sendCmd("\x0B\x01\x00\xC2\x01\x00\x01"); # Setup to turn port off.
   #          |   |   |           |   |  
   #          |   |   +-----+-----+   +--- Protocol type: 0 current protocol, 1 no protocol, 2 NMEA protocol, 3 RTCM protocol, 4 BINR protocol, 5 BINR2 protocol  
   #          |   |         +------------- Baud rate: 4800 to 230400 baud, x00 x01 xC2 x00 is 115200 baud
   #          |   +----------------------- Port number: x00 is current port, x01 is port 1 (UART A), x02 is port 2 (UART B)
   #          +--------------------------- ID: x0B is the Request for / Setting of Port Status control message
-  # No response is received for this message
+  # Response is message 50h
   #
   # Cancel all transmission requests (turns off transmisson of all messages)
   sendCmd("\x0E");
@@ -509,15 +489,15 @@ sub ConfigureReceiver
   # Response is message 46h
   #
   # Set receiver operating parameters: Select coordinate system
-  sendCmd("\x0D\x01\x00");
+  #sendCmd("\x0D\x01\x00");
   #          |   |   |   
   #          |   |   +--- Coordinate system: x00 WGS84, x01 PZ-90, etc.
   #          |   +------- Data type: x01 is Selection of Coordinate system
   #          +----------- ID: x0D is the Receiver Operating Parameters control message
   # Response is message 51h
   #
-  # Set receiver operating parameters: GLONASS only
-  sendCmd("\x0D\x02\x02");
+  # Set receiver operating parameters: GPS only
+  #sendCmd("\x0D\x02\x01");
   #          |   |   |  
   #          |   |   +--- Operational Navigation System(s): 0 GNSS, 1 GPS, 2 GLONASS, 3 GALILEO, 10 GNSS & SBAS, 11 GPS & SBAS, 12 GLONASS & SBAS
   #          |   +------- Data type: x02 is Selection of Satellite Navigation system
@@ -526,21 +506,22 @@ sub ConfigureReceiver
   #
   # Set receiver operating parameters: Elevation angle, signal to noise and RMS navigation error
   my($elevMask)=10; # degrees
-  if (defined($Init{"elevmask"})) {$elevMask=$Init{"elevmask"};}
+  if (defined($Init{"receiver:elevation mask"})) {$elevMask=$Init{"receiver:elevation mask"};}
   my($em) = pack "C",$elevMask;
-  sendCmd("\x0D\x03\x0A".$em."\x00\x00");
-  #          |   |   |    |     |   | 
-  #          |   |   |    |     +-+-+--- minimum RMS error for coordinates, setting it at 0 keeps previous value 
-  #          |   |   |    +------------- Minimum SNR x1E is 30 dB-Hz
-  #          |   |   +------------------ Elevation angle in degrees: x0A is 10 degrees
+  #sendCmd("\x0D\x03".$em."\x1E\x00\x00");
+  #          |   |    |     |   |   | 
+  #          |   |    |     |   +-+-+--- minimum RMS error for coordinates, setting it at 0 keeps previous value 
+  #          |   |    |     +----------- Minimum SNR x1E is 30 dB-Hz
+  #          |   |    +----------------- Elevation angle in degrees: x0A is 10 degrees
   #          |   +---------------------- Data type: x03 is PVT setting
   #          +-------------------------- ID: x0D is the Receiver Operating Parameters control message
   # Response is message 51h
   #
-  # Set receiver to survey mode, survey position for 1140 minutes (maximum allowed)
+  # Set receiver to survey mode, survey position for 1140 minutes (maximum allowed) 
+  # or as long as set by user in configuration file ("receiver:position survey time" entry)
   #
   # Set receiver Operating mode
-  sendCmd("\x1D\x00\x02");
+  #sendCmd("\x1D\x00\x02");
   #          |   |   |  
   #          |   |   +--- Operating modes: 0 Standalone mode, 1 Mode with fixed coordinates, 2 Averaging of coordinates
   #          |   +------- Data type: x00 is Operating mode setting
@@ -548,12 +529,12 @@ sub ConfigureReceiver
   # Response is message 73h
   #
   # Set receiver Antenna delay
-  # Antenna delay is defined in configuration file (antcabdel) in nanoseconds, receiver expects a value in milliseconds
-  # Convert the data type FP64 (as expected by the receiver)
-  my($antennaDelay) = 0;
-  if(defined($Init{"antcabdel"})) {$antennaDelay = $Init{"antcabdel"};}
-  $antennaDelay = $antennaDelay / 1.0E6; # milliseconds, so 675 ns = 0.000675 ms
-  my($antDelFP64) = pack "d1",$antennaDelay; #toFP64($antennaDelay);
+  # Antenna delay is set to zero here. The actual antenna cable delay is taken care of in the processing software.
+  # Convert the data type to FP64 (as expected by the receiver)
+  #my($antDelFP64) = pack "d1",0;
+
+  # For testing set antenna delay to -3.5 microseconds so that counter can catch each 1PPS
+  my($antDelFP64) = pack "d1",-0.0035; # milliseconds
   sendCmd("\x1D\x01".$antDelFP64);
   #          |   |        |  
   #          |   |        +--- Antenna delay in ms, in FP64 format
@@ -564,9 +545,9 @@ sub ConfigureReceiver
   # Set receiver Coordinate averaging time
   # This is defined in configuration file (posinttime) in minutes, convert the data type to INT16U.
   my($coordAver) = 1440; # minutes; 1440 minutes = 1 day: (05A0h)
-  if(defined($Init{"posinttime"})) {$coordAver = $Init{"posinttime"};}
+  if(defined($Init{"receiver:position survey time"})) {$coordAver = $Init{"receiver:position survey time"};}
   my($cs) = pack "S1", $coordAver;
-  sendCmd("\x1D\x06".$cs);
+  #sendCmd("\x1D\x06".$cs);
   #          |   |    |   
   #          |   |    +--- Averaging time in minutes
   #          |   +-------- Data type: x06 is Coordinate averaging time setting
@@ -574,7 +555,7 @@ sub ConfigureReceiver
   # Response is message 73h
   #
   # Set receiver Time Zone
-  sendCmd("\x23\x00\x00");
+  #sendCmd("\x23\x00\x00");
   #          |   |    |   
   #          |   |    +--- UTC correction: minutes
   #          |   +-------- UTC correction: hours
@@ -585,14 +566,14 @@ sub ConfigureReceiver
   # The PPS pulse length is defined in configuration file (ppspulselen) in microseconds, receiver expects a value in
   # nanoseconds. Convert the data type to INT32U.
   my($ppslen) = 100; # microseconds
-  if(defined($Init{"ppspulselen"})) {$ppslen = $Init{"ppspulselen"};}
+  if(defined($Init{"receiver:pps pulse length"})) {$ppslen = $Init{"receiver:pps pulse length"};}
   $ppslen =  $ppslen * 1000; # nanoseconds. 100 000 nanoseconds is 100 microseconds
   my($ps) = pack "I1",$ppslen;
-  sendCmd("\xD7\x05\x2E\x00".$ps);
+  #sendCmd("\xD7\x05\x1E\x00".$ps);
   #          |   |    |   |   |
   #          |   |    |   |   +--- length of PPS pulse, in ns
   #          |   |    |   +------- Internal time scale: 0 off, 1 keep within +/- 1 ms of UTC
-  #          |   |    +----------- PPS control byte: 0010 1110b
+  #          |   |    +----------- PPS control byte: 0001 1110b
   #          |   |                                   bit 0: 0 Software type (PPS), 1 Hardware type, sync'ed to RX internal time scale
   #          |   |                                   bit 1 (for Software type only): 0 PVT rate, 1 Every second
   #          |   |                                   bit 2: 0 Do not verify PPS, 1 verify PPS and disable if failed
@@ -605,10 +586,18 @@ sub ConfigureReceiver
   # Turn on required messages
   #
   # Request for software version
-  sendCmd("\x1B");
+  sendCmd("\x1B"); # No longer required, request message F4h takes care of this
+  #          |     # but leave it in, otherwise $nv08id is undefined when status is 
+  #          |     # written for the first time.
   #          | 
   #          +--- ID: x1B is the Request for Software Version control message
   # Response is message 70h
+  #
+  # Request status of port 2
+  sendCmd("\x0B\x02");
+  # For message definition, see above
+  #
+  # Response is message 50h
   #
   # Request for number of satellites used and DOP
   sendCmd("\x21\x3C");
@@ -645,26 +634,34 @@ sub ConfigureReceiver
   #          +------- ID: x24 is the Request for Visible Satellites control message
   # Response is message 52h
   #
+  # Request for raw data output
+  sendCmd("\xF4\x0A");
+  #          |   |
+  #          |   +--- Send message interval: x0A = 10 * 100 milliseconds = 1 second
+  #          +------- ID: xF4 is the Request for raw data output
+  # Response is messages 70h (single message), 4Ah (every 2 minutes), 
+  #                      4Bh (every 2 minutes), F5h (at interval requested in F4h, 
+  #                      F6h (every minute), and F7h (at rate of updated ephemeris)
+  #
 } # ConfigureReceiver
 
 #----------------------------------------------------------------------------
 
+#writeStatus($nv08id,$sats,$glosats,$hdop,$vdop,$tdop);
+#           ($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop,$tdop)
 sub writeStatus # $nv08id,$sats,$glosats,$hdop,$vdop,$tdop
 {
-  my($nv08id,$sats,$glosats,$hdop,$vdop,$tdop) = (@_);
-  # For debugging:
-  #print "\$nv08id: ",$nv08id,"\n";
-  #print "\$sats: ",$sats,"\n";
-  #print "\$glosats: ",$glosats,"\n";
-  #print "\$hdop: ",$hdop,"\n";
-  #print "\$vdop: ",$vdop,"\n";
-  #print "\$tdop: ",$tdop,"\n";
-  # Write current nv08 status to the file specified in $Input{receiver status}
-  open  STA, ">$rcvrstatus";
+  my($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop,$tdop) = (@_);
+  #my($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop) = (@_);
+ 
+  open  STA, ">$rxStatus";
   print STA $nv08id,"\n";
+  # Does it still make sense to report GLONASS satellites?
   print STA "Number of visible GLONASS sats: ",$glosats,"\n";
+  print STA "Number of visible GPS sats: ",$gpssats,"\n";
   print STA "prns=",$sats,"\n";
   print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f TDOP: %0.2f\n",$hdop,$vdop,$tdop);
+  #print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f\n",$hdop,$vdop);
   close STA;
 } # writeStatus
 
@@ -677,7 +674,7 @@ sub sendCmd
   print $rx "\x10".$cmd."\x10\x03";	# DLE at start, DLE/ETX at end
   # Wait 100 ms
   select (undef,undef,undef,0.1);
-} # SendCommand
+} # SendCmd
 
 #----------------------------------------------------------------------------
 
