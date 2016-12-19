@@ -32,7 +32,7 @@ Section & Key \\ \hline
 \hyperlink{h:receiver}{Receiver} & configuration, elevation mask, logger, logger options, 
 				 manufacturer, model, observations, 
          port, pps offset, synchronization, pps synchronization delay,
-         status file, timeout
+         status file, timeout, version
 				\\ \hline
 \hyperlink{h:reference}{Reference} & file extension, logging interval, log path, log status, oscillator, power flag, status file
         \\ \hline
@@ -541,6 +541,13 @@ The logging script will time out and exit if no messages are received for this p
 \textit{Example:}
 \begin{lstlisting}
 timeout = 60
+\end{lstlisting}
+
+{\bfseries version}\\
+This can be used to identify the firmware version in use, for example.\\
+\textit{Example:}
+\begin{lstlisting}
+version = 2.6.1
 \end{lstlisting}
 
 \subsection{[Reference] section}

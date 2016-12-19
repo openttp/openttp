@@ -6,6 +6,10 @@
 \cc{mktimetx} is the core OpenTTP application.
 It creates CGGTTS and RINEX-format time-transfer files.
 
+In the RINEX files, the code measurements have been corrected for any offsets between the raw measurements
+and the output 1 pps, and then the correction to the external clock applied ie the raw code measurements
+are with respect to the external clock.
+
 \subsection{usage}
 
 The command line options are
