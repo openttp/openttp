@@ -1,0 +1,29 @@
+To compile an overlay file issue this command:
+
+ dtc -O dtb -o {name of compiled overlay file} -b 0 -@ {name of overlay source file} 
+
+For example, do this
+
+ dtc -O dtb -o BB-W1-P8.11-00A0.dtbo -b 0 -@ BB-W1-P8.11.dts 
+
+to create the BB-W1-P8.11-00A0.dtbo overlay file from the BB-W1-P8.11.dts overlay source file.
+
+Then install the file in the /lib/firmware directory (as root or use sudo):
+
+ cp BB-W1-P8.11-00A0.dtbo /lib/firmware/
+
+Then load the overlay file (as root or use sudo):
+
+ sudo sh -c "echo 'BB-W1-P8.11' > /sys/devices/bone_capemgr.9/slots"
+
+This is for Debian "Wheezy", for "Jessie" the location (and some of the bits inside the
+overlay source files) have changed.
+
+To make the overlay load at boot you need to add it to the /etc/default/capemgr file by
+changing the 'CAPE=...' line to include your new overlay, for example:
+
+ CAPE=REF_PPS,GPS-PPS,BB-W1-P8.11
+
+2016-12-22 Louis Marais
+
+
