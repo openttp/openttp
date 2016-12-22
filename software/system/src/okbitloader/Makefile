@@ -1,10 +1,12 @@
 PROGRAM = okbfloader
 CXX = g++
-INCLUDE = -I/usr/local/include
-LDFLAGS= -L/usr/local/lib
-LIBS= -lokFrontPanel -ldl 
-DEFINES= -DOKFRONTPANEL
-OBJECTS = BFLoader.o
+INCLUDE = -I../OpenOK2
+LDFLAGS= 
+LIBS= -lpthread -ldl -lusb-1.0
+CXXFLAGS= -Wall 
+DEFINES= -DDEBUG -DOPENOK2 
+OBJECTS = BFLoader.o OpenOK.o
+VPATH = ./:../OpenOK2
 
 .SUFFIXES: .o .cpp
 
@@ -18,7 +20,7 @@ $(PROGRAM): $(OBJECTS)
 
 install: $(PROGRAM)
 	cp $(PROGRAM) /usr/local/bin
-	
+
 clean:
 	rm -f *.o $(PROGRAM)
 
