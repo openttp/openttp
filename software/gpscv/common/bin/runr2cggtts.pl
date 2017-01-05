@@ -27,8 +27,11 @@
 # Script to help with automatic processing of RINEX time-transfer files via rinex_cggtts_nmia
 #
 # Example usage
-# run2cggtts STATION MJD C1|P1|P2 RINEX_OBS_PATH RINEX_NAV_STATION RINEX_NAV_PATH paramCGGTTS file 
+# runr2cggtts STATION MJD C1|P1|P2 RINEX_OBS_PATH RINEX_NAV_STATION RINEX_NAV_PATH paramCGGTTS file 
 # ./runr2cggtts.pl SYDN 57606 C1 ../rinex-sydn brdc ./brdc SYDN.paramCGGTTS.dat output_path
+# Modification history
+# 2017-01-04 MJW insert current number of leap seconds in paramCGGTTS automatically
+# 
 
 $STA=$ARGV[0];
 $MJD=$ARGV[1];
@@ -89,6 +92,46 @@ else{
 
 # Got all needed files so proceed
 
+# Get the current number of leap seconds
+my $nLeap = 0;
+# Try the RINEX navigation file.
+# Use the number of leap seconds in $nav1
+open(IN,"<$nav1");
+while ($l=<IN>){
+  if ($l=~/\s+(\d+)\s+LEAP\s+SECONDS/){
+    print "Current leap seconds = $1\n";
+    $nLeap=$1;
+    last;
+  }
+}
+close IN;
+# Otherwise try the system leapseconds file
+if ($nLeap==0){
+  # TO DO
+}
+
+if ($nLeap>0){
+  # Back up paramCGGTTS
+  `cp -a $PARS $PARS.bak`;
+  `cp -a $PARS $PARS.tmp`;
+  open(IN,"<$PARS");
+  open(OUT,">$PARS.tmp");
+  while ($l=<IN>){
+    if ($l=~/LEAP\s+SECOND/){
+      print OUT $l;
+      $l=<IN>;
+      print "LS was $l, now $nLeap\n";
+      print OUT $nLeap,"\n";
+    }
+    else{
+      print OUT $l;
+    }
+  }
+  close IN;
+  close OUT;
+  `cp $PARS.tmp $PARS`;
+}
+
 # Extract the appropriate single RINEX observation 
 
 $rnxout1=sprintf("$STA%03d0.%02do",$doy1,$yy1);
@@ -135,6 +178,8 @@ close OUT;
 if (-e "$MJD.cctf"){
 	`cp $MJD.cctf $CGGTTSDIR/$MJD.cctf`;
 }
+
+`cp $PARS.bak $PARS`;
 
 sub MakeRINEXObservationName
 {
