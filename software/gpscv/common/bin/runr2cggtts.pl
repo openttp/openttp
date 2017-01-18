@@ -31,7 +31,7 @@
 # ./runr2cggtts.pl SYDN 57606 C1 ../rinex-sydn brdc ./brdc SYDN.paramCGGTTS.dat output_path
 # Modification history
 # 2017-01-04 MJW insert current number of leap seconds in paramCGGTTS automatically
-# 
+# 2017-01-17 MJW create directories needed for output
 
 $STA=$ARGV[0];
 $MJD=$ARGV[1];
@@ -174,6 +174,10 @@ print OUT "$MJD\n";
 close OUT;
 
 `rinex_cggtts_nmia`;
+
+if (!(-e $CGGTTSDIR)){
+	`mkdir -p $CGGTTSDIR`;
+}
 
 if (-e "$MJD.cctf"){
 	`cp $MJD.cctf $CGGTTSDIR/$MJD.cctf`;
