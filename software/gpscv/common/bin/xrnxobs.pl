@@ -28,6 +28,7 @@
 # Modification history
 # 2015-08-20 MJW First version
 # 2016-08-09 MJW Handle more than 12 observations properly. Handle blank entries in RINEX observation records
+# 2017-02-07 MJW Bug fixes for multiline observations with missing observations.
 #
 
 use POSIX qw(floor ceil);
@@ -109,9 +110,10 @@ while ($line=<IN>){
 			$nlines = ceil($nobs/5); # could be more than one line of measurements per SV
 			$line = "";
 			for ($l=0;$l<$nlines;$l++){ # so read lines, concatenating them
-				# FIXME untested for multiline observations
 				$ll=<IN>;
 				chomp $ll;
+				# To simplify parsing, pad each line out to 80 characters
+				$ll = sprintf("%-80s",$ll);
 				$line .= $ll;
 			}
 		
@@ -120,10 +122,8 @@ while ($line=<IN>){
 			# Each field should be 16 characters long
 			# Round up the length to the next multiple of 16
 			$nfields = ceil($len/16);
-			# print STDERR "Missing observation len=$len nfields=$nfields\n";
 			for ($f=0;$f<$nfields;$f++){
 				$val = substr $line, $f*16, (($f+1)*16<=$len?16:$len-$f*16);
-				# print STDERR "$f $val\n";
 				if ($f == $obscol){
 					# Is it a number ?
 					if ($val =~/\d+\.\d+/){
