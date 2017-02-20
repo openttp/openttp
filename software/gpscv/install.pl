@@ -88,11 +88,12 @@ Log ("+   $VERSION\n",$ECHO);
 Log ("+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
 
 # Detect the operating system version
+# Note that you can use regexes in the OS strings 
 @os =(
-			["Red Hat Enterprise Linux WS release 6","rhel6"], # first entry is OS-defined string, second is our name
-			["CentOS release 6","centos6"],
-			["Ubuntu 14.04","ubuntu14"]
-			);
+	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6"], # first entry is OS-defined string, second is our name
+	["CentOS release 6","centos6"],
+	["Ubuntu 14.04","ubuntu14"]
+	);
 
 $thisos = `cat /etc/issue`;
 chomp $thisos;
@@ -116,6 +117,8 @@ if ($i > $#os){
 else{
 	$osid = $os[$i][1];
 }
+
+exit(1);
 
 # Detect whether there is an existing installation that we are upgrading
 $upgrade=0;
@@ -169,10 +172,10 @@ $CONFIGS = "$INSTALLDIR/etc";
 $LOGS = "$INSTALLDIR/logs";
 $DATA = "$INSTALLDIR/raw";
 $RINEX = "$INSTALLDIR/rinex";
-
+$TMP= "$INSTALLDIR/tmp";
 Log ("\n*** Creating installation directories in $INSTALLDIR\n",$ECHO);
 
-@dirs = ($BIN,$CONFIGS,$LOGS,$DATA,$CGGTTS,$RINEX);
+@dirs = ($BIN,$CONFIGS,$LOGS,$DATA,$CGGTTS,$RINEX,$TMP);
 
 for ($i=0;$i<=$#dirs;$i++){
 	Log ("$dirs[$i]",$opt_t);
