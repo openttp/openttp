@@ -23,15 +23,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-#restconfig - Perl script to configure the serial port 
+# restconfig.pl - Perl script to configure the serial port of Trimble Resolution T/SMT 360 receivers
 
+# TODO: it would be better if required information eg receiver model, port, ... was supplied on the command line
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
 use POSIX;
 use Getopt::Std;
 use POSIX qw(strftime);
-use vars  qw($tmask $opt_d $opt_h $opt_v);
+use vars  qw($tmask $opt_c $opt_d $opt_h $opt_v);
+
+$VERSION="2.1";
 
 $RESOLUTION_T=0;
 #$RESOLUTION_SMT=1;
@@ -46,9 +49,39 @@ if (-d "$home/etc")  {$configpath="$home/etc";}  else
 if (-d "$home/logs")  {$logpath="$home/logs";} else 
 	{$logpath="$home/Log_Files";}
 	
+if( !(getopts('c:dhv'))) {
+	select STDERR;
+ 	ShowHelp();
+	exit;
+}
+
+if ($opt_v){
+	print "$0 version $VERSION\n";
+	exit;
+}
+
 # More backwards compatibility fixups
-if (-e "$configpath/cggtts.conf"){
-	$configFile=$configpath."/cggtts.conf";
+if (defined $opt_c){ 
+  if (-e $opt_c){
+    $configFile=$opt_c;
+    if ($opt_c =~ /setup/){
+      $localMajorVersion=1;
+    }
+    else{
+      $localMajorVersion=2;
+    }
+  }
+  else{
+    print STDERR "$opt_c not found!\n";
+    exit;
+  }
+}
+elsif (-e "$configpath/rest.conf"){ # this takes precedence
+	$configFile=$configpath."/rest.conf";
+	$localMajorVersion=2;
+}
+elsif (-e "$configpath/gpscv.conf"){
+	$configFile=$configpath."/gpscv.conf";
 	$localMajorVersion=2;
 }
 elsif (-e "$configpath/cctf.setup"){
@@ -60,41 +93,40 @@ else{
 	exit;
 }
 
-if( !(getopts('dhv')) || ($#ARGV>=1)) {
-	select STDERR;
- 	ShowHelp();
-	exit;
-}
-
-if ($opt_v){
-	print "$0 version $VERSION\n";
-	exit;
-}
-
 if ($opt_h){
 	ShowHelp();
 	exit;
 }
 
+&Initialise($configFile);
+
 # Check for an existing lock file
+# Check the lock file
+
 $lockFile = $logpath."/rx.lock";
-if (-e $lockFile){
-	open(LCK,"<$lockFile");
-	$pid = <LCK>;
-	chomp $pid;
-	if (-e "/proc/$pid"){
-		printf STDERR "Process $pid already running\n";
-		exit;
-	}
-	close LCK;
+if (defined $Init{"receiver:lock file"}){
+	$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logpath);
 }
 
-open(LCK,">$lockFile");
-print LCK $$,"\n";
-close LCK;
-
-&Initialise(@ARGV==1? $ARGV[0] : $configFile);
-$Init{version}="2.0";
+if (-e $lockFile){
+	open(LCK,"<$lockFile");
+	@info = split ' ', <LCK>;
+	close LCK;
+	if (-e "/proc/$info[1]"){
+		printf STDERR "Process $info[1] already running\n";
+		exit;
+	}
+	else{
+		open(LCK,">$lockFile");
+		print LCK "$0 $$\n";
+		close LCK;
+	}
+}
+else{
+	open(LCK,">$lockFile");
+	print LCK "$0 $$\n";
+	close LCK;
+}
 
 $rxModel=$RESOLUTION_SMT_360;
 if ($localMajorVersion == 2){
@@ -126,9 +158,6 @@ unless (`/usr/local/bin/lockport $port $0`==1) {
 	exit;
 }
 
-$rx=&TFConnectSerial($port,
-		(ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
-			oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|PARENB|PARODD|CLOCAL));
 # Set up a mask which specifies this port for select polling later on
 vec($rxmask,fileno $rx,1)=1;
 
@@ -248,7 +277,8 @@ sub FixPath()
 #----------------------------------------------------------------------------
 sub ShowHelp
 {
-	print "Usage: $0 [-h] [-d] [-v] [initfile]\n";
+	print "Usage: $0 [-h] [-d] [-v] [-c config_file]\n";
+	print "  -c <config_file> set the configuration file\n";
 	print "  -d debug\n";
 	print "  -h show this help\n";
 	print "  -v show version\n";

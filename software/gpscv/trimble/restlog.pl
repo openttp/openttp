@@ -45,7 +45,7 @@
 #									packet were erroneously removed
 #	 24-08-2015 MJW Cleanups; Resolution 360 compatibility added						
 #  26-08-2016 MJW Remove backwards compatibility.
-#
+#  22-02-2017 MJW Minor changes for operation as non-GPSCV receiver
 
 # Improvements?
 # Use 6D for tracking visible satellites but this is not strictly correct
@@ -63,7 +63,7 @@ use Getopt::Std;
 use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
-$VERSION="3.0";
+$VERSION="3.0.1";
 $AUTHORS="Michael Wouters, Bruce Warrington";
 
 $RESOLUTION_T=0;
@@ -107,9 +107,17 @@ $rxMinorAlarms="";
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
-$configFile="$home/etc/gpscv.conf";
+$configPath="$home/etc";
+if (!(-d "$home/etc"))  {
+	ErrorExit("No $configPath directory found!\n");
+}
 
-if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) {
+$logPath="$home/logs";
+if (!(-d "$home/logs")){
+	ErrorExit("No ~/logs directory found!\n");
+}
+
+if( !(getopts('c:dhrv')) || ($#ARGV>=1)) {
   ShowHelp();
   exit;
 }
@@ -120,24 +128,27 @@ if ($opt_v){
 	exit;
 }
 
-if (!(-d "$home/etc"))  {
-	ErrorExit("No ~/etc directory found!\n");
-} 
-
-if (-d "$home/logs")  {
-	$logPath="$home/logs";
-} 
+if (defined $opt_c){ 
+  if (-e $opt_c){
+    $configFile=$opt_c;
+  }
+  else{
+    ErrorExit( "$opt_c not found!");
+  }
+}
+elsif (-e "$configPath/rest.conf"){ # this takes precedence
+	$configFile=$configPath."/rest.conf";
+}
+elsif (-e "$configPath/gpscv.conf"){
+	$configFile=$configPath."/gpscv.conf";
+}
 else{
-	ErrorExit("No ~/logs directory found!\n");
+	ErrorExit("A configuration file was not found!");
 }
 
-
-if (defined $opt_c){
-	$configFile=$opt_c;
-}
-
-if (!(-e $configFile)){
-	ErrorExit("A configuration file was not found!\n");
+if ($opt_h){
+	ShowHelp();
+	exit;
 }
 
 &Initialise($configFile);

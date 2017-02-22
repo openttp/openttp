@@ -29,7 +29,9 @@
 
 use Getopt::Std;
 use TFLibrary;
-use vars qw($opt_a $opt_h $opt_m $opt_l $opt_L $opt_u $opt_p $opt_r $opt_s $opt_t $opt_v $opt_x);
+use vars qw($opt_a $opt_c $opt_f $opt_h $opt_m $opt_l $opt_L $opt_u $opt_p $opt_r $opt_s $opt_t $opt_v $opt_x);
+
+$VERSION="2.0";
 
 $M_PI=4*atan2(1,1);
 $CVACUUM=299792458.0;
@@ -47,10 +49,17 @@ $RESOLUTION_T=0;
 #$RESOLUTION_SMT=1;
 $RESOLUTION_360=2;
 
+$0=~s#.*/##;
+
 # Parse command line
-if (!getopts('hm:pr:stlLuavx') || $opt_h){
+if (!getopts('c:fhm:pr:stlLuavx') || $opt_h){
   &ShowHelp();
   exit;
+}
+
+if ($opt_v){
+	print "$0 version $VERSION\n";
+	exit;
 }
 
 $svn=999;
@@ -63,7 +72,27 @@ if (-d "$home/etc")  {$configpath="$home/etc";}  else
 	{$configpath="$home/Parameter_Files";} # backwards compatibility
 
 # More backwards compatibility fixups
-if (-e "$configpath/gpscv.conf"){
+
+if (defined $opt_c){ 
+  if (-e $opt_c){
+    $configFile=$opt_c;
+    if ($opt_c =~ /setup/){
+      $localMajorVersion=1;
+    }
+    else{
+      $localMajorVersion=2;
+    }
+  }
+  else{
+    print STDERR "$opt_c not found!\n";
+    exit;
+  }
+}
+elsif (-e "$configpath/rest.conf"){ # this takes precedence
+	$configFile=$configpath."/rest.conf";
+	$localMajorVersion=2;
+}
+elsif (-e "$configpath/gpscv.conf"){
 	$configFile=$configpath."/gpscv.conf";
 	$localMajorVersion=2;
 }
@@ -138,7 +167,7 @@ while (<RXDATA>)
 	
 	if (!($lastt eq $_[1])) 
 	{
-		if (!$opt_v) {print "\n$_[1] ";}
+		if (!$opt_f) {print "\n$_[1] ";}
 		$lastt = $_[1];
 		($hh,$mm,$ss)=split /:/,$lastt;
 		$tt = $hh*3660+$mm*60+$ss;
@@ -181,7 +210,7 @@ while (<RXDATA>)
 			if ($opt_t) {print $data[15]," ";}
 			if ($opt_x){ printf "%04x %02x %e %e %e",$data[6],$data[7],$data[16]*180.0/$M_PI,$data[17]*180.0/$M_PI,$data[18];} 
 		}
-		elsif ($opt_v && ($submsg eq "41"))
+		elsif ($opt_f && ($submsg eq "41"))
 		{
 			# Remove first byte so that indexing corresponds to docs
 			$_[2]=substr $_[2],2;
@@ -206,7 +235,7 @@ while (<RXDATA>)
 		@data=unpack "Cf4",(pack "H*",$_[2]);
 		print $data[0] >> 4;
 	}
-	elsif(($msg==$MSG45) && $opt_v)
+	elsif(($msg==$MSG45) && $opt_f)
 	{
 	
 		$_[2]=substr $_[2],2;
@@ -288,7 +317,9 @@ if (1==$zipit) {`gzip $infile`;}
 #----------------------------------------------------------------------------
 sub ShowHelp()
 {
-	print "Usage: $0 [-h] [-m mjd] [-a] [-r] [-t] [-l] [-L] [-u] [-v]\n";
+	print "Usage: $0 [-c config_file] [-f] [-h] [-m mjd] [-a] [-r] [-t] [-l] [-L] [-u] [-v]\n";
+	print "  -c <config_file> use the specified config file\n";
+	print "  -f      show firmware version\n";
   print "  -m mjd  MJD\n";
 	print "  -a      extract S/N for visible satellites (47)\n";
 	print "  -h      show this help\n";
@@ -299,7 +330,7 @@ sub ShowHelp()
 	print "  -r svn  pseudoranges (svn=999 reports all)\n";
 	print "  -s      number of visible satellites\n";
 	print "  -u      UTC offset (8FAB)\n";
-	print "  -v      software versions\n";
+	print "  -v      show version\n";
 	print "  -x      alarms and gps decoding status\n";
 }
 
