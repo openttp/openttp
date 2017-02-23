@@ -27,15 +27,18 @@
 
 # Modification history:
 # 2015-08-25 MJW First version
+# 2017-02-24 MJW Path tidyups for the configuration file
+#                
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
 use POSIX;
 use Getopt::Std;
 use POSIX qw(strftime);
-use vars  qw($tmask $opt_d $opt_h $opt_v);
+use vars  qw($tmask $opt_c $opt_d $opt_h $opt_v);
 
-$VERSION="0.1";
+$AUTHORS="Michael Wouters";
+$VERSION="0.2";
 
 $RESOLUTION_T=0;
 #$RESOLUTION_SMT=1;
@@ -44,35 +47,61 @@ $RESOLUTION_SMT_360=2;
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
-if (-d "$home/etc")  {$configpath="$home/etc";}  else 
-	{$configpath="$home/Parameter_Files";} # backwards compatibility
 
-if (-d "$home/logs")  {$logpath="$home/logs";} else 
-	{$logpath="$home/Log_Files";}
-	
-# More backwards compatibility fixups
-if (-e "$configpath/gpscv.conf"){
-	$configFile=$configpath."/gpscv.conf";
+if (-d "$home/etc"){
+	$configPath="$home/etc";
+}
+elsif (-d "$home/Parameter_Files"){
+	$configPath="$home/Parameter_Files";
+}
+else{
+	ErrorExit("No $configPath directory found!\n");
+}
+
+if ((-d "$home/logs")){
+	$logPath="$home/logs";
+}
+elsif (-d "$home/Log_files"){
+	$logPath = "$home/Log_Files";
+}
+else{
+	ErrorExit("No ~/logs or ~/Log_Files directory found!\n");
+}
+
+if (-e "$configPath/rest.conf"){ # this takes precedence
+	$configFile=$configPath."/rest.conf";
 	$localMajorVersion=2;
 }
-elsif (-e "$configpath/cctf.setup"){
-	$configFile="$configpath/cctf.setup";
+elsif (-e "$configPath/gpscv.conf"){
+	$configFile=$configPath."/gpscv.conf";
+	$localMajorVersion=2;
+}
+elsif (-e "$configPath/cctf.setup"){
+	$configFile="$configPath/cctf.setup";
 	$localMajorVersion=1;
 }
 else{
-	print STDERR "No configuration file found!\n";
-	exit;
+	ErrorExit("A configuration file was not found!");
 }
 
-if( !(getopts('dhv')) || ($#ARGV>=1)) {
-	select STDERR;
- 	ShowHelp();
-	exit;
+if( !(getopts('c:dhrv')) || ($#ARGV>=1)) {
+  ShowHelp();
+  exit;
 }
 
 if ($opt_v){
 	print "$0 version $VERSION\n";
+	print "Written by $AUTHORS\n";
 	exit;
+}
+
+if (defined $opt_c){ 
+  if (-e $opt_c){
+    $configFile=$opt_c;
+  }
+  else{
+    ErrorExit( "$opt_c not found!");
+  }
 }
 
 if ($opt_h){
@@ -80,25 +109,30 @@ if ($opt_h){
 	exit;
 }
 
+&Initialise($configFile);
+
 # Check for an existing lock file
-$lockFile = $logpath."/rest.lock";
+# Check the lock file
+$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
 if (-e $lockFile){
 	open(LCK,"<$lockFile");
-	$pid = <LCK>;
-	chomp $pid;
-	if (-e "/proc/$pid"){
-		printf STDERR "Process $pid already running\n";
+	@info = split ' ', <LCK>;
+	close LCK;
+	if (-e "/proc/$info[1]"){
+		printf STDERR "Process $info[1] already running\n";
 		exit;
 	}
+	else{
+		open(LCK,">$lockFile");
+		print LCK "$0 $$\n";
+		close LCK;
+	}
+}
+else{
+	open(LCK,">$lockFile");
+	print LCK "$0 $$\n";
 	close LCK;
 }
-
-open(LCK,">$lockFile");
-print LCK $$,"\n";
-close LCK;
-
-&Initialise(@ARGV==1? $ARGV[0] : $configFile);
-$Init{version}="2.0";
 
 $rxModel=$RESOLUTION_SMT_360;
 if ($localMajorVersion == 2){
@@ -159,7 +193,8 @@ if (-e $lockFile) {unlink $lockFile;}
 #----------------------------------------------------------------------------
 sub ShowHelp
 {
-	print "Usage: $0 [OPTIONS ...] [initfile]\n";
+	print "Usage: $0 [OPTIONS ...]\n";
+	print "  -c <file> use the specified configuration file\n";
 	print "  -d debug\n";
 	print "  -h show this help\n";
 	print "  -v show version\n";
