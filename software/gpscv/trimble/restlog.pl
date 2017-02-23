@@ -46,7 +46,8 @@
 #	 24-08-2015 MJW Cleanups; Resolution 360 compatibility added						
 #  26-08-2016 MJW Remove backwards compatibility.
 #  22-02-2017 MJW Minor changes for operation as non-GPSCV receiver
-
+#  23-02-2017 MJW Changes to operate as a single constellation receiver (SMT 360 only) and reduce the amount of logged data
+# 
 # Improvements?
 # Use 6D for tracking visible satellites but this is not strictly correct
 # since this reports satelites used for position/time fix NOT visible
@@ -99,6 +100,12 @@ $IONO_PARAMETERS=1;
 $LAST_REQUESTED=0;
 $LAST_RECEIVED=1;
 
+$GPS=0x01;
+$GLONASS=0x02;
+$BEIDOU = 0x08;
+
+$constellations = $GPS;
+
 # Some filthy globals
 
 $rxTemperature="unknown";
@@ -108,13 +115,23 @@ $0=~s#.*/##;
 
 $home=$ENV{HOME};
 $configPath="$home/etc";
-if (!(-d "$home/etc"))  {
+if (!(-d "$home/etc")){
 	ErrorExit("No $configPath directory found!\n");
 }
 
 $logPath="$home/logs";
 if (!(-d "$home/logs")){
 	ErrorExit("No ~/logs directory found!\n");
+}
+
+if (-e "$configPath/rest.conf"){ # this takes precedence
+	$configFile=$configPath."/rest.conf";
+}
+elsif (-e "$configPath/gpscv.conf"){
+	$configFile=$configPath."/gpscv.conf";
+}
+else{
+	ErrorExit("A configuration file was not found!");
 }
 
 if( !(getopts('c:dhrv')) || ($#ARGV>=1)) {
@@ -135,15 +152,6 @@ if (defined $opt_c){
   else{
     ErrorExit( "$opt_c not found!");
   }
-}
-elsif (-e "$configPath/rest.conf"){ # this takes precedence
-	$configFile=$configPath."/rest.conf";
-}
-elsif (-e "$configPath/gpscv.conf"){
-	$configFile=$configPath."/gpscv.conf";
-}
-else{
-	ErrorExit("A configuration file was not found!");
 }
 
 if ($opt_h){
@@ -232,6 +240,13 @@ $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
 $next=($mjd-40587+1)*86400;	# seconds at next MJD
 $then=0;
 
+$timeTransfer = 1; # operate as time-transfer receiver
+if (defined $Init{"receiver:time-transfer"}){
+	if ($Init{"receiver:time-transfer"} =~ /no/){
+		$timeTransfer = 0;
+		Debug("NOT operating as time-transfer receiver");
+	}
+}
 &ConfigureReceiver();
 
 $input="";
@@ -305,16 +320,19 @@ LOOP: while (!$killed)
 				# available so filter out empty responses
 				$id=ord substr $data,0,1;
 				$operation = ord substr $data,1,1;	
+
 				if ($id == 0x58 ){ # is it system data ?
-					if ($operation == 0x02){
-     				printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
+					if ($timeTransfer == 1){
+						if ($operation == 0x02){
+							printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
+						}
 					}
 				}
 				elsif ($id == 0x8f && $operation == 0xac){
 					&ParseSupplementalTimingPacket();
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
 				}
-				elsif ($id == 0x5a){
+				elsif ($id == 0x5a){  # only enabled for time-transfer
 					$svn= ord substr $data,1,1;
 					if ($svn <= 32){ # only want GPS at present
 						printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
@@ -323,11 +341,12 @@ LOOP: while (!$killed)
 				else{
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$data);
 				}
-				
 				UpdateSatellites();
-				PollEphemerides();
-				PollUTCParameters();
-				PollIonoParameters();
+				if ($timeTransfer==1){
+					PollEphemerides();
+					PollUTCParameters();
+					PollIonoParameters();
+				}
 				ParseGPSSystemDataMessage();
 				
 			}
@@ -459,17 +478,66 @@ sub ConfigureReceiver
 	}
 	
 	# Resolution 360 - 0xBB configure receiver options
-	
+	# In particular, configure the constellations that are tracked
+	# (but be aware that this is only obeyed in over-determined clock mode)
+	if ($rxmodel==$RESOLUTION_360){
+		if (defined $Init{"receiver:observations"}){
+			
+			$constellations=0;
+			if ($Init{"receiver:observations"} =~ /GLONASS/){
+				Debug("Configured for GLONASS");
+				$constellations |= $GLONASS;
+				
+			}
+			if ($Init{"receiver:observations"} =~ /GPS/){
+				Debug("Configured for GPS");
+				$constellations |= $GPS;
+			}
+			if ($Init{"receiver:observations"} =~ /BeiDou/){
+				Debug("Configured for BeiDou");
+				$constellations |= $BEIDOU;
+			}
+			if ($constellations != 0){
+				$defaultSingle = SingleToStr(-1.0);
+				# Sending 0xff for a UINT8 means ignore
+				&SendCommand("\xBB\x00\xFF\xFF\xFF\xFF".$defaultSingle.
+											$defaultSingle.$defaultSingle.$defaultSingle.
+											"\xFF\x01\xFF\xFF\xFF\xFF".uint8ToStr($constellations)."\xFF\xFF".
+											"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF");
+			}
+		}
+	}
+
 	# Turn on broadcast of timing information and automatic output packets
 	&SendCommand("\x8E\xA5\x00\x45\x00\x05"); #OK
 
 	#  Turn on raw measurement reports nb automatic output packets must be
 	#  turned on as well
-	&SendCommand("\x35\x12\x02\x00\x01"); #OK
-	
-	# Configure for GPS aligned 1 pps and UTC time-of day in 8FAB packet
-	&SendCommand("\x8E\xA2\x01"); #OK
-	
+	if ($timeTransfer){
+		&SendCommand("\x35\x12\x02\x00\x01"); #OK
+	}
+	else{
+		&SendCommand("\x35\x12\x02\x00\x00");
+	}
+
+	# Configure pps reference and time-of day reference in the 8FAB packet
+	if ($timeTransfer){
+		&SendCommand("\x8E\xA2\x01"); # Configure for GPS aligned 1 pps and UTC time-of day in 8FAB packet
+	}
+	else{
+		if (defined $Init{"receiver:timing mode"}){
+			$timingMode=$Init{"receiver:timing mode"};
+			if ($timingMode =~ /GPS/){
+				&SendCommand("\x8E\xA2\x01"); 
+			}
+			elsif ($timingMode =~ /GLONASS/){
+				# GLONASS is
+				# 1 + 2 + 0 + 0 + 16 + 64
+				&SendCommand("\x8E\xA2\x53"); 
+			}
+	  }
+	}
+
 	# Set the 1 pps offset
 	$ppsOffset = $Init{"receiver:pps offset"}/1.0E9; # convert to seconds
 	$pps=DoubleToStr($ppsOffset);
@@ -500,7 +568,7 @@ sub ConfigureReceiver
 sub UpdateSatellites
 {
 	my ($id,$i,$reqid,$svnoffset);
-	# Visible satellites can be obtained from 0x6D report packet, which is
+	# Visible satellites can be obtained from 0x6C or 0x6D report packet, which is
 	# automatically output
 	$id=ord substr $data,0,1;
 	$reqid=0x6d;
@@ -520,8 +588,9 @@ sub UpdateSatellites
 			}
 			#print " ]\n";
 			for ($i=$svnoffset;$i<$n;$i++){
-				$prn= unpack('c',substr $data,$i,1); 
-				next unless ($prn <= 32); # only want GPS
+				$prn= unpack('c',substr $data,$i,1);
+				if ($prn <= 32 && !($constellations & $GPS)){next;}
+				if ($prn >  64 && $prn <= 96 && !($constellations & $GLONASS)){next;} # best guess - SVs are in blocks of 32 it appears
 				# If the SV is being tracked then no more to do
 				for ($j=0;$j<=$#SVdata;$j++){
 					if ($SVdata[$j][$PRN] == $prn){
@@ -734,12 +803,26 @@ sub ParseSupplementalTimingPacket()
 	#@data=unpack "C4IS2C4f2If2d3fI",(pack "H*",$_[2]);
 }
 
+#----------------------------------------------------------------------------
+
+sub uint8ToStr
+{
+	return pack "C",$_[0];
+}
+
+#----------------------------------------------------------------------------
+
+sub SingleToStr
+{
+	$tmp = pack "f",$_[0]; # nb native format : check endianess !
+	return (reverse $tmp);
+}
 
 #----------------------------------------------------------------------------
 
 sub DoubleToStr
 {
-	$tmp = pack "d",$_[0];
+	$tmp = pack "d",$_[0]; # nb native format
 	return (reverse $tmp);
 }
 
