@@ -27,7 +27,7 @@
 
 # Modification history:					
 # 02-05-2016 MJW First version, derived restlog.pl
-#
+# 27-02-2017 MJW Minor cleanups for configuration path
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
@@ -71,11 +71,27 @@ $params[$UTC_IONO_PARAMETERS][$LAST_RECEIVED]=-1;
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
-$configFile="$home/etc/gpscv.ublox.conf"; # FIXME temporary
+$configPath="$home/etc";
+if (!(-d "$home/etc")){
+	ErrorExit("No $configPath directory found!\n");
+}
 
-$ubxmsgs=":";
+$logPath="$home/logs";
+if (!(-d "$home/logs")){
+	ErrorExit("No ~/logs directory found!\n");
+}
 
-if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) {
+if (-e "$configPath/ublox.conf"){ # this takes precedence
+	$configFile=$configPath."/ublox.conf";
+}
+elsif (-e "$configPath/gpscv.conf"){
+	$configFile=$configPath."/gpscv.conf";
+}
+else{
+	ErrorExit("A configuration file was not found!");
+}
+
+if( !(getopts('c:dhrv')) || ($#ARGV>=1)) {
   ShowHelp();
   exit;
 }
@@ -86,26 +102,23 @@ if ($opt_v){
 	exit;
 }
 
-if (!(-d "$home/etc"))  {
-	ErrorExit("No ~/etc directory found!\n");
-} 
-
-if (-d "$home/logs")  {
-	$logPath="$home/logs";
-} 
-else{
-	ErrorExit("No ~/logs directory found!\n");
+if (defined $opt_c){ 
+  if (-e $opt_c){
+    $configFile=$opt_c;
+  }
+  else{
+    ErrorExit( "$opt_c not found!");
+  }
 }
 
-if (defined $opt_c){
-	$configFile=$opt_c;
+if ($opt_h){
+	ShowHelp();
+	exit;
 }
 
-if (!(-e $configFile)){
-	ErrorExit("A configuration file was not found!\n");
-}
-
+$ubxmsgs=":";
 &Initialise($configFile);
+
 
 # Check for an existing lock file
 # Check the lock file
@@ -129,8 +142,6 @@ else{
 	print LCK "$0 $$\n";
 	close LCK;
 }
-
-$Init{version}=$VERSION;
 
 #Open the serial ports to the receiver
 $rxmask="";
@@ -362,7 +373,7 @@ sub OpenDataFile
 	open OUT,">>$name" or die "Could not write to $name";
 	select OUT;
 	$|=1;
-	printf "# %s $0 (version $Init{version}) %s\n",
+	printf "# %s $0 (version $VERSION) %s\n",
 		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
 	printf "# %s file $name\n",
 		($old? "Appending to" : "Beginning new");

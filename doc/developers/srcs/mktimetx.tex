@@ -30,15 +30,12 @@ UTC time is used for CGGTTS generation.
 
 GPS time is used for various calculations and for RINEX observations.
 
-\subsection{Application.cpp}
-
-\subsection{CGGTTS.cpp}
-
-
 \subsection{Adding support for a new receiver}
 
 A new receiver is added by deriving a new class from \cc{Receiver}. This class has one virtual member
-function that must be redefined \cc{Receiver::readLog}.
+function that must be redefined \cc{Receiver::readLog}. This function reads the receiver data file and fills
+the data structures needed for processing. If any post-processing is needed after reading the data file, then this 
+must be done here.
 
 Edit the Makefile to add the new receiver class files to the dependencies.
 
@@ -47,6 +44,13 @@ This is done in \cc{Application::loadConfig()}.
 
 In terms of the configuration file \cc{gpscv.conf}, a receiver can be defined by three entries:
 \cc{receiver::model}, \cc{receiver::manufacturer} and \cc{receiver::version}.
+
+\subsection{readLog}
+
+\cc{Receiver::readLog} has the following structure:
+\begin{lstlisting}
+
+\end{lstlisting}
 
 \subsection{Identifying suitable receivers for time-transfer}
 
