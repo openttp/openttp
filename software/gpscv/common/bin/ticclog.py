@@ -143,11 +143,18 @@ if (cfg.has_key('counter:timestamp format')):
 		tsformat = TS_UNIX
 	elif (cfg['counter:timestamp format'] == 'time of day'):
 		tsformat = TS_TOD
-		
-lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc');
+
+# Create the process lock		
+lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
 Debug("Creating lock " + lockFile)
 if (not ottplib.CreateProcessLock(lockFile)):
 	ErrorExit("Couldn't create a lock")
+
+# Create UUCP lock for the serial port
+ret = subprocess.check_output(['/usr/local/bin/lockport','-p '+str(os.getpid()),port,sys.argv[0]])
+if (re.match('1',ret)==None):
+	ottplib.RemoveProcessLock(lockFile)
+	ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
 
 signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
@@ -159,6 +166,7 @@ try:
 except:
 	print "Error on device" + port
 	ottplib.RemoveProcessLock(lockFile)
+	subprocess.check_output(['/usr/local/bin/lockport','-r',port]) # but ignore return value anyway
 	exit()
 
 state = 1 # state machine for parsing the startup information
@@ -182,6 +190,8 @@ while (state < 4):
 			if (args.settings): # this is here so we don't get stuck on a TICC not configured for TI yet
 				print ctrcfg
 				ottplib.RemoveProcessLock(lockFile)
+				ser.close()
+				subprocess.check_output(['/usr/local/bin/lockport','-r',port]) 
 				exit()
 	elif (state == 3):
 		if (l.find('time interval A->B (seconds)') != -1):
@@ -227,9 +237,11 @@ while (not killed):
 		fout.close()
 		ottplib.RemoveProcessLock(lockFile)
 		ser.close()
+		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
 		ErrorExit("Too many bad readings - no signal?")
 
 # All done - cleanup		
 fout.close()
 ottplib.RemoveProcessLock(lockFile)
 ser.close()
+subprocess.check_output(['/usr/local/bin/lockport','-r',port])
