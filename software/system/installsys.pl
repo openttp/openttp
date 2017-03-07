@@ -44,7 +44,8 @@ $VERSION = "version 0.1";
 $ECHO=1;
 
 
-@defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd","sysmonitor","tflibrary","kickstart","misc");
+@defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
+	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib");
 
 if (grep (/^tflibrary/,@targets)){
 	# Find a place in /usr/local to put it
@@ -100,6 +101,11 @@ if (grep (/^kickstart/,@targets)){
 	Log("Installed kickstart.pl to /usr/local/bin\n",$ECHO);
 }
 
+if (grep (/^gziplogs/,@targets)){
+	`cp src/gziplogs.pl /usr/local/bin`;
+	Log("Installed gziplogs.pl to /usr/local/bin\n",$ECHO);
+}
+
 # Installation of sysmonitor
 if (grep (/^sysmonitor/,@targets)){
 	MakeDirectory('/usr/local/log');
@@ -111,7 +117,7 @@ if (grep (/^sysmonitor/,@targets)){
 		`systemctl load sysmonitor.service`; # seem to need the full name
 }
 
-# Installation of TFLibrary
+# Installation of TFLibrary (Perl module)
 $installed=0;
 if (grep (/^tflibrary/,@targets)){
 	# Find a place in /usr/local to put it
@@ -127,6 +133,37 @@ if (grep (/^tflibrary/,@targets)){
 	if (!$installed){Log("Failed to install TFLibrary\n",$ECHO);}
 }
 
+# Installation of ottplib (Python module)
+if (grep (/^ottplib/,@targets)){
+	# Check the python version
+	$ver = `python -V 2>&1`; # output is to STDERR
+	chomp $ver;
+	$ver =~ /^Python\s+(\d)\.(\d)/;
+	if ($1 == 2){
+		if ($2 >= 7){
+			$syspath = `python -c 'import sys;print sys.path'`;
+			chomp $syspath;
+			@dirs = split /,/,$syspath;
+			foreach $dir (@dirs){
+				if ($dir=~/site-packages/){
+					$dir=~ s/['\]\[]//g; # remove pythonic stuff
+					$dir=~ s/^\s+//; 
+					`python -c "import py_compile;py_compile.compile('src/ottplib.py')"`;
+					`cp src/ottplib.py src/ottplib.pyc $dir`;
+					Log("Installed ottlib.py to $dir\n",$ECHO);
+					last;
+				}
+			}
+		}
+		else{
+			Log("Python version is $ver - can't install\n",$ECHO);
+		}
+	}
+	else{
+		Log("Python version is $ver - can't install\n",$ECHO);
+	}
+	
+}
 
 close LOG;
 
