@@ -43,20 +43,18 @@ $0=~s#.*/##;	# strip path
 $VERSION = "version 0.1";
 $ECHO=1;
 
+$UPSTART="upstart";
+$SYSTEMD="systemd";
+
+@os =(
+	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6",$UPSTART], # first entry is OS-defined string, second is our name
+	["CentOS release 6","centos6",$UPSTART],
+	["Ubuntu 14.04","ubuntu14",$UPSTART],
+	["BeagleBoard.org Debian","bbdebian7",$SYSTEMD]
+	);
 
 @defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
 	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib");
-
-if (grep (/^tflibrary/,@targets)){
-	# Find a place in /usr/local to put it
-	foreach $dir (@INC){
-		if ($dir =~ /\/usr\/local\//){
-			if (-e $dir){
-				Log("Installed TFLibrary to $dir\n",$ECHO);
-			}
-		}
-	} 
-}
 
 if (!getopts('hi:lmtv') || $opt_h){
 	ShowHelp();	
@@ -88,13 +86,78 @@ if ($EFFECTIVE_USER_ID >0){
 
 open (LOG,">./installsys.log");
 
+$thisos = `cat /etc/issue`;
+chomp $thisos;
+
+Log("\n/etc/issue: $thisos\n");
+
+for ($i=0;$i<=$#os;$i++){
+	last if ($thisos =~/$os[$i][0]/);
+}
+
+if ($i <= $#os){
+	Log("Detected $os[$i][0]\n",$ECHO);
+}
+
+$osid="linux";
+if ($i > $#os){
+	Log("This does not appear to be a supported operating system\n",$ECHO);
+	print "\nThe supported operating systems are:\n";
+	for ($i=0;$i<=$#os;$i++){
+		print "\t(",$i+1,") $os[$i][0]\n";
+	}
+	if (!GetYesNo("Continue anyway?","Continuing installation")){
+		exit(1);
+	}
+}
+else{
+	$osid = $os[$i][1];
+}
+
+$initsys = $os[$i][2];
+
 if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
 if (grep (/^dioctrl/,@targets)) {CompileTarget('dioctrl','src/dioctrl','install');}
 if (grep (/^lcdmon/,@targets)) {CompileTarget('lcdmon','src/lcdmon','install');}
 #if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
-#if (grep (/^okcounterd/,@targets)) {CompileTarget('okcounterd','src/okcounterd','install');}
-if (grep (/^ppsd/,@targets)) {CompileTarget('ppsd','src/ppsd','install');}
+
+if (grep (/^okcounterd/,@targets)) {
+	CompileTarget('okcounterd','src/okcounterd','install'); # installs executables only
+	if ($initsys eq $SYSTEMD){
+			InstallScript('src/okcounterd/okcounterd.service','/lib/systemd/system');
+			`systemctl enable okcounterd.service`;
+			`systemctl load okcounterd.service`; # seem to need the full name
+		}
+		elsif ($initsys eq $UPSTART){
+			InstallScript('src/okcounterd/okcounterd.upstart.conf','/etc/init/sysmonitor.conf');
+		}
+}
+
+if (grep (/^ppsd/,@targets)){
+	CompileTarget('ppsd','src/ppsd','install');
+	if ($initsys eq $SYSTEMD){
+			InstallScript('src/ppsd/ppsd.service','/lib/systemd/system');
+			`systemctl enable ppsd.service`;
+			`systemctl load ppsd.service`; # seem to need the full name
+		}
+		elsif ($initsys eq $UPSTART){
+			InstallScript('src/okcounterd/ppsd.upstart.conf','/etc/init/ppsd.conf');
+		}
+}
+}
+
 if (grep (/^misc/,@targets)) {CompileTarget('misc','src','install');}
+
+if (grep (/^tflibrary/,@targets)){
+	# Find a place in /usr/local to put it
+	foreach $dir (@INC){
+		if ($dir =~ /\/usr\/local\//){
+			if (-e $dir){
+				Log("Installed TFLibrary to $dir\n",$ECHO);
+			}
+		}
+	} 
+}
 
 if (grep (/^kickstart/,@targets)){
 	`cp src/kickstart.pl /usr/local/bin`;
@@ -111,10 +174,15 @@ if (grep (/^sysmonitor/,@targets)){
 	MakeDirectory('/usr/local/log');
 	MakeDirectory('/usr/local/log/alarms');
 	InstallScript('src/sysmonitor/sysmonitor.pl','/usr/local/bin',
-		'src/sysmonitor/sysmonitor.conf','/usr/local/etc',
-		'src/sysmonitor/sysmonitor.service','/lib/systemd/system'); # FIXME assumes systemd
-		`systemctl enable sysmonitor.service`;
-		`systemctl load sysmonitor.service`; # seem to need the full name
+		'src/sysmonitor/sysmonitor.conf','/usr/local/etc');
+		if ($initsys eq $SYSTEMD){
+			InstallScript('src/sysmonitor/sysmonitor.service','/lib/systemd/system');
+			`systemctl enable sysmonitor.service`;
+			`systemctl load sysmonitor.service`; # seem to need the full name
+		}
+		elsif ($initsys eq $UPSTART){
+			InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf');
+		}
 }
 
 # Installation of TFLibrary (Perl module)
@@ -240,3 +308,4 @@ sub InstallScript
 	}
 	
 }
+

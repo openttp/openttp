@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenTTP pps daemon
+ConditionPathExists=/usr/local/etc/ppsd.conf
+ConditionPathExists=/usr/local/etc/sysinfo.conf
+
+[Service]
+Type=forking
+ExecStart=/usr/local/sbin/ppsd
+
+[Install]
+WantedBy=multi-user.target

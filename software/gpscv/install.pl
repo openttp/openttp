@@ -48,6 +48,13 @@ $UNKNOWN=-1;
 #$INSTALLFROMDIST=1;
 $GPSCVUSER=$ENV{USER};
 
+@os =(
+	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6"], # first entry is OS-defined string, second is our name
+	["CentOS release 6","centos6"],
+	["Ubuntu 14.04","ubuntu14"],
+	["BeagleBoard.org Debian","bbdebian7"] # FIXME this may not be set in stone ...
+	);
+
 @receivers = (
 	["Trimble","Resolution T"], # manufacturer, model
 	["Javad","any"],
@@ -89,11 +96,6 @@ Log ("+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
 
 # Detect the operating system version
 # Note that you can use regexes in the OS strings 
-@os =(
-	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6"], # first entry is OS-defined string, second is our name
-	["CentOS release 6","centos6"],
-	["Ubuntu 14.04","ubuntu14"]
-	);
 
 $thisos = `cat /etc/issue`;
 chomp $thisos;
@@ -117,8 +119,6 @@ if ($i > $#os){
 else{
 	$osid = $os[$i][1];
 }
-
-exit(1);
 
 # Detect whether there is an existing installation that we are upgrading
 $upgrade=0;

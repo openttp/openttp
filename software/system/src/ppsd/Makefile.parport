@@ -18,7 +18,7 @@ $(PROGRAM): $(OBJECTS)
 
 install: $(PROGRAM)
 	cp ppsd.conf /usr/local/etc
-	cp $(PROGRAM) /usr/local/bin
+	cp $(PROGRAM) /usr/local/sbin
 
 clean:
 	rm -f *.o $(PROGRAM)

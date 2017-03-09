@@ -4,7 +4,7 @@ ConditionPathExists=/usr/local/lib/bitfiles/counter.bit
 
 [Service]
 Type=forking
-ExecStart=/usr/local/bin/okcounterd -b /usr/local/lib/bitfiles/counter.bit
+ExecStart=/usr/local/sbin/okcounterd -b /home/cvgps/bitfiles/TTSCounterPPSCR.bit
 
 [Install]
 WantedBy=multi-user.target
