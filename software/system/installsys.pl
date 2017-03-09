@@ -128,9 +128,9 @@ if (grep (/^okcounterd/,@targets)) {
 			`systemctl enable okcounterd.service`;
 			`systemctl load okcounterd.service`; # seem to need the full name
 		}
-		elsif ($initsys eq $UPSTART){
-			InstallScript('src/okcounterd/okcounterd.upstart.conf','/etc/init/sysmonitor.conf');
-		}
+	elsif ($initsys eq $UPSTART){
+			InstallScript('src/okcounterd/okcounterd.upstart.conf','/etc/init/okcounterd.conf');
+	}
 }
 
 if (grep (/^ppsd/,@targets)){
@@ -139,11 +139,10 @@ if (grep (/^ppsd/,@targets)){
 			InstallScript('src/ppsd/ppsd.service','/lib/systemd/system');
 			`systemctl enable ppsd.service`;
 			`systemctl load ppsd.service`; # seem to need the full name
-		}
-		elsif ($initsys eq $UPSTART){
-			InstallScript('src/okcounterd/ppsd.upstart.conf','/etc/init/ppsd.conf');
-		}
-}
+	}
+	elsif ($initsys eq $UPSTART){
+			InstallScript('src/ppsd/ppsd.upstart.conf','/etc/init/ppsd.conf');
+	}
 }
 
 if (grep (/^misc/,@targets)) {CompileTarget('misc','src','install');}
