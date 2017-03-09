@@ -116,74 +116,6 @@ else{
 
 $initsys = $os[$i][2];
 
-if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
-if (grep (/^dioctrl/,@targets)) {CompileTarget('dioctrl','src/dioctrl','install');}
-if (grep (/^lcdmon/,@targets)) {CompileTarget('lcdmon','src/lcdmon','install');}
-#if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
-
-if (grep (/^okcounterd/,@targets)) {
-	CompileTarget('okcounterd','src/okcounterd','install'); # installs executables only
-	if ($initsys eq $SYSTEMD){
-			InstallScript('src/okcounterd/okcounterd.service','/lib/systemd/system');
-			`systemctl enable okcounterd.service`;
-			`systemctl load okcounterd.service`; # seem to need the full name
-		}
-	elsif ($initsys eq $UPSTART){
-			InstallScript('src/okcounterd/okcounterd.upstart.conf','/etc/init/okcounterd.conf');
-	}
-}
-
-if (grep (/^ppsd/,@targets)){
-	CompileTarget('ppsd','src/ppsd','install');
-	if ($initsys eq $SYSTEMD){
-			InstallScript('src/ppsd/ppsd.service','/lib/systemd/system');
-			`systemctl enable ppsd.service`;
-			`systemctl load ppsd.service`; # seem to need the full name
-	}
-	elsif ($initsys eq $UPSTART){
-			InstallScript('src/ppsd/ppsd.upstart.conf','/etc/init/ppsd.conf');
-	}
-}
-
-if (grep (/^misc/,@targets)) {CompileTarget('misc','src','install');}
-
-if (grep (/^tflibrary/,@targets)){
-	# Find a place in /usr/local to put it
-	foreach $dir (@INC){
-		if ($dir =~ /\/usr\/local\//){
-			if (-e $dir){
-				Log("Installed TFLibrary to $dir\n",$ECHO);
-			}
-		}
-	} 
-}
-
-if (grep (/^kickstart/,@targets)){
-	`cp src/kickstart.pl /usr/local/bin`;
-	Log("Installed kickstart.pl to /usr/local/bin\n",$ECHO);
-}
-
-if (grep (/^gziplogs/,@targets)){
-	`cp src/gziplogs.pl /usr/local/bin`;
-	Log("Installed gziplogs.pl to /usr/local/bin\n",$ECHO);
-}
-
-# Installation of sysmonitor
-if (grep (/^sysmonitor/,@targets)){
-	MakeDirectory('/usr/local/log');
-	MakeDirectory('/usr/local/log/alarms');
-	InstallScript('src/sysmonitor/sysmonitor.pl','/usr/local/bin',
-		'src/sysmonitor/sysmonitor.conf','/usr/local/etc');
-		if ($initsys eq $SYSTEMD){
-			InstallScript('src/sysmonitor/sysmonitor.service','/lib/systemd/system');
-			`systemctl enable sysmonitor.service`;
-			`systemctl load sysmonitor.service`; # seem to need the full name
-		}
-		elsif ($initsys eq $UPSTART){
-			InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf');
-		}
-}
-
 # Installation of TFLibrary (Perl module)
 $installed=0;
 if (grep (/^tflibrary/,@targets)){
@@ -231,6 +163,64 @@ if (grep (/^ottplib/,@targets)){
 	}
 	
 }
+
+if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
+if (grep (/^dioctrl/,@targets)) {CompileTarget('dioctrl','src/dioctrl','install');}
+if (grep (/^lcdmon/,@targets)) {CompileTarget('lcdmon','src/lcdmon','install');}
+#if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
+
+if (grep (/^okcounterd/,@targets)) {
+	CompileTarget('okcounterd','src/okcounterd','install'); # installs executables only
+	if ($initsys eq $SYSTEMD){
+			InstallScript('src/okcounterd/okcounterd.service','/lib/systemd/system');
+			`systemctl enable okcounterd.service`;
+			`systemctl load okcounterd.service`; # seem to need the full name
+		}
+	elsif ($initsys eq $UPSTART){
+			InstallScript('src/okcounterd/okcounterd.upstart.conf','/etc/init/okcounterd.conf');
+	}
+}
+
+if (grep (/^ppsd/,@targets)){
+	CompileTarget('ppsd','src/ppsd','install');
+	if ($initsys eq $SYSTEMD){
+			InstallScript('src/ppsd/ppsd.service','/lib/systemd/system');
+			`systemctl enable ppsd.service`;
+			`systemctl load ppsd.service`; # seem to need the full name
+	}
+	elsif ($initsys eq $UPSTART){
+			InstallScript('src/ppsd/ppsd.upstart.conf','/etc/init/ppsd.conf');
+	}
+}
+
+if (grep (/^misc/,@targets)) {CompileTarget('misc','src','install');}
+
+if (grep (/^kickstart/,@targets)){
+	`cp src/kickstart.pl /usr/local/bin`;
+	Log("Installed kickstart.pl to /usr/local/bin\n",$ECHO);
+}
+
+if (grep (/^gziplogs/,@targets)){
+	`cp src/gziplogs.pl /usr/local/bin`;
+	Log("Installed gziplogs.pl to /usr/local/bin\n",$ECHO);
+}
+
+# Installation of sysmonitor
+if (grep (/^sysmonitor/,@targets)){
+	MakeDirectory('/usr/local/log');
+	MakeDirectory('/usr/local/log/alarms');
+	InstallScript('src/sysmonitor/sysmonitor.pl','/usr/local/bin',
+		'src/sysmonitor/sysmonitor.conf','/usr/local/etc');
+		if ($initsys eq $SYSTEMD){
+			InstallScript('src/sysmonitor/sysmonitor.service','/lib/systemd/system');
+			`systemctl enable sysmonitor.service`;
+			`systemctl load sysmonitor.service`; # seem to need the full name
+		}
+		elsif ($initsys eq $UPSTART){
+			InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf');
+		}
+}
+
 
 close LOG;
 
