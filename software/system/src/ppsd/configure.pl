@@ -23,8 +23,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# FIXME detect SIO8186x
+# This string identifies one of the TTSV2 systems
+# Host bridge: Intel Corporation Mobile 945GME Express Memory Controller Hub (rev 03)
+# This identifies the TTSV3 motherboard
+# Host bridge: Intel Corporation Atom Processor D4xx/D5xx/N4xx/N5xx DMI Bridge (rev 02)
 
-$Makefile='Makefile.parport';
-
+$mobo = `lspci | grep 'Host bridge'`;
+if ($mobo =~ /Intel Corporation Mobile 945GME/){
+	$Makefile='Makefile.parport';
+}
+elsif ($mobo =~ /Intel Corporation Atom Processor D4xx\/D5xx\/N4xx\/N5xx/){
+	$Makefile='Makefile.sio8186x';
+}
+else{
+	print "Can't identify the motherboard : assuming parallel port for ppsd\n";
+	$Makefile='Makefile.parport';
+}
+  
 `cp $Makefile Makefile`;
