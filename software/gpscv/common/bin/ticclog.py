@@ -32,6 +32,8 @@
 
 import argparse
 import os
+# This is where ottplib is installed
+sys.path.append("/usr/local/lib/python2.7/site-packages")
 import re
 import select
 import serial
