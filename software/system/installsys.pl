@@ -46,15 +46,20 @@ $ECHO=1;
 $UPSTART="upstart";
 $SYSTEMD="systemd";
 
+# first entry is OS-defined string, second is our name for tarballs etc,
+# then init system,Perl library path
 @os =(
-	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6",$UPSTART], # first entry is OS-defined string, second is our name
-	["CentOS release 6","centos6",$UPSTART],
-	["Ubuntu 14.04","ubuntu14",$UPSTART],
-	["BeagleBoard.org Debian","bbdebian7",$SYSTEMD]
+	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6",$UPSTART,"/usr/local/lib/site_perl"], 
+	["CentOS release 6","centos6",$UPSTART,"/usr/local/lib/site_perl"],
+	["Ubuntu 14.04","ubuntu14",$UPSTART,
+		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
+	["BeagleBoard.org Debian","bbdebian8",$SYSTEMD,"/usr/local/lib/site_perl",
+		"/usr/local/lib/python2.7/site-packages",]
 	);
 
 @defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
-	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib");
+	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib",
+	"okcounterd","okbitloader","udevrules");
 
 if (!getopts('hi:lmtv') || $opt_h){
 	ShowHelp();	
@@ -116,20 +121,29 @@ else{
 
 $initsys = $os[$i][2];
 
+# Low-level stuff first
+
+if (!(-e '/usr/local/lib/bitfiles')){
+	`mkdir /usr/local/lib/bitfiles`;
+}
+
+if (grep (/^udevrules/,@targets)){
+	InstallScript("udev/60-opalkelly.rules","/etc/udev/rules.d");
+	$cmdout = `udevadm trigger`;
+	if ($opt_t){print $cmdout;}
+	Log("Installed udev rules\n",$ECHO);
+}
+
 # Installation of TFLibrary (Perl module)
-$installed=0;
 if (grep (/^tflibrary/,@targets)){
-	# Find a place in /usr/local to put it
-	foreach $dir (@INC){
-		if ($dir =~ /\/usr\/local\//){
-			if (-e $dir){
-				`cp src/TFLibrary.pm $dir`;
-				Log("Installed TFLibrary to $dir\n",$ECHO);
-				$installed = 1;
-			}
-		}
-	} 
-	if (!$installed){Log("Failed to install TFLibrary\n",$ECHO);}
+	$dir =  $os[$i][3]; 
+	if (!(-e $dir)){
+		`mkdir $dir`;
+		`chmod a+rx $dir`;
+		Log("Created $dir\n",$ECHO);
+	}
+	`cp src/TFLibrary.pm $dir`;
+	Log("Installed TFLibrary to $dir\n",$ECHO);
 }
 
 # Installation of ottplib (Python module)
@@ -140,19 +154,15 @@ if (grep (/^ottplib/,@targets)){
 	$ver =~ /^Python\s+(\d)\.(\d)/;
 	if ($1 == 2){
 		if ($2 >= 7){
-			$syspath = `python -c 'import sys;print sys.path'`;
-			chomp $syspath;
-			@dirs = split /,/,$syspath;
-			foreach $dir (@dirs){
-				if ($dir=~/site-packages/){
-					$dir=~ s/['\]\[]//g; # remove pythonic stuff
-					$dir=~ s/^\s+//; 
-					`python -c "import py_compile;py_compile.compile('src/ottplib.py')"`;
-					`cp src/ottplib.py src/ottplib.pyc $dir`;
-					Log("Installed ottlib.py to $dir\n",$ECHO);
-					last;
-				}
+			$dir = $os[$i][4];
+			if (!(-e $dir)){
+				`mkdir $dir`;
+				`chmod a+rx $dir`;
+				Log("Created $dir\n",$ECHO);
 			}
+			`python -c "import py_compile;py_compile.compile('src/ottplib.py')"`;
+			`cp src/ottplib.py src/ottplib.pyc $dir`;
+			Log("Installed ottlib.py to $dir\n",$ECHO);
 		}
 		else{
 			Log("Python version is $ver - can't install\n",$ECHO);
@@ -161,27 +171,26 @@ if (grep (/^ottplib/,@targets)){
 	else{
 		Log("Python version is $ver - can't install\n",$ECHO);
 	}
-	
 }
 
 if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
 if (grep (/^dioctrl/,@targets)) {CompileTarget('dioctrl','src/dioctrl','install');}
 if (grep (/^lcdmon/,@targets)) {CompileTarget('lcdmon','src/lcdmon','install');}
-#if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
+if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
 
 if (grep (/^okcounterd/,@targets)) {
 	CompileTarget('okcounterd','src/okcounterd','install'); # installs executables only
 	if ($initsys eq $SYSTEMD){
 			InstallScript('src/okcounterd/okcounterd.service','/lib/systemd/system');
 			`systemctl enable okcounterd.service`;
-			`systemctl load okcounterd.service`; # seem to need the full name
+			#`systemctl load okcounterd.service`; # seem to need the full name
 		}
 	elsif ($initsys eq $UPSTART){
 			InstallScript('src/okcounterd/okcounterd.upstart.conf','/etc/init/okcounterd.conf');
 	}
 }
 
-if (grep (/^ppsd/,@targets)){
+if (grep (/^ppsd/,@targets) && !($os[$i][1] eq 'bbdebian8')){ #FIXME disabled temporrarily for ARM
 	CompileTarget('ppsd','src/ppsd','install');
 	if ($initsys eq $SYSTEMD){
 			InstallScript('src/ppsd/ppsd.service','/lib/systemd/system');

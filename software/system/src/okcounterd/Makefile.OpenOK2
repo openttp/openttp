@@ -20,7 +20,7 @@ $(PROGRAM): $(OBJECTS)
 
 install: $(PROGRAM)
 	cp $(PROGRAM) /usr/local/sbin
-	cp okcounterdctl.pl /usr/local/sbin
+	cp okcounterdctrl.pl /usr/local/sbin
 
 clean:
 	rm -f *.o $(PROGRAM)

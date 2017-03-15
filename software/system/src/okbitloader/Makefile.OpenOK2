@@ -19,7 +19,7 @@ $(PROGRAM): $(OBJECTS)
 	$(CXX) $(LDFLAGS) -o $(PROGRAM) $(OBJECTS) $(LIBS)
 
 install: $(PROGRAM)
-	cp $(PROGRAM) /usr/local/bin
+	cp $(PROGRAM) /usr/local/sbin
 
 clean:
 	rm -f *.o $(PROGRAM)
