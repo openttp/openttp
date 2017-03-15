@@ -25,10 +25,10 @@
 
 # Mainly, detect whether we should compile against OpenOK or OKFrontPanel
 
-$processor = `uname -p`;
-chomp $processor;
+$machine = `uname -m`;
+chomp $machine;
 
-if ($processor =~ /x86_64|i386|i686/){
+if ($machine =~ /x86_64|i386|i686/){
 	# Check for library 
 	$libok = `ldconfig -p | grep libokFrontPanel`;
 	chomp $libok;
@@ -37,12 +37,17 @@ if ($processor =~ /x86_64|i386|i686/){
 	}
 	else{
 		print "(Couldn't find libokFrontPanel)\n";
-		$Makefile="Makefile.OpenOK";
+		$Makefile="Makefile.OpenOK2";
 	}
 }
-elsif ($processor =~ /arm/){
-	$Makefile="Makefile.OpenOK";
+elsif ($machine =~ /arm/){
+	$Makefile="Makefile.OpenOK2";
 }
-print "$processor detected - using $Makefile\n";
+else{
+	print "Unknown machine detected: $machine?\n";
+	exit;
+}
+
+print "$machine detected - using $Makefile\n";
 `cp $Makefile Makefile`;
 
