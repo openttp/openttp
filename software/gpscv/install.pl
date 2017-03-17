@@ -27,7 +27,8 @@
 # GPSCV software installation script
 #
 # Modification history
-# 
+# 2017-03-16 MJW Additions for Debian on BeagleBone Block. Version changed to 0.1.1
+#
 
 use English;
 use Getopt::Std;
@@ -40,7 +41,7 @@ use vars qw($opt_d $opt_h $opt_i $opt_t $optu $opt_v);
 
 $0=~s#.*/##;	# strip path
 
-$VERSION = "version 0.1";
+$VERSION = "version 0.1.1";
 
 $ECHO=1;
 $UNKNOWN=-1;
@@ -52,7 +53,7 @@ $GPSCVUSER=$ENV{USER};
 	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6"], # first entry is OS-defined string, second is our name
 	["CentOS release 6","centos6"],
 	["Ubuntu 14.04","ubuntu14"],
-	["BeagleBoard.org Debian","bbdebian7"] # FIXME this may not be set in stone ...
+	["BeagleBoard.org Debian","bbdebian8"] # FIXME this may not be set in stone ...
 	);
 
 @receivers = (
@@ -107,8 +108,8 @@ for ($i=0;$i<=$#os;$i++){
 
 $osid="linux";
 if ($i > $#os){
-	Log("This does not appear to be a supported operating system\n",$ECHO);
-	print "\nThe supported operating systems are:\n";
+	Log("This does not appear to be a supported distribution\n",$ECHO);
+	print "\nThe supported distributions are:\n";
 	for ($i=0;$i<=$#os;$i++){
 		print "\t(",$i+1,") $os[$i][0]\n";
 	}
@@ -133,7 +134,14 @@ else {
 	Log("\nAn existing installation was not detected\n",$ECHO);
 }
 
-$INSTALLDIR=$HOME;
+$INSTALLDIR = $HOME;
+$DATADIR = $HOME;
+if ($os[$i][1] eq "bbdebian8"){
+	$DATADIR = "/mnt/data/$GPSCVUSER";
+	die "$DATADIR doesn't exist" unless (-e $DATADIR);
+}
+
+# FIXME this is broken on systems where the data directory is symlinked
 if ($opt_i){
 	$INSTALLDIR="$HOME/$opt_i";
 	if (!(-e $INSTALLDIR)){
@@ -167,15 +175,21 @@ else {
 if ($INSTALLDIR eq $HOME){ ArchiveSystem(); } 
 
 $BIN = "$INSTALLDIR/bin";
-$CGGTTS = "$INSTALLDIR/cggtts";
 $CONFIGS = "$INSTALLDIR/etc";
-$LOGS = "$INSTALLDIR/logs";
-$DATA = "$INSTALLDIR/raw";
-$RINEX = "$INSTALLDIR/rinex";
-$TMP= "$INSTALLDIR/tmp";
-Log ("\n*** Creating installation directories in $INSTALLDIR\n",$ECHO);
+$CGGTTS = "$DATADIR/cggtts";
+$LOGS = "$DATADIR/logs";
+$DATA = "$DATADIR/raw";
+$RINEX = "$DATADIR/rinex";
+$TMP = "$DATADIR/tmp";
+if ($INSTALLDIR eq $DATADIR){
+	Log ("\n*** Creating directories in $INSTALLDIR\n",$ECHO);
+}
+else{
+	Log ("\n*** Creating directories in $INSTALLDIR and $DATADIR\n",$ECHO);
+}
 
-@dirs = ($BIN,$CONFIGS,$LOGS,$DATA,$CGGTTS,$RINEX,$TMP);
+@dirs = ($BIN,$CONFIGS);
+@datadirs = ($LOGS,$DATA,$CGGTTS,$RINEX,$TMP);
 
 for ($i=0;$i<=$#dirs;$i++){
 	Log ("$dirs[$i]",$opt_t);
@@ -186,6 +200,27 @@ for ($i=0;$i<=$#dirs;$i++){
 		mkdir $dirs[$i];
 		Log (" created\n",$opt_t);
 	}
+}
+
+for ($i=0;$i<=$#datadirs;$i++){
+	Log ("$datadirs[$i]",$opt_t);
+	if ((-e $datadirs[$i])){
+		Log (" exists already - skipping\n",$opt_t);
+	}
+	else{	
+		mkdir $datadirs[$i];
+		Log (" created\n",$opt_t);
+	}
+	
+	if (!($INSTALLDIR eq $DATADIR)){ # symlink needed
+		$datadirs[$i] =~ /\/(\w+)$/;
+		$symlink = $INSTALLDIR.'/'.$1;
+		if (!(-e $symlink)){
+			`ln -s $datadirs[$i] $symlink`;
+			Log("Created symlink $symlink\n");
+		}
+	}
+	
 }
 
 InstallFromSource();
@@ -264,6 +299,8 @@ sub GetYesNo
 
 # --------------------------------------------------------------------------
 sub DetectReceiver{
+	unless ( defined($Config{"receiver:manufacturer"}) && defined($Config{"receiver:model"}) )
+		{return ($receiver != $UNKNOWN);}
 	my $rxManufacturer = lc $Config{"receiver:manufacturer"};
 	my $rxModel = lc $Config{"receiver:model"};
 	for ($i=0;$i<=$#receivers;$i++){
@@ -311,7 +348,7 @@ sub ArchiveSystem
 	}
 	mkdir $archive;
 	
-	my @stdbackups = ('bin','etc','logs','firmware','process');
+	my @stdbackups = ('bin','etc','firmware','process'); # archive 'process'
 	for ($i=0;$i<=$#stdbackups;$i++){
 		$src= "$HOME/$stdbackups[$i]";
 		if (-e $src){
