@@ -93,7 +93,8 @@ char *argv[])
 	
 	char fName[MAXBUF],buf[MAXBUF],procName[MAXBUF];
 	int removeLock=0;
-	char c, *pChar;
+	int c;
+	char *pChar;
 	
 	/* Get stuff about the calling process */
 	pid=getpgrp(); /* process ID */
