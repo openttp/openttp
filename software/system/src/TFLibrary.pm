@@ -65,6 +65,7 @@ use Exporter;
   TFConnectSerial TFPortInUse TFHPCounterCommand TFMicro488Command
   TFLock TFUnlock TFTestLock
   TFMakeAbsoluteFilePath TFMakeAbsolutePath
+  TFCreateProcessLock TFRemoveProcessLock 
 );
 
 use Carp;
@@ -502,7 +503,8 @@ sub TFMicro488Command {
 } # TFMicro488Command
 
 #----------------------------------------------------------------------------
-
+# DEPRECATED
+#
 sub TFLock {
   my ($file,$pid,$cmd);
   my $name=@_? shift : $0;
@@ -541,7 +543,8 @@ sub TFLock {
 } # TFLock
 
 #----------------------------------------------------------------------------
-
+# DEPRECATED
+#
 sub TFUnlock {
 # Note: strictly we should check that either we made the lock or that any
 # existing lock is stale, but we don't make this check.
@@ -554,7 +557,8 @@ sub TFUnlock {
 } # TFUnlock
 
 #----------------------------------------------------------------------------
-
+# DEPRECATED
+#
 sub TFTestLock {
   my ($result,$pid,$file);
   my $name=@_? shift : $0;
@@ -610,6 +614,40 @@ sub TFMakeAbsolutePath {
 		$path .= "/";
 	}
 	return $path;
+}
+
+
+#----------------------------------------------------------------------------
+# Returns 0 on fail, 1 on success
+#
+sub TFCreateProcessLock{
+	my ($lockFile)=@_;
+	my (@info);
+	if (-e $lockFile){
+		open(LCK,"<$lockFile");
+		@info = split ' ', <LCK>;
+		close LCK;
+		if (-e "/proc/$info[1]"){
+			return 0;
+		}
+		else{ # write over it
+			open(LCK,">$lockFile");
+			print LCK "$0 $$\n";
+			close LCK;
+		}
+	}
+	else{
+		open(LCK,">$lockFile");
+		print LCK "$0 $$\n";
+		close LCK;
+	}
+	return 1;
+}
+
+#----------------------------------------------------------------------------
+sub TFRemoveProcessLock{
+	my ($lockFile)=@_;
+	if (-e $lockFile) {unlink $lockFile;}
 }
 
 
