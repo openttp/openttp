@@ -386,10 +386,11 @@ sub InstallFromSource
 	Install("common/process/mktimetx/*",$BIN);
 	Install("common/prs10c/*",$BIN);
 	Install("common/bin/*",$BIN);
-	Install("common/javad/*.pl",$BIN);
-	Install("common/nvs/*.pl",$BIN);
-	Install("common/trimble/*.pl",$BIN);
-	Install("common/ublox/*.pl",$BIN);
+	Install("gpsdo/*.pl",$BIN);
+	Install("javad/*.pl",$BIN);
+	Install("nvs/*.pl",$BIN);
+	Install("trimble/*.pl",$BIN);
+	Install("ublox/*.pl",$BIN);
 	
 	Log("\nInstalling configuration files in $CONFIGS\n",$ECHO);
 	

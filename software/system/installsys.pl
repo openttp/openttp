@@ -59,7 +59,7 @@ $SYSTEMD="systemd";
 
 @defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
 	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib",
-	"okcounterd","okbitloader","udevrules");
+	"okcounterd","okbitloader","udevrules","gpscvperllibs");
 
 if (!getopts('hi:lmtv') || $opt_h){
 	ShowHelp();	
@@ -144,6 +144,22 @@ if (grep (/^tflibrary/,@targets)){
 	}
 	`cp src/TFLibrary.pm $dir`;
 	Log("Installed TFLibrary to $dir\n",$ECHO);
+}
+
+# Installation of miscellaneous GPSCV Perl libraries
+if (grep (/^gpscvperllibs/,@targets)){
+	$dir =  $os[$i][3]; 
+	@libs=(["../gpscv/gpsdo/LTELite","LTELite"],["../gpscv/nvs/lib","NV08C"]);
+	for ($i=0;$i<=$#libs;$i++){
+		$libdir = $dir.'/'.$libs[$i][1];
+		if (!(-e $libdir)){
+			`mkdir $libdir`;
+			`chmod a+rx $libdir`;
+			Log("Created $libdir\n",$ECHO);
+		}
+		`cp $libs[$i][0]/*.pm $libdir`;
+		Log("Installed $libs[$i][0]/*.pm to $libdir\n",$ECHO);
+	}
 }
 
 # Installation of ottplib (Python module)
