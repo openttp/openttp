@@ -123,24 +123,8 @@ $ubxmsgs=":";
 # Check for an existing lock file
 # Check the lock file
 $lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
-if (-e $lockFile){
-	open(LCK,"<$lockFile");
-	@info = split ' ', <LCK>;
-	close LCK;
-	if (-e "/proc/$info[1]"){
-		printf STDERR "Process $info[1] already running\n";
-		exit;
-	}
-	else{
-		open(LCK,">$lockFile");
-		print LCK "$0 $$\n";
-		close LCK;
-	}
-}
-else{
-	open(LCK,">$lockFile");
-	print LCK "$0 $$\n";
-	close LCK;
+if (!TFCreateProcessLock($lockFile)){
+	ErrorExit("Process is already running\n");
 }
 
 #Open the serial ports to the receiver

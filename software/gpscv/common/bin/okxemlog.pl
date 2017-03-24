@@ -98,26 +98,8 @@ foreach (@check) {
 
 # Check the lock file
 $lockfile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logpath);
-
-if (-e $lockfile){
-	open(IN,"<$lockfile");
-	@info = split ' ',<IN>;
-	close IN;
-	Debug("$info[0] $info[1]");
-	$running = kill 0,$info[1];
-	if ($running){
-		ErrorExit("already running ($info[1])");
-	}
-	else{
-		open(OUT,">$lockfile");
-		print OUT "$0 $$\n"; 
-		close OUT;
-	}
-}
-else{
-	open(OUT,">$lockfile");
-	print OUT "$0 $$\n"; 
-	close OUT;
+if (!TFCreateProcessLock($lockFile)){
+	ErrorExit("Process is already running\n");
 }
 
 $port = $Init{"counter:port"};

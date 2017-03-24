@@ -113,13 +113,7 @@ for ($i=0;$i<=$#targets;$i++){
 	$running=0;
 		
 	Debug("Testing $target for lock $lockFile");
-	if (-e $lockFile){
-		Debug("lock file $lockFile found\n");
-		open(IN,"<$lockFile");
-		@lockInfo = split ' ',<IN>;
-		close IN;
-		$running = kill 0,$lockInfo[1];
-	}	
+	$running = TFTestProcessLock($lockFile);
 	
 	Debug("Process is ".($running ? "" : "not")." running");
 	$checkFile=$logPath . "/"."kickstart.".$target. ".check";

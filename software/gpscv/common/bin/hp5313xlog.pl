@@ -111,26 +111,8 @@ if (defined $Init{"counter:header generator"}){
 
 # Check the lock file
 $lockFile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logPath);
-
-if (-e $lockFile){
-	open(IN,"<$lockFile");
-	@info = split ' ',<IN>;
-	close IN;
-	Debug("$info[0] $info[1]");
-	$running = kill 0,$info[1];
-	if ($running){
-		ErrorExit("already running ($info[1])");
-	}
-	else{
-		open(OUT,">$lockFile");
-		print OUT "$0 $$\n"; 
-		close OUT;
-	}
-}
-else{
-	open(OUT,">$lockFile");
-	print OUT "$0 $$\n"; 
-	close OUT;
+if (!TFCreateProcessLock($lockFile)){
+	ErrorExit("Process is already running\n");
 }
 
 # Set up a timeout in case we get stuck

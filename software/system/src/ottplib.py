@@ -83,25 +83,13 @@ def MakeAbsoluteFilePath(fname,home,defaultPath):
 # Make a lock file for a process
 #
 def CreateProcessLock(lockFile):
-	if (os.path.isfile(lockFile)):
-		flock=open(lockFile,'r')
-		info = flock.readline().split()
-		flock.close()
-		if (len(info)==2):
-			if (os.path.isfile('/proc/'+str(info[1]))):
-				#ErrorExit('Process ' + str(info[1]) + ' is running');
-				return False
-			else:
-				flock=open(lockFile,'w')
-				flock.write(os.path.basename(sys.argv[0]) + ' ' + str(os.getpid()))
-				flock.close()
-		else:
-			print 'Bad lock file'
-			return False
-	else:
-		flock=open(lockFile,'w')
-		flock.write(os.path.basename(sys.argv[0]) + ' ' + str(os.getpid()))
-		flock.close()
+	
+	if (not TestProcessLock(lockFile)):
+		return False;
+	flock=open(lockFile,'w')
+	flock.write(os.path.basename(sys.argv[0]) + ' ' + str(os.getpid()))
+	flock.close();
+	
 	return True
 
 # ------------------------------------------
@@ -110,6 +98,16 @@ def CreateProcessLock(lockFile):
 def RemoveProcessLock(lockFile):
 	if (os.path.isfile(lockFile)):
 		os.unlink(lockFile)
+	
+def TestProcessLock(lockFile):
+	if (os.path.isfile(lockFile)):
+		flock=open(lockFile,'r')
+		info = flock.readline().split()
+		flock.close()
+		if (len(info)==2):
+			if (os.path.isfile('/proc/'+str(info[1]))):
+				return False;
+	return True;
 		
 # ------------------------------------------
 # Internals - use these at your own peril

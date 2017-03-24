@@ -53,6 +53,8 @@ package TFLibrary;
 #								instead of chop
 # 16-08-12 MJW &TFMakeHash2 removes leading whitespace from the token, comments etc
 # 13-01-16  MJW &TFMakeHash2 allows values with multiple lines
+# 24-03-17 MJW Bug fix in TFCreateProcessLock. Remove file if it is corrupted.
+#
 
 use Exporter;
 @ISA = qw(Exporter);
@@ -65,7 +67,7 @@ use Exporter;
   TFConnectSerial TFPortInUse TFHPCounterCommand TFMicro488Command
   TFLock TFUnlock TFTestLock
   TFMakeAbsoluteFilePath TFMakeAbsolutePath
-  TFCreateProcessLock TFRemoveProcessLock 
+  TFCreateProcessLock TFRemoveProcessLock TFTestProcessLock
 );
 
 use Carp;
@@ -622,25 +624,13 @@ sub TFMakeAbsolutePath {
 #
 sub TFCreateProcessLock{
 	my ($lockFile)=@_;
-	my (@info);
-	if (-e $lockFile){
-		open(LCK,"<$lockFile");
-		@info = split ' ', <LCK>;
-		close LCK;
-		if (-e "/proc/$info[1]"){
-			return 0;
-		}
-		else{ # write over it
-			open(LCK,">$lockFile");
-			print LCK "$0 $$\n";
-			close LCK;
-		}
-	}
-	else{
-		open(LCK,">$lockFile");
-		print LCK "$0 $$\n";
-		close LCK;
-	}
+	
+	if (TFTestProcessLock($lockFile)){return 0};
+	# Otherwise make a lock
+	open(LCK,">$lockFile");
+	print LCK "$0 $$\n";
+	close LCK;
+	
 	return 1;
 }
 
@@ -650,6 +640,30 @@ sub TFRemoveProcessLock{
 	if (-e $lockFile) {unlink $lockFile;}
 }
 
+#----------------------------------------------------------------------------
+# Returns 1 if process in the lock file is running, 0 if not
+#
+sub TFTestProcessLock{
+	my ($lockFile)=@_;
+	my ($info);
+	
+	if (-e $lockFile){
+		open(LCK,"<$lockFile");
+		$info = <LCK>;
+		close LCK;
+		if (!defined($info)) {return 0;} # empty file
+		chomp $info;
+		if (($info =~ /.+\s+(\d+)$/)){
+			if (-e "/proc/$1"){
+				return 1; # yes, it's locked
+			}
+		}
+		# If it didn't parse properly, then it is corrupted (this has happened ..)
+		# Corruption of the file probably mean something bad so we'll assume that
+		# everything is now OK (we rebooted) ao we'll retry
+	}
+	return 0;
+}
 
 #----------------------------------------------------------------------------
 
