@@ -182,7 +182,9 @@ if (!(-e $CGGTTSDIR)){
 if (-e "$MJD.cctf"){
 	`cp $MJD.cctf $CGGTTSDIR/$MJD.cctf`;
 }
-
+else{
+	print "\n\nWarning! Failed to create  $CGGTTSDIR/$MJD.cctf\n\n";
+}
 `cp $PARS.bak $PARS`;
 
 sub MakeRINEXObservationName
