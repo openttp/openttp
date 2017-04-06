@@ -195,27 +195,11 @@ if (grep (/^lcdmon/,@targets)) {CompileTarget('lcdmon','src/lcdmon','install');}
 if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
 
 if (grep (/^okcounterd/,@targets)) {
-	CompileTarget('okcounterd','src/okcounterd','install'); # installs executables only
-	if ($initsys eq $SYSTEMD){
-			InstallScript('src/okcounterd/okcounterd.service','/lib/systemd/system');
-			`systemctl enable okcounterd.service`;
-			#`systemctl load okcounterd.service`; # seem to need the full name
-		}
-	elsif ($initsys eq $UPSTART){
-			InstallScript('src/okcounterd/okcounterd.upstart.conf','/etc/init/okcounterd.conf');
-	}
+	CompileTarget('okcounterd','src/okcounterd','install'); 
 }
 
 if (grep (/^ppsd/,@targets) && !($os[$i][1] eq 'bbdebian8')){ #FIXME disabled temporrarily for ARM
 	CompileTarget('ppsd','src/ppsd','install');
-	if ($initsys eq $SYSTEMD){
-			InstallScript('src/ppsd/ppsd.service','/lib/systemd/system');
-			`systemctl enable ppsd.service`;
-			`systemctl load ppsd.service`; # seem to need the full name
-	}
-	elsif ($initsys eq $UPSTART){
-			InstallScript('src/ppsd/ppsd.upstart.conf','/etc/init/ppsd.conf');
-	}
 }
 
 if (grep (/^misc/,@targets)) {CompileTarget('misc','src','install');}
@@ -239,13 +223,27 @@ if (grep (/^sysmonitor/,@targets)){
 		if ($initsys eq $SYSTEMD){
 			InstallScript('src/sysmonitor/sysmonitor.service','/lib/systemd/system');
 			`systemctl enable sysmonitor.service`;
-			`systemctl load sysmonitor.service`; # seem to need the full name
+			#`systemctl start sysmonitor.service`; # seem to need the full name
 		}
 		elsif ($initsys eq $UPSTART){
 			InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf');
 		}
 }
 
+print "\n\nTo start system services, run :\n";
+if ($initsys eq $SYSTEMD){
+	print "systemctl start lcdmonitor.service\n";
+	print "systemctl start okcounterd.service\n";
+	print "systemctl start sysmonitor.service\n";
+}
+elsif ($initsys eq $UPSTART){
+	print "start lcdmonitor\n";
+	print "start okcounterd\n";
+	print "start sysmonitor\n";
+}
+else{
+	print "whatever\n";
+}
 
 close LOG;
 

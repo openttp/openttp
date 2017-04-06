@@ -97,7 +97,7 @@ foreach (@check) {
 }
 
 # Check the lock file
-$lockfile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logpath);
+$lockFile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logpath);
 if (!TFCreateProcessLock($lockFile)){
 	ErrorExit("Process is already running\n");
 }
