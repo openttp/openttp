@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 INSTDIR=/usr/local
-BINDIR = $(INSTDIR)/bin
+BINDIR = $(INSTDIR)/sbin
 ETCDIR = $(INSTDIR)/etc
 GROUP = suck
 CC = g++
@@ -79,7 +79,7 @@ install: mkversion lcdmonitor lcdconfig
 		echo "upstart detected";\
 		stop lcdmonitor; \
 		install -o root -g root -m 0744 ./lcdmonitor $(BINDIR);\
-		cp lcdmonitor.upstart.conf /etc/init/lcdmonitor.conf
+		cp lcdmonitor.upstart.conf /etc/init/lcdmonitor.conf; \
 	  else\
 		echo "unsupported init system";\
 		install -o root -g root -m 0744 ./lcdmonitor $(BINDIR);\
