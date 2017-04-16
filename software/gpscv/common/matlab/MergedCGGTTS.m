@@ -1,23 +1,52 @@
-classdef MergedCCTF < handle
-    %MergedCCTF Groups two CCTF objects so that they can be merged and
+
+
+
+classdef MergedCGGTTS < handle
+    %MergedCGGTTS Groups two CGGTTS objects so that they can be merged and
     % manipulated as a single object
-    %   Typical usage:
-    %   mcctf = MergedCCTF(cctf1,cctf2)
+    %  Typical usage:
+    %   mcctf = MergedCGGTTS(cctf1,cctf2)
     %   mcctf.Merge()
     %   refsv=mcctf.RefSV(1,0) % zero baseline
-    % WARNING ! This modifies the CCTF object instances passed to it !
-    % Author MJW 2012-11-01
+    %WARNING ! This modifies the CGGTTS object instances passed to it !
     %
+    %MergedCGGTTS Properties:
+    %
+    %MergedCGGTTS Methods:
+    %
+    %License
+    %
+    %The MIT License (MIT)
+    %
+    %Copyright (c) 2017 Michael J. Wouters
+    % 
+    %Permission is hereby granted, free of charge, to any person obtaining a copy
+    %of this software and associated documentation files (the "Software"), to deal
+    %in the Software without restriction, including without limitation the rights
+    %to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    %copies of the Software, and to permit persons to whom the Software is
+    %furnished to do so, subject to the following conditions:
+    % 
+    %The above copyright notice and this permission notice shall be included in
+    %all copies or substantial portions of the Software.
+    % 
+    %THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    %IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    %FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    %AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    %LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    %OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    %THE SOFTWARE.
     properties
-        rx1; % CCTF for receiver 1
-        rx2; % CCTF for receiver 2
+        rx1; % CGGTTS for receiver 1
+        rx2; % CGGTTS for receiver 2
         merged;
     end
     
     methods (Access='public')
          % Constructor
         
-        function obj=MergedCCTF(ref,cal)     
+        function obj=MergedCGGTTS(ref,cal)     
             obj.rx1 = ref;
             obj.rx2 = cal;
             obj.merged=0;
@@ -42,12 +71,12 @@ classdef MergedCCTF < handle
             j=1;
             
             while (i<=n1)
-                mjd1=obj.rx1.Tracks(i,CCTF.MJD);
-                st1 =obj.rx1.Tracks(i,CCTF.STTIME);
-                prn1=obj.rx1.Tracks(i,CCTF.PRN);
+                mjd1=obj.rx1.Tracks(i,CGGTTS.MJD);
+                st1 =obj.rx1.Tracks(i,CGGTTS.STTIME);
+                prn1=obj.rx1.Tracks(i,CGGTTS.PRN);
                 while (j<=n2)
-                    mjd2=obj.rx2.Tracks(j,CCTF.MJD);
-                    st2 =obj.rx2.Tracks(j,CCTF.STTIME);
+                    mjd2=obj.rx2.Tracks(j,CGGTTS.MJD);
+                    st2 =obj.rx2.Tracks(j,CGGTTS.STTIME);
                     if (mjd2 > mjd1)    
                        break;% stop searching - need to move pointer1
                     elseif (mjd2 < mjd1)
@@ -56,12 +85,12 @@ classdef MergedCCTF < handle
                         break; % stop searching - need to move pointer2
                     elseif ((mjd1==mjd2) && (st1 == st2))
                         % Times are matched so search for the track
-                        prn2 =obj.rx2.Tracks(j,CCTF.PRN);
+                        prn2 =obj.rx2.Tracks(j,CGGTTS.PRN);
                         while ((prn1 > prn2) && (mjd1 == mjd2) && (st1 == st2) && (j<n2))
                             j=j+1;
-                            mjd2=obj.rx2.Tracks(j,CCTF.MJD);
-                            st2 =obj.rx2.Tracks(j,CCTF.STTIME);
-                            prn2=obj.rx2.Tracks(j,CCTF.PRN);
+                            mjd2=obj.rx2.Tracks(j,CGGTTS.MJD);
+                            st2 =obj.rx2.Tracks(j,CGGTTS.STTIME);
+                            prn2=obj.rx2.Tracks(j,CGGTTS.PRN);
                         end
                         if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (j<=n2))
                             % It's a match
@@ -103,34 +132,34 @@ classdef MergedCCTF < handle
             
             % Don't need to check array sizes - they must be the same
             if (0==weightedMean)
-                refsv=[obj.rx1.Tracks(:,CCTF.MJD)+obj.rx1.Tracks(:,CCTF.STTIME)/86400.0 ... 
-                      (obj.rx1.Tracks(:,CCTF.REFSV) + iono*obj.rx1.Tracks(:,CCTF.MDIO) ...
-                    - obj.rx2.Tracks(:,CCTF.REFSV) - iono*obj.rx2.Tracks(:,CCTF.MDIO))];
+                refsv=[obj.rx1.Tracks(:,CGGTTS.MJD)+obj.rx1.Tracks(:,CGGTTS.STTIME)/86400.0 ... 
+                      (obj.rx1.Tracks(:,CGGTTS.REFSV) + iono*obj.rx1.Tracks(:,CGGTTS.MDIO) ...
+                    - obj.rx2.Tracks(:,CGGTTS.REFSV) - iono*obj.rx2.Tracks(:,CGGTTS.MDIO))];
             else
                 n1 = size(obj.rx1.Tracks(),1);
                 i=1;
                 av=0;
                 cnt=0;
                 sampcnt=0;
-                lastmjd=obj.rx1.Tracks(i,CCTF.MJD);
-                lastst=obj.rx1.Tracks(i,CCTF.STTIME);
+                lastmjd=obj.rx1.Tracks(i,CGGTTS.MJD);
+                lastst=obj.rx1.Tracks(i,CGGTTS.STTIME);
  
                 while (i<=n1)
-                    if (obj.rx1.Tracks(i,CCTF.MJD) == lastmjd && obj.rx1.Tracks(i,CCTF.STTIME) == lastst)
-                        av = av + (obj.rx1.Tracks(i,CCTF.REFSV) + iono*obj.rx1.Tracks(i,CCTF.MDIO) ...
-                             - obj.rx2.Tracks(i,CCTF.REFSV) - iono*obj.rx2.Tracks(i,CCTF.MDIO));
+                    if (obj.rx1.Tracks(i,CGGTTS.MJD) == lastmjd && obj.rx1.Tracks(i,CGGTTS.STTIME) == lastst)
+                        av = av + (obj.rx1.Tracks(i,CGGTTS.REFSV) + iono*obj.rx1.Tracks(i,CGGTTS.MDIO) ...
+                             - obj.rx2.Tracks(i,CGGTTS.REFSV) - iono*obj.rx2.Tracks(i,CGGTTS.MDIO));
                         sampcnt=sampcnt+1;    
                     else
                         av =av/sampcnt;
                         cnt=cnt+1;
                         refsv(cnt,:) = [ lastmjd+lastst/86400.0 av ];
-                        av=(obj.rx1.Tracks(i,CCTF.REFSV) + iono*obj.rx1.Tracks(i,CCTF.MDIO) ...
-                             - obj.rx2.Tracks(i,CCTF.REFSV) - iono*obj.rx2.Tracks(i,CCTF.MDIO));
+                        av=(obj.rx1.Tracks(i,CGGTTS.REFSV) + iono*obj.rx1.Tracks(i,CGGTTS.MDIO) ...
+                             - obj.rx2.Tracks(i,CGGTTS.REFSV) - iono*obj.rx2.Tracks(i,CGGTTS.MDIO));
                         sampcnt=1;
                         
                     end
-                    lastmjd=obj.rx1.Tracks(i,CCTF.MJD);
-                    lastst=obj.rx1.Tracks(i,CCTF.STTIME);
+                    lastmjd=obj.rx1.Tracks(i,CGGTTS.MJD);
+                    lastst=obj.rx1.Tracks(i,CGGTTS.STTIME);
                     i=i+1;
                 end
                 av =av/sampcnt;
@@ -143,20 +172,20 @@ classdef MergedCCTF < handle
     
     methods (Access='private')
         function SortSVN(obj,rx)
-            % Sorts a CCTF objects tracks by SVN within each time block
+            % Sorts a CGGTTS objects tracks by SVN within each time block
             % as define by MJD and STTIME
             % This is to make track matching easier
             n = size(rx.Tracks(),1);
-            lastmjd=rx.Tracks(1,CCTF.MJD);
-            lastst =rx.Tracks(1,CCTF.STTIME);
+            lastmjd=rx.Tracks(1,CGGTTS.MJD);
+            lastst =rx.Tracks(1,CGGTTS.STTIME);
             stStart=1;
             for i=2:n
-                if (rx.Tracks(i,CCTF.MJD) == lastmjd && ...
-                        rx.Tracks(i,CCTF.STTIME)==lastst)
+                if (rx.Tracks(i,CGGTTS.MJD) == lastmjd && ...
+                        rx.Tracks(i,CGGTTS.STTIME)==lastst)
                     % sort
                     j=i;
                     while (j > stStart)
-                        if (rx.Tracks(j,CCTF.PRN) < rx.Tracks(j-1,CCTF.PRN))
+                        if (rx.Tracks(j,CGGTTS.PRN) < rx.Tracks(j-1,CGGTTS.PRN))
                             tmp = rx.Tracks(j-1,:);
                             rx.Tracks(j-1,:)=rx.Tracks(j,:);
                             rx.Tracks(j,:)=tmp;
@@ -166,8 +195,8 @@ classdef MergedCCTF < handle
                         j=j-1;
                     end
                 else
-                    lastmjd=rx.Tracks(i,CCTF.MJD);
-                    lastst=rx.Tracks(i,CCTF.STTIME);
+                    lastmjd=rx.Tracks(i,CGGTTS.MJD);
+                    lastst=rx.Tracks(i,CGGTTS.STTIME);
                     stStart=i;
                     % nothing more to do
                 end

@@ -1,17 +1,47 @@
-classdef CCTF < handle
-    %CCTF Reads a sequence of CCTF files
-    %   Usage:
-    %   CCTF(start MJD, stop MJD, path, CCTF extension)
-    %   Author: MJW 2012-11-01
-    
+
+classdef CGGTTS < handle
+    %CGGTTS Reads a sequence of CGGTTS files
+    %  Usage:
+    %   CGGTTS(start MJD, stop MJD, path, file extension)
+    %
+    %Author: MJW 2012-11-01
+    %
+    %CGGTTS Properties:
+    %
+    %CGGTTS Methods:
+    %
+    %License
+    %
+    %The MIT License (MIT)
+    %
+    %Copyright (c) 2017 Michael J. Wouters
+    % 
+    %Permission is hereby granted, free of charge, to any person obtaining a copy
+    %of this software and associated documentation files (the "Software"), to deal
+    %in the Software without restriction, including without limitation the rights
+    %to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    %copies of the Software, and to permit persons to whom the Software is
+    %furnished to do so, subject to the following conditions:
+    % 
+    %The above copyright notice and this permission notice shall be included in
+    %all copies or substantial portions of the Software.
+    % 
+    %THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    %IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    %FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    %AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    %LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    %OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    %THE SOFTWARE.
+
     properties
         
-        Tracks; % vector of CCTF tracks
+        Tracks; % vector of CGGTTS tracks
         Lab;
         CableDelay;
         ReferenceDelay;
         InternalDelay;
-        BadTracks; % count of bad tracks flagged in the CCTF data
+        BadTracks; % count of bad tracks flagged in the CGGTTS data
         DualFrequency;
         
         Sorted;
@@ -44,7 +74,7 @@ classdef CCTF < handle
     methods (Access='public')
         % Constructor
         
-        function obj=CCTF(startMJD,stopMJD,cctfPath,cctfExtension,removeBadTracks)
+        function obj=CGGTTS(startMJD,stopMJD,cctfPath,cctfExtension,removeBadTracks)
             obj.Tracks=[];
             trks=[];
             obj.DualFrequency=0;
@@ -123,14 +153,14 @@ classdef CCTF < handle
                 for i = 1:n
                     bad(i)=0;
 
-                    if ((trks(i,CCTF.DSG) == 9999 ))
+                    if ((trks(i,CGGTTS.DSG) == 9999 ))
                            bad(i)=1;
                            badcnt=badcnt+1;
                     end
 
                     if obj.DualFrequency==1
                          % Check MSIO,SMSI,ISG for dual frequency
-                         if ((trks(i,CCTF.ISG) == 999 ) || (trks(i,CCTF.MSIO) == 9999 ) || (abs(trks(i,CCTF.SMSI)) == 999 ))
+                         if ((trks(i,CGGTTS.ISG) == 999 ) || (trks(i,CGGTTS.MSIO) == 9999 ) || (abs(trks(i,CGGTTS.SMSI)) == 999 ))
                            bad(i)=1;
                            badcnt=badcnt+1;
                          end
@@ -144,7 +174,7 @@ classdef CCTF < handle
         end
         
         function obj = FilterTracks( obj, maxDSG, minTrackLength )
-            % Applies standard filtering to CCTF data
+            % Applies basic filtering to CGGTTS data
            
             n = size(obj.Tracks,1);
             baddsg=0;
@@ -152,11 +182,11 @@ classdef CCTF < handle
             bad = 1:n;
             for i = 1:n
                 bad(i)=0;
-                if obj.Tracks(i,CCTF.DSG) >= maxDSG
+                if obj.Tracks(i,CGGTTS.DSG) >= maxDSG
                     baddsg =baddsg+1;
                     bad(i)=1;
                 end
-                if obj.Tracks(i,CCTF.TRKL) < minTrackLength
+                if obj.Tracks(i,CGGTTS.TRKL) < minTrackLength
                     badtrklen = badtrklen+1;
                     bad(i)=1;
                 end
@@ -193,23 +223,23 @@ classdef CCTF < handle
             av=0;
             cnt=0;
             sampcnt=0;
-            lastmjd=obj.Tracks(i,CCTF.MJD);
-            lastst=obj.Tracks(i,CCTF.STTIME);
+            lastmjd=obj.Tracks(i,CGGTTS.MJD);
+            lastst=obj.Tracks(i,CGGTTS.STTIME);
  
             while (i<=n)
-                    if (obj.Tracks(i,CCTF.MJD) == lastmjd && obj.Tracks(i,CCTF.STTIME) == lastst)
-                        av = av + obj.Tracks(i,CCTF.REFGPS) + iono*obj.Tracks(i,CCTF.MDIO);
+                    if (obj.Tracks(i,CGGTTS.MJD) == lastmjd && obj.Tracks(i,CGGTTS.STTIME) == lastst)
+                        av = av + obj.Tracks(i,CGGTTS.REFGPS) + iono*obj.Tracks(i,CGGTTS.MDIO);
                         sampcnt=sampcnt+1;    
                     else
                         av =av/sampcnt;
                         cnt=cnt+1;
                         refgps(cnt,:) = [ lastmjd+lastst/86400.0 av ];
-                        av=obj.Tracks(i,CCTF.REFGPS) + iono*obj.Tracks(i,CCTF.MDIO);
+                        av=obj.Tracks(i,CGGTTS.REFGPS) + iono*obj.Tracks(i,CGGTTS.MDIO);
                         sampcnt=1;
                         
                     end
-                    lastmjd=obj.Tracks(i,CCTF.MJD);
-                    lastst=obj.Tracks(i,CCTF.STTIME);
+                    lastmjd=obj.Tracks(i,CGGTTS.MJD);
+                    lastst=obj.Tracks(i,CGGTTS.STTIME);
                     i=i+1;
             end
             av =av/sampcnt; % add the last one
@@ -225,16 +255,16 @@ classdef CCTF < handle
             % as defined by MJD and STTIME
             % This is to make track matching easier
             n = size(obj.Tracks(),1);
-            lastmjd=obj.Tracks(1,CCTF.MJD);
-            lastst =obj.Tracks(1,CCTF.STTIME);
+            lastmjd=obj.Tracks(1,CGGTTS.MJD);
+            lastst =obj.Tracks(1,CGGTTS.STTIME);
             stStart=1;
             for i=2:n
-                if (obj.Tracks(i,CCTF.MJD) == lastmjd && ...
-                        obj.Tracks(i,CCTF.STTIME)==lastst)
+                if (obj.Tracks(i,CGGTTS.MJD) == lastmjd && ...
+                        obj.Tracks(i,CGGTTS.STTIME)==lastst)
                     % sort
                     j=i;
                     while (j > stStart)
-                        if (obj.Tracks(j,CCTF.PRN) < obj.Tracks(j-1,CCTF.PRN))
+                        if (obj.Tracks(j,CGGTTS.PRN) < obj.Tracks(j-1,CGGTTS.PRN))
                             tmp = obj.Tracks(j-1,:);
                             obj.Tracks(j-1,:)= obj.Tracks(j,:);
                             obj.Tracks(j,:)=tmp;
@@ -244,8 +274,8 @@ classdef CCTF < handle
                         j=j-1;
                     end
                 else
-                    lastmjd=obj.Tracks(i,CCTF.MJD);
-                    lastst=obj.Tracks(i,CCTF.STTIME);
+                    lastmjd=obj.Tracks(i,CGGTTS.MJD);
+                    lastst=obj.Tracks(i,CGGTTS.STTIME);
                     stStart=i;
                     % nothing more to do
                 end
@@ -253,6 +283,5 @@ classdef CCTF < handle
             obj.Sorted=1;
         end
     end
-    
 end
 
