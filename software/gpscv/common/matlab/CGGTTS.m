@@ -174,28 +174,40 @@ classdef CGGTTS < handle
         end
         
         function obj = FilterTracks( obj, maxDSG, minTrackLength )
-            % Applies basic filtering to CGGTTS data
-           
+	  % Applies basic filtering to CGGTTS data
+	  % Retain for backwards compatibility with legacy code
+	  obj = obj.Filter(CGGTTS.DSG, 0, maxDSG);
+	  obj = obj.Filter(CGGTTS.TRKL, minTrackLength, 780);
+        end
+       
+	function obj = Filter( obj, prop, minVal, maxVal )
+            % Filter on property 'prop' (one of the data columns in the CGGTTS file), retaining only data in [minVal,maxVal]
             n = size(obj.Tracks,1);
-            baddsg=0;
-            badtrklen=0;
             bad = 1:n;
             for i = 1:n
                 bad(i)=0;
-                if obj.Tracks(i,CGGTTS.DSG) >= maxDSG
-                    baddsg =baddsg+1;
-                    bad(i)=1;
-                end
-                if obj.Tracks(i,CGGTTS.TRKL) < minTrackLength
-                    badtrklen = badtrklen+1;
+                if ((obj.Tracks(i,prop) < minVal) || (obj.Tracks(i,prop) > maxVal))
                     bad(i)=1;
                 end
             end
-            
             obj.Tracks(any(bad,1),:)=[];
-           
         end
-       
+        
+        function PlotDSG(obj,titleText)
+	  plot(obj.Tracks(:,CGGTTS.MJD)+obj.Tracks(:,CGGTTS.STTIME)/86400,obj.Tracks(:,CGGTTS.DSG)*0.1,'.');
+	  title(titleText);
+	  xlabel('t');
+	  ylabel('DSG (ns)');
+        end
+        
+        function PlotVisibility(obj,titleText)
+	  plot(obj.Tracks(:,CGGTTS.AZTH)*0.1,obj.Tracks(:,CGGTTS.ELV)*0.1,'.');
+	  %polarplot(obj.Tracks(:,CGGTTS.AZTH)*0.1*pi/180.0,cos(obj.Tracks(:,CGGTTS.ELV)*0.1*pi/180.0),'o');
+	  title(titleText);
+	  xlabel('azimuth');
+	  ylabel('elevation');
+        end
+        
         function Summary(obj)
             display(obj.Lab);
             display(['Cable delay =' num2str(obj.CableDelay)]);
