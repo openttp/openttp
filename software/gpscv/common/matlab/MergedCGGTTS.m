@@ -1,14 +1,14 @@
 
 
 
-classdef MergedCGGTTS < handle
+classdef MergedCGGTTS < matlab.mixin.Copyable
     %MergedCGGTTS Groups two CGGTTS objects so that they can be merged and
     % manipulated as a single object
     %  Typical usage:
     %   mcctf = MergedCGGTTS(cctf1,cctf2)
     %   mcctf.Merge()
     %   refsv=mcctf.RefSV(1,0) % zero baseline
-    %WARNING ! This modifies the CGGTTS object instances passed to it !
+    %
     %
     %MergedCGGTTS Properties:
     %
@@ -47,8 +47,8 @@ classdef MergedCGGTTS < handle
          % Constructor
         
         function obj=MergedCGGTTS(ref,cal)     
-            obj.rx1 = ref;
-            obj.rx2 = cal;
+            obj.rx1 = copy(ref);
+            obj.rx2 = copy(cal);
             obj.merged=0;
         end
            

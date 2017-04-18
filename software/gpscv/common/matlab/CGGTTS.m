@@ -1,5 +1,5 @@
 
-classdef CGGTTS < handle
+classdef CGGTTS < matlab.mixin.Copyable
     %CGGTTS Reads a sequence of CGGTTS files
     %  Usage:
     %   CGGTTS(start MJD, stop MJD, path, file extension)
@@ -37,10 +37,11 @@ classdef CGGTTS < handle
     properties
         
         Tracks; % vector of CGGTTS tracks
+        Version; % CGGTTS version
         Lab;
         CableDelay;
         ReferenceDelay;
-        InternalDelay;
+        CADelay,P1Delay,P2Delay; % presumption is that this doesn't change
         BadTracks; % count of bad tracks flagged in the CGGTTS data
         DualFrequency;
         
@@ -77,59 +78,97 @@ classdef CGGTTS < handle
         function obj=CGGTTS(startMJD,stopMJD,cctfPath,cctfExtension,removeBadTracks)
             obj.Tracks=[];
             trks=[];
+            obj.Version=0;
             obj.DualFrequency=0;
             obj.CableDelay=0;
             obj.ReferenceDelay=0;
-            obj.InternalDelay=0;
+            obj.CADelay=0;
+            obj.P1Delay=0;
+            obj.P2Delay=0;
             obj.BadTracks=0;
             obj.Sorted=0;
             for mjd=startMJD:stopMJD
-        
-                fh = fopen([cctfPath int2str(mjd) cctfExtension]);
+            
+		fname  = [cctfPath int2str(mjd) cctfExtension];
+                fh = fopen(fname);
                 
-                readingHeader=1;
-                while readingHeader==1
-                   hdrline = fgets(fh);
-                   % display(hdrline)
-                   % FIXME surely you can assign within the conditional
-                   % expression ? How do you do this ?
-                   if (regexp(hdrline,'^\s*LAB\s*=\s*'))
-                       obj.Lab=hdrline;
-                       continue;
-                   end;
-                   
-                   [mat]=regexp(hdrline,'INT\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
-                   if (size(mat))
-                       obj.InternalDelay=str2double(mat{1});
-                       continue;
-                   end;
-                   
-                   [mat]=regexp(hdrline,'CAB\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
-                   if (size(mat))
-                       obj.CableDelay=str2double(mat{1});
-                       continue;
-                   end;
-                   
-                   [mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
-                   if (size(mat))
-                       obj.ReferenceDelay=str2double(mat{1});
-                       continue;
-                   end;
-                   
-                   if (regexp(hdrline,'MSIO SMSI')) % detect dual frequency
-                       obj.DualFrequency=1;
-                       continue;
-                   end;
-                   if (regexp(hdrline,'\s*hhmmss'))
-                       readingHeader=0;
-                       continue;
-                   end
+                % CGGTTS is strictly formatted so we'll assume that's true
+                % and bomb if not.
+                
+                % Read the header of every file, just in case there is something odd
+                
+                % Line 1 Version
+		hdrline = fgets(fh);
+		[mat]=regexp(hdrline,'\s*DATA\s*FORMAT\s*VERSION\s*=\s*(1|01|2E|2e)','tokens');
+		if (size(mat))
+		  if (strcmp(mat{1},'1') || strcmp(mat{1},'01')) 
+		    obj.Version=1;
+		  end;
+		end;
+		
+		% Line 2 Revision date
+		hdrline = fgets(fh);
+		% Line 3 Receiver
+		hdrline = fgets(fh);
+		% Line 4 Number of channels
+		hdrline = fgets(fh);
+		% Line 5 IMS
+		hdrline = fgets(fh);
+		% Line 6 LAB
+		hdrline = fgets(fh);
+		% FIXME surely you can assign within the conditional
+		% expression ? How do you do this ?
+		if (regexp(hdrline,'^\s*LAB\s*=\s*'))
+		    obj.Lab=hdrline;
+		end;
+		% Line 7 X
+		hdrline = fgets(fh);
+		% Line 8 Y
+		hdrline = fgets(fh);
+		% Line 9 Z
+		hdrline = fgets(fh);
+		% Line 10 FRAME
+		hdrline = fgets(fh);
+		% Line 11 COMMENTS
+		hdrline = fgets(fh);
+		% Line 12 INT DLY
+		hdrline = fgets(fh);
+		[mat]=regexp(hdrline,'INT\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+		if (size(mat))
+		    obj.CADelay=str2double(mat{1});
+		end;
+		% Line 13 CAB DLY
+		hdrline = fgets(fh);
+		[mat]=regexp(hdrline,'CAB\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+		if (size(mat))
+		    obj.CableDelay=str2double(mat{1});
+		end;
+		% Line 14 REF DLY
+		hdrline = fgets(fh);
+		[mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+		if (size(mat))
+		    obj.ReferenceDelay=str2double(mat{1});
+		end;
+		% Line 15 REF
+		hdrline = fgets(fh);
+		% Line 16 CKSUM
+		hdrline = fgets(fh);
+		% Line 17 (blank)
+		hdrline = fgets(fh);
+		
+		% Line 18 (data column labels)
+		hdrline = fgets(fh);
+		if (regexp(hdrline,'MSIO SMSI')) % detect dual frequency
+		    obj.DualFrequency=1;
+		end;
+		% Line 19 (units)
+		hdrline = fgets(fh);
+                
+                if (obj.Version==0)
+		  error(['Unable to determine the CGGTTS version in the input file ' fname]);
                 end
-               
                 
                 % Read the tracks
-                % FIXME better to read line by line, compute the
-                % checksums and warn about bad data
                 if (obj.DualFrequency == 0)
                   cctftrks = fscanf(fh,'%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %x',[23 inf]);
                 else
@@ -138,6 +177,7 @@ classdef CGGTTS < handle
                 cctftrks = cctftrks';
                 trks=[trks;cctftrks];
                 fclose(fh);
+                % FIXME compute checksums and remove bad data
             end
             % Convert the HHMMSS [columns 4-9] field into decimal seconds
             trks(:,4)= ((trks(:,4)-48)*10 + trks(:,5)-48)*3600 + ...
@@ -212,7 +252,9 @@ classdef CGGTTS < handle
             display(obj.Lab);
             display(['Cable delay =' num2str(obj.CableDelay)]);
             display(['Reference delay =' num2str(obj.ReferenceDelay)]);
-            display(['Internal delay =' num2str(obj.InternalDelay)]);
+            display(['CA internal delay =' num2str(obj.CADelay)]);
+            display(['P1 internal delay =' num2str(obj.P1Delay)]);
+            display(['P2 internal delay =' num2str(obj.P2Delay)]);
             display(['Dual frequency =' num2str(obj.DualFrequency)]);
             display(['Tracks = ' num2str(size(obj.Tracks,1)) ' (' num2str(obj.BadTracks)  ' bad)']);
         end
