@@ -52,6 +52,7 @@ classdef CGGTTS < matlab.mixin.Copyable
     properties (Constant)
        % A few useful named constants
        PRN=1;
+       GNSS=2; % bodge - put the satellite system in the class byte field
        MJD=3;
        STTIME=4;
        TRKL=5;
@@ -67,9 +68,21 @@ classdef CGGTTS < matlab.mixin.Copyable
        SMDT=15;
        MDIO=16;
        SMDI=17;
+       CK1=18;  % CGGTTS V1
+       
+       FR21=18; % CGGTTS V2 single frequency
+       HC21=19;
+       FRC21=20;
+       CK21=21;
+       
        MSIO=18;
        SMSI=19;
        ISG=20;
+       FR22=21;  % CGGTTS V2 dual frequency
+       HC22=22;
+       FRC22=23;
+       CK22=24;
+       
     end
     
     methods (Access='public')
@@ -170,15 +183,26 @@ classdef CGGTTS < matlab.mixin.Copyable
                 
                 % Read the tracks
                 if (obj.DualFrequency == 0)
-                  cctftrks = fscanf(fh,'%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %x',[23 inf]);
+		  if (obj.Version == 1)
+		    cctftrks = fscanf(fh,'%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %x',[23 inf]); % +5 for HHMMSS
+		  else
+		    cctftrks = fscanf(fh,'%c%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %s %x',[27 inf]); % +1 for SAT, +5 for HHMMSS, +2 FRC
+		  end
                 else
-                  cctftrks = fscanf(fh,'%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %x',[26 inf]);  
+		  if (obj.Version == 1)
+		    cctftrks = fscanf(fh,'%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %x',[26 inf]); % +5 for HHMMSS
+		  else
+		    cctftrks = fscanf(fh,'%c%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %s %x',[32 inf]); % +1 for SAT, +5 for HHMMSS
+		  end
                 end
                 cctftrks = cctftrks';
                 trks=[trks;cctftrks];
                 fclose(fh);
                 % FIXME compute checksums and remove bad data
             end
+            if (obj.Version == 1)
+	      trks(:,CGGTTS.GNSS)='G';
+	    end
             % Convert the HHMMSS [columns 4-9] field into decimal seconds
             trks(:,4)= ((trks(:,4)-48)*10 + trks(:,5)-48)*3600 + ...
                 ((trks(:,6)-48)*10 + trks(:,7)-48)* 60 + ...
