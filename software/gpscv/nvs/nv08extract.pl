@@ -44,7 +44,7 @@ use Getopt::Std;
 use Math::Trig;
 use Switch;
 
-use vars qw($opt_d $opt_m $opt_t $opt_o $opt_s $opt_n $opt_w $opt_f $opt_T $opt_p $opt_a $opt_P $opt_e $opt_l $opt_i $opt_g $opt_r $opt_G $opt_u); # $opt_F);
+use vars qw($opt_d $opt_m $opt_t $opt_o $opt_s $opt_n $opt_w $opt_f $opt_T $opt_p $opt_a $opt_P $opt_e $opt_l $opt_i $opt_g $opt_r $opt_G $opt_u $opt_z); # $opt_F);
 
 # Declare variables, required because of 'use strict'
 my($DEBUG,$mjd,$home,$raw,$infile,$zipfile,$zipit,$input,$save,$s,$data);
@@ -58,10 +58,9 @@ my($antX,$antY,$antZ,$rmsantX,$rmsantY,$rmsantZ,$modeflag);
 my($satsys,$satno,@ephemeris,$satstr);
 my($msgH,$msgF);
 
-if (!getopts('dm:tosnwfTpaPeligrGu')) 
-{
-  print "Usage: $0 [-m mjd] [-d] [-t] [-o] [-s] [-n] [-w] [-f] [-T] [-p] [-a] [-P] [-e] [-l]\n";
-  print "          [-i] [-g] [-r] [-G] [-u]\n"; # [-F file]\n";
+if (!getopts('dm:tosnwfTpaPeligrGuz')){
+  print "Usage: $0 [-m mjd] [-d] [-t] [-o] [-s] [-n] [-w] [-f] [-T] [-p] [-a] [-P] [-e] [-l] [-z]\n";
+  print "          [-i] [-g] [-r] [-G] [-u] [-z]\n"; # [-F file]\n";
   print "  -m mjd  MJD\n";
   print "  -t      extract Time, Date and Time Zone offset\n";
   print "  -o      extract Receiver Operating Parameters\n";
@@ -75,11 +74,12 @@ if (!getopts('dm:tosnwfTpaPeligrGu'))
   print "  -P      extract Port status messages\n";
   print "  -e      extract Satellite ephemeris\n";
   print "  -l      extract Time scale parameters\n";
-  print "  -i      extract Ionosphere paramaters\n";
+  print "  -i      extract Ionosphere parameters\n";
   print "  -g      extract GPS, GLONASS and UTC time scale parameters\n";
   print "  -r      extract Raw data (pseudoranges, etc)\n";
   print "  -G      extract Geocentric antenna coordinates in WGS-84 system\n";
   print "  -u      extract Unknown message (garbage data)\n";
+  print "  -z      less verbose output\n";
 #  print "  -F file extract data for a specific file\n";
   exit;
 }
@@ -333,9 +333,14 @@ while ($s = <RXDATA>) {
 					{ 
 						my($mode) = "STATIC";
 						if($modeflag == 1) { $mode = "DYNAMIC"; }
-						print "$tstamp  Geocentric coordinates of antenna (WGS-84). Receiver mode is $mode.\n";
-						printf("          [X(m),Y(m),Z(m)]: %19.12e %19.12e %19.12e\n",$antX,$antY,$antZ);
-						printf("          [RMS errors (m)]: %19.12e %19.12e %19.12e\n",$rmsantX,$rmsantY,$rmsantZ);
+						if ($opt_z){
+							printf ("$tods %19.12e %19.12e %19.12e %d\n",$antX,$antY,$antZ,$modeflag); 
+						}
+						else{
+							print "$tstamp  Geocentric coordinates of antenna (WGS-84). Receiver mode is $mode.\n";
+							printf("          [X(m),Y(m),Z(m)]: %19.12e %19.12e %19.12e\n",$antX,$antY,$antZ);
+							printf("          [RMS errors (m)]: %19.12e %19.12e %19.12e\n",$rmsantX,$rmsantY,$rmsantZ);
+						}
 					}
 				}
 			} 
