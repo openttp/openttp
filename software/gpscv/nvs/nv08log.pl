@@ -63,6 +63,7 @@ use strict;
 
 use Time::HiRes qw(gettimeofday);
 use POSIX;
+use Math::Trig;
 use TFLibrary;
 use vars qw($tmask $opt_c $opt_d $opt_h $opt_r $opt_v);
 use Switch;
@@ -74,11 +75,11 @@ my($home,$configPath,$logPath,$lockFile,$pid,$VERSION,$rx,$rxStatus);
 my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
 my($glosats,$gpssats,$hdop,$vdop,$tdop,$nv08id,$dts,$saw);
-my(%Init);
+my (%Init);
 my($AUTHORS,$configFile,@info,@required);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "2.0";
+$VERSION = "2.0.1";
 
 $0=~s#.*/##;
 
@@ -499,10 +500,45 @@ sub ConfigureReceiver
   #          +----------- ID: x0D is the Receiver Operating Parameters control message
   # Response is message 51h
   #
-  # Set receiver operating parameters: GPS only
+  # Set receiver operating parameters: GPS only tracked
+  my $observations = 'gps';
+  if (defined($Init{"receiver:observations"})){
+		$observations=lc $Init{"receiver:observations"};
+  }
+  
+  if ($observations=~/gps/){
+		if ($observations =~ /glonass/){
+			if ($observations =~ /sbas/){
+				sendCmd("\x0D\x02\x0a"); # GPS+GLONASS+SBAS
+			}
+			else{
+				sendCmd("\x0D\x02\x00"); # GPS+GLONASS
+			}
+		}
+		else{
+			if ($observations =~ /sbas/){
+				sendCmd("\x0D\x02\x0b"); # GPS+SBAS
+			}
+			else{
+				sendCmd("\x0D\x02\x01"); # GPS
+			}
+		}
+  }
+  elsif ($observations =~/glonass/){
+		if ($observations =~ /sbas/){
+				sendCmd("\x0D\x02\x0c"); # GLONASS+SBAS
+		}
+		else{
+			sendCmd("\x0D\x02\x02"); # GLONASS
+		}
+  }
+  elsif ($observations =~ /galileo/){
+		sendCmd("\x0D\x02\x03");
+  }
+  
   #sendCmd("\x0D\x02\x01");
   #          |   |   |  
-  #          |   |   +--- Operational Navigation System(s): 0 GNSS, 1 GPS, 2 GLONASS, 3 GALILEO, 10 GNSS & SBAS, 11 GPS & SBAS, 12 GLONASS & SBAS
+  #          |   |   +--- Operational Navigation System(s): 0 GPS+GLONASS, 1 GPS, 2 GLONASS, 3 GALILEO, 10 GPS+GLONASS+SBAS, 11 GPS+SBAS, 12 GLONASS+SBAS
   #          |   +------- Data type: x02 is Selection of Satellite Navigation system
   #          +----------- ID: x0D is the Receiver Operating Parameters control message
   # Response is message 51h
@@ -530,15 +566,42 @@ sub ConfigureReceiver
   #          |   +------- Data type: x00 is Operating mode setting
   #          +----------- ID: x1D is the Receiver Operating Modes control message
   # Response is message 73h
+  
+  my $rxmode = 'survey';
+  if (defined($Init{'receiver:positioning mode'})){
+		$rxmode=lc $Init{'receiver:positioning mode'};
+	}
+	
+	if ($rxmode eq 'dynamic'){ # ie standalone
+		sendCmd("\x1D\x00\x00");
+	}
+	elsif ($rxmode eq 'fixed'){
+		my ($lat,$lon,$ht);
+		($lat,$lon,$ht)= ecef2lla($Init{'antenna:x'},$Init{'antenna:y'},$Init{'antenna:z'});
+		my ($antlat) = pack 'd1',$lat;
+		my ($antlon) = pack 'd1',$lon;
+		my ($antht) = pack 'd1',$ht;
+		sendCmd("\x1D\x00\x01"); # fixed mode
+		sendCmd("\x1D\x07".$antlat.$antlon.$antht);
+	}
+	elsif ($rxmode eq 'survey'){
+		sendCmd("\x1D\x00\x02");
+	}
+	else{
+		print STDERR "Unknown receiver positioning mode\n";
+	}
+ 
+  
   #
   # Set receiver Antenna delay
   # Antenna delay is set to zero here. The actual antenna cable delay is taken care of in the processing software.
   # Convert the data type to FP64 (as expected by the receiver)
-  #my($antDelFP64) = pack "d1",0;
+  my($antDelFP64) = pack "d1",0;
 
   # For testing set antenna delay to -3.5 microseconds so that counter can catch each 1PPS
-  my($antDelFP64) = pack "d1",-0.0035; # milliseconds
-  sendCmd("\x1D\x01".$antDelFP64);
+  # my($antDelFP64) = pack "d1",-0.0035; # milliseconds
+  # sendCmd("\x1D\x01".$antDelFP64);
+  
   #          |   |        |  
   #          |   |        +--- Antenna delay in ms, in FP64 format
   #          |   +------------ Data type: x01 is Antenna cable data entry
@@ -694,4 +757,36 @@ sub stripDLEandETX
 } # stripDLEandETX
 
 #----------------------------------------------------------------------------
+# Convert ECEF to WGS84 (lat,lon,h) in (rad,rad,m)
+# This is an approximation only 
+# ECEF coordinates are assumed to be 'right' for the particular version of WGS84 in use on the
+# receiver. The uncertainty is about 10 cm if they are not 'right'
+# Tested using http://www.oc.nps.edu/oc2902w/coord/llhxyz.htm
 
+sub ecef2lla
+{
+	
+	my ($X,$Y,$Z) = ($_[0],$_[1],$_[2]);
+	
+	my $a = 6378137.00;  #semi-major axis
+	my $inverse_flattening = 298.257223563;
+	
+	my $p=sqrt($X*$X + $Y*$Y);
+	my $r=sqrt($p*$p + $Z*$Z);
+	my $f=1.0/$inverse_flattening;
+	my $esq=2.0*$f-$f*$f;
+	my $u=atan2($Z/$p, 1.0/(1.0-$f+$esq*$a/$r));
+	
+	# Convention used by NV08 is that 
+	# latitude: North +ve, South -ve
+	# longitude: East +ve, West -ve
+	# atan2 does the job
+	
+	my $longitude = atan2($Y,$X);
+	my $latitude = atan2($Z*(1.0-$f) + $esq * $a * sin($u)**3 ,
+					(1.0-$f)*($p  - $esq * $a * cos($u)**3 ) );
+	my $height = $p*cos($latitude) + $Z*sin($latitude) - 
+									$a*sqrt(1.0-$esq* sin($latitude)**2 );
+	
+	return ($latitude,$longitude,$height);
+}

@@ -478,7 +478,7 @@ sub decodeMsg88
 		return "";
 	}
 	my @data=unpack "d3",(pack "H*",$m);
-	my $ret = sprintf "%lf %lf %lf",(2.0E7/180.0)*$data[0]*180/pi,(2.0E7/180.0)*$data[1]*180/pi,$data[2];
+	my $ret = sprintf "%lf %lf %lf",$data[0]*180/pi,$data[1]*180/pi,$data[2];
 	return $ret;
 }
 
