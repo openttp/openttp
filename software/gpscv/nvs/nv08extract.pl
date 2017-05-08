@@ -444,8 +444,18 @@ sub decodeMsg61
 	return ("","");
 }
 
+# Software version
 sub decodeMsg70
 {
+	my $m=$_[0];
+	if (length($m) != (76*2)){
+		return "";
+	}
+	my ($chan,$vers,$sn)=unpack "CA21I",(pack "H*",$m);
+	my $ret = "\n$chan channels\n";
+	$ret .= "software/equipment version:$vers\n";
+	$ret .= "s/n:$sn";
+	return $ret;
 }
 
 sub decodeMsg72
