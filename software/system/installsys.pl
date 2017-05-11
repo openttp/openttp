@@ -53,6 +53,8 @@ $SYSTEMD="systemd";
 	["CentOS release 6","centos6",$UPSTART,"/usr/local/lib/site_perl"],
 	["Ubuntu 14.04","ubuntu14",$UPSTART,
 		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
+        ["Ubuntu 16.04","ubuntu16",$UPSTART,
+		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
 	["BeagleBoard.org Debian","bbdebian8",$SYSTEMD,"/usr/local/lib/site_perl",
 		"/usr/local/lib/python2.7/site-packages",]
 	);
