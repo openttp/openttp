@@ -36,7 +36,6 @@ import glob
 import os
 import re
 import select
-import serial
 import signal
 import subprocess
 import sys

@@ -28,7 +28,7 @@
 #
 # Modification history
 # 2017-03-16 MJW Additions for Debian on BeagleBone Block. Version changed to 0.1.1
-#
+# 2017-05-11 MJW Ubuntu16
 
 use English;
 use Getopt::Std;
@@ -41,7 +41,7 @@ use vars qw($opt_d $opt_h $opt_i $opt_t $optu $opt_v);
 
 $0=~s#.*/##;	# strip path
 
-$VERSION = "version 0.1.1";
+$VERSION = "version 0.1.2";
 
 $ECHO=1;
 $UNKNOWN=-1;
@@ -53,6 +53,7 @@ $GPSCVUSER=$ENV{USER};
 	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6"], # first entry is OS-defined string, second is our name
 	["CentOS release 6","centos6"],
 	["Ubuntu 14.04","ubuntu14"],
+	["Ubuntu 16.04","ubuntu16"],
 	["BeagleBoard.org Debian","bbdebian8"] # FIXME this may not be set in stone ...
 	);
 
@@ -391,6 +392,7 @@ sub InstallFromSource
 	Install("nvs/*.pl",$BIN);
 	Install("trimble/*.pl",$BIN);
 	Install("ublox/*.pl",$BIN);
+	Install("ublox/*.py",$BIN); # FIXME bodge
 	
 	Log("\nInstalling configuration files in $CONFIGS\n",$ECHO);
 	
