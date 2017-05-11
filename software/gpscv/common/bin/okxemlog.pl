@@ -30,7 +30,10 @@
 # 2015-06-09 MJW Initial version 0.1
 # 2016-03-21 MJW Remove requirement for configuration file
 # 2016-11-29 MJW Added per-channel status file, for consistency, and for interoperation with sysmonitor.pl
-# 
+# 2017-05-10 ELM Added lockStatusCheck directory. The lock file is stored here. It is a RAM disk.
+#                Added code around $SIG{INT} to exit gracefully when terminating with Ctrl-C.
+#                Fixed typos - $lockFile was $lockfile in several locations.
+#
 
 use POSIX;
 use Errno;
@@ -69,11 +72,19 @@ else
 	ErrorExit("No ~/etc directory found!\n");
 } 
 
-if (-d "$home/logs")  {
-	$logpath="$home/logs";
-} 
+#if (-d "$home/logs")  {
+#	$logpath="$home/logs";
+#} 
+#else{
+#	ErrorExit("No ~/logs directory found!\n");
+#}
+
+if (-d "$home/lockStatusCheck")  {
+	$lockpath="$home/lockStatusCheck";
+	$statuspath="$home/lockStatusCheck";
+}
 else{
-	ErrorExit("No ~/logs directory found!\n");
+	ErrorExit("No ~/lockStatusCheck directory found!\n");
 }
 
 $configFile=$configpath."/gpscv.conf";
@@ -97,7 +108,7 @@ foreach (@check) {
 }
 
 # Check the lock file
-$lockFile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$logpath);
+$lockFile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$lockpath);
 if (!TFCreateProcessLock($lockFile)){
 	ErrorExit("Process is already running\n");
 }
@@ -107,7 +118,7 @@ $chan = $Init{"counter:okxem channel"};
 
 $statusFileName =$Init{"counter:status file"};
 if (defined $statusFileName){
-	$statusFileName = TFMakeAbsoluteFilePath($statusFileName,$home,$logpath);
+	$statusFileName = TFMakeAbsoluteFilePath($statusFileName,$home,$statuspath);
 }
 
 $headerGen="";
@@ -119,11 +130,14 @@ $sock=new IO::Socket::INET(PeerAddr=>'localhost',PeerPort=>$port,Proto=>'tcp',);
 unless ($sock) {ErrorExit("Could not create a socket at $port - okcounterd not running?");} 
 
 # set up a timeout in case we get stuck 
-$SIG{ALRM} = sub {close $sock; unlink $lockfile; ErrorExit("Timed out - exiting.")};
+$SIG{ALRM} = sub {close $sock; unlink $lockFile; ErrorExit("Timed out - exiting.")};
 alarm $alarmTimeout;
 
 # catch kill signal so we can log that we were killed
-$SIG{TERM} = sub {close $sock;unlink $lockfile; ErrorExit("Received SIGTERM - exiting.")};
+$SIG{TERM} = sub {close $sock;unlink $lockFile; ErrorExit("Received SIGTERM - exiting.")};
+
+# catch Ctrl-C so we can log that we were killed
+$SIG{INT} = sub {close $sock;unlink $lockFile; ErrorExit("Received SIGINT - exiting.")};
 
 $sock->send("LISTEN"); # tell okcounterd we are just listening politely
 
@@ -164,7 +178,7 @@ while (1)
 		}
 		else{
 			close $sock;
-			unlink $lockfile;
+			unlink $lockFile;
 			ErrorExit("Remote connection closed - exiting.");
 		}
 	}
@@ -190,7 +204,7 @@ while (1)
 }
 
 close $sock;
-unlink $lockfile;
+unlink $lockFile;
 
 print "Unexpected termination\n";
 

@@ -37,6 +37,7 @@
 #                different behaviour of ps across O/Ss, long process names, imperfect detection of different startup methods ....
 #								 Demand use of a lock and check whether the process is running via this.
 # 30-03-2016 MJW New configuration file format. Use the 'standard' .conf format
+# 10-05-2017 ELM moved location of check files to ~/lockStatusCheck directory - on the BBB system this is a RAM disk.
 #
 
 use POSIX;
@@ -66,6 +67,7 @@ if ($opt_v){
 
 $configPath="";
 if (-d "$home/logs") {$logPath="$home/logs";} else {die "$logPath missing"}; 
+if (-d "$home/lockStatusCheck") {$checkPath="$home/lockStatusCheck";} else {die "$checkPath missing"};
 if (-d "$home/etc")  {$configPath="$home/etc";} 
 
 my $logFile=  "$logPath/kickstart.log";
@@ -116,7 +118,7 @@ for ($i=0;$i<=$#targets;$i++){
 	$running = TFTestProcessLock($lockFile);
 	
 	Debug("Process is ".($running ? "" : "not")." running");
-	$checkFile=$logPath . "/"."kickstart.".$target. ".check";
+	$checkFile=$checkPath . "/"."kickstart.".$target. ".check";
 	if ($running)
 		{`/bin/touch $checkFile`}
 	else{

@@ -55,7 +55,10 @@ use strict;
 #                                     Added decoding of messages to generate a status
 #                                     message so users can check on performance of 
 #                                     receiver in real time.
-#
+# 2017-05-10         Louis Marais     Added lockStatusCheck directory, this is a RAM
+#                                     disk. This is to make the SD card last longer.
+#                                     status and lock files are stored here, because
+#                                     they don't need to survive a reboot.
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 
@@ -75,8 +78,9 @@ my($home,$configPath,$logPath,$lockFile,$pid,$VERSION,$rx,$rxStatus);
 my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
 my($glosats,$gpssats,$hdop,$vdop,$tdop,$nv08id,$dts,$saw);
-my (%Init);
+my(%Init);
 my($AUTHORS,$configFile,@info,@required);
+my($lockPath,$statusPath);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
 $VERSION = "2.0.1";
@@ -113,6 +117,16 @@ else
   ErrorExit("No ~/logs directory found!\n");
 }
 
+if (-d "$home/lockStatusCheck")
+{
+  $lockPath="$home/lockStatusCheck";
+  $statusPath="$home/lockStatusCheck";
+}
+else
+{
+  ErrorExit("No ~/lockStatusCheck directory found!\n");
+}
+
 if (defined $opt_c)
 {
   $configFile=$opt_c;
@@ -127,14 +141,14 @@ if (!(-e $configFile))
 
 # Check for an existing lock file
 # Check the lock file
-$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
+$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$lockPath);
 if (!TFCreateProcessLock($lockFile)){
 	ErrorExit("Process is already running\n");
 }
 
 $Init{version}=$VERSION;
 $rxStatus=$Init{"receiver:status file"};
-$rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$logPath);
+$rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$statusPath);
 
 $Init{"paths:receiver data"}=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
 
@@ -601,7 +615,6 @@ sub ConfigureReceiver
   # For testing set antenna delay to -3.5 microseconds so that counter can catch each 1PPS
   # my($antDelFP64) = pack "d1",-0.0035; # milliseconds
   # sendCmd("\x1D\x01".$antDelFP64);
-  
   #          |   |        |  
   #          |   |        +--- Antenna delay in ms, in FP64 format
   #          |   +------------ Data type: x01 is Antenna cable data entry

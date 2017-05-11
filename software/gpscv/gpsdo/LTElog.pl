@@ -33,6 +33,10 @@ use strict;
 # Version 1.0 start date: 2016-01-13 by Louis Marais
 # Last modification date: 2017-03-17
 #
+# Modifications
+# 2017-05-10 Added requirements for lock and status files - both are now stored
+#            on RAM disk (version now 1.3)
+#
 # Versioning held in %Init structure $Init{version}
 
 # Load required libraries
@@ -59,9 +63,10 @@ my ($noOfCapturedPulses,$lockStatus,$EFCvoltage,$EFCpercentage,$estimatedFreqAcc
 my ($secsInHoldover,$nmbrsats,$health,%Init);
 my ($configPath,$dataPath,$alarmTimeout,$port,$logInterval,$lastLog);
 my ($logState,$WAITING,$LOGGING_MSGS);
+my ($lockPath,$statusPath);
 
 $AUTHORS="Louis Marais,Michael Wouters";
-$VERSION="1.2";
+$VERSION="1.3";
 
 # logging state machine states
 $WAITING=1; 
@@ -89,6 +94,14 @@ else{
 	ErrorExit("No ~/logs directory found!\n");
 }
 
+if (-d "$home/lockStatusCheck")  {
+	$lockPath="$home/lockStatusCheck";
+	$statusPath="$home/lockStatusCheck";
+}
+else{
+	ErrorExit("No ~/lockStatusCheck directory found!\n");
+}
+
 if (!(-e $configFile)){
   ErrorExit("A configuration file was not found!\n");
 }
@@ -111,7 +124,7 @@ if (defined $opt_c){
 &Initialise($configFile);
 
 # Check the lock file
-$lockFile = TFMakeAbsoluteFilePath($Init{"reference:lock file"},$home,$logPath);
+$lockFile = TFMakeAbsoluteFilePath($Init{"reference:lock file"},$home,$lockPath);
 if (!(TFCreateProcessLock($lockFile))){
 	ErrorExit('Unable to lock - already running?');
 }
@@ -119,7 +132,7 @@ if (!(TFCreateProcessLock($lockFile))){
 $dataPath = TFMakeAbsolutePath($Init{"paths:reference data"},$home);
 Debug($dataPath);
 # Assign the filename for the receiver status dump (from the configuration file)
-$gpsdoStatus = TFMakeAbsoluteFilePath($Init{"reference:status file"},$home,$logPath);
+$gpsdoStatus = TFMakeAbsoluteFilePath($Init{"reference:status file"},$home,$statusPath);
 
 # open the serial port to the receiver
 $rxmask = "";

@@ -67,8 +67,8 @@ LCDConfigure *app;
 LCDConfigure::LCDConfigure(int argc,char **argv)
 {
 
-
-	char c;
+	//char c; // does not work where char is unsigned, such as on BBB
+	int c;
 	while ((c=getopt(argc,argv,"hvdu:")) != EOF)
 	{
 		switch(c)
@@ -79,10 +79,9 @@ LCDConfigure::LCDConfigure(int argc,char **argv)
 			case 'u':user=optarg;break;
 		}
 	}
-	
+
 	init();
-	
-	
+
 }
 
 LCDConfigure::~LCDConfigure()
@@ -92,7 +91,6 @@ LCDConfigure::~LCDConfigure()
 	unlink(lockFile.c_str());
 }
 
-
 void LCDConfigure::touchLock()
 {
 	// the lock is touched periodically to signal that
@@ -100,8 +98,6 @@ void LCDConfigure::touchLock()
 	utime(lockFile.c_str(),0);
 }
 
-
-		
 void LCDConfigure::clearDisplay()
 {
 	for (int i=0;i<4;i++)
@@ -121,8 +117,6 @@ void LCDConfigure::run()
 	updateLine(2,"Time Transfer System");
 	storeState();
 }
-
-
 
 void LCDConfigure::signalHandler(int sig)
 {
@@ -145,9 +139,9 @@ void LCDConfigure::startTimer(long secs)
 {
 
 	struct itimerval itv; 
- 	
+
 	LCDConfigure::timeout=false;
-	
+
 	itv.it_interval.tv_sec=0;
 	itv.it_interval.tv_usec=0; // this stops the timer on timeout
 	itv.it_value.tv_sec=secs;
@@ -175,8 +169,7 @@ void LCDConfigure::log(std::string msg)
 
 void LCDConfigure::init()
 {
-	
-	
+
 	if(Serial_Init(PORT,BAUD))
 	{
 		Dout(dc::trace,"Could not open port " << PORT << " at " << BAUD << " baud.");
@@ -186,33 +179,32 @@ void LCDConfigure::init()
 	{
     Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
 	}
-	
+
 	/* Clear the buffer */
 	while(BytesAvail())
     GetByte();
-	
+
 	for (int i=0;i<4;i++)
 	{
 		status[i]="";
 	}
-	
+
 	// use SIGALRM to detect lack of UI activity and return to status display
-	
+
 	sa.sa_handler = signalHandler;
-	sigemptyset(&(sa.sa_mask)); // we block nothing 
+	sigemptyset(&(sa.sa_mask)); // we block nothing
 	sa.sa_flags=0;
-                                
-	sigaction(SIGALRM,&sa,NULL); 
+
+	sigaction(SIGALRM,&sa,NULL);
 
 	sigaction(SIGTERM,&sa,NULL);
-	
+
 	sigaction(SIGQUIT,&sa,NULL);
-	
+
 	sigaction(SIGINT,&sa,NULL);
-	
+
 	sigaction(SIGHUP,&sa,NULL);
 
-	
 	statusLEDsOn();
 }
 
@@ -233,9 +225,6 @@ void LCDConfigure::showVersion()
 	cout << "This ain't no stinkin' Perl script!" << endl;
 }
 
-		
-
-	
 void LCDConfigure::getResponse()
 {
 	int timed_out =1;
@@ -244,7 +233,6 @@ void LCDConfigure::getResponse()
 		usleep(10000);
 		if(packetReceived())
 		{
-			
 			ShowReceivedPacket();
 			timed_out = 0; 
 			break;
@@ -256,8 +244,6 @@ void LCDConfigure::getResponse()
 	}
 }
 
-
-
 void LCDConfigure::updateLine(int row,std::string buf)
 {
 	// a bit of optimization to cut down on I/O and flicker
@@ -266,7 +252,7 @@ void LCDConfigure::updateLine(int row,std::string buf)
 	std::string tmp=buf;
 	if (buf.length() < 20) // pad out to clear the line
 		tmp+=std::string(20-buf.length(),' ');
-	
+
 	outgoing_response.command = 31;
 	outgoing_response.data[0]=0; //col
 	outgoing_response.data[1]=row; //row
@@ -282,7 +268,7 @@ void LCDConfigure::updateStatusLED(int row,LEDState s)
 {
 	if (statusLED[row] == s) return;// nothing to do
 	statusLED[row] = s;
-	
+
 	int idx = 12 - row*2;
 	int rstate,gstate;
 	switch (s)
@@ -291,14 +277,14 @@ void LCDConfigure::updateStatusLED(int row,LEDState s)
 		case RedOn: rstate=100;gstate=0;break;
 		case GreenOn: rstate=0;gstate=100;break;
 	}
-	
+
 	outgoing_response.command = 34;
 	outgoing_response.data[0]=idx;
 	outgoing_response.data[1]=rstate;
 	outgoing_response.data_length =2;
 	send_packet();
 	getResponse();
-	
+
 	outgoing_response.command = 34;
 	outgoing_response.data[0]=idx-1;
 	outgoing_response.data[1]=gstate;
@@ -325,8 +311,6 @@ void LCDConfigure::storeState()
 	getResponse();
 }
 
-
-
 int main(int argc,char **argv)
 {
 
@@ -336,9 +320,8 @@ int main(int argc,char **argv)
 	app = lcd;
 
 	lcd->run();
-	
+
 	Dout(dc::trace,"main()");
 
 	return(EXIT_SUCCESS);
 }
-
