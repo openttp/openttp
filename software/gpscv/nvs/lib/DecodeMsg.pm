@@ -202,7 +202,7 @@ sub decodeMsg51
 } # decodeMsg51
 
 # decode message 52h - Visible satellites
-# return ($ret,$sats)
+# return ($res,$sats)
 
 sub decodeMsg52
 {
@@ -214,45 +214,50 @@ sub decodeMsg52
   # Define variables for result
   my($res,$sats);
   $sats = "";
+  $res = "";
   # Loop through the data in 7 byte blocks
   while(length($s) > 0) {
-    # First byte: Satellite system
-    my($satsys) = ord(substr $s,0,1);
-    my($satsyss);
-    switch($satsys) { 
-      case 1 { $satsyss = "GPS"; }
-      case 2 { $satsyss = "GLONASS"; }
-      case 4 { $satsyss = "SBAS"; }
-      else { $satsyss = "UNDEFINED!"; }
-    }        
-    # Second byte: Satellite on-board number
-    my($sobno) = ord(substr $s,1,1);
-    # Third byte: Carrier frequency slot for GLONASS only 
-    my($svn,$glofs);
-    if ($satsys == 2) {
-      #$svn = 64 + $sobno; # NMEA 0183 says GLONASS svn is 64 + slot no
-      #                    # https://www.nmea.org/content/nmea_standards/nmea_0183_v_410.asp
-      #                    # or http://www.shipops.oregonstate.edu/data/wecoma/cruise/2010/w1004b/documentation_2010/Instrument_Documentation/NMEA_0183_defn.pdf
-      $glofs = toINT8S(substr $s,2,1);
-      $svn = 45 + $glofs; # This is the way TOPCON receivers calculate the USI which is 
-                          # similar to the PRN for GPS satellites.
-      #$sats = $sats.$svn.",";
-      #if ($glofs > 128) { $glofs = $glofs - 256; }  
-    } else {
-      $svn = $sobno;
-      $glofs = 255;
+    if(length($s) >= 7)
+    {
+      # First byte: Satellite system
+      my($satsys) = ord(substr $s,0,1);
+      my($satsyss);
+      switch($satsys) { 
+        case 1 { $satsyss = "GPS"; }
+        case 2 { $satsyss = "GLONASS"; }
+        case 4 { $satsyss = "SBAS"; }
+        else { $satsyss = "UNDEFINED!"; }
+      }        
+      # Second byte: Satellite on-board number
+      my($sobno) = ord(substr $s,1,1);
+      # Third byte: Carrier frequency slot for GLONASS only 
+      my($svn,$glofs);
+      if ($satsys == 2) {
+        #$svn = 64 + $sobno; # NMEA 0183 says GLONASS svn is 64 + slot no
+        #                    # https://www.nmea.org/content/nmea_standards/nmea_0183_v_410.asp
+        #                    # or http://www.shipops.oregonstate.edu/data/wecoma/cruise/2010/w1004b/documentation_2010/Instrument_Documentation/NMEA_0183_defn.pdf
+        $glofs = toINT8S(substr $s,2,1);
+        $svn = 45 + $glofs; # This is the way TOPCON receivers calculate the USI which is 
+                            # similar to the PRN for GPS satellites.
+        #$sats = $sats.$svn.",";
+        #if ($glofs > 128) { $glofs = $glofs - 256; }  
+      } else {
+        $svn = $sobno;
+        $glofs = 255;
+      }
+      # Fourth byte: Satellite height mask, degrees
+      my($hm) = ord(substr $s,3,1);
+      # Fifth and Sixth bytes: Satellite azimuth, degrees
+      my($azs) = substr $s,4,2;
+      my($az) = unpack "S1",$azs;
+      # Seventh byte: Signal to noise ratio
+      my($sn) = ord(substr $s,6,1);
+      # Add satellite to list if signal to noise is ok
+      if($sn > 0) { $sats = $sats.$svn.","; }
+      # Show result
+      $res = $res.sprintf("%8s %8d  %7d %9d %9d %10d %8d\n",$satsyss,$svn,$sobno,$glofs,$hm,$az,$sn);
     }
-    # Fourth byte: Satellite height mask, degrees
-    my($hm) = ord(substr $s,3,1);
-    # Fifth and Sixth bytes: Satellite azimuth, degrees
-    my($azs) = substr $s,4,2;
-    my($az) = unpack "S1",$azs;
-    # Seventh byte: Signal to noise ratio
-    my($sn) = ord(substr $s,6,1);
-    # Add satellite to list if signal to noise is ok
-    if($sn > 0) { $sats = $sats.$svn.","; }
-    # Show result
-    $res = $res.sprintf("%8s %8d  %7d %9d %9d %10d %8d\n",$satsyss,$svn,$sobno,$glofs,$hm,$az,$sn);
+    if(length($s) < 7) { last; }
     # Reduce string length by 7 bytes
     $s = substr $s,7;
   }
