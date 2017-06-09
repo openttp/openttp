@@ -56,11 +56,12 @@ class CGGTTSOutput{
 		enum EphemerisSource{ GNSSReceiver, UserSupplied};
 		
 		CGGTTSOutput();
-		CGGTTSOutput(int constellation,int code,string path,string calID,double internalDelay,
+		CGGTTSOutput(int constellation,int code,string path,string calID,
+			double internalDelay,int delayKind,
 			int ephemerisSource,string ephemerisPath,string ephemerisFile
 			):
 			constellation(constellation),code(code),path(path),
-			calID(calID),internalDelay(internalDelay),
+			calID(calID),internalDelay(internalDelay),delayKind(delayKind),
 			ephemerisSource(ephemerisSource),ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile){};
 		
 		int constellation;
@@ -68,7 +69,7 @@ class CGGTTSOutput{
 		string path;
 		string calID;
 		double internalDelay;
-		
+		int delayKind;
 		int ephemerisSource;
 		string ephemerisPath;
 		string ephemerisFile;

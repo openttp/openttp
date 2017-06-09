@@ -425,6 +425,7 @@ void CGGTTS::init()
 	comment="";
 	calID="";
 	intDly=cabDly=refDly=0.0;
+	delayKind=INTDLY;
 	quadFits=false;
 	minTrackLength=390;
 	minElevation=10.0;
@@ -518,20 +519,30 @@ void CGGTTS::writeHeader(FILE *fout)
 				case GNSSSystem::P1:code1="P1";break;
 				case GNSSSystem::P2:code1="P2";break;
 			}
-			snprintf(buf,MAXCHARS,"INT DLY = %.1f ns %s %s     CAL_ID = %s",intDly,cons.c_str(),code1.c_str(),calID.c_str());
+			string dly;
+			switch (delayKind){
+				case INTDLY:dly="INT";break;
+				case SYSDLY:dly="SYS";break;
+				case TOTDLY:dly="TOT";break;
+			}
+			snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1.c_str(),calID.c_str());
 			break;
 		}
 	}
 	cksum += checkSum(buf);
 	fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
-	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	if (delayKind == INTDLY){
+		snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
+		cksum += checkSum(buf);
+		fprintf(fout,"%s\n",buf);
+	}
 	
-	snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
-	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	if (delayKind != TOTDLY){
+		snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
+		cksum += checkSum(buf);
+		fprintf(fout,"%s\n",buf);
+	}
 	
 	snprintf(buf,MAXCHARS,"REF = %s",ref.c_str());
 	cksum += checkSum(buf);

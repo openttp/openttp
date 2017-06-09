@@ -303,6 +303,7 @@ void Application::run()
 			cggtts.revDateDD=CGGTTSRevDateDD;
 			cggtts.cabDly=antCableDelay;
 			cggtts.intDly=CGGTTSoutputs.at(i).internalDelay;
+			cggtts.delayKind=CGGTTSoutputs.at(i).delayKind;
 			cggtts.refDly=refCableDelay;
 			cggtts.minElevation=CGGTTSminElevation;
 			cggtts.maxDSG = CGGTTSmaxDSG;
@@ -639,6 +640,19 @@ bool Application::loadConfig()
 	}
 
 	if (createCGGTTS){
+		
+		if (setConfig(last,"cggtts","version",stmp,&configOK,false)){
+			boost::to_upper(stmp);
+			if (stmp=="V1")
+				CGGTTSversion=CGGTTS::V1;
+			else if (stmp=="V2E")
+				CGGTTSversion=CGGTTS::V2E;
+			else{
+				cerr << "unknown CGGTTS version " << stmp << endl;
+				configOK=false;
+			}
+		}
+		
 		if (setConfig(last,"cggtts","outputs",stmp,&configOK)){
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
@@ -686,8 +700,30 @@ bool Application::loadConfig()
 				}
 				setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,&configOK,false);
 				double intdly=0.0;
-				if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK)){
-					continue;
+				int delayKind = CGGTTS::INTDLY; 
+				
+				switch (CGGTTSversion){
+					case CGGTTS::V1:
+						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK)){
+							continue;
+						}
+						break;
+					case CGGTTS::V2E:
+						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK,false)){
+							if (!setConfig(last,configs.at(i).c_str(),"system delay",&intdly,&configOK,false)){
+								DBGMSG(debugStream,INFO,"Got there");
+								if (setConfig(last,configs.at(i).c_str(),"total delay",&intdly,&configOK)){
+									delayKind=CGGTTS::TOTDLY;
+								}
+								else{
+									continue;
+								}
+							}
+							else{
+								delayKind=CGGTTS::SYSDLY;
+							}
+						}							
+						break;
 				}
 				
 				if (setConfig(last,configs.at(i).c_str(),"ephemeris",stmp,&configOK,false)){
@@ -716,25 +752,12 @@ bool Application::loadConfig()
 					// FIXME check compatibility of constellation+code
 					stmp=relativeToAbsolutePath(stmp);
 					ephemerisPath = relativeToAbsolutePath(ephemerisPath);
-					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly,
+					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly,delayKind,
 						ephemerisSource,ephemerisPath,ephemerisFile));
 				}
 				
 			} // for
 		} // if setConfig
-		
-		if (setConfig(last,"cggtts","version",stmp,&configOK,false)){
-			boost::to_upper(stmp);
-			if (stmp=="V1")
-				CGGTTSversion=CGGTTS::V1;
-			else if (stmp=="V2E")
-				CGGTTSversion=CGGTTS::V2E;
-			else{
-				cerr << "unknown CGGTTS version " << stmp << endl;
-				configOK=false;
-			}
-		}
-	
 		
 		setConfig(last,"cggtts","reference",CGGTTSref,&configOK);
 		setConfig(last,"cggtts","lab",CGGTTSlab,&configOK);

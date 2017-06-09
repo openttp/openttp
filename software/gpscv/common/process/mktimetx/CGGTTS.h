@@ -41,6 +41,7 @@ class CGGTTS
 	public:
 		
 		enum CGGTTSVERSIONS {V1=0, V2E=2}; // used as array indices too ..
+		enum DELAYS {INTDLY=0,SYSDLY=2,TOTDLY=3};
 		
 		CGGTTS(Antenna *,Counter *,Receiver *);
 		bool writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,bool TICenabled);
@@ -53,9 +54,10 @@ class CGGTTS
 		int ver;
 		int constellation; // V2E
 		int code;          // V2E
+		int delayKind;         // V2E
 		
 		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated
-		double intDly,cabDly,refDly;
+		double intDly,cabDly,refDly; // intDly is also SYSDLY or TOTDLY in v2E
 		bool quadFits;
 		
 		int minTrackLength; // in seconds
