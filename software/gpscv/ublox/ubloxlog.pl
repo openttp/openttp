@@ -236,8 +236,8 @@ LOOP: while (!$killed)
 	
 			if ( $ubxmsgs =~ /:$classid:/){ # we want this one
 				($class,$id)=unpack("CC",$classid);
-				printf "%02x%02x $nowstr %i %i %i\n",$class,$id,$payloadLength,$packetLength,$inputLength;
-				printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
+				#printf "%02x%02x $nowstr %i %i %i\n",$class,$id,$payloadLength,$packetLength,$inputLength;
+				#printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
 				if ($class == 0x01 && $id == 0x35){
 					UpdateSVInfo($data);
 				}
