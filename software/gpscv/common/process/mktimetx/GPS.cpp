@@ -48,6 +48,7 @@ extern int verbosity;
 GPS::GPS():GNSSSystem()
 {
 	n="GPS";
+	olc="G";
 }
 
 GPS::~GPS()

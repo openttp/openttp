@@ -2,7 +2,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2016  Michael J. Wouters
+// Copyright (c) 2017  Michael J. Wouters
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,32 +22,59 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __GNSS_SYSTEM_H_
-#define __GNSS_SYSTEM_H_
+#ifndef __GLONASS_H_
+#define __GLONASS_H_
 
-#include <string>
+#include <time.h>
+#include <vector>
 
-class GNSSSystem
+#include "GNSSSystem.h"
+
+class Antenna;
+class ReceiverMeasurement;
+class SVMeasurement;
+
+
+class GLONASS: public GNSSSystem
 {
-	
 	public:
+	
+	class IonosphereData
+	{
+		public:
+			
+	};
+
+	class UTCData
+	{
+		public:
+			
+	};
+
+	class EphemerisData
+	{
+		public:
+			
+	};
+	
+	GLONASS();
+	~GLONASS();
+	
+	virtual int nsats(){return NSATS;}
+	virtual void deleteEphemeris();
+	
+	IonosphereData ionoData;
+	UTCData UTCdata;
+	std::vector<EphemerisData *> ephemeris;
+			
+	bool currentLeapSeconds(int mjd,int *leapsecs);
+	
+	private:
 		
-		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08};
-		enum Code {C1=0x01,P1=0x02,P2=0x04};
-		
-		GNSSSystem(){};
-		~GNSSSystem(){};
-		
-		virtual int nsats(){return -1;}
-		std::string oneLetterCode(){return olc;}
-		
-		virtual void deleteEphemeris(){};
-		
-		std::string name(){return n;}
-		
-	protected:
-		std::string n; // system name
-		std::string olc; // one letter code for the system
+		static const int NSATS=32;
 };
 
 #endif
+
+
+

@@ -5,7 +5,8 @@ LDFLAGS=
 LIBS= -lconfigurator -lboost_regex -lgsl -lgslcblas
 CXXFLAGS= -Wall -Wno-unused-variable -DDEBUG -g
 CFGFLAGS= 
-OBJECTS = Application.o Antenna.o Counter.o GPS.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o  ReceiverMeasurement.o \
+OBJECTS = Application.o Antenna.o Counter.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o  ReceiverMeasurement.o \
+	BeiDou.o Galileo.o GLONASS.o GPS.o \
 	CGGTTS.o RINEX.o \
 	Javad.o NVS.o TrimbleResolution.o Ublox.o\
 	Timer.o Troposphere.o Utility.o
@@ -25,6 +26,15 @@ Counter.o: Counter.cpp Counter.h CounterMeasurement.h Debug.h Timer.h
 
 CGGTTS.o : CGGTTS.cpp CGGTTS.h  Antenna.h Counter.h Debug.h GPS.h Application.h MeasurementPair.h Receiver.h  ReceiverMeasurement.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c CGGTTS.cpp
+	
+BeiDou.o: Galileo.cpp  Antenna.h Debug.h BeiDou.h Application.h GNSSSystem.h  Troposphere.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c BeiDou.cpp
+	
+Galileo.o: Galileo.cpp  Antenna.h Debug.h Galileo.h Application.h GNSSSystem.h  Troposphere.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Galileo.cpp
+
+GLONASS.o: GLONASS.cpp  Antenna.h Debug.h GLONASS.h Application.h GNSSSystem.h  Troposphere.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GLONASS.cpp
 	
 GPS.o: GPS.cpp  Antenna.h Debug.h GPS.h Application.h GNSSSystem.h  Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GPS.cpp

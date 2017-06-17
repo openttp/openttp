@@ -26,17 +26,18 @@
 #include "BeiDou.h"
 
 
-BeiDou()::BeiDou():GNSSSystem()
+BeiDou::BeiDou():GNSSSystem()
 {
-	n="BeiDou';
+	n="BeiDou";
+	olc="C";
 }
 
-BeiDou()::~BeiDou()
+BeiDou::~BeiDou()
 {
 }
 
 	
-void BeiDou()::deleteEphemeris()
+void BeiDou::deleteEphemeris()
 {
 }
 	

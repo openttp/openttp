@@ -60,16 +60,18 @@ class BeiDou: public GNSSSystem
 	BeiDou();
 	~BeiDou();
 	
+	virtual int nsats(){return NSATS;}
 	virtual void deleteEphemeris();
 		
-	static const int NSATS=32;
-	
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	std::vector<EphemerisData *> ephemeris;
 			
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
+	private:
+		
+		static const int NSATS=32;
 };
 
 #endif

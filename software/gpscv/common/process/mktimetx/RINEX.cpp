@@ -77,10 +77,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 		case GNSSSystem::GPS: obs='G';break;
 		case GNSSSystem::GLONASS: obs='R';break;
 		case GNSSSystem::GALILEO: obs='E';break;
-		case GNSSSystem::BEIDOU:obs='X';break; // not defined yet
+		case GNSSSystem::BEIDOU:obs='C';break; 
 		default: obs= 'M';break;
-		
 	}
+	
 	fprintf(fout,"%9s%11s%-20s%c%-19s%-20s\n",RINEXVersionName[ver],"","O",obs,"","RINEX VERSION / TYPE");
 	
 	time_t tnow = time(NULL);
@@ -161,7 +161,26 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					obsTypes += " C2P";
 				}
 				// max of 3 observation descriptors so don't exceed the maximum of 13 on the line
-				fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES"); // FIXME GPS only
+				fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES");
+			}
+			nobs=0;
+			obsTypes="";
+			if (rx->constellations & GNSSSystem::BEIDOU) {
+				obsTypes=" C2X"; // B1 signal FIXME this may need to be made receiver-dependent
+				nobs=1;
+				fprintf(fout,"%1s  %3d%-54s%-20s\n","C",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES");
+			}
+			nobs=0;
+			obsTypes="";
+			if (rx->constellations & GNSSSystem::GLONASS) {
+				obsTypes=" C1C";  //ie same as GPS
+				nobs=1;
+				fprintf(fout,"%1s  %3d%-54s%-20s\n","R",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES");
+			}
+			if (rx->constellations & GNSSSystem::GALILEO) {
+				obsTypes=" C1Z";  //FIXME no idea what it should be
+				nobs=1;
+				fprintf(fout,"%1s  %3d%-54s%-20s\n","E",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES");
 			}
 			break;
 		}
@@ -207,19 +226,24 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
 			if (tMeas==obsTime){
 				
-				// determine all svns, noting that we may not have all measurements for all observation types
-				vector<int> svns;
-				
-				for (unsigned int sv=0;sv<rm->gps.size();sv++)
-					svns.push_back(rm->gps[sv]->svn);
-				
-				for (unsigned int sv=0;sv<rm->gpsP1.size();sv++){
-					if (!(std::find(svns.begin(), svns.end(),rm->gpsP1[sv]->svn ) != svns.end()))
-						svns.push_back(rm->gpsP1[sv]->svn);
-				}
-				for (unsigned int sv=0;sv<rm->gpsP2.size();sv++){
-					if (!(std::find(svns.begin(), svns.end(),rm->gpsP2[sv]->svn ) != svns.end()))
-						svns.push_back(rm->gpsP2[sv]->svn);
+				// determine all space vehicle identifiers, noting that we may not have all measurements for all observation types
+				vector<string> svids;
+				vector<int>    svns;
+				vector<int>    svsys;
+				char sbuf[4];
+				for (unsigned int i=0;i<rm->meas.size();i++){
+					string svconst;
+					switch (rm->meas.at(i)->constellation){
+						case GNSSSystem::GPS: svconst='G';break;
+						case GNSSSystem::GLONASS: svconst='R';break;
+						case GNSSSystem::GALILEO: svconst='E';break;
+						case GNSSSystem::BEIDOU:svconst='C';break;
+						default:break;
+					}
+					sprintf(sbuf,"%s%02d",svconst.c_str(),rm->meas.at(i)->svn);
+					svids.push_back(sbuf);
+					svns.push_back(rm->meas.at(i)->svn);
+					svsys.push_back(rm->meas.at(i)->constellation);
 				}
 				
 				// Record header
@@ -230,15 +254,14 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						fprintf(fout," %02d %2d %2d %2d %2d%11.7lf  %1d%3d",
 							yy,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,
 							(double) (rm->tmGPS.tm_sec+rm->tmfracs),
-							rm->epochFlag,(int) svns.size());
+							rm->epochFlag,(int) svids.size());
 			
 						int svcount=0;
-						int nsv = svns.size();
+						int nsv = svids.size();
 						
-						// FIXME GPS only
-						for (unsigned int sv=0;sv<svns.size();sv++){
+						for ( int sv=0;sv<nsv;sv++){
 							svcount++;
-							fprintf(fout,"G%02d",svns[sv]);
+							fprintf(fout,"%s",svids[sv].c_str());
 							if ((nsv > 12) && ((svcount % 12)==0)){ // more to do, so start a continuation line
 								fprintf(fout,"\n%32s","");
 							}
@@ -250,24 +273,24 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					{
 						fprintf(fout,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f %1d%3d%6s%15.12lf\n",
 							rm->tmGPS.tm_year+1900,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,(double) rm->tmGPS.tm_sec,
-							rm->epochFlag,(int) svns.size()," ",0.0);
+							rm->epochFlag,(int) svids.size()," ",0.0);
 						
 					} // case V3
 				} // switch (RINEXversion)
 				
 				// SV measurements
-				for (unsigned int sv=0;sv<svns.size();sv++){
+				for (unsigned int sv=0;sv<svids.size();sv++){
 					
 					if (ver == V3)
-						fprintf(fout,"G%2.2d",svns[sv]);
+						fprintf(fout,"%s",svids[sv].c_str());
 					
 					// Order is C1,P1,P2
 					
 					if (rx->codes & GNSSSystem::C1){
 						bool foundit=false;
-						for (unsigned int svc=0;svc<rm->gps.size();svc++){
-							if (rm->gps[svc]->svn == svns[sv]){
-								fprintf(fout,"%14.3lf%1i%1i",(rm->gps[svc]->meas+ppsTime)*CVACUUM,rm->gps[svc]->lli,rm->gps[svc]->signal);
+						for (unsigned int svc=0;svc<rm->meas.size();svc++){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[svc] &&  rm->meas[svc]->code == GNSSSystem::C1){
+								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
 								foundit=true;
 								break;
 							}
@@ -277,9 +300,9 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					
 					if (rx->codes & GNSSSystem::P1){
 						bool foundit=false;
-						for (unsigned int svc=0;svc<rm->gpsP1.size();svc++){
-							if (rm->gpsP1[svc]->svn == svns[sv]){
-								fprintf(fout,"%14.3lf%1i%1i",(rm->gpsP1[svc]->meas+ppsTime)*CVACUUM,rm->gpsP1[svc]->lli,rm->gpsP1[svc]->signal);
+						for (unsigned int svc=0;svc<rm->meas.size();svc++){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[svc] &&  rm->meas[svc]->code == GNSSSystem::P1){
+								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
 								foundit=true;
 								break;
 							}
@@ -289,9 +312,9 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					
 					if (rx->codes & GNSSSystem::P2){
 						bool foundit=false;
-						for (unsigned int svc=0;svc<rm->gpsP2.size();svc++){
-							if (rm->gpsP2[svc]->svn == svns[sv]){
-								fprintf(fout,"%14.3lf%1i%1i",(rm->gpsP2[svc]->meas+ppsTime)*CVACUUM,rm->gpsP2[svc]->lli,rm->gpsP2[svc]->signal);
+						for (unsigned int svc=0;svc<rm->meas.size();svc++){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[svc] &&  rm->meas[svc]->code == GNSSSystem::P2){
+								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
 								foundit=true;
 								break;
 							}

@@ -30,15 +30,19 @@ class ReceiverMeasurement;
 class SVMeasurement
 {
 	public:
-		SVMeasurement(unsigned char n,double m,ReceiverMeasurement *rxm)
+		SVMeasurement(unsigned char n,unsigned char g,unsigned char c,double m,ReceiverMeasurement *rxm)
 		{
 			svn=n;
+			constellation=g;
+			code=c;
 			meas=m;
 			lli=0;
 			signal=0;
 			rm=rxm;
 		}
 		unsigned char svn;
+		unsigned char constellation;
+		unsigned char code;
 		double meas; // units are seconds (s)
 		unsigned char lli;
 		unsigned char signal;

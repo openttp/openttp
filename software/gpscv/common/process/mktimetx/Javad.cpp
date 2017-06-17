@@ -277,9 +277,9 @@ bool Javad::readLog(string fname,int mjd)
 							}
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1,CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								svm->dbuf3 = CApr[chan];
-								rmeas->gps.push_back(svm);
+								rmeas->meas.push_back(svm);
 							}
 							
 						} // if codes & C1
@@ -296,8 +296,8 @@ bool Javad::readLog(string fname,int mjd)
 							ok = ok && !isnan(P1pr[chan]);
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],P1pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
-								rmeas->gpsP1.push_back(svm);
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::P1,P1pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								rmeas->meas.push_back(svm);
 							}
 							
 						} // if codes & P1	
@@ -314,8 +314,8 @@ bool Javad::readLog(string fname,int mjd)
 							ok = ok && !isnan(P2pr[chan]);
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],P2pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
-								rmeas->gpsP2.push_back(svm);
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::P2,P2pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								rmeas->meas.push_back(svm);
 							}
 							
 
@@ -323,7 +323,7 @@ bool Javad::readLog(string fname,int mjd)
 						
 					}
 					
-					if (rmeas->gps.size() > 0){ // FIXME check other codes
+					if (rmeas->meas.size() > 0){ // FIXME check other codes
 						int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
 							rmeas->pchh=pchh;
@@ -366,7 +366,7 @@ bool Javad::readLog(string fname,int mjd)
 								
 								// All OK
 								measurements.push_back(rmeas);
-								DBGMSG(debugStream,TRACE,rmeas->gps.size() << " measurements at "  << (int) gpsTOD << " "
+								DBGMSG(debugStream,TRACE,rmeas->meas.size() << " measurements at "  << (int) gpsTOD << " "
 									<< hh << ":" << mm << ":" << (int) rmeas->tmGPS.tm_sec << " (GPS), " 
 									<< pchh << ":" << pcmm << ":" << pcss << " (PC)");
 							}
@@ -884,7 +884,7 @@ bool Javad::readLog(string fname,int mjd)
 	
 	// Post load cleanups 
 	
-	interpolateMeasurements(measurements);
+	interpolateMeasurements();
 	
 	// Calculate UTC time of measurements, now that the number of leap seconds is known
 	for (unsigned int i=0;i<measurements.size();i++){

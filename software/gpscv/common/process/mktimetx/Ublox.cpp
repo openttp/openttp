@@ -125,7 +125,8 @@ bool Ublox::readLog(string fname,int mjd)
 	
 	float rxTimeOffset; // single
 	
-	vector<SVMeasurement *> gpsmeas;
+	vector<SVMeasurement *> svmeas;
+	
 	gotUTCdata=false;
 	gotIonoData=false;
 	
@@ -146,7 +147,7 @@ bool Ublox::readLog(string fname,int mjd)
 			if (sstr.fail()){
 				DBGMSG(debugStream,WARNING," bad data at line " << linecount);
 				currentMsgs=0;
-				deleteMeasurements(gpsmeas);
+				deleteMeasurements(svmeas);
 				continue;
 			}
 			
@@ -154,7 +155,7 @@ bool Ublox::readLog(string fname,int mjd)
 			if(msgid == "0215"){ // raw measurements 
 				
 				if (currentMsgs == reqdMsgs){ // save the measurements from the previous second
-					if (gpsmeas.size() > 0){
+					if (svmeas.size() > 0){
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 						measurements.push_back(rmeas);
 						
@@ -194,15 +195,18 @@ bool Ublox::readLog(string fname,int mjd)
 						
 						rmeas->tmfracs=0.0;
 						
-						for (unsigned int sv=0;sv<gpsmeas.size();sv++){
-							gpsmeas.at(sv)->dbuf3 = gpsmeas.at(sv)->meas; // save for debugging
-							gpsmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
-							// Now subtract the ms part so that ms ambiguity resolution works
-							gpsmeas.at(sv)->meas -= 1.0E-3*floor(gpsmeas.at(sv)->meas/1.0E-3);
-							gpsmeas.at(sv)->rm=rmeas;
+						if (constellations & GNSSSystem::GPS){
+							for (unsigned int sv=0;sv<svmeas.size();sv++){
+								svmeas.at(sv)->dbuf3 = svmeas.at(sv)->meas; // save for debugging
+								svmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
+								// Now subtract the ms part so that ms ambiguity resolution works
+								svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
+								svmeas.at(sv)->rm=rmeas;
+							}
+							rmeas->meas=svmeas;
+							svmeas.clear(); // don't delete - we only made a shallow copy!
 						}
-						rmeas->gps=gpsmeas;
-						gpsmeas.clear(); // don't delete - we only made a shallow copy!
+						
 						
 						// KEEP THIS it's useful for debugging measurement-time related problems
 					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%4d %02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
@@ -217,7 +221,7 @@ bool Ublox::readLog(string fname,int mjd)
 				} 
 				else{
 					DBGMSG(debugStream,1,pctime << " reqd message missing, flags = " << currentMsgs);
-					deleteMeasurements(gpsmeas);
+					deleteMeasurements(svmeas);
 				}
 				
 				pctime=currpctime;
@@ -231,17 +235,28 @@ bool Ublox::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr(8*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &measGPSWN); // full WN
 						HexToBin((char *) msg.substr(10*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &measLeapSecs);
 						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << setprecision(12) << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
+						//DBGMSG(debugStream,TRACE,nmeas);
 						for (unsigned int m=0;m<nmeas;m++){
 							HexToBin((char *) msg.substr((36+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //GNSS id
-							if (u1buf == 0){
-								// Since we get all the measurements in one message (which starts each second) there's no need to check for mutiple measurement messages
+							int gnssSys = 0;
+							switch (u1buf){
+								case 0: gnssSys=GNSSSystem::GPS; break;
+								case 1:case 4: case 5: break;
+								case 2: gnssSys=GNSSSystem::GALILEO; break;
+								case 3: gnssSys=GNSSSystem::BEIDOU; break;
+								case 6: gnssSys=GNSSSystem::GLONASS; break;
+								default: break;
+							}
+							//DBGMSG(debugStream,TRACE,gnssSys);
+							if (gnssSys & constellations ){
+								// Since we get all the measurements in one message (which starts each second) there's no need to check for multiple measurement messages
 								// like with eg the Resolution T
 								HexToBin((char *) msg.substr((16+32*m)*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &r8buf); //pseudorange (m)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); 
-								gpsmeas.push_back(new SVMeasurement(svID,r8buf/CLIGHT+0.016,NULL));// ReceiverMeasurement not known yet
-								DBGMSG(debugStream,TRACE,"SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) u1buf);
+								svmeas.push_back(new SVMeasurement(svID,gnssSys,GNSSSystem::C1,r8buf/CLIGHT+0.016,NULL));
+								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) u1buf);
 							}
 						}
 						currentMsgs |= MSG0215;
@@ -395,6 +410,10 @@ bool Ublox::readLog(string fname,int mjd)
 		//return false; // FIXME temporary
 	}
 	
+	if (measurements.size() == 0){
+		app->logMessage(" no measurements available in " + fname);
+		return false;
+	}
 	
 	// Pass through the data to realign the sawtooth correction.
 	// This could be done in the main loop but it's more flexible this way.
@@ -402,6 +421,7 @@ bool Ublox::readLog(string fname,int mjd)
 	// If we're missing the sawtooth correction because of eg a gap in the data
 	// then we'll just use the current sawtooth. 
 	
+	DBGMSG(debugStream,TRACE,"Fixing sawtooth");
 	double prevSawtooth=measurements.at(0)->sawtooth;
 	time_t    tPrevSawtooth=mktime(&(measurements.at(0)->tmUTC));
 	int nBadSawtoothCorrections =1; // first is bad !
@@ -426,6 +446,7 @@ bool Ublox::readLog(string fname,int mjd)
 	// Fix 1 ms ambiguities/steps in the pseudorange
 	// Do this initially and then every time a step is detected
 	
+	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
 	for (int prn=1;prn<=32;prn++){
 		unsigned int lasttow=99999999,currtow=99999999;
 		double lastmeas,currmeas;
@@ -433,25 +454,25 @@ bool Ublox::readLog(string fname,int mjd)
 		bool first=true;
 		bool ok=false;
 		for (unsigned int i=0;i<measurements.size();i++){
-			for (unsigned int m=0;m < measurements[i]->gps.size();m++){
-				if (prn==measurements[i]->gps[m]->svn){
+			for (unsigned int m=0;m < measurements[i]->meas.size();m++){
+				if (prn==measurements[i]->meas[m]->svn){
 					lasttow=currtow;
 					lastmeas=currmeas;
-					currmeas=measurements[i]->gps[m]->meas;
+					currmeas=measurements[i]->meas[m]->meas;
 					currtow=measurements[i]->gpstow;
 					
 					DBGMSG(debugStream,TRACE,prn << " " << currtow << " " << currmeas << " ");
 					if (first){
 						first=false;
-						ok = resolveMsAmbiguity(measurements[i],measurements[i]->gps[m],&corr);
+						ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
 					}
 					else if (currtow > lasttow){ // FIXME better test of gaps
 						if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
 							DBGMSG(debugStream,TRACE,"first/step " << prn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-							ok = resolveMsAmbiguity(measurements[i],measurements[i]->gps[m],&corr);
+							ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
 						}
 					}
-					if (ok) measurements[i]->gps[m]->meas += corr;
+					if (ok) measurements[i]->meas[m]->meas += corr;
 					break;
 				}
 				

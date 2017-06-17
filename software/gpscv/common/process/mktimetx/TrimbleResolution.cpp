@@ -205,17 +205,17 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					}
 					for (unsigned int i=0;i<gpsmeas.size();i++)
 						gpsmeas.at(i)->rm=rmeas;
-					rmeas->gps=gpsmeas;
+					rmeas->meas=gpsmeas;
 					// correct all code measurements for the receiver time offset here
 					for (unsigned int sv=0;sv < gpsmeas.size(); sv++){ // FIXME GPS only
-						rmeas->gps[sv]->dbuf3 = rmeas->gps[sv]->meas; 
-						rmeas->gps[sv]->meas += rxtimeoffset*1.0E-9;// reported units are ns
+						rmeas->meas[sv]->dbuf3 = rmeas->meas[sv]->meas; 
+						rmeas->meas[sv]->meas += rxtimeoffset*1.0E-9;// reported units are ns
 						DBGMSG(debugStream,4,(int) fabhh << ":" << (int) fabmm << ":" << (int) fabss << " " <<
-							(int) rmeas->gps[sv]->svn << " " <<rmeas->gps[sv]->meas);
+							(int) rmeas->meas[sv]->svn << " " <<rmeas->meas[sv]->meas);
 					}	
 					got8FAC=false;
 					gpsmeas.clear();
-					DBGMSG(debugStream,3,rmeas->gps.size() << " GPS measurements " << "[PC " << pchh << " " << pcmm << " " << pcss << "]" <<
+					DBGMSG(debugStream,3,rmeas->meas.size() << " GPS measurements " << "[PC " << pchh << " " << pcmm << " " << pcss << "]" <<
 						"[RX UTC " << (int) fabhh << " " << (int) fabmm << " " << (int) fabss << "]");
 				}
 				
@@ -263,7 +263,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					if (ichan == gpsmeas.size()){
 						float fbuf;
 						HexToBin((char *) reversestr(msg.substr(18+2,4*2)).c_str(),4,(unsigned char *) &fbuf);
-						gpsmeas.push_back(new SVMeasurement(cbuf,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
+						gpsmeas.push_back(new SVMeasurement(cbuf,GNSSSystem::GPS,GNSSSystem::C1,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
 					}
 					else{
 						useData=false; 
@@ -470,25 +470,25 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 		bool first=true;
 		bool ok=false;
 		for (unsigned int i=0;i<measurements.size();i++){
-			for (unsigned int m=0;m < measurements[i]->gps.size();m++){
-				if (prn==measurements[i]->gps[m]->svn){
+			for (unsigned int m=0;m < measurements[i]->meas.size();m++){
+				if (prn==measurements[i]->meas[m]->svn){
 					lasttow=currtow;
 					lastmeas=currmeas;
-					currmeas=measurements[i]->gps[m]->meas;
+					currmeas=measurements[i]->meas[m]->meas;
 					currtow=measurements[i]->gpstow;
 					
 					DBGMSG(debugStream,4,prn << " " << currtow << " " << currmeas << " ");
 					if (first){
 						first=false;
-						ok = resolveMsAmbiguity(measurements[i],measurements[i]->gps[m],&corr);
+						ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
 					}
 					else if (currtow > lasttow){ // FIXME better test of gaps
 						if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
 							DBGMSG(debugStream,3,"first/step " << prn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-							ok = resolveMsAmbiguity(measurements[i],measurements[i]->gps[m],&corr);
+							ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
 						}
 					}
-					if (ok) measurements[i]->gps[m]->meas += corr;
+					if (ok) measurements[i]->meas[m]->meas += corr;
 					break;
 				}
 				
@@ -496,7 +496,7 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 		}
 	}
 
-	interpolateMeasurements(measurements);
+	interpolateMeasurements();
 	
 	ostringstream ss;
 	ss << measurements.size() << " receiver measurements read";

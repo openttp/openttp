@@ -319,9 +319,7 @@ void Application::run()
 		}
 	} // if createCGGTTS
 	
-	
-	// Only one RINEX file per GNSS system is created
-	
+	// A single, mixed RINEX file will be created for multi-GNSS receivers
 	if (createRINEX){
 		RINEX rnx;
 		rnx.agency = agency;
@@ -329,6 +327,7 @@ void Application::run()
 		
 		if (generateNavigationFile) 
 			rnx.writeNavigationFile(receiver,RINEXversion,RINEXnavFile,MJD);
+		
 		rnx.writeObservationFile(antenna,counter,receiver,RINEXversion,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	}
 	
@@ -572,7 +571,6 @@ string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 			case GNSSSystem::GLONASS:constellation="R";break;
 			case GNSSSystem::BEIDOU:constellation="E";break;
 			case GNSSSystem::GALILEO:constellation="C";break;
-			case GNSSSystem::QZSS:constellation="J";break;
 		}
 		// FIXME single frequency observation files only
 		ss << cggtts.path << "/" << constellation << "M" << CGGTTSlabCode << CGGTTSreceiverID << fname;
@@ -672,8 +670,6 @@ bool Application::loadConfig()
 						constellation = GNSSSystem::BEIDOU;
 					else if (stmp=="GALILEO")
 						constellation = GNSSSystem::GALILEO;
-					else if (stmp=="QZSS")
-						constellation = GNSSSystem::QZSS;
 					else{
 						cerr << "unknown constellation " << stmp << " in [" << configs.at(i) << "]" << endl;
 						configOK=false;
@@ -688,10 +684,6 @@ bool Application::loadConfig()
 						code=GNSSSystem::P1;
 					else if (stmp=="P2")
 						code=GNSSSystem::P2;
-					else if (stmp=="B1")
-						code=GNSSSystem::B1;
-					else if (stmp=="E1")
-						code=GNSSSystem::E1;
 					else{
 						cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << endl;
 						configOK=false;
@@ -876,9 +868,9 @@ bool Application::loadConfig()
 		}
 	}
 	
-	
 	if (setConfig(last,"receiver","observations",stmp,&configOK,false)){
 		boost::to_upper(stmp);
+		receiver->constellations = 0; // overrride the default
 		if (stmp.find("GPS") != string::npos)
 			receiver->constellations |=GNSSSystem::GPS;
 		if (stmp.find("GLONASS") != string::npos)
@@ -887,10 +879,7 @@ bool Application::loadConfig()
 			receiver->constellations |=GNSSSystem::BEIDOU;
 		if (stmp.find("GALILEO") != string::npos)
 			receiver->constellations |=GNSSSystem::GALILEO;
-		if (stmp.find("QZSS") != string::npos)
-			receiver->constellations |=GNSSSystem::QZSS;
 	}
-	
 	
 	setConfig(last,"receiver","version",receiver->version,&configOK,false); 
 	setConfig(last,"receiver","pps offset",&receiver->ppsOffset,&configOK);
@@ -1171,28 +1160,47 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 {
 	FILE *fout;
 	
-	// GPS
-	
-	for (int prn=1;prn<=32;prn++){
-		ostringstream sstr;
-		sstr << path << "/G" << prn << ".dat";
-		if (!(fout = fopen(sstr.str().c_str(),"w"))){
-			cerr << "Unable to open " << sstr.str().c_str() << endl;
-			return;
+	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g<< 1)){ 
+		
+		if (!(rx->constellations & g)) continue;
+		
+		GNSSSystem *gnss;
+		switch (g){
+			case GNSSSystem::BEIDOU:gnss = &(rx->beidou);
+			case GNSSSystem::GALILEO:gnss = &(rx->galileo) ;
+			case GNSSSystem::GLONASS:gnss = &(rx->glonass) ;
+			case GNSSSystem::GPS:gnss = &(rx->gps) ;
 		}
-		for (unsigned int m=0;m<rx->measurements.size();m++){
-			for (unsigned int msv=0;msv<rx->measurements[m]->gps.size();msv++){
-				SVMeasurement *svm = rx->measurements[m]->gps[msv];
-				if (svm->svn == prn){
-					int tod = rx->measurements[m]->tmUTC.tm_hour*3600+ rx->measurements[m]->tmUTC.tm_min*60 + rx->measurements[m]->tmUTC.tm_sec;
-					// FIXME the meaning of dbuf1 and dbuf2 needs to be controlled in a way visible to the user !
-					// The default here is that df1 contains the raw (non-interpolated) pseudo range and df2 contains 
-					// corrected pseudoranges when CGGTTS output has been generated (which can be useful to look at) 
-					fprintf(fout,"%d %.16e %.16e %.16e %.16e\n",tod,svm->meas,svm->dbuf1,svm->dbuf2,svm->dbuf3);
+		
+		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code << 1)){
+			
+			if (!(rx->codes & code)) continue;
+			
+			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
+				ostringstream sstr;
+				sstr << path << "/" << gnss->oneLetterCode() << ".dat";
+				if (!(fout = fopen(sstr.str().c_str(),"w"))){
+					cerr << "Unable to open " << sstr.str().c_str() << endl;
+					return;
 				}
-			}
-		}
-		fclose(fout);
-	}
+				
+				for (unsigned int m=0;m<rx->measurements.size();m++){
+					for (unsigned int svm=0; svm < rx->measurements.at(m)->meas.size();svm++){
+						SVMeasurement *sv=rx->measurements.at(m)->meas.at(svm);
+						if ((svn == sv->svn) && (g==sv->constellation) && (code==sv->code)){
+							int tod = rx->measurements[m]->tmUTC.tm_hour*3600+ rx->measurements[m]->tmUTC.tm_min*60 + rx->measurements[m]->tmUTC.tm_sec;
+							// The default here is that df1 contains the raw (non-interpolated) pseudo range and df2 contains 
+							// corrected pseudoranges when CGGTTS output has been generated (which can be useful to look at) 
+							fprintf(fout,"%d %.16e %.16e %.16e %.16e\n",tod,sv->meas,sv->dbuf1,sv->dbuf2,sv->dbuf3);
+							break;
+						}
+					}
+				}
+				fclose(fout);
+			} //for (int svn= ...
+		}// for (int code = ...
+	} // for (int g =
+	
+	
 }
 

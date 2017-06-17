@@ -45,6 +45,10 @@ typedef unsigned int UINT32;
 
 class GPS: public GNSSSystem
 {
+	private:
+		
+		static const int NSATS=32;
+		
 	public:
 	
 	class IonosphereData
@@ -67,6 +71,7 @@ class GPS: public GNSSSystem
 
 	class EphemerisData
 	{
+		
 		public:
 			UINT8 SVN;
 			SINGLE t_ephem;
@@ -107,10 +112,9 @@ class GPS: public GNSSSystem
 	GPS();
 	~GPS();
 	
+	virtual int nsats(){return NSATS;}
 	virtual void deleteEphemeris();
 		
-	static const int NSATS=32;
-	
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	std::vector<EphemerisData *> ephemeris;
@@ -139,7 +143,7 @@ class GPS: public GNSSSystem
 	
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
-		
+	
 };
 
 #endif

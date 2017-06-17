@@ -31,7 +31,11 @@
 #include <vector>
 #include <boost/iterator/iterator_concepts.hpp>
 
+#include "BeiDou.h"
+#include "Galileo.h"
+#include "GLONASS.h"
 #include "GPS.h"
+
 #include "SVMeasurement.h"
 
 using namespace std;
@@ -78,6 +82,9 @@ class Receiver
 		int sawtoothPhase; // pps to apply sawtooth correction to
 		
 		GPS gps;
+		Galileo galileo;
+		GLONASS glonass;
+		BeiDou beidou;
 		
 		Antenna *antenna;
 		
@@ -86,7 +93,7 @@ class Receiver
 		//bool setCurrentLeapSeconds(int,UTCData &);
 		
 		void deleteMeasurements(std::vector<SVMeasurement *> &);
-		void interpolateMeasurements(std::vector<ReceiverMeasurement *> &);
+		void interpolateMeasurements();
 		bool resolveMsAmbiguity(ReceiverMeasurement *,SVMeasurement *,double *);
 		
 		bool gotUTCdata,gotIonoData;

@@ -220,7 +220,7 @@ bool NVS::readLog(string fname,int mjd)
 						
 						for (unsigned int i=0;i<gpsmeas.size();i++)
 							gpsmeas.at(i)->rm=rmeas; // code measurements are not reported with ms ambiguities
-						rmeas->gps=gpsmeas;
+						rmeas->meas=gpsmeas;
 						gpsmeas.clear(); // don't delete - we only made a shallow copy!
 				
 						currentMsgs = 0;
@@ -270,7 +270,7 @@ bool NVS::readLog(string fname,int mjd)
 							DBGMSG(debugStream,TRACE,pctime << " svn "<< (int) svn << " pr " << fp64buf*1.0E-3 << " flags " << (int) flags);
 							if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
 								double svmeas = fp64buf*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
-								SVMeasurement *svm = new SVMeasurement(svn,svmeas,NULL);
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::C1,svmeas,NULL);
 								svm->dbuf3=svmeas;
 								gpsmeas.push_back(svm); 
 							}
@@ -544,7 +544,7 @@ bool NVS::readLog(string fname,int mjd)
 	// The NVS sometime reports what appears to be an incorrect pseudorange after picking up an SV
 	// If you wanted to filter these out, this is where you should do it
 	
-	interpolateMeasurements(measurements);
+	interpolateMeasurements();
 	// Note that after this, tmfracs is now zero and all measurements have been interpolated to a 1 s grid
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");

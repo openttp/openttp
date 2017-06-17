@@ -107,20 +107,25 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 	
 	// Constellation/code identifiers as per V2E
 	
-	string GNSSconst;
+	string GNSSsys;
 	string GNSScode;
 	
+	switch (code){
+		case GNSSSystem::C1:GNSScode="L1C";break;
+		case GNSSSystem::P1:GNSScode="L1P";break;
+		case GNSSSystem::P2:GNSScode="L2P";break;
+		default:break;
+	}
+			
 	switch (constellation){
+		case GNSSSystem::BEIDOU:
+			GNSSsys="C"; break;
+		case GNSSSystem::GALILEO:
+			GNSSsys="E"; break;
+		case GNSSSystem::GLONASS:
+			GNSSsys="R"; break;
 		case GNSSSystem::GPS:
-			GNSSconst="G";
-			switch (code){
-				case GNSSSystem::C1:GNSScode="L1C";break;
-				case GNSSSystem::P1:GNSScode="L1P";break;
-				case GNSSSystem::P2:GNSScode="L2P";break;
-				default:break;
-			}
-			break;// FIXME GPS only
-		//case Receiver::GLONASS:GNSScode="R";break;
+			GNSSsys="G";
 		default:break;
 	}
 	
@@ -144,30 +149,12 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 			
 			if ((mpairs[m]->flags==0x03)){
 				ReceiverMeasurement *rm = mpairs[m]->rm;
-				switch (constellation){
-					case GNSSSystem::GPS:
-						switch (code){
-							case GNSSSystem::C1:{
-								for (unsigned int sv=0;sv<rm->gps.size();sv++) 
-									svtrk[rm->gps.at(sv)->svn].push_back(rm->gps.at(sv));
-								break;
-							}
-							case GNSSSystem::P1:{
-								for (unsigned int sv=0;sv<rm->gpsP1.size();sv++) 
-									svtrk[rm->gpsP1.at(sv)->svn].push_back(rm->gpsP1.at(sv));
-								break;
-							}
-							case GNSSSystem::P2:{
-								for (unsigned int sv=0;sv<rm->gpsP2.size();sv++) 
-									svtrk[rm->gpsP2.at(sv)->svn].push_back(rm->gpsP2.at(sv));
-								break;
-							}
-							default:break;
-						}// switch (code) 
-					break;
-					
-				}// switch constellation
-			} // if
+				for (unsigned int sv=0;sv<rm->meas.size();sv++){
+					SVMeasurement * svm = rm->meas.at(sv);
+					if (svm->constellation == constellation && svm->code == code)
+						svtrk[svm->svn].push_back(svm);
+				}
+			} 
 		}
 		
 		int hh = schedule[i] / 60;
@@ -376,7 +363,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
 							break;
 						case V2E:
-							snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSconst.c_str(),sv,"FF",mjd,hh,mm,
+							snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
 											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,GNSScode.c_str());
 							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
@@ -509,13 +496,11 @@ void CGGTTS::writeHeader(FILE *fout)
 				case GNSSSystem::GALILEO:cons="GAL";break;
 				case GNSSSystem::GLONASS:cons="GLO";break;
 				case GNSSSystem::GPS:cons="GPS";break;
-				case GNSSSystem::QZSS:cons="QZSS";break;
 			}
 			string code1;
 			switch (code){
-				case GNSSSystem::B1:code1="B1";break;
+				// FIXME check if BeiDou etc need a different name for code1
 				case GNSSSystem::C1:code1="C1";break;
-				case GNSSSystem::E1:code1="E1";break;
 				case GNSSSystem::P1:code1="P1";break;
 				case GNSSSystem::P2:code1="P2";break;
 			}

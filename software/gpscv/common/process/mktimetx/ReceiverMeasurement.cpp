@@ -38,34 +38,18 @@ ReceiverMeasurement::ReceiverMeasurement()
 
 ReceiverMeasurement::~ReceiverMeasurement()
 {
-	
-	while(! gps.empty()){
-		SVMeasurement  *tmp= gps.back();
+	while(!meas.empty()){
+		SVMeasurement *tmp = meas.back();
 		delete tmp;
-		gps.pop_back();
+		meas.pop_back();
 	}
-	
-	while(! glonass.empty()){
-		SVMeasurement  *tmp= glonass.back();
-		delete tmp;
-		glonass.pop_back();
-	}
-	
 }
 
 unsigned int ReceiverMeasurement::memoryUsage(){
 	unsigned int mem=0; 
-	for (unsigned int i=0;i<gps.size();i++){
-		mem+=gps.at(i)->memoryUsage();
-	}
-	for (unsigned int i=0;i<gpsP1.size();i++){
-		mem+=gpsP1.at(i)->memoryUsage();
-	}
-	for (unsigned int i=0;i<gpsP2.size();i++){
-		mem+=gpsP2.at(i)->memoryUsage();
-	}
-	for (unsigned int i=0;i<glonass.size();i++){
-		mem+=glonass.at(i)->memoryUsage();
-	}
+	
+	for (unsigned int i=0;i<meas.size();i++)
+			mem+=meas.at(i)->memoryUsage();
+	
 	return mem+sizeof(*this);
 }

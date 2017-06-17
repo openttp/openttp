@@ -55,9 +55,12 @@ class ReceiverMeasurement
 		
 		CounterMeasurement *cm; // matched counter measurement
 		
-		vector<SVMeasurement*> gps,gpsP1,gpsP2;
-		vector<SVMeasurement*> glonass;
-	
+		// One vector for each signal that we tracked
+		// FIXME probably this should be refactored as a vector<vector <SVMeasurements *>>
+		// which will simplify code and be more extensible
+		
+		vector< SVMeasurement * > meas;
+		
 		unsigned int memoryUsage();
 		
 };
