@@ -61,12 +61,15 @@ class RINEX
 	private:
 		
 		void init();
+		bool readV2NavigationFile(Receiver* rx, int constellation,string fname);
+		bool readV3NavigationFile(Receiver *rx,int constellation,string fname);
 		
-		GPS::EphemerisData* getGPSEphemeris(ifstream *fin,unsigned int *lineCount);
-		void parseParam(string &str,int start,int len,int *val);
-		void parseParam(string &str,int start,int len,float *val);
-		void parseParam(string &str,int start,int len,double *val);
-		bool get4DParams(ifstream *fin,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
+		GPS::EphemerisData* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
+		
+		void parseParam(char *str,int start,int len,int *val);
+		void parseParam(char *str,int start,int len,float *val);
+		void parseParam(char *,int start,int len,double *val);
+		bool get4DParams(FILE *fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
 };
 

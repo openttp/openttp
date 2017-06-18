@@ -34,6 +34,8 @@ class Antenna;
 class ReceiverMeasurement;
 class SVMeasurement;
 
+typedef float SINGLE;
+typedef double DOUBLE;
 
 class BeiDou: public GNSSSystem
 {
@@ -42,7 +44,8 @@ class BeiDou: public GNSSSystem
 	class IonosphereData
 	{
 		public:
-			
+			SINGLE a0,a1,a2,a3;
+			SINGLE b0,b1,b2,b3;
 	};
 
 	class UTCData

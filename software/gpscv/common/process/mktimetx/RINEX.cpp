@@ -52,6 +52,8 @@ const char * RINEXVersionName[]= {"2.11","3.02"};
 //      0   1 2   3 4    5  6  7  8   9  10  11   12   13   14  15
 double URA[]={2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
 
+#define SBUFSIZE 160
+
 //
 // Public methods
 //
@@ -509,10 +511,10 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	
 	unsigned int lineCount=0;
 	
-	ifstream fin(fname.c_str());
-	string line;
+	FILE *fin;
+	char line[SBUFSIZE];
 				 
-	if (!fin.good()){
+	if (NULL == (fin=fopen(fname.c_str(),"r"))){
 		app->logMessage("Unable to open the navigation file " + fname);
 		return false;
 	}
@@ -520,89 +522,32 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	// First, determine the version
 	double RINEXver;
 	
-	while (!fin.eof()){
-		getline(fin,line);
+	while (!feof(fin)){
+		fgets(line,SBUFSIZE,fin);
 		lineCount++;
-		if (string::npos != line.find("RINEX VERSION")){
+		if (NULL != strstr(line,"RINEX VERSION")){
 			parseParam(line,1,12,&RINEXver);
 			break;
 		}
 	}
 
-	if (fin.eof()){
+	if (feof(fin)){
 		app->logMessage("Unable to determine RINEX version in " + fname);
 		return false;
 	}
 	
-	DBGMSG(debugStream,TRACE,"RINEX version is" << RINEXver);
+	DBGMSG(debugStream,TRACE,"RINEX version is " << RINEXver);
 	
-	while (!fin.eof()){
-		getline(fin,line);
-		lineCount++;
-		if (RINEXver <3){
-			if (constellation == GNSSSystem::GPS){
-				if (string::npos != line.find("ION ALPHA")){
-					std::replace( line.begin(), line.end(), 'D', 'E');
-					parseParam(line,3,14, &(rx->gps.ionoData.a0));
-					parseParam(line,15,26,&(rx->gps.ionoData.a1));
-					parseParam(line,27,38,&(rx->gps.ionoData.a2));
-					parseParam(line,39,50,&(rx->gps.ionoData.a3));
-					DBGMSG(debugStream,TRACE,"read ION ALPHA " << rx->gps.ionoData.a0 << " " << rx->gps.ionoData.a1 << " " << rx->gps.ionoData.a2 << " " << rx->gps.ionoData.a3);
-					
-				}
-				else if (string::npos != line.find("ION BETA")){
-					std::replace( line.begin(), line.end(), 'D', 'E');
-					parseParam(line,3,14, &(rx->gps.ionoData.B0));
-					parseParam(line,15,26,&(rx->gps.ionoData.B1));
-					parseParam(line,27,38,&(rx->gps.ionoData.B2));
-					parseParam(line,39,50,&(rx->gps.ionoData.B3));
-					DBGMSG(debugStream,TRACE,"read ION BETA " << rx->gps.ionoData.B0 << " " << rx->gps.ionoData.B1 << " " << rx->gps.ionoData.B2 << " " << rx->gps.ionoData.B3);
-				}
-				else if (string::npos != line.find("DELTA-UTC:")){
-					std::replace( line.begin(), line.end(), 'D', 'E');
-					parseParam(line,4,22,&(rx->gps.UTCdata.A0));
-					parseParam(line,23,41,&(rx->gps.UTCdata.A1));
-					parseParam(line,42,50,&(rx->gps.UTCdata.t_ot));
-				}
-				else if  (string::npos != line.find("LEAP SECONDS")){
-					parseParam(line,1,6,&(rx->leapsecs));
-					DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
-				}
-				else if (string::npos != line.find("END OF HEADER")) 
-					break;
-			} // if constellation == GNSSSystem::GPS
-			else if (constellation == GNSSSystem::GLONASS){
-				// FIXME coming soon
-			}
-		} // if (RINEXver == 2)
+	fclose(fin); // the first line needs to be reread so just close the file (could rewind ..)
+	
+	if (RINEXver < 3){
+		readV2NavigationFile(rx,constellation,fname);
+	}	
+	else if (RINEXver < 4){
+		readV3NavigationFile(rx,constellation,fname);
 	}
-	
-	if (fin.eof()){
-		app->logMessage("Format error (no END OF HEADER) in " + fname);
-		return false;
+	else{
 	}
-	
-	while (!fin.eof()){
-		
-		switch (constellation){
-			case GNSSSystem::GPS:
-			{
-				GPS::EphemerisData *ed = getGPSEphemeris(&fin,&lineCount);
-				if (NULL != ed) rx->gps.addEphemeris(ed);
-				break;
-			}
-			case GNSSSystem::GLONASS:
-			{
-				// FIXME coming soon
-				break;
-			}
-			default:
-				break;
-		}
-		
-	}
-	
-	fin.close();
 	
 	//if (ephemeris.size() == 0){
 	//	app->logMessage("Empty navigation file " + fname);
@@ -634,65 +579,306 @@ string RINEX::makeFileName(string pattern,int mjd)
 // Private members
 //
 
-GPS::EphemerisData* RINEX::getGPSEphemeris(ifstream *fin,unsigned int *lineCount){
+bool RINEX::readV2NavigationFile(Receiver *rx,int constellation,string fname)
+{
+	unsigned int lineCount=0;
+	
+	FILE *fin;
+	char line[SBUFSIZE];
+				 
+	if (NULL == (fin=fopen(fname.c_str(),"r"))){
+		app->logMessage("Unable to open the navigation file " + fname);
+		return false;
+	}
+	
+	while (!feof(fin)){
+		
+		fgets(line,SBUFSIZE,fin);
+		lineCount++;
+		
+		if (constellation == GNSSSystem::GPS){
+			if (NULL != strstr(line,"ION ALPHA")){
+				parseParam(line,3,12, &(rx->gps.ionoData.a0));
+				parseParam(line,15,26,&(rx->gps.ionoData.a1));
+				parseParam(line,27,38,&(rx->gps.ionoData.a2));
+				parseParam(line,39,50,&(rx->gps.ionoData.a3));
+				DBGMSG(debugStream,TRACE,"read ION ALPHA " << rx->gps.ionoData.a0 << " " << rx->gps.ionoData.a1 << " " << rx->gps.ionoData.a2 << " " << rx->gps.ionoData.a3);
+				
+			}
+			else if (NULL != strstr(line,"ION BETA")){
+				parseParam(line,3,14, &(rx->gps.ionoData.B0));
+				parseParam(line,15,26,&(rx->gps.ionoData.B1));
+				parseParam(line,27,38,&(rx->gps.ionoData.B2));
+				parseParam(line,39,50,&(rx->gps.ionoData.B3));
+				DBGMSG(debugStream,TRACE,"read ION BETA " << rx->gps.ionoData.B0 << " " << rx->gps.ionoData.B1 << " " << rx->gps.ionoData.B2 << " " << rx->gps.ionoData.B3);
+			}
+			else if (NULL != strstr(line,"DELTA-UTC:")){
+				parseParam(line,4,22,&(rx->gps.UTCdata.A0));
+				parseParam(line,23,41,&(rx->gps.UTCdata.A1));
+				parseParam(line,42,50,&(rx->gps.UTCdata.t_ot));
+			}
+			else if  (NULL != strstr(line,"LEAP SECONDS")){
+				parseParam(line,1,6,&(rx->leapsecs));
+				DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
+			}
+			else if (NULL != strstr(line,"END OF HEADER")) 
+				break;
+		} // if constellation == GNSSSystem::GPS
+		else if (constellation == GNSSSystem::GLONASS){
+			// FIXME coming soon
+		}
+		
+	}
+	
+	if (feof(fin)){
+		app->logMessage("Format error (no END OF HEADER) in " + fname);
+		return false;
+	}
+	
+	while (!feof(fin)){
+		
+		switch (constellation){
+			case GNSSSystem::GPS:
+			{
+				GPS::EphemerisData *ed = getGPSEphemeris(2,fin,&lineCount);
+				if (NULL != ed) rx->gps.addEphemeris(ed);
+				break;
+			}
+			case GNSSSystem::GLONASS:
+			{
+				// FIXME coming soon
+				break;
+			}
+			default:
+				break;
+		}
+		
+	}
+	
+	return true;
+}
+
+bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,string fname)
+{
+	unsigned int lineCount=0;
+	
+	FILE *fin;
+	char line[SBUFSIZE];
+				 
+	if (NULL == (fin=fopen(fname.c_str(),"r"))){
+		app->logMessage("Unable to open the navigation file " + fname);
+		return false;
+	}
+	
+	// Parse the header
+	while (!feof(fin)){
+		
+		fgets(line,SBUFSIZE,fin);
+		lineCount++;
+		
+		if (NULL != strstr(line,"RINEX VERSION/TYPE")){
+			char satSystem = line[40]; //assuming length is OK
+			int gnss = -1; 
+			switch (satSystem){
+				case 'M':gnss =0;break;
+				case 'G':gnss = GNSSSystem::GPS;break;
+				case 'R':gnss = GNSSSystem::GLONASS;break;
+				case 'E':gnss = GNSSSystem::GALILEO;break;
+				case 'C':gnss = GNSSSystem::BEIDOU;break;
+				default:break;
+			}
+			if (gnss != 0){
+				if (gnss != constellation){
+					app->logMessage("No data for satellite system " + string(1,satSystem) + " in " + fname);
+					return false;
+				}
+			}
+		}
+		else if (NULL != strstr(line,"IONOSPHERIC CORR")){
+			switch (constellation){
+				case GNSSSystem::GPS :
+					if (NULL != strstr(line,"GPSA")){
+						parseParam(line,6,12, &(rx->gps.ionoData.a0));
+						parseParam(line,18,12,&(rx->gps.ionoData.a1));
+						parseParam(line,30,12,&(rx->gps.ionoData.a2));
+						parseParam(line,42,12,&(rx->gps.ionoData.a3));
+						DBGMSG(debugStream,TRACE,"read GPS ION ALPHA " << rx->gps.ionoData.a0 << " " << rx->gps.ionoData.a1 << " " << rx->gps.ionoData.a2 << " " << rx->gps.ionoData.a3);
+					}
+					else if (NULL != strstr(line,"GPSB")){
+						parseParam(line,6,12, &(rx->gps.ionoData.B0));
+						parseParam(line,18,12,&(rx->gps.ionoData.B1));
+						parseParam(line,30,12,&(rx->gps.ionoData.B2));
+						parseParam(line,42,12,&(rx->gps.ionoData.B3));
+						DBGMSG(debugStream,TRACE,"read GPS ION BETA " << rx->gps.ionoData.B0 << " " << rx->gps.ionoData.B1 << " " << rx->gps.ionoData.B2 << " " << rx->gps.ionoData.B3);
+					}
+					break;
+				case GNSSSystem::GLONASS :
+					// nothing to find
+					break;
+				case GNSSSystem::GALILEO :
+					if (NULL != strstr(line,"GAL")){
+						parseParam(line,6,12, &(rx->galileo.ionoData.ai0));
+						parseParam(line,18,12,&(rx->galileo.ionoData.ai1));
+						parseParam(line,30,12,&(rx->galileo.ionoData.ai2));
+						DBGMSG(debugStream,TRACE,"read GAL ION AI " << rx->galileo.ionoData.ai0 << " " << rx->galileo.ionoData.ai1 << " " << rx->galileo.ionoData.ai2);
+					}
+					break;
+				case GNSSSystem::BEIDOU :
+					if (NULL != strstr(line,"BDSA")){
+						parseParam(line,6,12, &(rx->beidou.ionoData.a0));
+						parseParam(line,18,12,&(rx->beidou.ionoData.a1));
+						parseParam(line,30,12,&(rx->beidou.ionoData.a2));
+						parseParam(line,42,12,&(rx->beidou.ionoData.a3));
+						DBGMSG(debugStream,TRACE,"read BDS ION ALPHA " << rx->beidou.ionoData.a0 << " " << rx->beidou.ionoData.a1 << " " << rx->beidou.ionoData.a2 << " " << rx->beidou.ionoData.a3);
+					}
+					else if (NULL != strstr(line,"BDSB")){
+						parseParam(line,6,12, &(rx->beidou.ionoData.b0));
+						parseParam(line,18,12,&(rx->beidou.ionoData.b1));
+						parseParam(line,30,12,&(rx->beidou.ionoData.b2));
+						parseParam(line,42,12,&(rx->beidou.ionoData.b3));
+						DBGMSG(debugStream,TRACE,"read GPS ION BETA " << rx->beidou.ionoData.b0 << " " << rx->beidou.ionoData.b1 << " " << rx->beidou.ionoData.b3 << " " << rx->beidou.ionoData.b3);
+					}
+					break;
+				
+				default:break;
+			}
+		}
+		else if  (NULL != strstr(line,"LEAP SECONDS")){
+			parseParam(line,1,6,&(rx->leapsecs));
+			DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
+		}
+		else if (NULL != strstr(line,"END OF HEADER")){ 
+			break;
+		}
+	}
+	
+	// Parse the data
+	if (feof(fin)){
+		app->logMessage("Format error (no END OF HEADER) in " + fname);
+		return false;
+	}
+	
+	while (!feof(fin)){
+		
+		switch (constellation){
+			case GNSSSystem::GPS:
+			{
+				GPS::EphemerisData *ed = getGPSEphemeris(3,fin,&lineCount);
+				if (NULL != ed) rx->gps.addEphemeris(ed);
+				break;
+			}
+			case GNSSSystem::GLONASS:
+			{
+				// FIXME coming soon
+				break;
+			}
+			default:
+				break;
+		}
+		
+	}
+	
+	return true;
+}
+		
+GPS::EphemerisData* RINEX::getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount){
 	GPS::EphemerisData *ed = NULL;
 	
-	string line;
+	char line[SBUFSIZE];
 	
 	(*lineCount)++;
-	if (!fin->eof()){ 
-		getline(*fin,line);
+	if (!feof(fin)){ 
+		fgets(line,SBUFSIZE,fin);
 	}
 	
-	string tst(line); 
-	boost::trim(tst);
-	if (tst.empty()) {return NULL;} // skip blank lines
+	// skip blank lines
+	// return NULL;
 	
-	if (line.length() < 79){
+	if (strlen(line) < 79)
 		return NULL;
-	}
 	
 	ed = new GPS::EphemerisData();
 	
 	int ibuf;
 	double dbuf;
 	
-	// Line 1: format is I2,5I3,F5.1,3D19.12
-	parseParam(line,1,2,&ibuf); ed->SVN = ibuf;
 	int year,mon,mday,hour,mins;
 	double secs;
-	parseParam(line,3,3,&year);
-	parseParam(line,6,3,&mon);
-	parseParam(line,9,3,&mday);
-	parseParam(line,12,3,&hour);
-	parseParam(line,15,3,&mins);
-	std::replace(line.begin(), line.end(), 'D', 'E'); // only floats left
-	parseParam(line,18,5,&secs);
+	int startCol;
 	
-	parseParam(line,23,19,&dbuf);ed->a_f0=dbuf;
-	parseParam(line,42,19,&dbuf);ed->a_f1=dbuf;
-	parseParam(line,61,19,&dbuf);ed->a_f2=dbuf;
+	if (ver==2){
+		startCol=4;
+		// Line 1: format is I2,5I3,F5.1,3D19.12
+		parseParam(line,1,2,&ibuf); ed->SVN = ibuf;	
+		parseParam(line,3,3,&year);
+		parseParam(line,6,3,&mon);
+		parseParam(line,9,3,&mday);
+		parseParam(line,12,3,&hour);
+		parseParam(line,15,3,&mins);
+		parseParam(line,18,5,&secs);
+		parseParam(line,23,19,&dbuf);ed->a_f0=dbuf;
+		parseParam(line,42,19,&dbuf);ed->a_f1=dbuf;
+		parseParam(line,61,19,&dbuf);ed->a_f2=dbuf;
+	}
+	else if (ver==3){
+		startCol=5;
+		char satSys = line[0];
+		switch (satSys){
+			case 'G':
+				parseParam(line,2,2,&ibuf); ed->SVN = ibuf;	
+				parseParam(line,5,4,&year);
+				parseParam(line,9,3,&mon);
+				parseParam(line,12,3,&mday);
+				parseParam(line,15,3,&hour);
+				parseParam(line,18,3,&mins);
+				parseParam(line,21,3,&secs);
+				parseParam(line,24,19,&dbuf);ed->a_f0=dbuf;
+				parseParam(line,43,19,&dbuf);ed->a_f1=dbuf;
+				parseParam(line,62,19,&dbuf);ed->a_f2=dbuf;
+				break;
+			case 'E':
+				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
+				break;
+			case 'R':
+				{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 3;return NULL;}
+				break;
+			case 'C': // BDS
+				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
+				break;
+			case 'J': // QZSS
+				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
+				break;
+			case 'S': // SBAS
+				{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 3; return NULL;}
+				break;
+			case 'I': // IRNS
+				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 7; return NULL;}
+				break;
+			default:break;
+		}
+	}
 	
 	DBGMSG(debugStream,TRACE,"ephemeris for SVN " << (int) ed->SVN << " " << hour << ":" << mins << ":" <<  secs);
 	
 	// Lines 2-8: 3X,4D19.12
 	double dbuf1,dbuf2,dbuf3,dbuf4;
-	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->IODE=dbuf1; ed->C_rs=dbuf2; ed->delta_N=dbuf3; ed->M_0=dbuf4;
 	
-	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->C_uc=dbuf1; ed->e=dbuf2; ed->C_us=dbuf3; ed->sqrtA=dbuf4;;
 	
-	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->t_oe=dbuf1; ed->C_ic=dbuf2; ed->OMEGA_0=dbuf3; ed->C_is=dbuf4;
 	
-	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-	ed->i_0=dbuf1; ed->C_rc=dbuf2; ed->OMEGA=dbuf3; ed->OMEGADOT=dbuf4;
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->i_0=dbuf1; ed->C_rc=dbuf2; ed->OMEGA=dbuf3; ed->OMEGADOT=dbuf4; // note OMEGADOT read in as DOUBLE but stored as SINGLE so in != out
 	
-	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->IDOT=dbuf1; ed->week_number= dbuf3; // don't truncate WN just yet
 	
-	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->SV_health=dbuf2; ed->t_GD=dbuf3; ed->IODC=dbuf4;
 	int i=0;
 	ed->SV_accuracy_raw=0.0;
@@ -703,7 +889,7 @@ GPS::EphemerisData* RINEX::getGPSEphemeris(ifstream *fin,unsigned int *lineCount
 		}
 		i++;
 	}
-	get4DParams(fin,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->t_ephem=dbuf1;
 	
 	// Calculate t_OC - the clock data reference time
@@ -742,49 +928,67 @@ void RINEX::init()
 	observer = "Siegfried";
 }
 
-void RINEX::parseParam(string &str,int start,int len,int *val)
+// Note: these subtract one from the index !
+void RINEX::parseParam(char *str,int start,int len,int *val)
 {
-	stringstream ss(str.substr(start-1,len));
-	ss >> *val;
+	char sbuf[SBUFSIZE];
+	memset(sbuf,0,SBUFSIZE);
+	*val=0;
+	strncpy(sbuf,&(str[start-1]),len);
+	*val = strtol(sbuf,NULL,10);
+	printf("Parsed %s, got %i\n",sbuf,*val);
 }
 
-void RINEX::parseParam(string &str,int start,int len,float *val)
+void RINEX::parseParam(char *str,int start,int len,float *val)
 {
-	std::replace(str.begin(), str.end(), 'D', 'E'); // filthy FORTRAN
-	stringstream ss(str.substr(start-1,len));
-	ss >> *val;
+	//std::replace(str.begin(), str.end(), 'D', 'E'); // filthy FORTRAN
+	char *pch;
+	if ((pch=strstr(str,"D"))){
+		(*pch)='E';
+	}
+	char sbuf[SBUFSIZE];
+	memset(sbuf,0,SBUFSIZE);
+	*val=0.0;
+	strncpy(sbuf,&(str[start-1]),len);
+	*val = strtof(sbuf,NULL);
+	
 }
 
-void RINEX::parseParam(string &str,int start,int len,double *val)
+void RINEX::parseParam(char *str,int start,int len,double *val)
 {
-	std::replace(str.begin(), str.end(), 'D', 'E'); // filthy FORTRAN
-	stringstream ss(str.substr(start-1,len));
-	ss >> *val;
+	char *pch;
+	if ((pch=strstr(str,"D"))){
+		(*pch)='E';
+	}
+	char sbuf[SBUFSIZE];
+	memset(sbuf,0,SBUFSIZE);
+	*val=0.0;
+	strncpy(sbuf,&(str[start-1]),len);
+	*val = strtod(sbuf,NULL);
 }
 
-bool RINEX::get4DParams(ifstream *fin,
+bool RINEX::get4DParams(FILE *fin,int startCol,
 	double *darg1,double *darg2,double *darg3,double *darg4,
 	unsigned int *lineCount)
 {
-	string line;
+	char sbuf[SBUFSIZE];
+	
 	(*lineCount)++;
-	if (fin->good()) 
-		getline(*fin,line);
-	else{
+	if (!feof(fin)) 
+		fgets(sbuf,SBUFSIZE,fin);
+	else
 		return false;
-	}
-	
-	if (line.length() < 79){
-		return false;
-	}
-	
-	std::replace( line.begin(), line.end(), 'D', 'E'); // filthy FORTRAN
-	
-	// Format is 3X,4D19.12
-	parseParam(line,4,19,darg1);
-	parseParam(line,23,19,darg2);
-	parseParam(line,42,19,darg3);
-	parseParam(line,61,19,darg4);
+
+	int slen = strlen(sbuf);
+	*darg1 = *darg2= *darg3 = *darg4 = 0.0;
+	if (slen >= startCol + 19 -1)
+		parseParam(sbuf,startCol,19,darg1);
+	if (slen >= startCol + 38 -1)
+		parseParam(sbuf,startCol+19,19,darg2);
+	if (slen >= startCol + 57 -1)
+		parseParam(sbuf,startCol+2*19,19,darg3);
+	if (slen >= startCol + 76 -1)
+		parseParam(sbuf,startCol+3*19,19,darg4);
 	
 	return true;
 	

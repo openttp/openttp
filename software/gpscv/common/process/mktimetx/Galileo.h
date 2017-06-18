@@ -34,6 +34,8 @@ class Antenna;
 class ReceiverMeasurement;
 class SVMeasurement;
 
+typedef double DOUBLE;
+typedef float  SINGLE;
 
 class Galileo: public GNSSSystem
 {
@@ -42,7 +44,7 @@ class Galileo: public GNSSSystem
 	class IonosphereData
 	{
 		public:
-			
+			SINGLE ai0,ai1,ai2;
 	};
 
 	class UTCData
