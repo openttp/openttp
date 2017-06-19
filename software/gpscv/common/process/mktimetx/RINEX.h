@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 
+#include "BeiDou.h"
 #include "GPS.h"
 
 class Antenna;
@@ -65,7 +66,7 @@ class RINEX
 		bool readV3NavigationFile(Receiver *rx,int constellation,string fname);
 		
 		GPS::EphemerisData* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
-		
+		BeiDou::EphemerisData* getBeiDouEphemeris(FILE *fin,unsigned int *lineCount);
 		void parseParam(char *str,int start,int len,int *val);
 		void parseParam(char *str,int start,int len,float *val);
 		void parseParam(char *,int start,int len,double *val);

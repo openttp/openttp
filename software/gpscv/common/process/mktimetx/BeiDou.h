@@ -27,6 +27,7 @@
 
 #include <time.h>
 #include <vector>
+#include <boost/concept_check.hpp>
 
 #include "GNSSSystem.h"
 
@@ -34,8 +35,14 @@ class Antenna;
 class ReceiverMeasurement;
 class SVMeasurement;
 
-typedef float SINGLE;
 typedef double DOUBLE;
+typedef float  SINGLE;
+typedef unsigned char UINT8;
+typedef signed char SINT8;
+typedef unsigned short UINT16;
+typedef short SINT16;
+typedef int SINT32;
+typedef unsigned int UINT32;
 
 class BeiDou: public GNSSSystem
 {
@@ -51,17 +58,50 @@ class BeiDou: public GNSSSystem
 	class UTCData
 	{
 		public:
-			
+			DOUBLE A_0UTC,A_1UTC,A_2UTC;
+			SINGLE t_ot;
+			UINT16 WN_t;
+			UINT16 dT_LS;
+			UINT16 dT_LSF;
+			UINT16 WN_LSF;
+			UINT16 DN;
 	};
 
 	class EphemerisData
 	{
 		public:
-			
+			UINT8 SVN;
+			UINT16 WN;
+			UINT8 URAI;
+			UINT8 SatH1;
+			SINGLE t_GD1;
+			SINGLE t_GD2;
+			SINGLE AODC;
+			SINGLE t_OC;
+			SINGLE  a_0,a_1,a_2;
+			UINT8  AODE;
+			SINGLE t_oe;
+			DOUBLE sqrtA;
+			DOUBLE e;
+			DOUBLE OMEGA;
+			SINGLE delta_N;
+			DOUBLE M_0;
+			DOUBLE OMEGA_0;
+			SINGLE OMEGADOT;
+			DOUBLE i_0;
+			SINGLE IDOT;
+			SINGLE C_uc;
+			SINGLE C_us;
+			SINGLE C_rc;
+			SINGLE C_rs;
+			SINGLE C_ic;
+			SINGLE C_is;
 	};
 	
 	BeiDou();
 	~BeiDou();
+	
+	
 	
 	virtual int nsats(){return NSATS;}
 	virtual void deleteEphemeris();
@@ -69,12 +109,13 @@ class BeiDou: public GNSSSystem
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	std::vector<EphemerisData *> ephemeris;
-			
+	
+	void addEphemeris(EphemerisData *ed);
+		
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
 	private:
-		
-		static const int NSATS=32;
+		static const int NSATS=35;
 };
 
 #endif

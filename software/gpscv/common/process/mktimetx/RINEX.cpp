@@ -33,6 +33,7 @@
 #include <boost/regex.hpp> // nb C++11 has this
 
 #include "Antenna.h"
+#include "BeiDou.h"
 #include "Application.h"
 #include "Counter.h"
 #include "CounterMeasurement.h"
@@ -369,9 +370,9 @@ bool RINEX::writeNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 	time_t tnow = time(NULL);
 	struct tm *tgmt = gmtime(&tnow);
 	
-	// Determine the GPS week number
+	// Determine the GPS week number FIXME why am I not using the receiver-provided WN_t ?
 	// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
-	int gpsWeek=int ((mjd-44244)/7);	
+	int gpsWeek=int ((mjd-44244)/7);
 	switch (ver)
 	{
 		case V2:
@@ -671,6 +672,8 @@ bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,string fname)
 	}
 	
 	// Parse the header
+	int ibuf;
+	
 	while (!feof(fin)){
 		
 		fgets(line,SBUFSIZE,fin);
@@ -743,6 +746,26 @@ bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,string fname)
 				default:break;
 			}
 		}
+		else if (NULL != strstr(line,"TIME SYSTEM CORR")){
+				switch (constellation){
+					case GNSSSystem::GPS :
+						if (NULL != strstr(line,"GPUT")){
+							parseParam(line,6,17,&(rx->gps.UTCdata.A0));
+							parseParam(line,23,16,&(rx->gps.UTCdata.A1));
+							parseParam(line,39,7,&(rx->gps.UTCdata.t_ot));
+							parseParam(line,46,5,&ibuf);rx->gps.UTCdata.WN_t = ibuf; // this is a full week number
+						}
+						break;
+					case GNSSSystem::BEIDOU :
+						if (NULL != strstr(line,"GPUT")){
+							parseParam(line,6,17,&(rx->beidou.UTCdata.A_0UTC));
+							parseParam(line,23,16,&(rx->beidou.UTCdata.A_1UTC));
+							parseParam(line,39,7,&(rx->beidou.UTCdata.t_ot));
+							parseParam(line,46,5,&ibuf);rx->beidou.UTCdata.WN_t = ibuf; // this is a full week number
+						}
+					default:break;
+				}
+		}
 		else if  (NULL != strstr(line,"LEAP SECONDS")){
 			parseParam(line,1,6,&(rx->leapsecs));
 			DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << rx->leapsecs);
@@ -772,6 +795,12 @@ bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,string fname)
 				// FIXME coming soon
 				break;
 			}
+			case GNSSSystem::BEIDOU: 
+			{
+				BeiDou::EphemerisData *ed = getBeiDouEphemeris(fin,&lineCount);
+				if (NULL != ed) rx->beidou.addEphemeris(ed);
+				break;
+			}
 			default:
 				break;
 		}
@@ -792,7 +821,14 @@ GPS::EphemerisData* RINEX::getGPSEphemeris(int ver,FILE *fin,unsigned int *lineC
 	}
 	
 	// skip blank lines
-	// return NULL;
+	char *pch = line;
+	while (*pch != '\0') {
+    if (!isspace((unsigned char)*pch))
+      break;
+    pch++;
+  }
+	if (*pch == '\0')
+		return NULL;
 	
 	if (strlen(line) < 79)
 		return NULL;
@@ -920,6 +956,117 @@ GPS::EphemerisData* RINEX::getGPSEphemeris(int ver,FILE *fin,unsigned int *lineC
 	ed->week_number = ed->week_number - 1024*(ed->week_number/1024);
 	
 	return ed;
+}
+
+BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCount)
+{
+	BeiDou::EphemerisData *ed=NULL;
+	
+	char line[SBUFSIZE];
+	
+	(*lineCount)++;
+	if (!feof(fin)){ 
+		fgets(line,SBUFSIZE,fin);
+	}
+	
+	// skip blank lines
+	char *pch = line;
+	while (*pch != '\0') {
+    if (!isspace((unsigned char)*pch))
+      break;
+    pch++;
+  }
+	if (*pch == '\0')
+		return NULL;
+	
+	if (strlen(line) < 79)
+		return NULL;
+	
+	ed = new BeiDou::EphemerisData();
+	
+	int ibuf;
+	double dbuf;
+	
+	int year,mon,mday,hour,mins;
+	double secs;
+	int startCol=5;
+	
+	char satSys = line[0];
+	switch (satSys){
+		case 'G':
+			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
+			break;
+		case 'E':
+			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
+			break;
+		case 'R':
+			{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 3;return NULL;}
+			break;
+		case 'C': // BDS
+			parseParam(line,2,2,&ibuf); ed->SVN = ibuf;	
+			parseParam(line,5,4,&year);
+			parseParam(line,9,3,&mon);
+			parseParam(line,12,3,&mday);
+			parseParam(line,15,3,&hour);
+			parseParam(line,18,3,&mins);
+			parseParam(line,21,3,&secs);
+			parseParam(line,24,19,&dbuf);ed->a_0=dbuf;
+			parseParam(line,43,19,&dbuf);ed->a_1=dbuf;
+			parseParam(line,62,19,&dbuf);ed->a_2=dbuf;
+			break;
+		case 'J': // QZSS
+			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
+			break;
+		case 'S': // SBAS
+			{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 3; return NULL;}
+			break;
+		case 'I': // IRNS
+			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 7; return NULL;}
+			break;
+		default:break;
+	}
+		
+	DBGMSG(debugStream,TRACE,"ephemeris for SVN " << (int) ed->SVN << " " << hour << ":" << mins << ":" <<  secs);
+	
+	// Lines 2-8: 3X,4D19.12
+	double dbuf1,dbuf2,dbuf3,dbuf4;
+	
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->AODE=dbuf1; ed->C_rs=dbuf2; ed->delta_N=dbuf3; ed->M_0=dbuf4;
+// 	
+// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+// 	ed->C_uc=dbuf1; ed->e=dbuf2; ed->C_us=dbuf3; ed->sqrtA=dbuf4;;
+// 	
+// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+// 	ed->t_oe=dbuf1; ed->C_ic=dbuf2; ed->OMEGA_0=dbuf3; ed->C_is=dbuf4;
+// 	
+// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+// 	ed->i_0=dbuf1; ed->C_rc=dbuf2; ed->OMEGA=dbuf3; ed->OMEGADOT=dbuf4; // note OMEGADOT read in as DOUBLE but stored as SINGLE so in != out
+// 	
+// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+// 	ed->IDOT=dbuf1; ed->week_number= dbuf3; // don't truncate WN just yet
+// 	
+// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+// 	ed->SV_health=dbuf2; ed->t_GD=dbuf3; ed->IODC=dbuf4;
+// 	int i=0;
+// 	ed->SV_accuracy_raw=0.0;
+// 	while (URA[i] > 0){
+// 		if (URA[i] == dbuf1){
+// 			ed->SV_accuracy_raw=i;
+// 			break;
+// 		}
+// 		i++;
+// 	}
+// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+// 	ed->t_ephem=dbuf1;
+// 	
+	fgets(line,SBUFSIZE,fin);
+	fgets(line,SBUFSIZE,fin);
+	fgets(line,SBUFSIZE,fin);
+	fgets(line,SBUFSIZE,fin);
+	fgets(line,SBUFSIZE,fin);
+	fgets(line,SBUFSIZE,fin);
+		return ed;
 }
 
 void RINEX::init()

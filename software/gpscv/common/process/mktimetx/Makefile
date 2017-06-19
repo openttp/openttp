@@ -61,7 +61,8 @@ ReceiverMeasurement.o: ReceiverMeasurement.cpp CounterMeasurement.h ReceiverMeas
 RIN2CGGTTS.o: RIN2CGGTTS.cpp RIN2CGGTTS.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RIN2CGGTTS.cpp
 
-RINEX.o: RINEX.cpp  Antenna.h Counter.h Debug.h  Application.h MeasurementPair.h Receiver.h ReceiverMeasurement.h RINEX.h 
+RINEX.o: RINEX.cpp  Antenna.h Counter.h Debug.h  Application.h MeasurementPair.h Receiver.h ReceiverMeasurement.h RINEX.h \
+	GPS.h BeiDou.h Galileo.h GLONASS.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RINEX.cpp
 
 Timer.o: Timer.cpp Timer.h

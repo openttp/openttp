@@ -36,7 +36,11 @@ BeiDou::~BeiDou()
 {
 }
 
-	
+
+void BeiDou::addEphemeris(EphemerisData *ed)
+{
+}
+
 void BeiDou::deleteEphemeris()
 {
 }
