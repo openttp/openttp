@@ -27,7 +27,7 @@ Counter.o: Counter.cpp Counter.h CounterMeasurement.h Debug.h Timer.h
 CGGTTS.o : CGGTTS.cpp CGGTTS.h  Antenna.h Counter.h Debug.h GPS.h Application.h MeasurementPair.h Receiver.h  ReceiverMeasurement.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c CGGTTS.cpp
 	
-BeiDou.o: Galileo.cpp  Antenna.h Debug.h BeiDou.h Application.h GNSSSystem.h  Troposphere.h
+BeiDou.o: BeiDou.cpp  Antenna.h Debug.h BeiDou.h Application.h GNSSSystem.h  Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c BeiDou.cpp
 	
 Galileo.o: Galileo.cpp  Antenna.h Debug.h Galileo.h Application.h GNSSSystem.h  Troposphere.h

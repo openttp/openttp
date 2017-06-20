@@ -47,7 +47,7 @@
 extern Application *app;
 extern ostream *debugStream;
 
-const char * RINEXVersionName[]= {"2.11","3.02"};
+const char * RINEXVersionName[]= {"2.12","3.03"};
 
 // Lookup table to convert URA index to URA value in m for SV accuracy
 //      0   1 2   3 4    5  6  7  8   9  10  11   12   13   14  15
@@ -347,7 +347,120 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	return true;
 }
 
-bool RINEX::writeNavigationFile(Receiver *rx,int ver,string fname,int mjd)
+bool  RINEX::writeNavigationFile(Receiver *rx,int constellation,int ver,string fname,int mjd)
+{
+	switch (constellation)
+	{
+		case GNSSSystem::BEIDOU:return writeBeiDouNavigationFile(rx,ver,fname,mjd);break;
+		case GNSSSystem::GPS:return writeGPSNavigationFile(rx,ver,fname,mjd);break;
+		default: break;
+	}
+	return false;
+}
+
+bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
+	
+	unsigned int lineCount=0;
+	
+	FILE *fin;
+	char line[SBUFSIZE];
+				 
+	if (NULL == (fin=fopen(fname.c_str(),"r"))){
+		app->logMessage("Unable to open the navigation file " + fname);
+		return false;
+	}
+
+	// First, determine the version
+	double RINEXver;
+	
+	while (!feof(fin)){
+		fgets(line,SBUFSIZE,fin);
+		lineCount++;
+		if (NULL != strstr(line,"RINEX VERSION")){
+			parseParam(line,1,12,&RINEXver);
+			break;
+		}
+	}
+
+	if (feof(fin)){
+		app->logMessage("Unable to determine RINEX version in " + fname);
+		return false;
+	}
+	
+	DBGMSG(debugStream,TRACE,"RINEX version is " << RINEXver);
+	
+	fclose(fin); // the first line needs to be reread so just close the file (could rewind ..)
+	
+	if (RINEXver < 3){
+		readV2NavigationFile(rx,constellation,fname);
+	}	
+	else if (RINEXver < 4){
+		readV3NavigationFile(rx,constellation,fname);
+	}
+	else{
+	}
+	
+	//if (ephemeris.size() == 0){
+	//	app->logMessage("Empty navigation file " + fname);
+	//	return false;
+	//}
+	DBGMSG(debugStream,INFO,"Read " << rx->gps.ephemeris.size() << " GPS entries");
+	DBGMSG(debugStream,INFO,"Read " << rx->beidou.ephemeris.size() << " BeiDou entries");
+	return true;
+}
+
+string RINEX::makeFileName(string pattern,int mjd)
+{
+	string ret="";
+	int year,mon,mday,yday;
+	Utility::MJDtoDate(mjd,&year,&mon,&mday,&yday);
+	int yy = year - (year/100)*100;
+	
+	boost::regex rnx1("(\\w{4})[D|d]{3}(0\\.)[Y|y]{2}([nNoO])");
+	boost::smatch matches;
+	if (boost::regex_search(pattern,matches,rnx1)){
+		char tmp[16];
+		// this is ugly but C++ stream manipulators are even uglier
+		snprintf(tmp,15,"%s%03d%s%02d%s",matches[1].str().c_str(),yday,matches[2].str().c_str(),yy,matches[3].str().c_str());
+		ret = tmp;
+	}
+	return ret;
+}
+
+//
+// Private members
+//
+
+bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd)
+{
+	if (ver != RINEX::V3) return false;
+	
+	char buf[81];
+	FILE *fout;
+	if (!(fout = fopen(fname.c_str(),"w"))){
+		return false;
+	}
+	
+	fprintf(fout,"%9s%11s%-20s%-20s%-20s\n",RINEXVersionName[ver],"","N: GNSS NAV DATA","C: BDS","RINEX VERSION / TYPE");
+	time_t tnow = time(NULL);
+	struct tm *tgmt = gmtime(&tnow);
+	snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
+		tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
+	fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
+	
+	fprintf(fout,"BDSA %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
+		rx->beidou.ionoData.a0,rx->beidou.ionoData.a1,rx->beidou.ionoData.a2,rx->beidou.ionoData.a3,"","IONOSPHERIC CORR");
+	fprintf(fout,"BDSB %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
+		rx->beidou.ionoData.b0,rx->beidou.ionoData.b1,rx->beidou.ionoData.b2,rx->beidou.ionoData.b3,"","IONOSPHERIC CORR");
+	fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS");
+	fprintf(fout,"%60s%-20s\n"," ","END OF HEADER");
+	
+	fclose(fout);
+	
+	return true;
+}
+
+bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 {
 	char buf[81];
 	FILE *fout;
@@ -506,79 +619,6 @@ bool RINEX::writeNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 	
 	return true;
 }
-
-
-bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
-	
-	unsigned int lineCount=0;
-	
-	FILE *fin;
-	char line[SBUFSIZE];
-				 
-	if (NULL == (fin=fopen(fname.c_str(),"r"))){
-		app->logMessage("Unable to open the navigation file " + fname);
-		return false;
-	}
-
-	// First, determine the version
-	double RINEXver;
-	
-	while (!feof(fin)){
-		fgets(line,SBUFSIZE,fin);
-		lineCount++;
-		if (NULL != strstr(line,"RINEX VERSION")){
-			parseParam(line,1,12,&RINEXver);
-			break;
-		}
-	}
-
-	if (feof(fin)){
-		app->logMessage("Unable to determine RINEX version in " + fname);
-		return false;
-	}
-	
-	DBGMSG(debugStream,TRACE,"RINEX version is " << RINEXver);
-	
-	fclose(fin); // the first line needs to be reread so just close the file (could rewind ..)
-	
-	if (RINEXver < 3){
-		readV2NavigationFile(rx,constellation,fname);
-	}	
-	else if (RINEXver < 4){
-		readV3NavigationFile(rx,constellation,fname);
-	}
-	else{
-	}
-	
-	//if (ephemeris.size() == 0){
-	//	app->logMessage("Empty navigation file " + fname);
-	//	return false;
-	//}
-	DBGMSG(debugStream,INFO,"Read " << rx->gps.ephemeris.size() << " GPS entries");
-	return true;
-}
-
-string RINEX::makeFileName(string pattern,int mjd)
-{
-	string ret="";
-	int year,mon,mday,yday;
-	Utility::MJDtoDate(mjd,&year,&mon,&mday,&yday);
-	int yy = year - (year/100)*100;
-	
-	boost::regex rnx1("(\\w{4})[D|d]{3}(0\\.)[Y|y]{2}([nNoO])");
-	boost::smatch matches;
-	if (boost::regex_search(pattern,matches,rnx1)){
-		char tmp[16];
-		// this is ugly but C++ stream manipulators are even uglier
-		snprintf(tmp,15,"%s%03d%s%02d%s",matches[1].str().c_str(),yday,matches[2].str().c_str(),yy,matches[3].str().c_str());
-		ret = tmp;
-	}
-	return ret;
-}
-
-//
-// Private members
-//
 
 bool RINEX::readV2NavigationFile(Receiver *rx,int constellation,string fname)
 {
@@ -809,7 +849,8 @@ bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,string fname)
 	
 	return true;
 }
-		
+
+
 GPS::EphemerisData* RINEX::getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount){
 	GPS::EphemerisData *ed = NULL;
 	
@@ -1033,39 +1074,26 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 	
 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->AODE=dbuf1; ed->C_rs=dbuf2; ed->delta_N=dbuf3; ed->M_0=dbuf4;
-// 	
-// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-// 	ed->C_uc=dbuf1; ed->e=dbuf2; ed->C_us=dbuf3; ed->sqrtA=dbuf4;;
-// 	
-// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-// 	ed->t_oe=dbuf1; ed->C_ic=dbuf2; ed->OMEGA_0=dbuf3; ed->C_is=dbuf4;
-// 	
-// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-// 	ed->i_0=dbuf1; ed->C_rc=dbuf2; ed->OMEGA=dbuf3; ed->OMEGADOT=dbuf4; // note OMEGADOT read in as DOUBLE but stored as SINGLE so in != out
-// 	
-// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-// 	ed->IDOT=dbuf1; ed->week_number= dbuf3; // don't truncate WN just yet
-// 	
-// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-// 	ed->SV_health=dbuf2; ed->t_GD=dbuf3; ed->IODC=dbuf4;
-// 	int i=0;
-// 	ed->SV_accuracy_raw=0.0;
-// 	while (URA[i] > 0){
-// 		if (URA[i] == dbuf1){
-// 			ed->SV_accuracy_raw=i;
-// 			break;
-// 		}
-// 		i++;
-// 	}
-// 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-// 	ed->t_ephem=dbuf1;
-// 	
-	fgets(line,SBUFSIZE,fin);
-	fgets(line,SBUFSIZE,fin);
-	fgets(line,SBUFSIZE,fin);
-	fgets(line,SBUFSIZE,fin);
-	fgets(line,SBUFSIZE,fin);
-	fgets(line,SBUFSIZE,fin);
+	
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->C_uc=dbuf1; ed->e=dbuf2; ed->C_us=dbuf3; ed->sqrtA=dbuf4;
+		
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->t_oe=dbuf1; ed->C_ic=dbuf2; ed->OMEGA_0=dbuf3; ed->C_is=dbuf4;
+	
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->i_0=dbuf1; ed->C_rc=dbuf2; ed->OMEGA=dbuf3; ed->OMEGADOT=dbuf4; // note OMEGADOT read in as DOUBLE but stored as SINGLE so in != out
+	
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->IDOT=dbuf1; ed->WN= dbuf3; 
+
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->URAI=dbuf2; ed->SatH1=dbuf1;ed->t_GD1=dbuf3; ed->t_GD2=dbuf4;
+
+	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
+	ed->tx_e=dbuf1;ed->AODC=dbuf2;
+	
+
 		return ed;
 }
 
@@ -1083,7 +1111,6 @@ void RINEX::parseParam(char *str,int start,int len,int *val)
 	*val=0;
 	strncpy(sbuf,&(str[start-1]),len);
 	*val = strtol(sbuf,NULL,10);
-	printf("Parsed %s, got %i\n",sbuf,*val);
 }
 
 void RINEX::parseParam(char *str,int start,int len,float *val)

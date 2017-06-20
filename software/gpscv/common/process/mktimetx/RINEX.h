@@ -49,7 +49,7 @@ class RINEX
 		
 		RINEX();
 		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
-		bool writeNavigationFile(Receiver *rx,int ver,string fname,int mjd);
+		bool writeNavigationFile(Receiver *rx,int constellation,int ver,string fname,int mjd);
 		
 		bool readNavigationFile(Receiver *rx,int constellation,string fname);
 		
@@ -67,6 +67,10 @@ class RINEX
 		
 		GPS::EphemerisData* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
 		BeiDou::EphemerisData* getBeiDouEphemeris(FILE *fin,unsigned int *lineCount);
+		
+		bool writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd);
+		bool writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd);
+		
 		void parseParam(char *str,int start,int len,int *val);
 		void parseParam(char *str,int start,int len,float *val);
 		void parseParam(char *,int start,int len,double *val);

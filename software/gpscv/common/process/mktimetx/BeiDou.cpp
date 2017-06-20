@@ -39,6 +39,7 @@ BeiDou::~BeiDou()
 
 void BeiDou::addEphemeris(EphemerisData *ed)
 {
+	ephemeris.push_back(ed);
 }
 
 void BeiDou::deleteEphemeris()

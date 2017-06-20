@@ -96,6 +96,8 @@ class BeiDou: public GNSSSystem
 			SINGLE C_rs;
 			SINGLE C_ic;
 			SINGLE C_is;
+			
+			DOUBLE tx_e; // transmission time of message - in RINEX
 	};
 	
 	BeiDou();
