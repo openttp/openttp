@@ -448,12 +448,45 @@ bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd
 		tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
 	fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 	
+	// FIXME incomplete - need SV supplying ionosphere corrections
 	fprintf(fout,"BDSA %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
 		rx->beidou.ionoData.a0,rx->beidou.ionoData.a1,rx->beidou.ionoData.a2,rx->beidou.ionoData.a3,"","IONOSPHERIC CORR");
 	fprintf(fout,"BDSB %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
 		rx->beidou.ionoData.b0,rx->beidou.ionoData.b1,rx->beidou.ionoData.b2,rx->beidou.ionoData.b3,"","IONOSPHERIC CORR");
 	fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS");
 	fprintf(fout,"%60s%-20s\n"," ","END OF HEADER");
+	
+	for (unsigned int i=0;i<rx->beidou.ephemeris.size();i++){
+		BeiDou::EphemerisData *ed = rx->beidou.ephemeris[i];
+		
+		fprintf(fout,"C%02d %4d %02d %02d %02d %02d %02d%19.12e%19.12e%19.12e\n",ed->SVN,
+					ed->year,ed->mon,ed->mday,ed->hour,ed->mins,ed->secs,
+				ed->a_0,ed->a_1,ed->a_2);
+				
+		snprintf(buf,80,"%%4s%%19.12e%%19.12e%%19.12e%%19.12e\n");
+		
+		fprintf(fout,buf," ", // broadcast orbit 1
+			(double) ed->AODE,ed->C_rs,ed->delta_N,ed->M_0);
+				
+		fprintf(fout,buf," ", // broadcast orbit 2
+			ed->C_uc,ed->e,ed->C_us,ed->sqrtA);
+		
+		fprintf(fout,buf," ", // broadcast orbit 3
+			ed->t_oe,ed->C_ic,ed->OMEGA_0,ed->C_is);
+		
+		fprintf(fout,buf," ", // broadcast orbit 4
+			ed->i_0,ed->C_rc,ed->OMEGA,ed->OMEGADOT);
+		
+		fprintf(fout,buf," ", // broadcast orbit 5
+			ed->IDOT,0.0,(double) ed->WN,0.0);
+	
+		fprintf(fout,buf," ", // broadcast orbit 6
+			(double) ed->URAI,(double) ed->SatH1,ed->t_GD1,ed->t_GD2);
+
+		fprintf(fout,buf," ", // broadcast orbit 7
+			ed->tx_e,ed->AODC,0.0,0.0);
+		
+	}
 	
 	fclose(fout);
 	
@@ -539,6 +572,8 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 			tmjd-=(7*1024);
 		}
 		if (-1==lastGPSWeek){lastGPSWeek=GPSWeek;}
+		// FIXME if we have read in a GPS navigation file then we should use Toc as given in the file
+		// (but why would you read it in and then write it out, except for debugging ??)
 		// Convert GPS week + $Toc to epoch as year, month, day, hour, min, sec
 		// Note that the epoch should be specified in GPS time
 		double Toc=rx->gps.ephemeris[i]->t_OC;
@@ -1028,8 +1063,6 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 	int ibuf;
 	double dbuf;
 	
-	int year,mon,mday,hour,mins;
-	double secs;
 	int startCol=5;
 	
 	char satSys = line[0];
@@ -1045,12 +1078,12 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 			break;
 		case 'C': // BDS
 			parseParam(line,2,2,&ibuf); ed->SVN = ibuf;	
-			parseParam(line,5,4,&year);
-			parseParam(line,9,3,&mon);
-			parseParam(line,12,3,&mday);
-			parseParam(line,15,3,&hour);
-			parseParam(line,18,3,&mins);
-			parseParam(line,21,3,&secs);
+			parseParam(line,5,4,&(ed->year));
+			parseParam(line,9,3,&(ed->mon));
+			parseParam(line,12,3,&(ed->mday));
+			parseParam(line,15,3,&(ed->hour));
+			parseParam(line,18,3,&(ed->mins));
+			parseParam(line,21,3,&(ed->secs));
 			parseParam(line,24,19,&dbuf);ed->a_0=dbuf;
 			parseParam(line,43,19,&dbuf);ed->a_1=dbuf;
 			parseParam(line,62,19,&dbuf);ed->a_2=dbuf;
@@ -1067,7 +1100,7 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 		default:break;
 	}
 		
-	DBGMSG(debugStream,TRACE,"ephemeris for SVN " << (int) ed->SVN << " " << hour << ":" << mins << ":" <<  secs);
+	DBGMSG(debugStream,TRACE,"ephemeris for SVN " << (int) ed->SVN << " " << ed->hour << ":" << ed->mins << ":" <<  ed->secs);
 	
 	// Lines 2-8: 3X,4D19.12
 	double dbuf1,dbuf2,dbuf3,dbuf4;
@@ -1088,12 +1121,13 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 	ed->IDOT=dbuf1; ed->WN= dbuf3; 
 
 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
-	ed->URAI=dbuf2; ed->SatH1=dbuf1;ed->t_GD1=dbuf3; ed->t_GD2=dbuf4;
+	ed->URAI=dbuf1; ed->SatH1=dbuf2;ed->t_GD1=dbuf3; ed->t_GD2=dbuf4;
 
 	get4DParams(fin,startCol,&dbuf1,&dbuf2,&dbuf3,&dbuf4,lineCount);
 	ed->tx_e=dbuf1;ed->AODC=dbuf2;
 	
-
+	DBGMSG(debugStream,TRACE,"ephemeris for SVN " << (int) ed->SVN << " " << ed->hour << ":" << ed->mins << ":" <<  ed->secs << " " 
+		<< ed->hour*3600+ed->mins*60+ed->secs << " " << ed->t_oe);
 		return ed;
 }
 

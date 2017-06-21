@@ -46,6 +46,9 @@ typedef unsigned int UINT32;
 
 class BeiDou: public GNSSSystem
 {
+	private:
+		static const int NSATS=35;
+		
 	public:
 	
 	class IonosphereData
@@ -98,6 +101,7 @@ class BeiDou: public GNSSSystem
 			SINGLE C_is;
 			
 			DOUBLE tx_e; // transmission time of message - in RINEX
+			int year,mon,mday,hour,mins,secs; // when read in a navigation file, we need to store this
 	};
 	
 	BeiDou();
@@ -111,13 +115,13 @@ class BeiDou: public GNSSSystem
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	std::vector<EphemerisData *> ephemeris;
+	std::vector<EphemerisData *> sortedEphemeris[NSATS+1];
 	
 	void addEphemeris(EphemerisData *ed);
 		
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
-	private:
-		static const int NSATS=35;
+	
 };
 
 #endif

@@ -27,6 +27,7 @@
 
 #include <string>
 
+
 class GNSSSystem
 {
 	

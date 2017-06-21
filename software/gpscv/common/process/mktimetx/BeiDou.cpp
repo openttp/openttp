@@ -23,8 +23,15 @@
 // THE SOFTWARE.
 
 
+#include "Application.h"
 #include "BeiDou.h"
+#include "Debug.h"
 
+extern Application *app;
+extern ostream *debugStream;
+extern string   debugFileName;
+extern ofstream debugLog;
+extern int verbosity;
 
 BeiDou::BeiDou():GNSSSystem()
 {
@@ -37,12 +44,77 @@ BeiDou::~BeiDou()
 }
 
 
+// The ephemeris is sorted on t_OC but searched on t_OE ...
+// Sorting on t_OC gives time-ordered output in the navigation file
+// For BeiDou it appears that these are the same, but this needs to be checked against data from a receiver
+// rather than a RINEX file
 void BeiDou::addEphemeris(EphemerisData *ed)
 {
-	ephemeris.push_back(ed);
+	// Check whether this is a duplicate
+	for (int issue=0;issue < (int) sortedEphemeris[ed->SVN].size();issue++){
+		if (sortedEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
+			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
+			return;
+		}
+	}
+	
+	if (ephemeris.size()>0){
+
+		// Update the ephemeris list - this is time-ordered
+		std::vector<EphemerisData *>::iterator it;
+		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
+				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
+				ephemeris.insert(it,ed);
+				break;
+			}
+		}
+		
+		if (it == ephemeris.end()){ // got to end, so append
+			DBGMSG(debugStream,4,"appending " << ed->t_OC);
+			ephemeris.push_back(ed);
+		}
+		
+		// Update the ephemeris hash - 
+		if (sortedEphemeris[ed->SVN].size() > 0){
+			std::vector<EphemerisData *>::iterator it;
+			for (it=sortedEphemeris[ed->SVN].begin(); it<sortedEphemeris[ed->SVN].end(); it++){
+				if (ed->t_OC < (*it)->t_OC){ 
+					DBGMSG(debugStream,4,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
+					sortedEphemeris[ed->SVN].insert(it,ed);
+					break;
+				}
+			}
+			if (it == sortedEphemeris[ed->SVN].end()){ // got to end, so append
+				DBGMSG(debugStream,4,"hash appending " << ed->t_OC);
+				sortedEphemeris[ed->SVN].push_back(ed);
+			}
+		}
+		else{ // first one for this SVN
+			DBGMSG(debugStream,4,"first for svn " << (int) ed->SVN);
+			sortedEphemeris[ed->SVN].push_back(ed);
+		}
+	}
+	else{ //first one
+		DBGMSG(debugStream,4,"first eph ");
+		ephemeris.push_back(ed);
+		sortedEphemeris[ed->SVN].push_back(ed);
+		return;
+	}
 }
 
 void BeiDou::deleteEphemeris()
 {
+	DBGMSG(debugStream,TRACE,"deleting rx ephemeris");
+	
+	while(! ephemeris.empty()){
+		EphemerisData  *tmp= ephemeris.back();
+		delete tmp;
+		ephemeris.pop_back();
+	}
+	
+	for (unsigned int s=0;s<=NSATS;s++){
+		sortedEphemeris[s].clear(); // nothing left to delete 
+	}
 }
 	
