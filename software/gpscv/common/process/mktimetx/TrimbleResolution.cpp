@@ -463,7 +463,8 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	// Fix 1 ms ambiguities/steps in the pseudo range
 	// Do this initially and then every time a step is detected
 	
-	for (int prn=1;prn<=32;prn++){
+	
+	for (int svn=1;gps.nsats();svn++){
 		unsigned int lasttow=99999999,currtow=99999999;
 		double lastmeas,currmeas;
 		double corr=0.0;
@@ -471,21 +472,21 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 		bool ok=false;
 		for (unsigned int i=0;i<measurements.size();i++){
 			for (unsigned int m=0;m < measurements[i]->meas.size();m++){
-				if (prn==measurements[i]->meas[m]->svn){
+				if (svn==measurements[i]->meas[m]->svn){
 					lasttow=currtow;
 					lastmeas=currmeas;
 					currmeas=measurements[i]->meas[m]->meas;
 					currtow=measurements[i]->gpstow;
 					
-					DBGMSG(debugStream,4,prn << " " << currtow << " " << currmeas << " ");
+					DBGMSG(debugStream,4,svn << " " << currtow << " " << currmeas << " ");
 					if (first){
 						first=false;
-						ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
+						ok = gps.resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
 					}
 					else if (currtow > lasttow){ // FIXME better test of gaps
 						if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
-							DBGMSG(debugStream,3,"first/step " << prn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-							ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
+							DBGMSG(debugStream,3,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+							ok = gps.resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
 						}
 					}
 					if (ok) measurements[i]->meas[m]->meas += corr;

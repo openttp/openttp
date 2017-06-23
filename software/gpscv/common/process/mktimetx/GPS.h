@@ -123,6 +123,8 @@ class GPS: public GNSSSystem
 	vector<EphemerisData *> sortedEphemeris[NSATS+1];
 	EphemerisData *nearestEphemeris(int,int);
 
+	bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
+	
 	bool satXYZ(EphemerisData *ed,double t,double *Ek,double x[3]);
 	
 	double sattime(EphemerisData *ed,double Ek,double tsv,double toc);

@@ -27,6 +27,9 @@
 
 #include <string>
 
+class Antenna;
+class ReceiverMeasurement;
+class SVMeasurement;
 
 class GNSSSystem
 {
@@ -45,6 +48,8 @@ class GNSSSystem
 		virtual void deleteEphemeris(){};
 		
 		std::string name(){return n;}
+		
+		virtual bool resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *,SVMeasurement *,double *){return false;}
 		
 	protected:
 		std::string n; // system name

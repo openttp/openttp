@@ -232,10 +232,10 @@ void Application::run()
 	
 	makeFilenames();
 	
-	//RINEX rnx(antenna,counter,receiver);
-	//rnx.readNavigationFile("/home/michael/RINEX/brdc1360.16n",Receiver::GPS);
-	//rnx.writeNavigationFile(RINEX::V2,"test.n",57523);
-	//exit(EXIT_SUCCESS);
+	RINEX rnx;
+	rnx.readNavigationFile(receiver,GNSSSystem::BEIDOU,"/home/michael/rinex/AC4800USA_R_20171600000_01D_MN.rnx");
+	rnx.writeNavigationFile(receiver,GNSSSystem::BEIDOU,RINEX::V3,"test.n",MJD);
+	exit(EXIT_SUCCESS);
 	
 	// Create the log file, erasing any existing file
 	ofstream ofs;
@@ -319,14 +319,13 @@ void Application::run()
 		}
 	} // if createCGGTTS
 	
-	// A single, mixed RINEX file will be created for multi-GNSS receivers
 	if (createRINEX){
 		RINEX rnx;
 		rnx.agency = agency;
 		rnx.observer=observer;
 		
 		if (generateNavigationFile) 
-			rnx.writeNavigationFile(receiver,RINEXversion,RINEXnavFile,MJD);
+			rnx.writeNavigationFile(receiver,GNSSSystem::GPS,RINEXversion,RINEXnavFile,MJD);
 		
 		rnx.writeObservationFile(antenna,counter,receiver,RINEXversion,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	}

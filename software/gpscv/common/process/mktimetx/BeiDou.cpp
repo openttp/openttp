@@ -22,10 +22,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <cmath>
+#include <iostream>
+#include <iomanip>
+#include <ostream>
 
+#include "Antenna.h"
 #include "Application.h"
 #include "BeiDou.h"
 #include "Debug.h"
+#include "ReceiverMeasurement.h"
+#include "SVMeasurement.h"
 
 extern Application *app;
 extern ostream *debugStream;
@@ -117,4 +124,8 @@ void BeiDou::deleteEphemeris()
 		sortedEphemeris[s].clear(); // nothing left to delete 
 	}
 }
-	
+
+bool BeiDou::resolveMsAmbiguity(Antenna*,ReceiverMeasurement *,SVMeasurement *,double *)
+{
+	return true;
+}

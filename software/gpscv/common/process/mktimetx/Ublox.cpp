@@ -388,7 +388,7 @@ bool Ublox::readLog(string fname,int mjd)
 					DBGMSG(debugStream,WARNING,"Empty ephemeris");
 				}
 				else if (msg.size()==(104+2)*2){
-					GPS::EphemerisData *ed = decodeEphemeris(msg);
+					GPS::EphemerisData *ed = decodeGPSEphemeris(msg);
 					gps.addEphemeris(ed);
 				}
 				else{
@@ -447,39 +447,49 @@ bool Ublox::readLog(string fname,int mjd)
 	// Do this initially and then every time a step is detected
 	
 	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
-	for (int prn=1;prn<=32;prn++){
-		unsigned int lasttow=99999999,currtow=99999999;
-		double lastmeas,currmeas;
-		double corr=0.0;
-		bool first=true;
-		bool ok=false;
-		for (unsigned int i=0;i<measurements.size();i++){
-			for (unsigned int m=0;m < measurements[i]->meas.size();m++){
-				if (prn==measurements[i]->meas[m]->svn){
-					lasttow=currtow;
-					lastmeas=currmeas;
-					currmeas=measurements[i]->meas[m]->meas;
-					currtow=measurements[i]->gpstow;
-					
-					DBGMSG(debugStream,TRACE,prn << " " << currtow << " " << currmeas << " ");
-					if (first){
-						first=false;
-						ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
-					}
-					else if (currtow > lasttow){ // FIXME better test of gaps
-						if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
-							DBGMSG(debugStream,TRACE,"first/step " << prn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-							ok = resolveMsAmbiguity(measurements[i],measurements[i]->meas[m],&corr);
+	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g << 1)){
+		if (!(g & constellations)) continue;
+		GNSSSystem *gnss;
+		switch (g){
+			case GNSSSystem::BEIDOU:gnss=&beidou;break;
+			case GNSSSystem::GALILEO:gnss=&galileo;break;
+			case GNSSSystem::GLONASS:gnss=&glonass;break;
+			case GNSSSystem::GPS:gnss=&gps;break;
+			default:break;
+		}
+		for (int svn=1;svn<=gnss->nsats();svn++){
+			unsigned int lasttow=99999999,currtow=99999999;
+			double lastmeas,currmeas;
+			double corr=0.0;
+			bool first=true;
+			bool ok=false;
+			for (unsigned int i=0;i<measurements.size();i++){
+				for (unsigned int m=0;m < measurements[i]->meas.size();m++){
+					if (svn==measurements[i]->meas[m]->svn){
+						lasttow=currtow;
+						lastmeas=currmeas;
+						currmeas=measurements[i]->meas[m]->meas;
+						currtow=measurements[i]->gpstow;
+						
+						DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
+						if (first){
+							first=false;
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
 						}
+						else if (currtow > lasttow){ // FIXME better test of gaps
+							if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
+								DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							}
+						}
+						if (ok) measurements[i]->meas[m]->meas += corr;
+						break;
 					}
-					if (ok) measurements[i]->meas[m]->meas += corr;
-					break;
+					
 				}
-				
 			}
 		}
 	}
-	
 	// interpolateMeasurements(measurements);
 	// Note that after this, tmfracs is now zero and all measurements have been interpolated to a 1 s grid
 	
@@ -492,7 +502,7 @@ bool Ublox::readLog(string fname,int mjd)
 	
 }
 
-GPS::EphemerisData* Ublox::decodeEphemeris(string msg)
+GPS::EphemerisData* Ublox::decodeGPSEphemeris(string msg)
 {
 	U4 u4buf;
 	HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
