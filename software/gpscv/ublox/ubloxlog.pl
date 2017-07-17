@@ -404,6 +404,86 @@ sub ConfigureReceiver
 		sleep 5;
 	}
 	
+	my $observations = 'gps'; # default is GPS
+	# Valid combinations for the ublox 8 LEA 8MT are
+	# GPS, Galileo,
+	# GPS, Galileo, GLONASS
+	# GPS, Galileo, Beidou
+	# GPS, GLONASS
+	# GPS, Beidou
+	# Galileo, GLONASS
+	# Galileo, GLONASS
+	# Galileo, BeiDou
+	# GLONASS, BeiDou
+	# SBAS, QZSS can only be enabled with GPS enabled 
+	
+	my $coldstart=0;
+  if (defined($Init{"receiver:observations"})){
+		$observations=lc $Init{"receiver:observations"};
+		$coldstart=1; # won't try to be clever and detect changes
+  }
+  
+  # WARNING! Only a few (useful) combinations are supported here
+  my $ngnss = 0;
+	my $cfg = '';
+	# Calculate the number of GNSS systems
+  if ($observations =~ /gps/){ # GPS combos
+		$ngnss=1;
+		if ($observations =~ /glonass/){
+			$ngnss++;
+		}
+		elsif ($observations =~ /beidou/){
+			$ngnss++;
+		}
+  }
+  elsif ($observations =~ /glonass/){ # GLONASS combos 
+		$ngnss=1;
+		if ($observations =~ /beidou/){
+			$ngnss++;
+		}
+  }
+  elsif ($observations =~ /beidou/){
+		$ngnss=1;
+	}
+	
+	if ($ngnss == 0){
+		ErrorExit("Problem with receiver:observations: no valid GNSS systems were found");
+	}
+	
+	$msgSize=pack('v',4+8*$ngnss); # little-endian, 16 bits unsigned
+	$numConfigBlocks=pack('C',$ngnss);
+	$cfg = "\x06\x3e$msgSize\xff\xff$numConfigBlocks";
+	if ($observations =~ /gps/){ # GPS combos
+		$cfg .= EnableGNSS('gps',16,16);
+		if ($observations =~ /glonass/){
+			$cfg .= EnableGNSS('glonass',16,16);
+		}
+		elsif ($observations =~ /beidou/){
+			$cfg .= EnableGNSS('beidou',16,16);	
+		}
+  }
+  elsif ($observations =~ /glonass/){ # GLONASS combos 
+		$cfg .= EnableGNSS('glonass',16,16);	
+		if ($observations =~ /beidou/){
+			$cfg .= EnableGNSS('beidou',16,16);	
+		}
+  }
+  elsif ($observations =~ /beidou/){
+		$cfg .= EnableGNSS('beidou',16,16);	
+	}
+	
+	SendCommand($cfg);
+	
+  # Cold start is recommended after GNSS reconfiguration
+  # This doesn't scrub the GNSS selection
+  if ($coldstart){
+		$msg="\x06\x04\x04\x00\xff\xff\x00\x00";
+		SendCommand($msg);
+		sleep 5;
+  }
+  
+  SendCommand('\x06\x3e\x00\x00'); # Get the new configuration
+  
 	# Navigation/measurement rate settings
 	$ubxmsgs .= "\x06\x08:";
 	$msg = "\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE
@@ -622,4 +702,25 @@ sub ParseGPSSystemDataMessage()
 	}
 }
 
+# ------------------------------------------------------------------------------
+sub EnableGNSS
+{
+	my ($gnss,$resTrkCh,$maxTrkCh) = @_;
+	$resTrkCh = pack('C',$resTrkCh);
+	$maxTrkCh = pack('C',$maxTrkCh);
+	my ($gnssID,$flags);
+	if ($gnss == 'gps'){
+		$gnssID = pack('C',0);
+		$flags = pack('V',0x01 | 0x010000); # little endian, unsigned 32 bits
+	}
+	elsif ($gnss == 'beidou'){
+		$gnssID = pack('C',3);
+		$flags = pack('V',0x01 | 0x010000);
+	}
+	elsif ($gnss == 'glonass'){
+		$gnssID = pack('C',6);
+		$flags = pack('V',0x01 | 0x010000);
+	}
+	return "$gnssID$resTrkCh$maxTrkCh$flags";
+}
 
