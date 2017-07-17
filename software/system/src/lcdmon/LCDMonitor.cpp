@@ -751,6 +751,9 @@ void LCDMonitor::clearDisplay()
 void LCDMonitor::run()
 {
 	clearDisplay();
+	std::time_t ts = std::time(NULL);
+	displaybacklightoff = false;
+	COMMAND_PACKET cmd;
 	while (1)
 	{
 		// use usleep timing otherwise the displayed time jumps 1s occasionally because of rounding
@@ -762,6 +765,16 @@ void LCDMonitor::run()
 			// check the packet type - timeouts can generate unexpected packets
 			if (incoming_command.command==0x80) // key events only
 			{
+				// Turn backlight on if it was off
+				if(displaybacklightoff)
+				{
+					cmd.command=14;
+					cmd.data[0]=intensity;
+					cmd.data_length=1;
+					sendCommand(cmd);
+					displaybacklightoff=false;
+					ts = std::time(NULL);
+				}
 				ShowReceivedPacket();
 				clearDisplay();
 				execMenu();
@@ -771,6 +784,16 @@ void LCDMonitor::run()
 		}
 		else
 			showStatus();
+		// if LCD backlight is of, turn it off if timeout is reached
+		if(displaytimeout != 0)
+			if(std::time(NULL) > (ts+displaytimeout) && !displaybacklightoff)
+			{
+				cmd.command=14;
+				cmd.data[0]=0;
+				cmd.data_length=1;
+				sendCommand(cmd);
+				displaybacklightoff=true;
+			}
 	}
 }
 
@@ -1426,7 +1449,7 @@ void LCDMonitor::configure()
 
 	intensity=80;
 	contrast=95;
-
+	displaytimeout=0; // Louis 2017-07-17, timeout for LCD backlight
 	ListEntry *last;
 	if (!configfile_parse_as_list(&last,config.c_str()))
 	{
@@ -1522,6 +1545,15 @@ void LCDMonitor::configure()
 	}
 	else
 		log("LCD contrast not found in config file");
+
+	if (list_get_int_value(last,"UI","LCD timeout",&itmp))
+	{
+		displaytimeout = itmp;
+		if (displaytimeout < 0) displaytimeout = 0;
+		if (displaytimeout > 3600) displaytimeout = 3600;
+	}
+	else
+		log("LCD backlight timeout not found in config file");
 
 	if (list_get_string_value(last,"UI","display mode",&stmp))
 	{

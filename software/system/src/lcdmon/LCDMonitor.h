@@ -159,14 +159,16 @@ class LCDMonitor:public CFA635
 		std::string DNSconf,networkConf,eth0Conf;
 		
 		std::string receiverName;
-		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile; 
+		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile;
 		
 		// some settings
 		int intensity;
 		int contrast;
 		int displayMode;
+		int displaytimeout;
+		bool displaybacklightoff;
 		int networkProtocol;
-		// 
+		//
 		struct timeval lastNTPtrafficPoll,currNTPtrafficPoll;
 		int    lastNTPPacketCount,currNTPPacketCount;
 		
