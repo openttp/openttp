@@ -12,11 +12,11 @@
  * http://www.bonebrews.com/
  *          temperature-monitoring-with-the-ds18b20-on-a-beaglebone-black/
  *
- * 2017-12-19 Louis Marais
+ * 2016-12-19 Louis Marais
  * Modified the 'gpios = <...' line: changed gpio2 to gpio1 (the '2' was
  * a quirk in the older kernels).
  *
- * 2017-12-20 Louis Marais
+ * 2016-12-20 Louis Marais
  * I want to install this on the BBB OpenTTP system on plywood, so I had to undo
  * the change above. I added a comment to make it obvious what needs to happen.
  *
@@ -48,7 +48,7 @@
                 compatible      = "w1-gpio";
                 pinctrl-names   = "default";
                 pinctrl-0       = <&bb_w1_pins>;
-                gpios = <&gpio2 13 0>; /* gpio1 for 0 based counting, gpio2 for 1 based counting */
+                gpios = <&gpio1 13 0>; /* gpio1 for 0 based counting, gpio2 for 1 based counting */
             };
         };
     };
