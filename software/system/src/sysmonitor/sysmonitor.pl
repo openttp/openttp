@@ -80,7 +80,9 @@ package main;
 $AUTHORS="Michael Wouters";
 $VERSION="1.0";
 
-$MAX_FILE_AGE=60;
+#$MAX_FILE_AGE=60; # file can be up to this old before an alarm is raised
+$MAX_FILE_AGE=180; # Increased it to 180 seconds, because GPSDO data is  
+                   # only logged once a minute (Louis, 2017-07-21)
 $BOOT_GRACE_TIME=60; # wait at least this long after boot to let processes start
 
 # $ALARM_AUDIBLE=0x01; # removed: just annoying
@@ -297,15 +299,17 @@ if (-e $MDSTAT){
 
 Debug("Initialized ".($#monitors+1). " monitors");
 
+my $killed = 0;
+
 # Catch the kill signal so we can log that we were killed
-$SIG{TERM} = sub {SysmonitorLog("Received SIGTERM - exiting.")};
+$SIG{TERM} = sub { SysmonitorLog("Received SIGTERM - exiting."); $killed = 1; };
 
 SysmonitorLog("Started");
 
 $ntpqClks={}; # NB global
 $lastNtpq = 0; 
 
-while (1){
+while ($killed == 0){
 	
 	my $now =time;
 	
@@ -335,11 +339,11 @@ while (1){
 		}
 	}
 	
-	sleep(1);
+	if($killed == 0) { sleep(1); }
 	
 }
 
-SysmonitorLog("Unexpected exit");
+if ($killed == 0) { SysmonitorLog("Unexpected exit"); } else {SysmonitorLog("Finished"); }
 
 #-----------------------------------------------------------------------
 sub ShowHelp{

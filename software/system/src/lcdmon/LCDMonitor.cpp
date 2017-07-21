@@ -114,6 +114,8 @@ LCDMonitor::LCDMonitor(int argc,char **argv)
 
 LCDMonitor::~LCDMonitor()
 {
+	clearDisplay();
+	statusLEDsOff();
 	Uninit_Serial();
 	log("Shutdown");
 	unlink(lockFile.c_str());
@@ -1880,7 +1882,6 @@ void LCDMonitor::repaintWidget(Widget *w,std::vector<std::string> &display,bool 
 
 bool LCDMonitor::checkAlarms()
 {
-
 	alarms.clear();
 
 	glob_t aglob;
@@ -1900,7 +1901,6 @@ bool LCDMonitor::checkAlarms()
 			size_t pos = msg.find_last_of('/');
 			if (pos != string::npos)
 				msg = msg.substr(pos+1,string::npos);
-
 			alarms.push_back(msg);
 			Dout(dc::trace,msg);
 		}
