@@ -566,7 +566,7 @@ sub CheckGPSSignal
 			while ($line=<IN>){
 				chomp $line;
 				Debug("$mon->{receiver} $line");
-				if ($line =~ /sats:\s*(\d+)/){
+				if ($line =~ /GPS sats:\s*(\d+)/){
 					return $1>= 4;
 				}
 			}
