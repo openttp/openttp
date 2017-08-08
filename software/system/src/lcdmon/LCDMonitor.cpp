@@ -650,22 +650,28 @@ void LCDMonitor::restartGPS()
 		struct stat statbuf;
 		if ((0 == stat(gpsLoggerLockFile.c_str(),&statbuf)))
 		{
-
 			std::ifstream fin(gpsLoggerLockFile.c_str());
 			if (!fin.good())
 			{
 				log("Couldn't open " + gpsLoggerLockFile);
 				goto fail;
 			}
-   		pid_t pid;
+			pid_t pid = 0;
+			// ELM: lock file now contains app name and PID - this is consequence
+			// of making all the lock files consistent with the TFLibrary.
+			std::string pids;
+			fin >> pids;
 			fin >> pid;
 			fin.close();
-			if (pid >0) // be careful here, since we are superdude
+			
+			if (pid > 0) // be careful here, since we are superdude
 				kill(pid,SIGTERM);
 			else
 				goto fail;
+			
 			sleep(2); // wait a bit for OS to do its thing
 		}
+		
 		Dout(dc::trace,"LCDMonitor::restartGPS() " << gpsRxRestartCommand );
 		int sysret = system(gpsRxRestartCommand.c_str());
 		Dout(dc::trace,"LCDMonitor::restartGPS() system() returns " << sysret);
@@ -680,7 +686,7 @@ void LCDMonitor::restartGPS()
 
 		delete dlg;
 		return;
-	}
+	} 
 	else //cancelled the dialog
 	{
 		delete dlg;
@@ -1420,7 +1426,8 @@ void LCDMonitor::configure()
 	poweroffCommand="/sbin/poweroff";
 	rebootCommand="/sbin/shutdown -r now";
 	//ntpdRestartCommand="/sbin/service ntpd-nmi restart";
-	ntpdRestartCommand="/usr/sbin/service ntp restart";
+	//ntpdRestartCommand="/usr/sbin/service ntpd restart";
+	ntpdRestartCommand="/bin/systemctl restart ntp";
 	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 
