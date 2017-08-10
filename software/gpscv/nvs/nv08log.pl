@@ -34,7 +34,7 @@ use strict;
 #                         The Trimble SMT360 issue could not be resolved, so Michael
 #                         started code to use the NV08 as the GPS timing receiver for
 #                         the version 3 system.
-# Last modification date: 2016-06-22
+# Last modification date: 2017-08-10
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Modification record:
@@ -59,6 +59,8 @@ use strict;
 #                                     disk. This is to make the SD card last longer.
 #                                     status and lock files are stored here, because
 #                                     they don't need to survive a reboot.
+# 2017-08-10         Louis Marais     Using antenna delay command to implement pps
+#                                     offset. This feature was missing from the program
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 
@@ -610,7 +612,14 @@ sub ConfigureReceiver
   # Set receiver Antenna delay
   # Antenna delay is set to zero here. The actual antenna cable delay is taken care of in the processing software.
   # Convert the data type to FP64 (as expected by the receiver)
-  my($antDelFP64) = pack "d1",0;
+  #my($antDelFP64) = pack "d1",0;
+
+
+  # OK we need to use this feature to offset the PPS signal...
+  # The command accepts a value in miiliseconds, so we need to convert the nanosecond value in
+  # the configuration file to milliseconds.
+  my($ppsOffset) = pack "d1",-($Init{"receiver:pps offset"})/1.0E6;
+  sendCmd("\x1D\x01".$ppsOffset);
 
   # For testing set antenna delay to -3.5 microseconds so that counter can catch each 1PPS
   # my($antDelFP64) = pack "d1",-0.0035; # milliseconds
