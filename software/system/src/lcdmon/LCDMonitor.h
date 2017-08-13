@@ -60,6 +60,7 @@ class LCDMonitor:public CFA635
 		
 		void showAlarms();
 		void showSysInfo();
+		void showIP();
 		
 		void networkDisable();
 		void networkConfigDHCP();
@@ -80,6 +81,8 @@ class LCDMonitor:public CFA635
 		enum LEDState {Off,RedOn,GreenOn,Unknown};
 		enum DisplayMode {GPS,NTP,GPSDO};
 		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
+		
+		void getIPaddress(std::string &, std::string &);
 		
 		static void signalHandler(int);
 		void startTimer(long secs=10);

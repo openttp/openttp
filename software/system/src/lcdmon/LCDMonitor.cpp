@@ -40,6 +40,8 @@
 #include <sys/types.h>
 #include <sys/sysinfo.h>
 #include <utime.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 
 #include <algorithm>
 #include <iostream>
@@ -151,7 +153,6 @@ void LCDMonitor::showAlarms()
 	delete mb;
 }
 
-
 void LCDMonitor::showSysInfo()
 {
 	clearDisplay();
@@ -188,6 +189,49 @@ void LCDMonitor::showSysInfo()
 	delete mb;
 }
 
+void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &usb0ip)
+{
+	struct ifaddrs * ifAddrStruct=NULL;
+	struct ifaddrs * ifa=NULL;
+	void * tmpAddrPtr=NULL;
+	
+	eth0ip = "Not assigned";
+	usb0ip = "Not assigned";
+	
+	getifaddrs(&ifAddrStruct);
+	
+	for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr) {
+			continue;
+		}
+		if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
+			// is a valid IP4 Address?
+			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+			char addressBuffer[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+			if(strcmp(ifa->ifa_name,"eth0") == 0) eth0ip = addressBuffer;
+			if(strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
+		}
+	}
+	if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
+}
+
+void LCDMonitor::showIP()
+{
+	std::string eth0ip, usb0ip;
+	getIPaddress(eth0ip,usb0ip);
+	
+	clearDisplay();
+
+	MessageBox *mb = new MessageBox(" "," "," "," ");
+
+	if(eth0ip != "") mb->setLine(0,"eth0: " + eth0ip);
+	if(usb0ip != "") mb->setLine(1,"usb0: " + usb0ip);
+
+	execDialog(mb);
+	delete mb;
+}
+
 // This does not seem to be called from anywhere...
 void LCDMonitor::networkDisable() // Does this do anything?
 {                                 // No, it does not!
@@ -199,7 +243,6 @@ void LCDMonitor::networkDisable() // Does this do anything?
 	sleep(1);
 	log("networking disabled");
 }
-
 
 // Disabled for OpenTTP
 void LCDMonitor::networkConfigDHCP()
@@ -1738,6 +1781,9 @@ void LCDMonitor::makeMenu()
 		  midGPSDODisplayMode = displayModeM ->insertItem("GPSDO",cb);
 			mi = displayModeM->itemAt(midGPSDODisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==GPSDO);
+			
+		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showIP);
+		setupM->insertItem("Show IP addresses...",cb);
 
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
 	menu->insertItem("Show alarms",cb);
