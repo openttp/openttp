@@ -67,6 +67,7 @@ class LCDMonitor:public CFA635
 		void networkConfigStaticIP4();
 	
 		void LCDConfig();
+		void LCDBacklightTimeout();
 		void setGPSDisplayMode();
 		void setNTPDisplayMode();
 		void setGPSDODisplayMode();
@@ -148,7 +149,7 @@ class LCDMonitor:public CFA635
 		
 		bool showPRNs;
 
-		Menu *menu,*displayModeM,*protocolM;
+		Menu *menu,*displayModeM,*protocolM,*lcdSetup;
 		int midGPSDisplayMode,midNTPDisplayMode,midGPSDODisplayMode; // some menu items we want to track
 		int midDHCP,midStaticIP4,midStaticIP6;
 		

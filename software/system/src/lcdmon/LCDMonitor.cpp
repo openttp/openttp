@@ -61,6 +61,7 @@
 #include "Dialog.h"
 #include "IntensityWidget.h"
 #include "IPWidget.h"
+#include "NumberWidget.h"
 #include "KeyEvent.h"
 #include "Label.h"
 #include "LCDMonitor.h"
@@ -623,6 +624,61 @@ void LCDMonitor::LCDConfig()
 		cmd.data[0]=intensity;
 		cmd.data_length=1;
 		sendCommand(cmd);
+	}
+	delete dlg;
+}
+
+void LCDMonitor::LCDBacklightTimeout()
+{
+	// Set up display
+	clearDisplay();
+	Dialog *dlg = new Dialog();
+	dlg->setGeometry(0,0,20,4);
+	
+	std::string messg = "Backlight timeout:";
+	Label *m = new Label(messg,dlg);
+	m->setGeometry(0,0,18,1);
+	
+	NumberWidget *nw = new NumberWidget(displaytimeout,dlg);
+	nw->setGeometry(8,1,4,1);
+	nw->setFocusWidget(true);
+	
+	std::string minutes = "seconds";
+	Label *n = new Label(minutes,dlg);
+	n->setGeometry(13,1,7,1);
+	
+	std::string help = "  Adjust with ";
+	help += 222; // Up arrow
+	help += " ";
+	help += 224; // Down arrow
+	Label *l= new Label(help,dlg);
+	l->setGeometry(0,2,20,1);
+
+	WidgetCallback<Dialog> *cb = new WidgetCallback<Dialog>(dlg,&Dialog::ok);
+	Button *b = new Button("OK",cb,dlg);
+	b->setGeometry(5,3,2,1);
+
+	cb = new WidgetCallback<Dialog>(dlg,&Dialog::cancel);
+	b = new Button("Cancel",cb,dlg);
+	b->setGeometry(10,3,6,1);
+	
+	bool ret = execDialog(dlg);
+	
+	if (ret)
+	{
+		// store new value for timeout in settings file and assign new value to global variable
+		if (nw->value() != displaytimeout)
+		{
+			displaytimeout = nw->value();
+			std::string sbuf;
+			ostringstream ossbuf(sbuf);
+			ossbuf << displaytimeout;
+			updateConfig("ui","lcd timeout",ossbuf.str());
+		}
+	}
+	else // we cancelled
+	{
+		// do nothing...
 	}
 	delete dlg;
 }
@@ -1760,8 +1816,14 @@ void LCDMonitor::makeMenu()
 			if (mi != NULL) mi->setChecked(networkProtocol==StaticIPV4);
 		*/
 
-		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
-		setupM->insertItem("LCD settings...",cb);
+		lcdSetup = new Menu("LCD setup...");
+		setupM->insertItem(lcdSetup);
+		
+			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
+			lcdSetup->insertItem("LCD settings...",cb);
+			
+			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::LCDBacklightTimeout);
+			lcdSetup->insertItem("LCD backlight time..",cb);
 
 		displayModeM = new Menu("Display mode...");
 		setupM->insertItem(displayModeM);
@@ -1783,7 +1845,7 @@ void LCDMonitor::makeMenu()
 			if (mi != NULL) mi->setChecked(displayMode==GPSDO);
 			
 		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showIP);
-		setupM->insertItem("Show IP addresses...",cb);
+		setupM->insertItem("Show IP addresses..",cb);
 
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
 	menu->insertItem("Show alarms",cb);

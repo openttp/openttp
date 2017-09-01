@@ -10,8 +10,9 @@ DEBUGFLAG = -g
 CFLAGS = -Wall -Wno-unused $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
 
-LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o \
-	SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o MessageBox.o
+LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o NumberWidget.o \
+	 LCDMonitor.o Menu.o Main.o Widget.o SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o \
+	 MessageBox.o
 
 LCDCONFIGOBJS=CFA635.o Debug.o LCDConfigure.o
 
