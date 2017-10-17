@@ -3,10 +3,13 @@
 \documentclass[11pt,a4paper,openany,oneside]{book}
 
 \usepackage[usenames]{color}
+\usepackage{epsfig}
 \usepackage{fancyhdr}
 \usepackage{listings}
 \usepackage{graphicx}
 \usepackage{parskip}
+\usepackage{pifont}
+\usepackage{rotating}
 \usepackage{enumitem}
 \usepackage{latexsym}
 \usepackage{titlesec}
@@ -42,8 +45,14 @@
 
 \newcommand{\ci}[1]{\hspace*{1cm} {\small\texttt{#1}}}
 \newcommand{\cc}[1]{{\texttt{#1}}}
+\newcommand{\mykey}[1]{{\makebox[16pt] {\put(0,4){\circle{12}} \put(0,4){\makebox(0,0){\small{#1}}}}}}
+
+
 % Set bullet style
 \renewcommand{\labelitemi}{$\Box$} 
+\renewcommand{\labelitemii}{$\Box$} 
+\renewcommand{\labelitemiii}{$\Box$} 
+\renewcommand{\labelitemiv}{$\Box$} 
 
 \newenvironment{description*}%
   {\setlength{\parskip}{0pt}%
@@ -121,6 +130,8 @@ Commons Attribution 4.0 International License.}
 
 \section{What is OpenTTP?}
 
+The Open Time-Transfer Platform is an open source solution for providing traceable time and frequency.
+
 \section{GPS common-view}
 
 \section{The OpenTTP reference platform}
@@ -161,28 +172,32 @@ The OpenTTP reference platform consists of:
 	\begin{tabular}{lll}
 	Manufacturer & models & notes \\ \hline
 	Agilent & 5313x &  needs IOTech GPIB to RS232 converter\\
-	OpenTTP &  & \\
+	OpenTTP & XEM6001 & \\
 	SRS & PRS10 & uses input 1 pps time-tagging function\\
+	TAPR & TICC &\\
 	\end{tabular}
 	\caption{Supported counter/timers.}
 	\end{table}
 	
 %% ****************************************************************************************
-\chapter{Getting started}
+\chapter{Installing the software}
 %% ****************************************************************************************
 
 \section{Software installation requirements}
 
-In addition to a basic Linux development environment, you will need the development packages for:
+In addition to a basic Linux development environment (C/C++/Perl/Python), you will need the development packages for:
 \begin{description*}
 	\item[\cc{boost}]  C++ libraries
 	\item[\cc{libgsl}] GNU scientific library
+	\item{\cc{libusb}} libusb library (for communicating with the Opal Kelly XEM6001)
 \end{description*}
 
 Depending on your Linux installation, you may also need
 \begin{description*}
 	\item[\cc{Time::HiRes}] Perl library
 \end{description*}
+
+The names of the required packages will depend on the Linux distribution that you are using.
 
 \section{Building and installing the software}
 
@@ -222,7 +237,7 @@ will probably be straight-forward. Most likely, users will have to provide their
 logging their counter/timer, given the large number of possible devices here, and the limited
 support within OpenTTP.
 
-You may find the following useful:
+You may find the following scripts useful for automating operation:
 \begin{description*}
 	\item[] \cc{kickstart.pl} for automatic start of logging processes
 	\item[] \cc{runmktimetx.pl} for automated processing, and reprocessing
@@ -237,9 +252,11 @@ be redefined in the configuration file \cc{gpscv.conf}.
 
 
 %% ****************************************************************************************
-\chapter{System hardware}
+\chapter{The reference platform}
 %% ****************************************************************************************
 
+\input{srcs/systemunit}
+\input{srcs/frontpanel}
 \input{srcs/counter}
 
 
@@ -261,6 +278,7 @@ TIC logging & & \\
 	& \hyperlink{h:hp5313xlog}{hp5313xlog.pl} &\\
 	& \hyperlink{h:okxemlog}{okxemlog.pl} & \\
 	& \hyperlink{h:prs10log}{prs10log.pl} & \\
+	& \hyperlink{h:ticclog}{ticclog.py} & \\
 	\hline
 GNSS receiver logging & & \\
 	&	\hyperlink{h:jnslog}{jnslog.pl} & Javad\\
@@ -365,6 +383,9 @@ It also uses:\cc{paths:counter data},
 
 \section{prs10log.pl}
 \hypertarget{h:prs10log}{}
+
+\section{ticclog.pl}
+\hypertarget{h:ticclog}{}
 
 \section{jnslog.pl}
 \hypertarget{h:jnslog}{}
