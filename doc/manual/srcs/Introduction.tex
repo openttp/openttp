@@ -1,0 +1,85 @@
+
+
+
+This chapter givens a short introduction to the Open Traceable Time Platform (OpenTTP), describing the Reference Platform and other supported hardware.
+
+\section{What is OpenTTP?}
+
+The Open Traceable Time Platform is an open-source solution for a timing system that can be made fully traceable to national standards.
+It achieves traceability using the GPS common-view technique, which allows distant clocks to be compared with an accuracy of a few ns.
+The reference platform is based on readily available, low-cost OEM modules and provides a full software and hardware solution. 
+
+The goals of the OpenTTP project are:
+\begin{enumerate}
+
+	\item Fully open source hardware and software 
+	
+	\item Easy customisation for specialised applications
+	
+	\item Production of time-transfer files in the standard CGGTTS data format
+	
+	\item Easy extension to new receivers
+
+	\item Low cost 
+
+\end{enumerate}
+
+Applications currently include provision of traceable time of day and auditing of NTP-synchronized systems.
+
+\section{The OpenTTP software}
+
+The OpenTTP software provides a full solution for automated logging and processing of time-transfer data.
+It is available via GitHub:
+\begin{lstlisting}
+https://github.com/openttp
+\end{lstlisting}
+and users are invited to contribute to its development.
+
+The software supports several different GNSS receivers and counter/timers. 
+The supported GNSS receivers are mostly low-cost, single-frequency receivers since low cost is a key objective of 
+the OpenTTP project.
+	
+	\subsection{GNSS receivers}
+	
+	\begin{table}[h]
+	\begin{tabular}{lll}
+	Manufacturer & models & notes \\ \hline
+	Javad & GRIL receivers & obsolete \\
+	NVS   & NV08 & \\
+	Trimble & Resolution T & obsolete\\
+	ublox & Neo8MT & \\
+	\end{tabular}
+	\caption{Supported GPS/GNSS receivers.}
+	\end{table}
+	
+	Note that OpenTTP uses a custom file format for logging GPS receiver data. It does not read native receiver binary-format files.
+	
+	Guidance on testing a receiver for suitability for time-transfer, and writing software to process
+	the receiver's data, is given in the OpenTTP Developer's Guide.
+	
+	\subsection{Counter/timers}
+	
+	\begin{table}[h]
+	\begin{tabular}{lll}
+	Manufacturer & models & notes \\ \hline
+	Agilent & 5313x &  needs IOTech GPIB to RS232 converter\\
+	OpenTTP & XEM6001 & \\
+	SRS & PRS10 & uses input 1 pps time-tagging function\\
+	TAPR & TICC &\\
+	\end{tabular}
+	\caption{Supported counter/timers.}
+	\end{table}
+	
+\section{The OpenTTP reference platform}
+
+The OpenTTP reference platform consists of:
+\begin{itemize}
+\item BeagleBone Black, an ARM-based single board computer
+\item NVS Technologies NV08-CSM GNSS receiver
+\item Opal Kelly XEM6001 FPGA development board
+\item Jackson Labs LTE Lite GPS-disciplined oscillator
+\item Solid-state disk for mass storage
+\item CrystalFontz LCD module
+\end{itemize}
+
+Custom circuits, printed circuit board designs and other hardware resources are all available via the GitHub repository.

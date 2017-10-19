@@ -1,5 +1,24 @@
 \section{The front panel menu}
 
+\begin{itemize}
+	\item[\mykey{A}] PC reset button
+	\item[\mykey{B}] Reference Oscillator 1 pps LED
+	\item[\mykey{C}] Status LEDs
+	\item[\mykey{D}] LCD display
+	\item[\mykey{E}] Keypad
+\end{itemize}
+
+The top line of the LCD display shows UTC date and time.
+The date and time displayed will typically only be accurate to 1 s.
+The contents of the second and third lines of the display depend on the display mode.
+When in GPS mode, the identifiers of up
+to 10 currently visible GPS space vehicles are displayed. When in NTP mode, the second line shows
+the number of NTP packets received per minute. The third line shows information about
+synchronization status, including leap second announcements.
+The bottom line is reserved for notification of system alarms and either shows
+``System OK'' or ``System Alarm''.
+The LED beside this line will be red if there is a running alarm.
+
 \subsection{Using the front panel keypad \label{sKeypad} }
 
 
