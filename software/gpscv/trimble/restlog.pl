@@ -47,7 +47,9 @@
 #  26-08-2016 MJW Remove backwards compatibility.
 #  22-02-2017 MJW Minor changes for operation as non-GPSCV receiver
 #  23-02-2017 MJW Changes to operate as a single constellation receiver (SMT 360 only) and reduce the amount of logged data
-# 
+#  10-12-2017 MJW Configurable path for UUCP lock files
+#		  Version changed to 3.0.2
+#
 # Improvements?
 # Use 6D for tracking visible satellites but this is not strictly correct
 # since this reports satelites used for position/time fix NOT visible
@@ -64,7 +66,7 @@ use Getopt::Std;
 use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
-$VERSION="3.0.1";
+$VERSION="3.0.2";
 $AUTHORS="Michael Wouters, Bruce Warrington";
 
 $RESOLUTION_T=0;
@@ -190,7 +192,12 @@ $rxmask="";
 $port=$Init{"receiver:port"};
 $port="/dev/$port" unless $port=~m#/#;
 
-unless (`/usr/local/bin/lockport $port $0`==1) {
+$uucpLockPath="/var/lock";
+if (defined $Init{"paths:uucp lock"}){
+	$uucpLockPath = $Init{"paths:uucp lock"};
+}
+
+unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
 	printf "! Could not obtain lock on $port. Exiting.\n";
 	exit;
 }
@@ -348,6 +355,7 @@ LOOP: while (!$killed)
 
 BYEBYE:
 if (-e $lockFile) {unlink $lockFile;}
+`/usr/local/bin/lockport -r -d $uucpLockPath $port`;
 
 @_=gmtime();
 $msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d $0 killed\n",
