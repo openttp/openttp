@@ -28,7 +28,8 @@
 #
 # Modification history
 # 2016-06-19 MJW First version
-# 
+# 2017-12-08 MJW Fixups for CentOS 7 and added missing GetYesNo
+#
 
 use English;
 use Getopt::Std;
@@ -51,6 +52,7 @@ $SYSTEMD="systemd";
 @os =(
 	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6",$UPSTART,"/usr/local/lib/site_perl"], 
 	["CentOS release 6","centos6",$UPSTART,"/usr/local/lib/site_perl"],
+	["CentOS Linux 7","centos7",$SYSTEMD,"/usr/local/lib64/perl5","/usr/local/lib/python2.7/site-packages"],
 	["Ubuntu 14.04","ubuntu14",$UPSTART,
 		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
         ["Ubuntu 16.04","ubuntu16",$UPSTART,
@@ -93,8 +95,15 @@ if ($EFFECTIVE_USER_ID >0){
 
 open (LOG,">./installsys.log");
 
-$thisos = `cat /etc/issue`;
-chomp $thisos;
+# Try for /etc/os-release first (systemd systems only)
+if ((-e "/etc/os-release")){
+	$thisos = `grep '^PRETTY_NAME' /etc/os-release | cut -f 2 -d "="`;
+	$thisos =~ s/\"//g;
+}
+else{
+	$thisos = `cat /etc/issue`;
+	chomp $thisos;
+}
 
 Log("\n/etc/issue: $thisos\n");
 
@@ -174,7 +183,7 @@ if (grep (/^ottplib/,@targets)){
 		if ($2 >= 7){
 			$dir = $os[$i][4];
 			if (!(-e $dir)){
-				`mkdir $dir`;
+				`mkdir -p $dir`;
 				`chmod a+rx $dir`;
 				Log("Created $dir\n",$ECHO);
 			}
@@ -270,6 +279,20 @@ sub Log
 		if ($flags == $ECHO) {print $msg;}
 	}
 	print LOG $msg;
+}
+
+# -------------------------------------------------------------------------
+sub GetYesNo
+{
+	my ($prompt,$logmsg)=@_;
+	ASKYN:
+	print "$prompt (y/n) ?:";
+	$ans = <STDIN>;
+	chomp $ans;
+	if (!($ans eq "y" || $ans eq "Y" || $ans eq "n" || $ans eq "N")){goto ASKYN;}
+	
+	Log("$logmsg = $ans\n",!$ECHO);
+	return ( ($ans eq "y") || ($ans eq "Y"));	
 }
 
 #-----------------------------------------------------------------------------------
