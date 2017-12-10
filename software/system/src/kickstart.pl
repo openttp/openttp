@@ -38,7 +38,7 @@
 #								 Demand use of a lock and check whether the process is running via this.
 # 30-03-2016 MJW New configuration file format. Use the 'standard' .conf format
 # 10-05-2017 ELM moved location of check files to ~/lockStatusCheck directory - on the BBB system this is a RAM disk.
-#
+# 2017-12-11 MJW Backwards compatibility for checkStatusPath
 
 use POSIX;
 use Getopt::Std;
@@ -46,7 +46,7 @@ use TFLibrary;
 use vars qw($opt_c $opt_d $opt_h $opt_v);
 
 $AUTHOR="Michael Wouters";
-$VERSION="1.0";
+$VERSION="1.0.1";
 
 my $home=$ENV{HOME};
 
@@ -67,7 +67,7 @@ if ($opt_v){
 
 $configPath="";
 if (-d "$home/logs") {$logPath="$home/logs";} else {die "$logPath missing"}; 
-if (-d "$home/lockStatusCheck") {$checkPath="$home/lockStatusCheck";} else {die "$checkPath missing"};
+if (-d "$home/lockStatusCheck") {$checkPath="$home/lockStatusCheck";} else {$checkPath=$logPath};
 if (-d "$home/etc")  {$configPath="$home/etc";} 
 
 my $logFile=  "$logPath/kickstart.log";
