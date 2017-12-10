@@ -3,6 +3,7 @@
 \documentclass[11pt,a4paper,openany,oneside]{book}
 
 \usepackage[usenames]{color}
+\usepackage{dirtree}
 \usepackage{epsfig}
 \usepackage{fancyhdr}
 \usepackage{listings}
@@ -142,79 +143,6 @@ Commons Attribution 4.0 International License.}
 
 \input{srcs/GettingStarted}
 
-%% ****************************************************************************************
-\chapter{Installing the software}
-%% ****************************************************************************************
-
-This chapter describes how to install the software in an environment other than the OpenTTP Refernec Platform.
-
-\section{Software installation requirements}
-
-In addition to a basic Linux development environment (C/C++/Perl/Python), you will need the development packages for:
-\begin{description*}
-	\item[\cc{boost}]  C++ libraries
-	\item[\cc{libgsl}] GNU scientific library
-	\item[\cc{libusb}] libusb library (for communicating with the Opal Kelly XEM6001)
-\end{description*}
-
-Depending on your Linux installation, you may also need
-\begin{description*}
-	\item[\cc{Time::HiRes}] Perl library
-\end{description*}
-
-The names of the required packages will depend on the Linux distribution that you are using.
-
-\section{Building and installing the software}
-
-Two scripts are provided for installing the software.
-\begin{lstlisting}
-software/system/installsys.pl
-software/gpscv/install.pl
-\end{lstlisting}
-
-\cc{installsys.pl} must be run first (with superuser privileges), 
-because it installs libraries which are needed by the GPSCV software.
-
-Run-time options can be viewed by running the script with the '-h' option. In particular, \cc{installsys.pl}
-has options to list the available installation targets and to install particular targets.
-
-\section{A minimal software setup}
-
-Some users may only be interested in the core software that OpenTTP provides so that they can use
-it with their own hardware. This section describes the minimum setup required for operation.
-
-The OpenTTP software distribution is comprised of various C/C++ applications and Perl scripts.
-As a minimum, you will need:
-\begin{description*}
-	\item \cc{TFLibrary.pm} Perl module for commonly used tasks, such as reading configuration files
-	\item \cc{libconfigurator} C library for parsing configuration files
-	\item \cc{lockport} utility to create a UUCP lock file
-	\item \cc{mktimetx} creates time-transfer files
-	\item one of the OpenTTP-provided scripts to log your receiver
-	\item one of the OpenTTP-provided scripts to log your counter/timer
-\end{description*}
-
-You must use one of the OpenTTP receiver logging scripts for the GNSS receiver because \cc{mktimetx}
-expects a custom file-format \ref{s:DataFileFormat}. In particular, the
-receiver's native binary formats are not readable by \cc{mktimetx}. Similarly, OpenTTP uses a custom file
-format for the counter-timer measurement files, although in this case, conversion from another format
-will probably be straight-forward. Most likely, users will have to provide their own software for
-logging their counter/timer, given the large number of possible devices here, and the limited
-support within OpenTTP.
-
-You may find the following scripts useful for automating operation:
-\begin{description*}
-	\item[] \cc{kickstart.pl} for automatic start of logging processes
-	\item[] \cc{runmktimetx.pl} for automated processing, and reprocessing
-	\item[] \cc{ziplogs.pl} for log file compression
-\end{description*}	
-
-Sample configuration files can be found in \cc{software/gpscv/common/etc}.
-The user running the logging and processing needs the following directories (or equivalents - most paths
-can be configured via the general configuration file, \ref{sgpscvconf}):
-\cc{bin}, \cc{cggtts},\cc{etc},\cc{logs},\cc{raw},\cc{rinex},\cc{tmp}. Some of these paths can
-be redefined in the configuration file \cc{gpscv.conf}.
-
 
 %% ****************************************************************************************
 \chapter{The reference platform hardware}
@@ -255,6 +183,13 @@ This chapter provides a more detailed description of the reference platform hard
 \input{srcs/sysmonitor}
 
 \input{srcs/gziplogs}
+
+%% ****************************************************************************************
+\chapter{Installing the software}
+%% ****************************************************************************************
+
+
+\input{srcs/SoftwareInstallation}
 
 \end{document}
 

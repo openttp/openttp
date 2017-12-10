@@ -155,20 +155,22 @@ It also uses: \cc{paths:counter data},
 \section{prs10log.pl}
 \hypertarget{h:prs10log}{}
 
-\section{ticclog.pl}
+\section{ticclog.py}
 \hypertarget{h:ticclog}{}
 
-\cc{ticclog.pl} is used to log data from a TAPR Timestamping/TIme Interval Counter (TICC).
-See \cc{https://www.tapr.org/kits_ticc.html} for more information about this counter.
+\cc{ticclog.py} is used to log data from a TAPR Timestamping/TIme Interval Counter (TICC).
+See \cc{https://www.tapr.org/kits\_ticc.html} for more information about this counter.
 
 The command line options are:
 \begin{description*}
- \item[-h, --help] print help and exit
- \item[--config CONFIG, -c CONFIG] use the specified configuration file
- \item[ --debug, -d]           run in debugging mode
- \item[--settings, -s]        print the counter settings
-  \item[--version, -v]        	print version information and exit
+ \item[-h, -{}-help] print help and exit
+ \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
+ \item[-{}-debug, -d]           run in debugging mode
+ \item[-{}-settings, -s]        print the counter settings
+  \item[-{}-version, -v]        	print version information and exit
 \end{description*}
+
+There are no specific configuration file entries for this script.
 
 \section{jnslog.pl}
 \hypertarget{h:jnslog}{}
