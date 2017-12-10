@@ -28,25 +28,26 @@ use strict;
 
 # Modification history:
 # 2017-02-27 MJW First version
+# 2017-12-11 MJW Configurable path for UUCP lock files. Version change to 1.0.1
 #
 
 use Time::HiRes qw(gettimeofday);
 use POSIX;
 use TFLibrary;
-use vars qw($tmask $opt_c $opt_d $opt_h $opt_r $opt_v);
+use vars qw($tmask  $opt_c $opt_d $opt_h $opt_r $opt_v);
 use Switch;
 use Getopt::Std;
 use NV08C::DecodeMsg;
 
 # declare variables - required because of 'use strict'
-my($home,$configPath,$logPath,$lockFile,$port,$VERSION,$rx,$rxStatus);
+my($home,$configPath,$logPath,$lockFile,$port,$uucpLockPath,$VERSION,$rx,$rxStatus);
 my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
 my(%Init);
 my($AUTHORS,$configFile,@info,@required);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "1.0";
+$VERSION = "1.0.1";
 
 $0=~s#.*/##;
 
@@ -85,52 +86,14 @@ if (!(-e $configFile)){
 
 &Initialise($configFile);
 
-# Check for an existing lock file
 # Check the lock file
-$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
-if (-e $lockFile){
-  open(LCK,"<$lockFile");
-  @info = split ' ', <LCK>;
-  close LCK;
-  if (-e "/proc/$info[1]"){
-    printf STDERR "Process $info[1] already running\n";
-    exit;
-  }
-  else{
-    open(LCK,">$lockFile");
-    print LCK "$0 $$\n";
-    close LCK;
-  }
-}
-else{
-  open(LCK,">$lockFile");
-  print LCK "$0 $$\n";
-  close LCK;
+$lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$lockPath);
+if (!TFCreateProcessLock($lockFile)){
+	ErrorExit("Process is already running\n");
 }
 
-# Open the serial port to the receiver
-$rxmask = "";
-$port = $Init{"receiver:port"};
+&InitSerial();
 
-unless (`/usr/local/bin/lockport $port $0`==1){
-	ErrorExit("! Could not obtain lock on $port");
-}
-$port="/dev/$port" unless $port=~m#/#;
-
-# Open port to NV08C UART B (COM2) at 115200 baud, 8 data bits, 1 stop bit,
-# odd parity, no flow control (see paragraph 2, page 8 of 91 in BINR
-# protocol specification).
-# To decipher the flags, look in the termios documentation
-
-$rx = &TFConnectSerial($port,
-			(ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
-				oflag=>0,lflag=>0,cflag=>CS8|CREAD|PARENB|PARODD|HUPCL|CLOCAL));
-
-Debug("Opened $port");
-
-# Set up a mask which specifies this port for select polling later on
-vec($rxmask,fileno $rx,1)=1;
-  
 # end of main 
 
 #-----------------------------------------------------------------------------
@@ -195,17 +158,27 @@ sub Initialise
   }
   exit if $err;
 
-  # Open the serial port to the receiver
-  $rxmask = "";
-  my($port) = $Init{"receiver:port"};
+ 
+} # Initialise
+
+#----------------------------------------------------------------------------
+sub InitSerial
+{
+		# Open the serial port to the receiver
+	$rxmask = "";
+	my($port) = $Init{"receiver:port"};
+	$port="/dev/$port" unless $port=~m#/#;
   
-  unless (`/usr/local/bin/lockport $port $0`==1) 
-  {
+	$uucpLockPath="/var/lock";
+	if (defined $Init{"paths:uucp lock"}){
+		$uucpLockPath = $Init{"paths:uucp lock"};
+	}
+
+  unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
     printf "! Could not obtain lock on $port. Exiting.\n";
     exit;
   }
-  $port="/dev/$port" unless $port=~m#/#;
-
+  
   # Open port to NV08C UART B (COM2) at 115200 baud, 8 data bits, 1 stop bit,
   # odd parity, no flow control (see paragraph 2, page 8 of 91 in BINR
   # protocol specification).
@@ -221,8 +194,7 @@ sub Initialise
   print "> Port $port to NV08C (GPS) Rx is open\n";
   # Wait a bit
   sleep(1);
-} # Initialise
-
+}
 
 #----------------------------------------------------------------------------
 

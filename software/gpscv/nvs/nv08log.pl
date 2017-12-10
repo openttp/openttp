@@ -34,7 +34,7 @@ use strict;
 #                         The Trimble SMT360 issue could not be resolved, so Michael
 #                         started code to use the NV08 as the GPS timing receiver for
 #                         the version 3 system.
-# Last modification date: 2017-08-10
+# Last modification date: 2017-12-11
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Modification record:
@@ -61,6 +61,7 @@ use strict;
 #                                     they don't need to survive a reboot.
 # 2017-08-10         Louis Marais     Using antenna delay command to implement pps
 #                                     offset. This feature was missing from the program
+# 2017-12-11         Michael Wouters  Configurable path for UUCP lock files
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 
@@ -76,7 +77,7 @@ use Getopt::Std;
 use NV08C::DecodeMsg;
 
 # declare variables - required because of 'use strict'
-my($home,$configPath,$logPath,$lockFile,$pid,$VERSION,$rx,$rxStatus);
+my($home,$configPath,$logPath,$lockFile,$uucpLockPath,$pid,$VERSION,$rx,$rxStatus,$port);
 my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
 my($glosats,$gpssats,$hdop,$vdop,$tdop,$nv08id,$dts,$saw);
@@ -85,63 +86,53 @@ my($AUTHORS,$configFile,@info,@required);
 my($lockPath,$statusPath);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "2.0.1";
+$VERSION = "2.0.2";
 
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
 $configFile="$home/etc/gpscv.conf";
 
-if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) 
-{
+if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h){ 
   ShowHelp();
   exit;
 }
 
-if ($opt_v)
-{
+if ($opt_v){
   print "$0 version $VERSION\n";
   print "Written by $AUTHORS\n";
   exit;
 }
 
-if (!(-d "$home/etc"))  
-{
+if (!(-d "$home/etc"))  {
   ErrorExit("No ~/etc directory found!\n");
 } 
 
-if (-d "$home/logs")  
-{
+if (-d "$home/logs"){
   $logPath="$home/logs";
 } 
-else
-{
+else{
   ErrorExit("No ~/logs directory found!\n");
 }
 
-if (-d "$home/lockStatusCheck")
-{
+if (-d "$home/lockStatusCheck"){
   $lockPath="$home/lockStatusCheck";
   $statusPath="$home/lockStatusCheck";
 }
-else
-{
+else{
   ErrorExit("No ~/lockStatusCheck directory found!\n");
 }
 
-if (defined $opt_c)
-{
+if (defined $opt_c){
   $configFile=$opt_c;
 }
 
-if (!(-e $configFile))
-{
+if (!(-e $configFile)){
   ErrorExit("A configuration file was not found!\n");
 }
 
 &Initialise($configFile);
 
-# Check for an existing lock file
 # Check the lock file
 $lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$lockPath);
 if (!TFCreateProcessLock($lockFile)){
@@ -154,10 +145,11 @@ $rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$statusPath);
 
 $Init{"paths:receiver data"}=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
 
-if (!($Init{"receiver:file extension"} =~ /^\./)) # do we need a period ?
-{
+if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
   $Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
 }
+
+&InitSerial();
 
 $now=time();
 $mjd=int($now/86400) + 40587;	
@@ -320,6 +312,7 @@ while (!$killed)
 
 BYEBYE:
 if (-e $lockFile) {unlink $lockFile;}
+`/usr/local/bin/lockport -r -d $uucpLockPath $port`;
 
 @_=gmtime();
 $msg=sprintf ("%04d-%02d-%02d %02d:%02d:%02d $0 killed\n",
@@ -374,8 +367,7 @@ sub Initialise
     "receiver:pps offset","receiver:lock file");
   %Init=&TFMakeHash2($name,(tolower=>1));
   
-  if (!%Init)
-  {
+  if (!%Init){
     print "Couldn't open $name\n";
     exit;
   }
@@ -384,27 +376,35 @@ sub Initialise
   
   # Check that all required information is present
   $err=0;
-  foreach (@required) 
-  {
-    unless (defined $Init{$_}) 
-    {
+  foreach (@required) {
+    unless (defined $Init{$_}) {
       print STDERR "! No value for $_ given in $name\n";
       $err=1;
     }
   }
   exit if $err;
 
-  # Open the serial port to the receiver
-  $rxmask = "";
-  my($port) = $Init{"receiver:port"};
   
-  unless (`/usr/local/bin/lockport $port $0`==1) 
-  {
+} # Initialise
+
+#----------------------------------------------------------------------------
+sub InitSerial()
+{
+	# Open the serial port to the receiver
+	$rxmask = "";
+	$port = $Init{"receiver:port"};
+	$port="/dev/$port" unless $port=~m#/#;
+  
+	$uucpLockPath="/var/lock";
+	if (defined $Init{"paths:uucp lock"}){
+		$uucpLockPath = $Init{"paths:uucp lock"};
+	}
+
+  unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
     printf "! Could not obtain lock on $port. Exiting.\n";
     exit;
   }
-  $port="/dev/$port" unless $port=~m#/#;
-
+  
   # Open port to NV08C UART B (COM2) at 115200 baud, 8 data bits, 1 stop bit,
   # odd parity, no flow control (see paragraph 2, page 8 of 91 in BINR
   # protocol specification).
@@ -420,8 +420,7 @@ sub Initialise
   print "> Port $port to NV08C (GPS) Rx is open\n";
   # Wait a bit
   sleep(1);
-} # Initialise
-
+}
 
 #----------------------------------------------------------------------------
 
