@@ -532,8 +532,10 @@ sub ConfigureReceiver
 			}
 			elsif ($timingMode =~ /GLONASS/){
 				# GLONASS is
-				# 1 + 2 + 0 + 0 + 16 + 64
-				&SendCommand("\x8E\xA2\x53"); 
+				# 1 + 2 + 0 + 0 + 0 + 64
+				# (but use UTC for time of day and not GLONASS so we don't have to muck about in ntpd
+				# to fix the 3hr offset)
+				&SendCommand("\x8E\xA2\x43"); 
 			}
 	  }
 	}
