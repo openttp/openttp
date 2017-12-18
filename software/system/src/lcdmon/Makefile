@@ -4,9 +4,8 @@ BINDIR = $(INSTDIR)/sbin
 ETCDIR = $(INSTDIR)/etc
 GROUP = suck
 CC = g++
-DEBUGFLAG = -g
 LIBS = -L/usr/local/lib -lconfigurator -lstdc++ -lboost_regex
-DEBUGFLAG = -g
+DEBUGFLAG = -g -DDEBUG
 CFLAGS = -Wall -Wno-unused $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
 
@@ -32,30 +31,28 @@ lcdconfig:	$(LCDCONFIGOBJS)
 	
 Button.o: Button.h Widget.h Functor.h
 
-CFA635.o: CFA635.h
+CFA635.o: CFA635.h Debug.h
 
 ConfirmationDialog.o: ConfirmationDialog.h Dialog.h Widget.h KeyEvent.h
 
 ContrastWidget.o: Widget.h SliderWidget.h KeyEvent.h ContrastWidget.h
 
-Debug.o: Debug.h
+Dialog.o: Debug.h Dialog.h Widget.h KeyEvent.h
 
-Dialog.o: Dialog.h Widget.h KeyEvent.h
+IPWidget.o: Debug.h Widget.h IPWidget.h KeyEvent.h
 
-IPWidget.o: Widget.h IPWidget.h KeyEvent.h
+IntensityWidget.o: Debug.h Widget.h SliderWidget.h KeyEvent.h IntensityWidget.h
 
-IntensityWidget.o: Widget.h SliderWidget.h KeyEvent.h IntensityWidget.h
-
-Label.o: Widget.h Label.h
+Label.o: Debug.h Widget.h Label.h
 
 LCDMonitor.o: CFA635.h Dialog.h IPWidget.h LCDMonitor.h WidgetCallback.h KeyEvent.h Functor.h \
 	Version.h SliderWidget.h IntensityWidget.h ContrastWidget.h Wizard.h
 
 LCDConfigure.o: CFA635.h LCDConfigure.h Version.h
 
-MessageBox.o: Widget.h Dialog.h Label.h KeyEvent.h
+MessageBox.o: Widget.h Debug.h Dialog.h Label.h KeyEvent.h
 
-Wizard.o: Wizard.h Dialog.h Widget.h KeyEvent.h Button.h WidgetCallback.h
+Wizard.o: Wizard.h Debug.h Dialog.h Widget.h KeyEvent.h Button.h WidgetCallback.h
 
 Main.o: LCDMonitor.h
 

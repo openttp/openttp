@@ -26,10 +26,17 @@
 //
 
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include <cmath>
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cstdio>
+
+using namespace std;
+
+extern ostream *debugStream;
 
 #include "SliderWidget.h"
 #include "KeyEvent.h"
@@ -48,7 +55,7 @@ SliderWidget::SliderWidget(std::string label,int initialValue,Widget *parent):Wi
 		
 bool SliderWidget::keyEvent(KeyEvent &ke)
 {
-	Dout(dc::trace,"SliderWidget::keyEvent() for " << label);
+	DBGMSG(debugStream,TRACE, "for " << label);
 	
 	if (!contains(ke.x(),ke.y())) return false;
 	
@@ -63,7 +70,7 @@ bool SliderWidget::keyEvent(KeyEvent &ke)
 				val += stepSize;
 			if (val <minVal)   val=minVal;
 			if (val >maxVal) val=maxVal;
-			Dout(dc::trace,"SliderWidget::keyEvent value = " << val);
+			DBGMSG(debugStream,TRACE," value = " << val);
 			setDirty(true);
 			updateSetting();
 			setFocusWidget(true); // shoudl be true anyway
@@ -80,7 +87,7 @@ bool SliderWidget::keyEvent(KeyEvent &ke)
 
 void SliderWidget::paint(std::vector<std::string> &display)
 {
-	Dout(dc::trace,"SliderWidget::paint()");
+	DBGMSG(debugStream,TRACE,"");
 	std::string txt=label;
 	// pad with whitespace out to 10 characters
 	for (unsigned int i=label.size()+1;i<=10;i++)

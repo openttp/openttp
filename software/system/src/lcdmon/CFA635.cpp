@@ -28,7 +28,7 @@
 // Modification history
 //
 
-#include "Sys.h"
+
 #include "Debug.h"
 
 #include  <stdlib.h>
@@ -37,12 +37,18 @@
 #include  <fcntl.h>
 #include  <errno.h>
 #include  <ctype.h>
-#include  <stdio.h>
 
 #include <cstring>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cstdio>
 
 #include "CFA635.h"
+
+using namespace std;
+
+extern ostream *debugStream;
 
 static const char *command_names[36]=
    {" 0 = Ping",
@@ -148,7 +154,7 @@ CFA635::CFA635()
 
 CFA635::~CFA635()
 {
-	Dout(dc::trace,"CFA635::~CFA635()");
+	DBGMSG(debugStream,TRACE,"");
 }
 
 
@@ -299,7 +305,7 @@ void CFA635::ShowReceivedPacket(void)
     }
 
   //key
-	#ifdef CWDEBUG
+	#ifdef DEBUG
   if(incoming_command.command==0x80)
 	{
 		char buf[1024];
@@ -310,8 +316,8 @@ void CFA635::ShowReceivedPacket(void)
      incoming_command.data_length,
      expanded,
      incoming_command.CRC);
-		Dout(dc::trace,"CFA635::ShowReceivedPacket()");
-		Dout(dc::trace,buf);
+		DBGMSG(debugStream,TRACE,"");
+		DBGMSG(debugStream,TRACE,buf);
 	}
   else
 	{
@@ -325,8 +331,8 @@ void CFA635::ShowReceivedPacket(void)
       incoming_command.data_length,
       expanded,
       incoming_command.CRC);
-		Dout(dc::trace,"CFA635::ShowReceivedPacket()");
-		Dout(dc::trace,buf);
+		DBGMSG(debugStream,TRACE,"");
+		DBGMSG(debugStream,TRACE,buf);
 	}
 	#endif
 }
@@ -345,7 +351,7 @@ int CFA635::Serial_Init(const char *devname, int baud_rate)
 
   if(handle <= 0)
 	{
-		Dout(dc::warning,"CFA635::Serial_Init() open() failed");
+		DBGMSG(debugStream,TRACE, "open() failed");
 		return(1);
 	}
 
@@ -359,14 +365,13 @@ int CFA635::Serial_Init(const char *devname, int baud_rate)
       brate=B115200;
       break;
     default:
-      Dout(dc::warning,"CFA635::Serial_Init() invalid baud rate: " << baud_rate <<
-				" (must be 19200 or 115200)");
+      DBGMSG(debugStream,TRACE,"invalid baud rate: " << baud_rate <<" (must be 19200 or 115200)");
       return(2);
   }
   //get device struct
   if(tcgetattr(handle, &term) != 0)
   {
-    Dout(dc::warning,"CFA635::Serial_Init() tcgetattr() failed");
+    DBGMSG(debugStream,TRACE,"tcgetattr() failed");
     return(3);
 	}
 
@@ -394,13 +399,13 @@ int CFA635::Serial_Init(const char *devname, int baud_rate)
   //set new device settings
   if(tcsetattr(handle, TCSANOW, &term)  != 0)
   {
-    Dout(dc::warning,"CFA635::Serial_Init() tcsetattr() failed");
+    DBGMSG(debugStream,TRACE,"tcsetattr() failed");
     return(4);
   }
 
   ReceiveBufferHead=ReceiveBufferTail=0;
 
-  Dout(dc::trace,"CFA635::Serial_Init() success");
+  DBGMSG(debugStream,TRACE,"success");
   return(0);
 }
 
@@ -418,13 +423,13 @@ void CFA635::USendByte(unsigned char datum)
 	{
     if((bytes_written=write(handle, &datum, 1)) != 1)
 		{
-      Dout(dc::warning,"CFA635::USendByte(): system call write() return error");
-			Dout(dc::warning,"CFA635::USendByte(): Asked for 1 byte to be written, but " << bytes_written <<  "reported as written.");
+      DBGMSG(debugStream,TRACE,"system call write() return error");
+			DBGMSG(debugStream,TRACE,"asked for 1 byte to be written, but " << bytes_written <<  "reported as written.");
 		}
 	}
   else
 	{
-    Dout(dc::warning,"CFA635::USendByte() handle is null");
+    DBGMSG(debugStream,TRACE,"handle is null");
 	}
 }
 
@@ -437,13 +442,13 @@ void CFA635::SendData(unsigned char *data,int length)
 	{
 		if((bytes_written=write(handle, data, length)) != length)
 		{
-			Dout(dc::warning,"CFA635::SendByte(): system call write() return error");
-			Dout(dc::warning,"CFA635::SendByte(): Asked for "<< length << " bytes to be written, but " << bytes_written <<  "reported as written.");
+			DBGMSG(debugStream,TRACE,"system call write() return error");
+			DBGMSG(debugStream,TRACE,"asked for "<< length << " bytes to be written, but " << bytes_written <<  "reported as written.");
 		}
 	}
 	else
 	{
-		Dout(dc::warning,"CFA635::SendByte() handle is null");
+		DBGMSG(debugStream,TRACE,"handle is null");
 	}
 }
 //------------------------------------------------------------------------------

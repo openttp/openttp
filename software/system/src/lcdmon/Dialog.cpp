@@ -26,11 +26,19 @@
 //
 
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include "Dialog.h"
 #include "KeyEvent.h"
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cstdio>
+
+using namespace std;
+
+extern ostream *debugStream;
 
 Dialog::Dialog(Widget *parent):Widget(parent)
 {
@@ -64,14 +72,14 @@ int Dialog::exitCode()
 
 void Dialog::ok()
 {
-	Dout(dc::trace,"Dialog::ok()");
+	DBGMSG(debugStream,TRACE,"");
 	exitCode_=OK;
 	finished_=true;
 }
 
 void Dialog::cancel()
 {
-	Dout(dc::trace,"Dialog::cancel()");
+	DBGMSG(debugStream,TRACE,"");
 	exitCode_=Cancel;
 	finished_=true;
 }

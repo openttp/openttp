@@ -25,9 +25,16 @@
 // Modification history
 //
 
-
-#include "Sys.h"
 #include "Debug.h"
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cstdio>
+
+using namespace std;
+
+extern ostream *debugStream;
 
 #include "KeyEvent.h"
 #include "Widget.h"
@@ -58,22 +65,19 @@ bool Widget::keyEvent(KeyEvent &ke)
 {
 	// return value indicates acceptance of the event
 	
-	Dout(dc::trace,"Widget::keyEvent()");
+	DBGMSG(debugStream,TRACE,"");
 	
-	if (!contains(ke.x(),ke.y()))
-	{ 
+	if (!contains(ke.x(),ke.y())){ 
 		setFocusWidget(false);
 		return false;
 	}
 	
 	Widget *currentFocusWidget=NULL;
-	for (unsigned int i=0;i<children.size();i++) 
-	{
-		if (children.at(i)->isFocusWidget())
-		{
+	for (unsigned int i=0;i<children.size();i++) {
+		if (children.at(i)->isFocusWidget()){
 			
 			currentFocusWidget=children.at(i);
-			Dout(dc::trace,"Widget::keyEvent() current focus widget at " << currentFocusWidget->x() << " " << currentFocusWidget->y());
+			DBGMSG(debugStream,TRACE,"current focus widget at " << currentFocusWidget->x() << " " << currentFocusWidget->y());
 			//break; // FIXME to help with debugging!
 		}
 	}
@@ -194,7 +198,7 @@ void  Widget::focus(int *fx,int *fy)
 		{
 			
 			children.at(i)->focus(fx,fy);
-			Dout(dc::trace,"Widget::focus() claimed by child at " << *fx << " " << *fy);
+			DBGMSG(debugStream,TRACE, "claimed by child at " << *fx << " " << *fy);
 			return;
 		}
 	}
@@ -256,7 +260,7 @@ Widget *Widget::focusWidgetBefore(Widget *w)
 	int wx = w->x();
 	int wy = w->y();
 	int wht = w->height();
-	Dout(dc::trace," Widget::focusWidgetBefore() " <<wx << " " << wy << " " << wht);
+	DBGMSG(debugStream,TRACE,"wx,wy,wht=" <<wx << " " << wy << " " << wht);
 	
 	std::vector<Widget *> ordered;
 	orderChildren(ordered);
@@ -265,13 +269,13 @@ Widget *Widget::focusWidgetBefore(Widget *w)
 		Widget *c =ordered.at(i);
 		if (c==w)
 		{
-			Dout(dc::trace," Widget::focusWidgetBefore() match index = " << i);
+			DBGMSG(debugStream,TRACE,"match index = " << i);
 			int indx;
 			if ((i-1) >= 0)
 				indx=i-1;
 			else //(i-1 < 0)
 				indx=ordered.size()-1; //.go to last
-			Dout(dc::trace," Widget::focusWidgetBefore() focus at " << ordered.at(indx)->x() << " " << ordered.at(indx)->y());
+			DBGMSG(debugStream,TRACE,"focus at " << ordered.at(indx)->x() << " " << ordered.at(indx)->y());
 			return ordered.at(indx);
 		}
 	}
@@ -283,7 +287,7 @@ Widget *Widget::focusWidgetAfter(Widget *w)
 	int wx = w->x();
 	int wy = w->y();
 	int wht = w->height();
-	Dout(dc::trace," Widget::focusWidgetAfter() " <<wx << " " << wy << " " << wht);
+	DBGMSG(debugStream,TRACE,"wx,wy,wht= " <<wx << " " << wy << " " << wht);
 	
 	std::vector<Widget *> ordered;
 	orderChildren(ordered);
@@ -298,7 +302,7 @@ Widget *Widget::focusWidgetAfter(Widget *w)
 				indx=i+1;
 			else //i+1 >= ordered.size() 
 				indx=0; // go to first
-			Dout(dc::trace," Widget::focusWidgetBefore() focus at " << ordered.at(indx)->x() << " " << ordered.at(indx)->y());
+			DBGMSG(debugStream,TRACE,"focus at " << ordered.at(indx)->x() << " " << ordered.at(indx)->y());
 			return ordered.at(indx);
 		}
 	}
@@ -316,7 +320,7 @@ void Widget::orderChildren(std::vector<Widget *> & ordered)
 	// order that list by 'x' and then copy to the ordered list
 	
 	std::vector<Widget *> tmp;
-	Dout(dc::trace,"Widget::orderChildren() children before =" << children.size());
+	DBGMSG(debugStream,TRACE,"children before =" << children.size());
 	for (int j=0;j<=3;j++)
 	{
 		tmp.clear();
@@ -338,7 +342,7 @@ void Widget::orderChildren(std::vector<Widget *> & ordered)
 	
 	}
 
-	Dout(dc::trace,"Widget::orderChildren() children after =" << ordered.size());
+	DBGMSG(debugStream,TRACE,"children after =" << ordered.size());
 }
 
 

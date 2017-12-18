@@ -25,9 +25,16 @@
 // Modification history
 //
 
-
-#include "Sys.h"
 #include "Debug.h"
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cstdio>
+
+using namespace std;
+
+extern ostream *debugStream;
 
 #include "Button.h"
 #include "Label.h"
@@ -59,35 +66,34 @@ Wizard::Wizard(Widget *parent):Dialog(parent)
 
 Wizard::~Wizard()
 {
-	Dout(dc::trace,"Wizard::~Wizard()");
+	DBGMSG(debugStream,TRACE,"");
 	for (unsigned int i=0;i<pages.size();i++)
 		delete pages[i];
 	
-	Dout(dc::trace,"Wizard::~Wizard() finished");
+	DBGMSG(debugStream,TRACE,"finished");
 }
 
 void Wizard::nextPage()
 {
-	Dout(dc::trace,"Wizard::nextPage() was " << currentPage);
+	DBGMSG(debugStream,TRACE,"was " << currentPage);
 	
-	if (currentPage < pages.size())
-	{
+	if (currentPage < pages.size()){
 		currentPage++;
 		forcePaint=true;
 	}
 	
-	Dout(dc::trace,"Wizard::nextPage() now " << currentPage);
+	DBGMSG(debugStream,TRACE,"now " << currentPage);
 }
 
 void Wizard::prevPage()
 {
-	Dout(dc::trace,"Wizard::prevPage() was " << currentPage);
+	DBGMSG(debugStream,TRACE,"was " << currentPage);
 	if (currentPage > 0)
 	{
 		currentPage--;
 		forcePaint=true;
 	}
-	Dout(dc::trace,"Wizard::prevPage() now " << currentPage);
+	DBGMSG(debugStream,TRACE,"now " << currentPage);
 }
 
 	

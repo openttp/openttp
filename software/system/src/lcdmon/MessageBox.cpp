@@ -25,10 +25,6 @@
 // Modification history
 //
 
-
-#include "Sys.h"
-#include "Debug.h"
-
 #include "Label.h"
 #include "MessageBox.h"
 #include "KeyEvent.h"

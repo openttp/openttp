@@ -26,9 +26,6 @@
 //
 
 
-#include "Sys.h"
-#include "Debug.h"
-
 #include "Button.h"
 #include "ConfirmationDialog.h"
 #include "KeyEvent.h"

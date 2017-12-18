@@ -26,9 +26,6 @@
 //
 
 
-#include "Sys.h"
-#include "Debug.h"
-
 #include "LCDMonitor.h"
 #include "IntensityWidget.h"
 

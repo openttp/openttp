@@ -25,13 +25,16 @@
 // Modification history
 //
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include <iostream>
 #include <iomanip>
 #include <sstream>
 #include <cstdio>
+
+using namespace std;
+
+extern ostream *debugStream;
 
 #include "IPWidget.h"
 #include "KeyEvent.h"
@@ -72,7 +75,7 @@ IPWidget::IPWidget(std::string ipaddr,IPV ipver,Widget *parent):Widget(parent)
 
 IPWidget::~IPWidget()
 {
-	Dout(dc::trace,"IPWidget::~IPWidget() " << ip);
+	DBGMSG(debugStream,TRACE, ip);
 }
 
 bool IPWidget::keyEvent(KeyEvent &ke)
@@ -81,7 +84,7 @@ bool IPWidget::keyEvent(KeyEvent &ke)
 	//XXXX:NNN.NNN.NNN.NNN
 	// Is it even in our space
 	
-	Dout(dc::trace,"IPWidget ::keyEvent at " << ke.x() << " " << ke.y());
+	DBGMSG(debugStream,TRACE, "(x,y)=" << ke.x() << " " << ke.y());
 	
 	if (!contains(ke.x(),ke.y())) return false;
 	setFocusWidget(true);
@@ -128,7 +131,7 @@ bool IPWidget::keyEvent(KeyEvent &ke)
 			if (ke.x()-x() < 14)
 			{
 				setFocus(ke.x()+1,ke.y());
-				Dout(dc::trace,ke.x() + 1);
+				DBGMSG(debugStream,TRACE, "x->" << ke.x() + 1);
 				return true;
 			}
 			else
@@ -193,7 +196,6 @@ std::string IPWidget::ipAddress()
 		
 		oss << b;
 		if (i<quadcnt-1) oss << '.';
-		std::cout << b << " " << oss.str() << std::endl;
 	}
 	return oss.str();
 }

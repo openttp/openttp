@@ -25,7 +25,6 @@
 // Modification history
 //
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include <errno.h>
@@ -93,19 +92,40 @@ bool LCDMonitor::timeout=false;
 extern LCDMonitor *app;
 bool showHealth = true;
 
+extern ostream *debugStream;
+extern string   debugFileName;
+extern ofstream debugLog;
+extern int verbosity;
+extern bool shortDebugMessage;
+
 LCDMonitor::LCDMonitor(int argc,char **argv)
 {
-
-	//char c;  <-- issue with the way Debian on BBB returns values from getopt
-	// char is an unsigned type here, and EOF returns -1, so it just sits here forever
+	verbosity=TRACE;
+	
 	int c;
-	while ((c=getopt(argc,argv,"hvd")) != EOF)
+	while ((c=getopt(argc,argv,"hvd:")) != EOF)
 	{
 		switch(c)
   	{
 			case 'h':showHelp(); exit(EXIT_SUCCESS);
 			case 'v':showVersion();exit(EXIT_SUCCESS);
-			case 'd':Debug(dc::trace.on());break;
+			case 'd':
+			{
+				string dbgout = optarg;
+				if ((string::npos != dbgout.find("stderr"))){
+					debugStream = & std::cerr;
+				}
+				else{
+					debugFileName = dbgout;
+					debugLog.open(debugFileName.c_str(),ios_base::app);
+					if (!debugLog.is_open()){
+						cerr << "Unable to open " << dbgout << endl;
+						exit(EXIT_FAILURE);
+					}
+					debugStream = & debugLog;
+				}
+				break;
+			}
 		}
 	}
 
@@ -140,12 +160,10 @@ void LCDMonitor::showAlarms()
 	unsigned int nalarms=alarms.size();
 	if (nalarms > 4) nalarms=4;
 
-	if (nalarms == 0)
-	{
+	if (nalarms == 0){
 		mb->setLine(1,"   No alarms");
 	}
-	else
-	{
+	else{
 		for (unsigned int i=0;i<nalarms;i++)
 			mb->setLine(i,alarms[i]);
 	}
@@ -166,8 +184,7 @@ void LCDMonitor::showSysInfo()
 	//cout << sysInfoConf << endl;
 	if (!fin.good())
 		mb->setLine(1,"File not found");
-	else
-	{
+	else{
 		string tmp;
 
 		while (!fin.eof())
@@ -289,9 +306,8 @@ void LCDMonitor::networkConfigDHCP()
 
 		fout.close();
 		int retval;
-		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str())))
-		{
-			Dout(dc::trace,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str()))){
+			DBGMSG(debugStream,TRACE, "rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
 			lastError = "Rename of tmp.ifcfg-eth0 failed";
 			goto DIE;
 		}
@@ -313,7 +329,7 @@ void LCDMonitor::networkConfigDHCP()
 
 	DIE:
 		delete dlg;
-		Dout(dc::trace,"last error: "<< lastError);
+		DBGMSG(debugStream,TRACE, "last error: " << lastError);
 		clearDisplay();
 		updateLine(1,"Reconfig failed !");
 		sleep(2);
@@ -404,7 +420,7 @@ void LCDMonitor::networkConfigStaticIP4()
 		int retval;
 		if (0 != (retval = rename(ftmp.c_str(),netcfg.c_str())))
 		{
-			Dout(dc::trace,"Rename of " << ftmp << " to " << netcfg << " failed err = " << errno);
+			DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << netcfg << " failed err = " << errno);
 			lastError="Rename of network failed";
 			goto DIE;
 		}
@@ -472,7 +488,7 @@ void LCDMonitor::networkConfigStaticIP4()
 
 		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str())))
 		{
-			Dout(dc::trace,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+			DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
 			lastError = "Rename of tmp.ifcfg-eth0 failed";
 			goto DIE;
 		}
@@ -516,7 +532,7 @@ void LCDMonitor::networkConfigStaticIP4()
 
 		if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str())))
 		{
-			Dout(dc::trace,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+			DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
 			lastError="Rename of resolv.conf.tmp failed";
 			goto DIE;
 		}
@@ -529,7 +545,7 @@ void LCDMonitor::networkConfigStaticIP4()
 
 	DIE:
 		delete dlg;
-		Dout(dc::trace,"last error: "<< lastError);
+		DBGMSG(debugStream,TRACE, "last error: "<< lastError);
 		clearDisplay();
 		updateLine(1,"Reconfig failed !");
 		sleep(2);
@@ -771,9 +787,9 @@ void LCDMonitor::restartGPS()
 			sleep(2); // wait a bit for OS to do its thing
 		}
 		
-		Dout(dc::trace,"LCDMonitor::restartGPS() " << gpsRxRestartCommand );
+		DBGMSG(debugStream,TRACE,  gpsRxRestartCommand );
 		int sysret = system(gpsRxRestartCommand.c_str());
-		Dout(dc::trace,"LCDMonitor::restartGPS() system() returns " << sysret);
+		DBGMSG(debugStream,TRACE, "system() returns " << sysret);
 		if (sysret == -1)
 			goto fail;
 		else
@@ -978,7 +994,7 @@ void LCDMonitor::showStatus()
 				// Note: NV08C returns GPS and GLONASS sats in prn string, so we must only
 				//       parse the GPS sats - nsats contain the number of GPS sats
 				if (unexpectedEOF)
-					Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF from checkGPS");
+					DBGMSG(debugStream,TRACE,"Unexpected EOF from checkGPS");
 
 				if (showPRNs && !unexpectedEOF)
 				{
@@ -1039,10 +1055,10 @@ void LCDMonitor::showStatus()
 				*/
 				if(checkGPSDO(status,ffe,EFC,health,&unexpectedEOF))
 				{
-					if (unexpectedEOF)
-						Dout(dc::trace,"LCDMonitor::showStatus() Unexpected EOF from checkGPSDO");
-					else
-					{
+					if (unexpectedEOF){
+						DBGMSG(debugStream,TRACE, "Unexpected EOF from checkGPSDO");
+					}
+					else{
 						status = "GPSDO: " + status; //=+ did not work!
 						if (status.length() > 20) status.resize(20);
 						updateLine(1,status);
@@ -1179,13 +1195,13 @@ void LCDMonitor::execMenu()
 				{
 					if (incoming_command.data[0]==10 || incoming_command.data[0]==11)// RIGHT RELEASE/ENTER - next menu/exec item
 					{
-						Dout(dc::trace,"LCDMonitor::execMenu() selected " << currRow);
+						DBGMSG(debugStream,TRACE, "selected " << currRow);
 						MenuItem *currItem = currMenu->itemAt(currRow);
 						if (currItem)
 						{
 							if (currItem->isMenu())
 							{
-								Dout(dc::trace,"LCDMonitor::execMenu() selected menu " << currRow << "(menu)");
+								DBGMSG(debugStream,TRACE, "selected menu " << currRow << "(menu)");
 								currMenu = (Menu *) currItem;
 								menus.push(currMenu);
 								currRow=0;
@@ -1254,7 +1270,7 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 
 	bool retval = false;
 
-	Dout(dc::trace,"LCDMonitor::execDialog()");
+	DBGMSG(debugStream,TRACE,"");
 	startTimer(300);
 	while (exec && !LCDMonitor::timeout)
 	{
@@ -1289,7 +1305,7 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 					{
 						exec=false;
 						retval=false;
-						Dout(dc::trace,"Dialog cancelled");
+						DBGMSG(debugStream,TRACE,"Dialog cancelled");
 						break;
 					}
 
@@ -1305,7 +1321,7 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 						}
 						else
 						{
-							Dout(dc::trace,"!!!!repainting");
+							DBGMSG(debugStream,TRACE, "!!!!repainting");
 							repaintWidget(dlg,display);
 							dlg->focus(&currCol,&currRow);
 							updateCursor(currRow,currCol);
@@ -1316,14 +1332,14 @@ bool LCDMonitor::execDialog(Dialog *dlg)
 			}
 		}
 	}
-	Dout(dc::trace,"Dialog finished");
+	DBGMSG(debugStream,TRACE, "dialog finished");
 	stopTimer();
 	return retval;
 }
 
 void LCDMonitor::sendCommand(COMMAND_PACKET &cmd)
 {
-	Dout(dc::trace,"LCDMonitor::sendCommand");
+	DBGMSG(debugStream,TRACE,"");
 	outgoing_response.command =cmd.command;
 	outgoing_response.data_length=cmd.data_length;
 	for (unsigned int i=0;i<cmd.data_length;i++)
@@ -1341,11 +1357,11 @@ void LCDMonitor::signalHandler(int sig)
 	switch (sig)
 	{
 		case SIGALRM: 
-			Dout(dc::trace,"LCDMonitor::signalHandler SIGALRM");
+			DBGMSG(debugStream,TRACE, "SIGALRM");
 			LCDMonitor::timeout=true;
 			break;// can't call Debug()
 		case SIGTERM: case SIGQUIT: case SIGINT: case SIGHUP:
-			Dout(dc::trace,"LCDMonitor::signalHandler SIGxxx");
+			DBGMSG(debugStream,TRACE, "SIGxxx");
 			delete app;
 			exit(EXIT_SUCCESS);
 			break;
@@ -1386,18 +1402,18 @@ void LCDMonitor::init()
 	FILE *fd;
 	pid_t oldpid;
 
+	DBGMSG(debugStream,TRACE,"");
+	
 	logFile = DEFAULT_LOG_FILE;
 
 	lockFile = DEFAULT_LOCK_FILE;
 
-	/* Check that there isn't already a process running */
-	if ((fd=fopen(lockFile.c_str(),"r")))
-	{
+	// Check that there isn't already a process running 
+	if ((fd=fopen(lockFile.c_str(),"r"))){
 		fscanf(fd,"%i",&oldpid);
 		fclose(fd);
 		/* this doesn't send a signal - just error checks */
-		if (!kill(oldpid,0) || errno == EPERM) /* still running */
-		{
+		if (!kill(oldpid,0) || errno == EPERM){ /* still running */
 			cerr << "lcdmonitor with pid " << oldpid << " is still running" << endl;
 			exit(EXIT_FAILURE);
 		}
@@ -1410,13 +1426,11 @@ void LCDMonitor::init()
 	log(PRETTIFIER);
 
 	/* make a new lock */
-	if ((fd = fopen(lockFile.c_str(),"w")))
-	{
+	if ((fd = fopen(lockFile.c_str(),"w"))){
 		fprintf(fd,"%i\n",(int) getpid());
 		fclose(fd);
 	}
-	else
-	{
+	else{
 		log("failed to make a lock");
 		exit(EXIT_FAILURE);
 	}
@@ -1459,12 +1473,12 @@ void LCDMonitor::init()
 
 	if(Serial_Init(PORT,BAUD))
 	{
-		Dout(dc::trace,"Could not open port " << PORT << " at " << BAUD << " baud.");
+		DBGMSG(debugStream,TRACE, "Could not open port " << PORT << " at " << BAUD << " baud.");
 		exit(EXIT_FAILURE);
 	}
 	else
 	{
-		Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
+		DBGMSG(debugStream,TRACE,PORT << " opened at "<< BAUD <<" baud");
 	}
 
 	/* Clear the buffer */
@@ -1559,8 +1573,7 @@ void LCDMonitor::configure()
 	contrast=95;
 	displaytimeout=0; // Louis 2017-07-17, timeout for LCD backlight
 	ListEntry *last;
-	if (!configfile_parse_as_list(&last,config.c_str()))
-	{
+	if (!configfile_parse_as_list(&last,config.c_str())){
 		ostringstream msg;
 		msg << "failed to read " << config;
 		log(msg.str());
@@ -1749,7 +1762,7 @@ void LCDMonitor::configure()
 void LCDMonitor::updateConfig(std::string section,std::string token,std::string val)
 {
 	string config = DEFAULT_CONFIG;
-	Dout(dc::trace,"Updating " << config);
+	DBGMSG(debugStream,TRACE, "Updating " << config);
 	configfile_update(section.c_str(),token.c_str(),val.c_str(),config.c_str());
 }
 
@@ -1757,15 +1770,14 @@ void LCDMonitor::log(std::string msg)
 {
 	FILE *fd;
 
-	Dout(dc::trace,"LCDMonitor::log() " << msg);
+	DBGMSG(debugStream,TRACE,msg);
 	time_t tt =  time(0);
 	struct tm *gmt = gmtime(&tt);
 	char tc[128];
 
 	strftime(tc,128,"%F %T",gmt);
 
-	if ((fd = fopen(logFile.c_str(),"a")))
-	{
+	if ((fd = fopen(logFile.c_str(),"a"))){
 		fprintf(fd,"%s %s\n",tc,msg.c_str());
 		fclose(fd);
 	}
@@ -1831,7 +1843,7 @@ void LCDMonitor::makeMenu()
 			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGPSDisplayMode);
 		  midGPSDisplayMode =  displayModeM ->insertItem("GPS",cb);
 			mi = displayModeM->itemAt(midGPSDisplayMode);
-			Dout(dc::trace,"midGPSDisplayMode = " << midGPSDisplayMode);
+			DBGMSG(debugStream,TRACE, "midGPSDisplayMode = " << midGPSDisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==GPS);
 
 			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setNTPDisplayMode);
@@ -1881,19 +1893,19 @@ void LCDMonitor::getResponse()
 	}
 	if(timed_out)
 	{
-		Dout(dc::trace,"LCDMonitor::getResponse() Timed out waiting for a response");
+		DBGMSG(debugStream,TRACE,"Timed out waiting for a response");
 		log("I/O timeout");
 
 		Uninit_Serial();
 
 		if(Serial_Init(PORT,BAUD))
 		{
-			Dout(dc::trace,"Could not open port " << PORT << " at " << BAUD << " baud.");
+			DBGMSG(debugStream,TRACE, "Could not open port " << PORT << " at " << BAUD << " baud.");
 			exit(EXIT_FAILURE);
 		}
 		else
 		{
-   	 Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
+   	 DBGMSG(debugStream,TRACE, PORT << " opened at "<< BAUD <<" baud");
 		}
 
 		/* Clear the buffer */
@@ -2008,7 +2020,7 @@ bool LCDMonitor::checkAlarms()
 	}
 	else if (globret == 0)
 	{
-		Dout(dc::trace,"LCDMonitor::checkAlarms()");
+		DBGMSG(debugStream,TRACE,"");
 		for (unsigned int i=0;i<aglob.gl_pathc;i++)
 		{
 			// have to strip path
@@ -2017,7 +2029,7 @@ bool LCDMonitor::checkAlarms()
 			if (pos != string::npos)
 				msg = msg.substr(pos+1,string::npos);
 			alarms.push_back(msg);
-			Dout(dc::trace,msg);
+			DBGMSG(debugStream,TRACE,msg);
 		}
 		globfree(&aglob);
 		return false;
@@ -2033,8 +2045,7 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	bool ret = checkFile(GPSStatusFile.c_str());
 	if (!ret)
 	{
-		Dout(dc::trace,"LCDMonitor::checkGPS() stale file");
-		//cout << "checkGPS() stale file\n";
+		DBGMSG(debugStream,TRACE, "stale file");
 		return false; // don't display stale information
 	}
 
@@ -2042,8 +2053,7 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	std::ifstream fin(GPSStatusFile.c_str());
 	if (!fin.good()) // not really going to happen
 	{
-		Dout(dc::trace,"LCDMonitor::checkGPS() stream error");
-		//cout << "checkGPS() stream error\n";
+		DBGMSG(debugStream,TRACE,"stream error");
 		return false;
 	}
 
@@ -2077,7 +2087,7 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	}
 	fin.close();
 	*unexpectedEOF = !(gotSats || (!prns.empty()));
-	Dout(dc::trace,"LCDMonitor::checkGPS() done");
+	DBGMSG(debugStream,TRACE,"done");
 	return ret;
 }
 
@@ -2088,8 +2098,7 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	bool ret = checkFile(GPSDOStatusFile.c_str());
 	if (!ret)
 	{
-		Dout(dc::trace,"LCDMonitor::checkGPSDO() stale file");
-		//cout << "checkGPSDO() stale file\n";
+		DBGMSG(debugStream,TRACE,"stale file");
 		return false; // don't display stale information
 	}
 
@@ -2097,8 +2106,7 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	std::ifstream fin(GPSDOStatusFile.c_str());
 	if (!fin.good()) // not really going to happen
 	{
-		Dout(dc::trace,"LCDMonitor::checkGPSDO() stream error");
-		//cout << "checkGPSDO() stream error\n";
+		DBGMSG(debugStream,TRACE,"stream error");
 		return false;
 	}
 
@@ -2107,7 +2115,6 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	while (!fin.eof())
 	{
 		getline(fin,tmp);
-		//cout << tmp << endl;
 		if (string::npos != tmp.find("Lock status                   : "))
 		{
 			parseConfigEntry(tmp,status,'-');
@@ -2162,7 +2169,7 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	else
 		cout << "checkGPSDO: File length OK!\n";
 	*/
-	Dout(dc::trace,"LCDMonitor::checkGPSDO() done");
+	DBGMSG(debugStream,TRACE,"done");
 	return ret;
 }
 
@@ -2206,7 +2213,7 @@ bool LCDMonitor::detectNTPVersion()
 	FILE *fp=popen("/usr/local/bin/ntpq -c version","r"); 
 	while (fgets(buf,1023,fp) != NULL)
 	{
-		Dout(dc::trace,"LCDMonitor::detectNTPVersion() " << buf);
+		DBGMSG(debugStream,TRACE, buf);
 		boost::regex re("^ntpq\\s+(\\d+)\\.(\\d+)\\.(\\d+).*");
 		boost::cmatch matches;
 		if (boost::regex_match(buf,matches,re))
@@ -2214,7 +2221,7 @@ bool LCDMonitor::detectNTPVersion()
 			NTPProtocolVersion=boost::lexical_cast<int>(matches[1]);
 			NTPMajorVersion=boost::lexical_cast<int>(matches[2]);
 			NTPMinorVersion=boost::lexical_cast<int>(matches[3]);
-			Dout(dc::trace,"LCDMonitor::detectNTPVersion() ver=" << NTPProtocolVersion << 
+			DBGMSG(debugStream,TRACE, "ver=" << NTPProtocolVersion << 
 				",major=" << NTPMajorVersion << ",minor=" << NTPMinorVersion << endl);
 		}
 	}
@@ -2238,7 +2245,7 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 	FILE *fp=popen("/usr/local/bin/ntpq -c sysstats","r");
 	while (fgets(buf,1023,fp) != NULL)
 	{
-		Dout(dc::trace,buf);
+		DBGMSG(debugStream,TRACE, buf);
 		if (NTPProtocolVersion == 4){
 
 			if (strstr(buf,currPacketsTag.c_str()))
@@ -2285,7 +2292,7 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 	}
 	pclose(fp);
 	//printf("getNTPStats() oldpkts: %d newpkts %d badpkts %d\n\n",*oldpkts,*newpkts,*badpkts);
-	Dout(dc::trace,"getNTPstats() " << *oldpkts << " " << *newpkts << " " << *badpkts);
+	DBGMSG(debugStream,TRACE, "old,new,bad =" << *oldpkts << " " << *newpkts << " " << *badpkts);
 }
 
 bool LCDMonitor::checkFile(const char *fname)
@@ -2313,20 +2320,20 @@ bool LCDMonitor::checkFile(const char *fname)
 			/* Is it current ? */
 			if (ttime - statbuf.st_mtime < MAX_FILE_AGE)
 			{
-				Dout(dc::trace,"LCDMonitor::checkFile(): " << fname << " ok");
+				DBGMSG(debugStream,TRACE,  fname << " ok");
 				//cout << "checkFile() - file OK\n";
 				return true;
 			}
 			else
 			{
-				Dout(dc::trace,"LCDMonitor::checkFile(): " << fname <<" too old");
+				DBGMSG(debugStream,TRACE, fname <<" too old");
 				//cout << "checkFile() - file too old " << ttime - statbuf.st_mtime << endl;
 				return false;
 			}
 		}
 		else
 		{
-			Dout(dc::trace,"LCDMonitor::checkFile(): " << fname <<" predates boot");
+			DBGMSG(debugStream,TRACE,  fname <<" predates boot");
 			//cout << "checkFile() - file predates boot " << statbuf.st_mtime << " > " << ttime - info.uptime << endl;
 			return false; /* predates boot */
 		}
@@ -2335,7 +2342,7 @@ bool LCDMonitor::checkFile(const char *fname)
 	else /* file doesn't exist */
 	{
 		/* Have we just booted ? OK if we have */
-		Dout(dc::trace,"LCDMonitor::checkFile(): " << fname << "doesn't exist");
+		DBGMSG(debugStream,TRACE,  fname << "doesn't exist");
 		//cout << "File does not exist!\n";
 		return (info.uptime < BOOT_GRACE_PERIOD);
 	}
@@ -2353,7 +2360,7 @@ bool LCDMonitor::serviceEnabled(const char *service)
 bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string failmsg)
 {
 	int sysret = system(cmd.c_str());
-	Dout(dc::trace, cmd << " returns " << sysret);
+	DBGMSG(debugStream,TRACE,   cmd << " returns " << sysret);
 	if (sysret == 0)
 	{
 		log(okmsg);
@@ -2391,7 +2398,7 @@ void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim
 
 void LCDMonitor::parseNetworkConfig()
 {
-	Dout(dc::trace,"LCDMonitor::parseNetworkConfig()");
+	DBGMSG(debugStream,TRACE,"");
 
 	//
 	// Set some defaults

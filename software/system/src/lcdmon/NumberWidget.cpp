@@ -26,7 +26,6 @@
 //
 // Copied off IPWidget.h 2017-08-28 Louis Marais
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include <iostream>
@@ -36,6 +35,8 @@
 
 #include "NumberWidget.h"
 #include "KeyEvent.h"
+
+extern std::ostream *debugStream;
 
 NumberWidget::NumberWidget(int value,Widget *parent):Widget(parent)
 {
@@ -47,13 +48,13 @@ NumberWidget::NumberWidget(int value,Widget *parent):Widget(parent)
 
 NumberWidget::~NumberWidget()
 {
-	Dout(dc::trace,"NumberWidget::~NumberWidget() " << num_val);
+	DBGMSG(debugStream,TRACE,num_val);
 }
 
 bool NumberWidget::keyEvent(KeyEvent &ke)
 {
 	// Is it even in our space
-	Dout(dc::trace,"NumberWidget::keyEvent at " << ke.x() << " " << ke.y());
+	DBGMSG(debugStream,TRACE,"(x,y)=" << ke.x() << " " << ke.y());
 	
 	if (!contains(ke.x(),ke.y())) return false;
 	setFocusWidget(true);
@@ -93,7 +94,7 @@ bool NumberWidget::keyEvent(KeyEvent &ke)
 			if (ke.x()-x() < 3)
 			{
 				setFocus(ke.x()+1,ke.y());
-				Dout(dc::trace,ke.x() + 1);
+				DBGMSG(debugStream,TRACE,"x=" << ke.x() + 1);
 				return true;
 			}
 			else

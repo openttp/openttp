@@ -25,10 +25,6 @@
 // Modification history
 //
 
-
-#include "Sys.h"
-#include "Debug.h"
-
 #include "LCDMonitor.h"
 #include "ContrastWidget.h"
 
