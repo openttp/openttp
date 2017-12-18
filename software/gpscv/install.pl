@@ -29,6 +29,7 @@
 # Modification history
 # 2017-03-16 MJW Additions for Debian on BeagleBone Block. Version changed to 0.1.1
 # 2017-05-11 MJW Ubuntu16
+# 2017-12-08 MJW CentOS 7 fixups
 
 use English;
 use Getopt::Std;
@@ -41,7 +42,7 @@ use vars qw($opt_d $opt_h $opt_i $opt_t $optu $opt_v);
 
 $0=~s#.*/##;	# strip path
 
-$VERSION = "version 0.1.2";
+$VERSION = "version 0.1.3 ";
 
 $ECHO=1;
 $UNKNOWN=-1;
@@ -52,6 +53,7 @@ $GPSCVUSER=$ENV{USER};
 @os =(
 	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6"], # first entry is OS-defined string, second is our name
 	["CentOS release 6","centos6"],
+	["CentOS Linux 7","centos7"],
 	["Ubuntu 14.04","ubuntu14"],
 	["Ubuntu 16.04","ubuntu16"],
 	["BeagleBoard.org Debian","bbdebian8"] # FIXME this may not be set in stone ...
@@ -99,8 +101,16 @@ Log ("+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
 # Detect the operating system version
 # Note that you can use regexes in the OS strings 
 
-$thisos = `cat /etc/issue`;
-chomp $thisos;
+# Try for /etc/os-release first (systemd systems only)
+if ((-e "/etc/os-release")){
+        $thisos = `grep '^PRETTY_NAME' /etc/os-release | cut -f 2 -d "="`;
+        $thisos =~ s/\"//g;
+}
+else{
+        $thisos = `cat /etc/issue`;
+        chomp $thisos;
+}
+
 Log ("\nDetected $thisos\n",$ECHO);
 
 for ($i=0;$i<=$#os;$i++){

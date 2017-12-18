@@ -19,6 +19,18 @@ $(PROGRAM): $(OBJECTS)
 install: $(PROGRAM)
 	cp ppsd.conf /usr/local/etc
 	cp $(PROGRAM) /usr/local/sbin
+	@ if [[ `systemctl` =~ -\.mount ]]; then \
+		echo "systemd detected"; \
+		systemctl stop ppsd.service; \
+		cp ppsd.service /lib/systemd/system; \
+ 		systemctl enable ppsd.service; \
+	  elif [[ `/sbin/init --version` =~ upstart ]]; then\
+		echo "upstart detected";\
+		stop ppsd ;\
+		cp ppsd.upstart.conf /etc/init/ppsd.conf; \
+	  else\
+		echo "unsupported init system";\
+	  fi
 
 clean:
 	rm -f *.o $(PROGRAM)

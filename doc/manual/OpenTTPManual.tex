@@ -3,14 +3,21 @@
 \documentclass[11pt,a4paper,openany,oneside]{book}
 
 \usepackage[usenames]{color}
+\usepackage{dirtree}
+\usepackage{epsfig}
 \usepackage{fancyhdr}
 \usepackage{listings}
 \usepackage{graphicx}
 \usepackage{parskip}
+\usepackage{pifont}
+\usepackage{rotating}
 \usepackage{enumitem}
 \usepackage{latexsym}
 \usepackage{titlesec}
 \usepackage{xcolor}
+\usepackage{fancybox}
+\usepackage{caption}
+\usepackage{subcaption}
 \usepackage{hyperref} % wants to be last
 
 \hypersetup{
@@ -36,14 +43,23 @@
 {0pt}
 {\Huge\bfseries\sffamily\color{OTTPGreen}}
 
+% Change the format of sections
 \titleformat*{\section}{\Large\bfseries\sffamily\color{OTTPGreen}}
 \titleformat*{\subsection}{\large\bfseries\sffamily\color{OTTPGreen}}
 \titleformat*{\subsubsection}{\normalsize\bfseries\sffamily\color{OTTPGreen}}
 
 \newcommand{\ci}[1]{\hspace*{1cm} {\small\texttt{#1}}}
 \newcommand{\cc}[1]{{\texttt{#1}}}
+\newcommand{\mykey}[1]{{\makebox[16pt] {\put(0,4){\circle{12}} \put(0,4){\makebox(0,0){\small{#1}}}}}}
+
+\newcommand{\sysname}{{TTP}}
+\newcommand{\longsysname}{{Time Transfer Platform}}
+
 % Set bullet style
 \renewcommand{\labelitemi}{$\Box$} 
+\renewcommand{\labelitemii}{$\Box$} 
+\renewcommand{\labelitemiii}{$\Box$} 
+\renewcommand{\labelitemiv}{$\Box$} 
 
 \newenvironment{description*}%
   {\setlength{\parskip}{0pt}%
@@ -119,127 +135,22 @@ Commons Attribution 4.0 International License.}
 \chapter{Introduction}
 %% ****************************************************************************************
 
-\section{What is OpenTTP?}
+\input{srcs/Introduction}
 
-\section{GPS common-view}
-
-\section{The OpenTTP reference platform}
-
-The OpenTTP reference platform consists of:
-\begin{itemize}
-\item BeagleBone Black
-\item NVS NV08 GNSS receiver
-\item Opal Kelly XEM6001 FPGA development board
-\item Jackson Labs LTE Lite GPSDO
-\item SSD
-\item CrystalFontz LCD module
-\end{itemize}
-
-\section{Supported hardware}
-
-	\subsection{GNSS receivers}
-	
-	\begin{table}
-	\begin{tabular}{lll}
-	Manufacturer & models & notes \\ \hline
-	Javad & GRIL receivers & obsolete \\
-	NVS   & NV08 & \\
-	Trimble & Resolution T & obsolete\\
-	ublox & Neo8MT & \\
-	\end{tabular}
-	\caption{Supported GPS/GNSS receivers.}
-	\end{table}
-	
-	Note: OpenTTP uses a custom file format for logging GPS receiver data. It does not read native receiver binary-format files.
-	
-	Guidance on testing a receiver for suitability for time-transfer, and writing software to process
-	the receiver's data, is given in the OpenTTP Developer's Guide.
-	
-	\subsection{Counter/timers}
-	
-	\begin{table}
-	\begin{tabular}{lll}
-	Manufacturer & models & notes \\ \hline
-	Agilent & 5313x &  needs IOTech GPIB to RS232 converter\\
-	OpenTTP &  & \\
-	SRS & PRS10 & uses input 1 pps time-tagging function\\
-	\end{tabular}
-	\caption{Supported counter/timers.}
-	\end{table}
-	
 %% ****************************************************************************************
-\chapter{Getting started}
+\chapter{Getting started with the Reference Platform}
 %% ****************************************************************************************
 
-\section{Software installation requirements}
-
-In addition to a basic Linux development environment, you will need the development packages for:
-\begin{description*}
-	\item[\cc{boost}]  C++ libraries
-	\item[\cc{libgsl}] GNU scientific library
-\end{description*}
-
-Depending on your Linux installation, you may also need
-\begin{description*}
-	\item[\cc{Time::HiRes}] Perl library
-\end{description*}
-
-\section{Building and installing the software}
-
-Two scripts are provided for installing the software.
-\begin{lstlisting}
-software/system/installsys.pl
-software/gpscv/install.pl
-\end{lstlisting}
-
-\cc{installsys.pl} must be run first (with superuser privileges), 
-because it installs libraries which are needed by the GPSCV software.
-
-Run-time options can be viewed by running the script with the '-h' option. In particular, \cc{installsys.pl}
-has options to list the available installation targets and to install particular targets.
-
-\section{A minimal software setup}
-
-Some users may only be interested in the core software that OpenTTP provides so that they can use
-it with their own hardware. This section describes the minimum setup required for operation.
-
-The OpenTTP software distribution is comprised of various C/C++ applications and Perl scripts.
-As a minimum, you will need:
-\begin{description*}
-	\item \cc{TFLibrary.pm} Perl module for commonly used tasks, such as reading configuration files
-	\item \cc{libconfigurator} C library for parsing configuration files
-	\item \cc{lockport} utility to create a UUCP lock file
-	\item \cc{mktimetx} creates time-transfer files
-	\item one of the OpenTTP-provided scripts to log your receiver
-	\item one of the OpenTTP-provided scripts to log your counter/timer
-\end{description*}
-
-You must use one of the OpenTTP receiver logging scripts for the GNSS receiver because \cc{mktimetx}
-expects a custom file-format \ref{s:DataFileFormat}. In particular, the
-receiver's native binary formats are not readable by \cc{mktimetx}. Similarly, OpenTTP uses a custom file
-format for the counter-timer measurement files, although in this case, conversion from another format
-will probably be straight-forward. Most likely, users will have to provide their own software for
-logging their counter/timer, given the large number of possible devices here, and the limited
-support within OpenTTP.
-
-You may find the following useful:
-\begin{description*}
-	\item[] \cc{kickstart.pl} for automatic start of logging processes
-	\item[] \cc{runmktimetx.pl} for automated processing, and reprocessing
-	\item[] \cc{ziplogs.pl} for log file compression
-\end{description*}	
-
-Sample configuration files can be found in \cc{software/gpscv/common/etc}.
-The user running the logging and processing needs the following directories (or equivalents - most paths
-can be configured via the general configuration file, \ref{sgpscvconf}):
-\cc{bin}, \cc{cggtts},\cc{etc},\cc{logs},\cc{raw},\cc{rinex},\cc{tmp}. Some of these paths can
-be redefined in the configuration file \cc{gpscv.conf}.
+\input{srcs/GettingStarted}
 
 
 %% ****************************************************************************************
-\chapter{System hardware}
+\chapter{The reference platform hardware}
 %% ****************************************************************************************
 
+This chapter provides a more detailed description of the reference platform hardware.
+
+\input{srcs/antenna}
 \input{srcs/counter}
 
 
@@ -247,145 +158,7 @@ be redefined in the configuration file \cc{gpscv.conf}.
 \chapter{GPSCV software}
 %% ****************************************************************************************
 
-\section{Software overview}
-
-\begin{table}[h]
-\begin{tabular}{l|l|l}
-	& program & \\ 
-	\hline
-GPSCV processing  &  & \\
-	& \hyperlink{h:mktimetx}{mktimetx} & core program\\
-	& \hyperlink{h:runmktimetx}{runmktimetx.pl} & \\
-	\hline
-TIC logging & & \\
-	& \hyperlink{h:hp5313xlog}{hp5313xlog.pl} &\\
-	& \hyperlink{h:okxemlog}{okxemlog.pl} & \\
-	& \hyperlink{h:prs10log}{prs10log.pl} & \\
-	\hline
-GNSS receiver logging & & \\
-	&	\hyperlink{h:jnslog}{jnslog.pl} & Javad\\
-	& \hyperlink{h:nvslog}{nvslog.pl} & NVS\\
-	& \hyperlink{h:restlog}{restlog.pl} & Trimble Resolution T\\
-	& \hyperlink{h:ubloxlog}{ubloxlog.pl} & ublox\\
-GNSS receiver utilities & & \\
-	& \hyperlink{h:restextract}{restextract.pl} & \\
-	\hline
-Analysis tools & & \\
-	& \hyperlink{h:rxdelaycal}{rxdelaycal.pl} & \\
-	\hline
-\end{tabular}
-\caption{GPSCV software overview}
-\end{table}
-
-\section{Configuration file format \label{sConfigFileFormat}}
-
-Configuration files use a common format and are plain text files, designed to be easily edited via a command-line
-editor because in many applications, only shell access to the system will be available.
-
-The file is divided into sections, with section names delimited by square brackets [ ]. Entries in each section
-are of the form:
-\begin{lstlisting}
-key = value
-\end{lstlisting}
-For example,
-\begin{lstlisting}
-[Receiver]
-manufacturer = Trimble
-model = Resolution T
-\end{lstlisting}
-defines a section \cc{Receiver} and the two keys: \cc{manufacturer} and \cc{model}. 
-
-The notation \cc{Section::Key} is used to fully specify keys. For example,
-\cc{Receiver::model} and \cc{Receiver::manufacturer} specify the two keys above.
-
-Keys and section names are not case-sensitive. Comments begin with a `\#'.
-
-Some keys define a list of sections. For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
-\begin{lstlisting}
-[CGGTTS]
-outputs = C1-code,P1-code,P2-code
-\end{lstlisting}
-defines three sections: \cc{C1-code}, \cc{P1-code}, and \cc{P2-code}.
-
-\section{Data file formats \label{s:DataFileFormat}}
-
-\subsection{GPS receiver}
-
-This text file records messages from the GPS receiver. The messages can be a mix of ASCII and binary messages.
-Binary messages are hexadecimal-encoded. Some logging scripts record ancillary information, 
-such as commands sent to the receiver. Comments are allowed, prefaced by a `\#' character. 
-The `@' character can be used to tag lines containing special information that needs to be parsed by
-the processing software.
-
-Messages are successive lines of the form:
-\begin{lstlisting}
-<message_id> <time_stamp> <message>
-\end{lstlisting}
-\textit{Example:}
-\begin{lstlisting}
-TO 00:00:02 cdfbc75a9a8c353fc5
-\end{lstlisting}
-
-Hex encoding of binary messages results in much larger files but these compress to a size not much larger
-than the original binary data.
-
-\subsection{Time-interval counter}
-
-This text file records the difference between GNSS receiver and the Reference Oscillator 1 pps,
-measured each second. Entries are successive lines of the form:
-\begin{lstlisting}
-<time_of_day> <time_difference>
-\end{lstlisting}
-where the time difference is in seconds.\\
-\textit{Example:}
-\begin{lstlisting}
-00:00:04  +4.0821E-006 
-\end{lstlisting}
-
-
-\input{srcs/gpscvconf}
-
-\input{srcs/mktimetx}
-
-\input{srcs/runmktimetx}
-
-\input{srcs/hp53131xlog.tex}
-
-\section{okxemlog.pl}
-\hypertarget{h:okxemlog}{}
-The OpenTTP reference platform includes a multi-channel TIC and this script communicates with the daemon
-\cc{okcounterd}. The script will exit if no data is returned for more than two minutes.
-
-It has the following specific configuration file entries:
-\cc{channel::okxem channel}.
-
-It also uses:\cc{paths:counter data},
-\cc{counter:;file extension},\cc{counter::lock file},\cc{counter::port},\cc{counter::status file} and 
-\cc{counter::header generator}.
-
-\section{prs10log.pl}
-\hypertarget{h:prs10log}{}
-
-\section{jnslog.pl}
-\hypertarget{h:jnslog}{}
-There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
-
-\section{nvslog.pl}
-\hypertarget{h:nvslog}{}
-
-The NVS receiver is entirely configured using the script.
-
-\section{restlog.pl}
-\hypertarget{h:restlog}{}
-
-The Resolution T receiver is entirely configured using the script.
-
-\section{ubloxlog.pl}
-\hypertarget{h:ubloxlog}{}
-
-The ublox receiver is entirely configured using the script.
-
-\input{srcs/rxdelaycal}
+\input{srcs/GPSCV.tex}
 
 %% ****************************************************************************************
 \chapter{System software}
@@ -410,6 +183,13 @@ The ublox receiver is entirely configured using the script.
 \input{srcs/sysmonitor}
 
 \input{srcs/gziplogs}
+
+%% ****************************************************************************************
+\chapter{Installing the software}
+%% ****************************************************************************************
+
+
+\input{srcs/SoftwareInstallation}
 
 \end{document}
 

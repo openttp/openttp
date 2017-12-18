@@ -1,0 +1,94 @@
+\section{The front panel menu}
+
+\begin{itemize}
+	\item[\mykey{A}] PC reset button
+	\item[\mykey{B}] Reference Oscillator 1 pps LED
+	\item[\mykey{C}] Status LEDs
+	\item[\mykey{D}] LCD display
+	\item[\mykey{E}] Keypad
+\end{itemize}
+
+The top line of the LCD display shows UTC date and time.
+The date and time displayed will typically only be accurate to 1 s.
+The contents of the second and third lines of the display depend on the display mode.
+When in GPS mode, the identifiers of up
+to 10 currently visible GPS space vehicles are displayed. When in NTP mode, the second line shows
+the number of NTP packets received per minute. The third line shows information about
+synchronization status, including leap second announcements.
+The bottom line is reserved for notification of system alarms and either shows
+``System OK'' or ``System Alarm''.
+The LED beside this line will be red if there is a running alarm.
+
+\subsection{Using the front panel keypad \label{sKeypad} }
+
+
+The keypad provides access to status information and limited control and configuration of the base unit. 
+It can be used to cleanly shut down or reboot the computer without logging in. 
+
+System status is normally displayed on the screen.  
+The menus are accessed by pressing any key. Menus are navigated  using the keypad:\\
+%%\begin{table}[h]
+\begin{tabular}{ll}
+ \mykey{\begin{turn}{270}\ding{228}\end{turn}}& Move to next menu item \\
+ \mykey{\begin{turn}{90}\ding{228}\end{turn}} & Move to previous menu item \\
+ \mykey{\ding{228}}, \mykey{\ding{52}}& Select menu item \\
+ \mykey{\begin{turn}{180}\ding{228}\end{turn}}  &Back to previous menu \\
+ \mykey{\ding{54}}  & Back to the status display
+\end{tabular}
+%%\end{table}
+\\
+Escaping back to the main menu after making a change will not undo the change.
+Where a sub-menu lists a number of options, the currently selected option is flagged with an asterisk.
+
+Dialogs are navigated using the cursor keys. A dialog will typically consist of a number of input fields. Some of these work like buttons and are selected using the \mykey{\ding{52}} key; others may require inputting a value and this is done by cycling through the possible values with the cursor keys. If you move out of an input field, focus will pass to the next valid input field. You can quit a dialog using the \mykey{\ding{54}} key. Any changes made in a dialog will not be applied if you quit it. If a menu or dialog has been inactive for more than 5 minutes, the display returns
+to showing system status.
+
+\subsection{Menus}
+
+\begin{itemize}
+	\item Setup
+		\begin{itemize}
+			\item LCD setup
+				\begin{itemize}
+					\item LCD settings
+					\item LCD backlight time
+				\end{itemize}
+			\item Display mode
+				\begin{itemize}
+					\item GPS
+					\item NTP
+					\item GPSDO
+				\end{itemize}
+			\item Show IP addresses
+		\end{itemize}
+		
+	\item Show alarms
+	\item Show system info
+	\item Restart
+		\begin{itemize}
+			\item GPS
+			\item NTPD
+			\item Reboot
+			\item Power down
+		\end{itemize}
+\end{itemize}
+
+\subsubsection{Display mode}
+
+\subsubsection{LCD setup}
+
+
+\subsubsection{Show alarms}
+
+This shows any currently running alarms.
+It displays the alarms that are recorded in \cc{/home/cvgps/logs/alarms}.
+
+\subsubsection{Show system info}
+
+This displays version and serial number information and the make of the installed oscillator.
+This information has to be manually updated in the file xxx.
+  
+\subsubsection{Restart}
+
+This allows the user to restart several processes (GPS common view logging and \cc{ntpd}) as well as reboot or power down the unit. 
+You will be asked to confirm power down or reboot.

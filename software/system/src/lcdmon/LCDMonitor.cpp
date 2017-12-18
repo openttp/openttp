@@ -40,6 +40,8 @@
 #include <sys/types.h>
 #include <sys/sysinfo.h>
 #include <utime.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 
 #include <algorithm>
 #include <iostream>
@@ -59,6 +61,7 @@
 #include "Dialog.h"
 #include "IntensityWidget.h"
 #include "IPWidget.h"
+#include "NumberWidget.h"
 #include "KeyEvent.h"
 #include "Label.h"
 #include "LCDMonitor.h"
@@ -114,6 +117,8 @@ LCDMonitor::LCDMonitor(int argc,char **argv)
 
 LCDMonitor::~LCDMonitor()
 {
+	clearDisplay();
+	statusLEDsOff();
 	Uninit_Serial();
 	log("Shutdown");
 	unlink(lockFile.c_str());
@@ -148,7 +153,6 @@ void LCDMonitor::showAlarms()
 	execDialog(mb);
 	delete mb;
 }
-
 
 void LCDMonitor::showSysInfo()
 {
@@ -186,6 +190,49 @@ void LCDMonitor::showSysInfo()
 	delete mb;
 }
 
+void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &usb0ip)
+{
+	struct ifaddrs * ifAddrStruct=NULL;
+	struct ifaddrs * ifa=NULL;
+	void * tmpAddrPtr=NULL;
+	
+	eth0ip = "Not assigned";
+	usb0ip = "Not assigned";
+	
+	getifaddrs(&ifAddrStruct);
+	
+	for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr) {
+			continue;
+		}
+		if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
+			// is a valid IP4 Address?
+			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+			char addressBuffer[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+			if(strcmp(ifa->ifa_name,"eth0") == 0) eth0ip = addressBuffer;
+			if(strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
+		}
+	}
+	if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
+}
+
+void LCDMonitor::showIP()
+{
+	std::string eth0ip, usb0ip;
+	getIPaddress(eth0ip,usb0ip);
+	
+	clearDisplay();
+
+	MessageBox *mb = new MessageBox(" "," "," "," ");
+
+	if(eth0ip != "") mb->setLine(0,"eth0: " + eth0ip);
+	if(usb0ip != "") mb->setLine(1,"usb0: " + usb0ip);
+
+	execDialog(mb);
+	delete mb;
+}
+
 // This does not seem to be called from anywhere...
 void LCDMonitor::networkDisable() // Does this do anything?
 {                                 // No, it does not!
@@ -197,7 +244,6 @@ void LCDMonitor::networkDisable() // Does this do anything?
 	sleep(1);
 	log("networking disabled");
 }
-
 
 // Disabled for OpenTTP
 void LCDMonitor::networkConfigDHCP()
@@ -582,6 +628,61 @@ void LCDMonitor::LCDConfig()
 	delete dlg;
 }
 
+void LCDMonitor::LCDBacklightTimeout()
+{
+	// Set up display
+	clearDisplay();
+	Dialog *dlg = new Dialog();
+	dlg->setGeometry(0,0,20,4);
+	
+	std::string messg = "Backlight timeout:";
+	Label *m = new Label(messg,dlg);
+	m->setGeometry(0,0,18,1);
+	
+	NumberWidget *nw = new NumberWidget(displaytimeout,dlg);
+	nw->setGeometry(8,1,4,1);
+	nw->setFocusWidget(true);
+	
+	std::string minutes = "seconds";
+	Label *n = new Label(minutes,dlg);
+	n->setGeometry(13,1,7,1);
+	
+	std::string help = "  Adjust with ";
+	help += 222; // Up arrow
+	help += " ";
+	help += 224; // Down arrow
+	Label *l= new Label(help,dlg);
+	l->setGeometry(0,2,20,1);
+
+	WidgetCallback<Dialog> *cb = new WidgetCallback<Dialog>(dlg,&Dialog::ok);
+	Button *b = new Button("OK",cb,dlg);
+	b->setGeometry(5,3,2,1);
+
+	cb = new WidgetCallback<Dialog>(dlg,&Dialog::cancel);
+	b = new Button("Cancel",cb,dlg);
+	b->setGeometry(10,3,6,1);
+	
+	bool ret = execDialog(dlg);
+	
+	if (ret)
+	{
+		// store new value for timeout in settings file and assign new value to global variable
+		if (nw->value() != displaytimeout)
+		{
+			displaytimeout = nw->value();
+			std::string sbuf;
+			ostringstream ossbuf(sbuf);
+			ossbuf << displaytimeout;
+			updateConfig("ui","lcd timeout",ossbuf.str());
+		}
+	}
+	else // we cancelled
+	{
+		// do nothing...
+	}
+	delete dlg;
+}
+
 void LCDMonitor::setGPSDisplayMode()
 {
 	if (displayMode==GPS) return;
@@ -648,22 +749,28 @@ void LCDMonitor::restartGPS()
 		struct stat statbuf;
 		if ((0 == stat(gpsLoggerLockFile.c_str(),&statbuf)))
 		{
-
 			std::ifstream fin(gpsLoggerLockFile.c_str());
 			if (!fin.good())
 			{
 				log("Couldn't open " + gpsLoggerLockFile);
 				goto fail;
 			}
-   		pid_t pid;
+			pid_t pid = 0;
+			// ELM: lock file now contains app name and PID - this is consequence
+			// of making all the lock files consistent with the TFLibrary.
+			std::string pids;
+			fin >> pids;
 			fin >> pid;
 			fin.close();
-			if (pid >0) // be careful here, since we are superdude
+			
+			if (pid > 0) // be careful here, since we are superdude
 				kill(pid,SIGTERM);
 			else
 				goto fail;
+			
 			sleep(2); // wait a bit for OS to do its thing
 		}
+		
 		Dout(dc::trace,"LCDMonitor::restartGPS() " << gpsRxRestartCommand );
 		int sysret = system(gpsRxRestartCommand.c_str());
 		Dout(dc::trace,"LCDMonitor::restartGPS() system() returns " << sysret);
@@ -678,7 +785,7 @@ void LCDMonitor::restartGPS()
 
 		delete dlg;
 		return;
-	}
+	} 
 	else //cancelled the dialog
 	{
 		delete dlg;
@@ -751,6 +858,9 @@ void LCDMonitor::clearDisplay()
 void LCDMonitor::run()
 {
 	clearDisplay();
+	std::time_t ts = std::time(NULL);
+	displaybacklightoff = false;
+	COMMAND_PACKET cmd;
 	while (1)
 	{
 		// use usleep timing otherwise the displayed time jumps 1s occasionally because of rounding
@@ -762,6 +872,16 @@ void LCDMonitor::run()
 			// check the packet type - timeouts can generate unexpected packets
 			if (incoming_command.command==0x80) // key events only
 			{
+				// Turn backlight on if it was off
+				if(displaybacklightoff)
+				{
+					cmd.command=14;
+					cmd.data[0]=intensity;
+					cmd.data_length=1;
+					sendCommand(cmd);
+					displaybacklightoff=false;
+					ts = std::time(NULL);
+				}
 				ShowReceivedPacket();
 				clearDisplay();
 				execMenu();
@@ -771,6 +891,16 @@ void LCDMonitor::run()
 		}
 		else
 			showStatus();
+		// if LCD backlight is of, turn it off if timeout is reached
+		if(displaytimeout != 0)
+			if(std::time(NULL) > (ts+displaytimeout) && !displaybacklightoff)
+			{
+				cmd.command=14;
+				cmd.data[0]=0;
+				cmd.data_length=1;
+				sendCommand(cmd);
+				displaybacklightoff=true;
+			}
 	}
 }
 
@@ -1395,7 +1525,8 @@ void LCDMonitor::configure()
 	poweroffCommand="/sbin/poweroff";
 	rebootCommand="/sbin/shutdown -r now";
 	//ntpdRestartCommand="/sbin/service ntpd-nmi restart";
-	ntpdRestartCommand="/usr/sbin/service ntp restart";
+	//ntpdRestartCommand="/usr/sbin/service ntpd restart";
+	ntpdRestartCommand="/bin/systemctl restart ntp";
 	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 
@@ -1426,7 +1557,7 @@ void LCDMonitor::configure()
 
 	intensity=80;
 	contrast=95;
-
+	displaytimeout=0; // Louis 2017-07-17, timeout for LCD backlight
 	ListEntry *last;
 	if (!configfile_parse_as_list(&last,config.c_str()))
 	{
@@ -1522,6 +1653,15 @@ void LCDMonitor::configure()
 	}
 	else
 		log("LCD contrast not found in config file");
+
+	if (list_get_int_value(last,"UI","LCD timeout",&itmp))
+	{
+		displaytimeout = itmp;
+		if (displaytimeout < 0) displaytimeout = 0;
+		if (displaytimeout > 3600) displaytimeout = 3600;
+	}
+	else
+		log("LCD backlight timeout not found in config file");
 
 	if (list_get_string_value(last,"UI","display mode",&stmp))
 	{
@@ -1676,8 +1816,14 @@ void LCDMonitor::makeMenu()
 			if (mi != NULL) mi->setChecked(networkProtocol==StaticIPV4);
 		*/
 
-		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
-		setupM->insertItem("LCD settings...",cb);
+		lcdSetup = new Menu("LCD setup...");
+		setupM->insertItem(lcdSetup);
+		
+			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::LCDConfig);
+			lcdSetup->insertItem("LCD settings...",cb);
+			
+			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::LCDBacklightTimeout);
+			lcdSetup->insertItem("LCD backlight time..",cb);
 
 		displayModeM = new Menu("Display mode...");
 		setupM->insertItem(displayModeM);
@@ -1697,6 +1843,9 @@ void LCDMonitor::makeMenu()
 		  midGPSDODisplayMode = displayModeM ->insertItem("GPSDO",cb);
 			mi = displayModeM->itemAt(midGPSDODisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==GPSDO);
+			
+		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showIP);
+		setupM->insertItem("Show IP addresses..",cb);
 
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showAlarms);
 	menu->insertItem("Show alarms",cb);
@@ -1848,7 +1997,6 @@ void LCDMonitor::repaintWidget(Widget *w,std::vector<std::string> &display,bool 
 
 bool LCDMonitor::checkAlarms()
 {
-
 	alarms.clear();
 
 	glob_t aglob;
@@ -1868,7 +2016,6 @@ bool LCDMonitor::checkAlarms()
 			size_t pos = msg.find_last_of('/');
 			if (pos != string::npos)
 				msg = msg.substr(pos+1,string::npos);
-
 			alarms.push_back(msg);
 			Dout(dc::trace,msg);
 		}

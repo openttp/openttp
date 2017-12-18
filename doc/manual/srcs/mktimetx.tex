@@ -7,27 +7,37 @@
 It creates CGGTTS and RINEX-format time-transfer files.
 
 In the RINEX files, the code measurements have been corrected for any offsets between the raw measurements
-and the output 1 pps, and then the correction to the external clock applied ie the raw code measurements
-are with respect to the external clock.
+and the output 1 pps, and then the difference between the external clock and output pps (obtained from the TIC measurements)
+is applied ie the raw code measurements are reported with respect to the external clock.
 
 \subsection{usage}
 
+When run with no arguments, \cc{mktimetx} uses the default GPSCV processing configuration file 
+\cc{/home/cvgps/etc/gpscv.conf} and processes data from the preceding day.
+
 The command line options are
 \begin{description*}
-	\item[--configuration \textless file \textgreater] 
-	\item[--counterpath \textless path \textgreater]	
-	\item[--comment \textless string>] comment for the CGGTTS file	
-	\item[--debug \textless file \textgreater]	turn on debugging to \cc{file}. To debug to \cc{stderr}, just use `stderr'.
-	\item[--disable-tic] disable the use of counter/timer measurements in 
-	\item[--help] show help
-	\item[--no-navigation] disable output of a RINEX navigation file
-	\item[--receiver-path \textless path \textgreater]
-	\item[--short-debug-message]
-	\item[--sv-diagnostics] save raw measurements for each SV in a file. Each SV is in a separate file.
-	\item[--timing-diagnostics] save timing diagnostics in a file
-	\item[--verbosity \textless 1-4 \textgreater] set the debugging verbosity
-	\item[--version] print version information	
+	\item[-{}-configuration \textless file\textgreater] specify the configuration file
+	\item[-{}-counterpath \textless path\textgreater]	specify the path to the counter/timer measurements
+	\item[-{}-comment \textless string\textgreater] comment for the CGGTTS file	
+	\item[-{}-debug \textless file\textgreater]	turn on debugging to \cc{file}. To debug to \cc{stderr}, just use `stderr'.
+	\item[-{}-disable-tic] disable the use of sawtooth-corrected counter/timer measurements 
+	\item[-{}-help] show help
+	\item[-m \textless MJD\textgreater] specify the mjd
+	\item[-{}-no-navigation] disable output of a RINEX navigation file
+	\item[-{}-receiver-path \textless path\textgreater] specify the path to the GNSS raw data
+	\item[-{}-short-debug-message] print out shorter debugging messages
+	\item[-{}-sv-diagnostics] save raw measurements for each SV in a file. Each SV is in a separate file.
+	\item[-{}-timing-diagnostics] save timing diagnostics in a file
+	\item[-{}-verbosity \textless 1-4\textgreater] set the debugging verbosity
+	\item[-{}-version] print version information	and exit
 \end{description*}
+Example:
+\begin{lstlisting}
+mktimetx --configuration test.conf -m 57803 --debug stderr --verbosity 1 
+\end{lstlisting}
+runs \cc{mktimetx} in debugging mode, writing to \cc{stderr} using the configuration file \cc{test.conf} and processing
+data for MJD 57803.
 
 \subsection{configuration file}
 

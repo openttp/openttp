@@ -26,6 +26,7 @@
 #
 # Modification history
 # 2016-03-30 MJW Replaces zip_data. First version.
+# 2017-12-11 MJW Extended capabilities. More extensible. Compressed files can be moved. 
 #
 
 use POSIX;
@@ -33,6 +34,7 @@ use Errno;
 use Getopt::Std;
 use IO::Socket;
 use TFLibrary;
+use File::Copy;
 
 use vars qw($opt_c $opt_d $opt_h $opt_m $opt_v);
 
@@ -82,28 +84,51 @@ if (!(-e $configFile)){
 
 %Init = &TFMakeHash2($configFile,(tolower=>1));
 
-# Check we got the info we need from the config file
-@check=("files");
-foreach (@check) {
-  $tag=$_;
-  $tag=~tr/A-Z/a-z/;	
-  unless (defined $Init{$tag}) {ErrorExit("No entry for $_ found in $configFile")}
-}
+if (defined $Init{"files"}){
+	@files = split /,/,$Init{"files"};
 
-@files = split /,/,$Init{"files"};
-
-for ($i=0;$i<=$#files;$i++){
-	$files[$i]=~ s/^\s+//; # trim white space
-	$files[$i]=~ s/\s+$//;
-	$files[$i]=~ s/{MJD}/$mjd/;
-	$files[$i]=~ s/{YYYYMMDD}/$ymd/;
-	$files[$i]=TFMakeAbsoluteFilePath($files[$i],$home,$home."/raw");
-	Debug("Processing $files[$i]");
-	if (-e $files[$i]){
-		`gzip $files[$i]`;
+	for ($i=0;$i<=$#files;$i++){
+		$files[$i]=~ s/^\s+//; # trim white space
+		$files[$i]=~ s/\s+$//;
+		$files[$i]=~ s/{MJD}/$mjd/;
+		$files[$i]=~ s/{YYYYMMDD}/$ymd/;
+		$files[$i]=TFMakeAbsoluteFilePath($files[$i],$home,$home."/raw");
+		Debug("Checking $files[$i]");
+		if (-e $files[$i]){
+			`gzip $files[$i]`;
+		}
 	}
 }
-
+elsif (defined $Init{"targets"}){
+	@targets = split /,/,$Init{"targets"};
+	for ($t=0;$t<=$#targets;$t++){
+		$targets[$t]=~ s/^\s+//; # trim white space
+		$targets[$t]=~ s/\s+$//;
+		if (defined $Init{"$targets[$t]:files"}){
+			@files = split /,/,$Init{"$targets[$t]:files"};
+			print $Init{"$targets[$t]:files"},"\n";
+			for ($i=0;$i<=$#files;$i++){
+				$files[$i]=~ s/^\s+//; # trim white space
+				$files[$i]=~ s/\s+$//;
+				$files[$i]=~ s/{MJD}/$mjd/;
+				$files[$i]=~ s/{YYYYMMDD}/$ymd/;
+				$files[$i]=TFMakeAbsoluteFilePath($files[$i],$home,$home."/raw");
+				Debug("Checking $files[$i]");
+				if (-e $files[$i]){
+					Debug("Processing $files[$i]");
+					`gzip $files[$i]`;
+					if (defined ($Init{"$targets[$t]:destination"})){
+						$destination = TFMakeAbsolutePath($Init{"$targets[$t]:destination"},"$home/");
+						move("$files[$i].gz",$destination);
+					}
+				}	
+			}
+		}
+	}
+}
+else{
+	# nothing to do
+}
 
 # End of main program
 

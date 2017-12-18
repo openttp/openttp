@@ -1,0 +1,194 @@
+
+This chapter describes software related to GPSCV time-transfer.
+
+\section{Software overview}
+
+
+\begin{table}[h]
+\begin{tabular}{l|l|l}
+	& program & \\ 
+	\hline
+GPSCV processing  &  & \\
+	& \hyperlink{h:mktimetx}{mktimetx} & core program\\
+	& \hyperlink{h:runmktimetx}{runmktimetx.pl} & \\
+	\hline
+TIC logging & & \\
+	& \hyperlink{h:hp5313xlog}{hp5313xlog.pl} &\\
+	& \hyperlink{h:okxemlog}{okxemlog.pl} & \\
+	& \hyperlink{h:prs10log}{prs10log.pl} & \\
+	& \hyperlink{h:ticclog}{ticclog.py} & \\
+	\hline
+GNSS receiver logging & & \\
+	&	\hyperlink{h:jnslog}{jnslog.pl} & Javad\\
+	& \hyperlink{h:nvslog}{nvslog.pl} & NVS\\
+	& \hyperlink{h:restlog}{restlog.pl} & Trimble Resolution T\\
+	& \hyperlink{h:ubloxlog}{ubloxlog.pl} & ublox\\
+GNSS receiver utilities & & \\
+	& \hyperlink{h:restextract}{restextract.pl} & \\
+	\hline
+Analysis tools & & \\
+	& \hyperlink{h:rxdelaycal}{rxdelaycal.pl} & \\
+Miscellaneous & & \\
+  & \hyperlink{h:log1Wtemp}{log1Wtemp.pl} & \\ 
+	\hline
+\end{tabular}
+\caption{GPSCV software overview}
+\end{table}
+
+\section{crontab}
+
+Automatic logging, processing and archival of data is performed through the user \cc{cvgps}' \cc{crontab}.
+
+A minimal \cc{crontab} for the user \cc{cvgps} looks like this:
+\begin{lstlisting}
+# Check that all logging is running every 5 minutes
+*/5 * * * * /usr/local/bin/kickstart.pl # See ~/etc/kickstart.conf
+
+# Run the processing of the data at 00:15
+15 0 * * * nice $HOME/bin/runmktimetx.pl >/dev/null 2>&1 
+
+# Give the processing some time to complete, then zip the files at 00:45
+45 0 * * * nice $HOME/bin/gziplogs.pl >/dev/null 2>&1
+
+# Check the status of the system once a day, just before the day rollover
+56 23 * * * $HOME/bin/checkstatus.pl >$HOME/lockStatusCheck/status.dat
+\end{lstlisting}
+showing the three essential processes of logging, processing and archival of data.
+
+The active crontab can be examined with the command \cc{crontab -l}. A default \cc{crontab} is
+stored in \cc{/home/cvgps/etc/crontab}. 
+
+\section{Configuration file format \label{sConfigFileFormat}}
+
+Configuration files use a common format and are plain text files, designed to be easily edited via a command-line
+editor because in many applications, only shell access to the system will be available.
+
+The file is usually divided into sections, with section names delimited by square brackets [ ]. Entries in each section
+are of the form:
+\begin{lstlisting}
+key = value
+\end{lstlisting}
+For example,
+\begin{lstlisting}
+[Receiver]
+manufacturer = Trimble
+model = Resolution T
+\end{lstlisting}
+defines a section \cc{Receiver} and the two keys: \cc{manufacturer} and \cc{model}. 
+
+The notation \cc{Section::Key} is used to fully specify keys. For example,
+\cc{Receiver::model} and \cc{Receiver::manufacturer} specify the two keys above.
+
+Keys and section names are not case-sensitive. Comments begin with a `\#'.
+
+Some keys define a list of sections. For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
+\begin{lstlisting}
+[CGGTTS]
+outputs = C1-code,P1-code,P2-code
+\end{lstlisting}
+defines three sections: \cc{C1-code}, \cc{P1-code}, and \cc{P2-code}.
+
+\section{Data file formats \label{s:DataFileFormat}}
+
+\subsection{GPS receiver}
+
+This text file records messages from the GPS receiver. The messages can be a mix of ASCII and binary messages.
+Binary messages are hexadecimal-encoded. Some logging scripts record ancillary information, 
+such as commands sent to the receiver. Comments are allowed, prefaced by a `\#' character. 
+The `@' character can be used to tag lines containing special information that needs to be parsed by
+the processing software.
+
+Messages are successive lines of the form:
+\begin{lstlisting}
+<message_id> <time_stamp> <message>
+\end{lstlisting}
+\textit{Example:}
+\begin{lstlisting}
+TO 00:00:02 cdfbc75a9a8c353fc5
+\end{lstlisting}
+
+Hex encoding of binary messages results in much larger files but these compress to a size not much larger
+than the original binary data.
+
+\subsection{Time-interval counter}
+
+This text file records the difference between GNSS receiver and the Reference Oscillator 1 pps,
+measured each second. Entries are successive lines of the form:
+\begin{lstlisting}
+<time_of_day> <time_difference>
+\end{lstlisting}
+where the time difference is in seconds.\\
+\textit{Example:}
+\begin{lstlisting}
+00:00:04  +4.0821E-006 
+\end{lstlisting}
+
+
+\input{srcs/gpscvconf}
+
+\input{srcs/mktimetx}
+
+\input{srcs/runmktimetx}
+
+\input{srcs/hp53131xlog}
+
+\section{okxemlog.pl}
+\hypertarget{h:okxemlog}{}
+The OpenTTP reference platform includes a multi-channel TIC and this script communicates with the daemon
+\cc{okcounterd}. The script will exit if no data is returned for more than two minutes.
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+
+It has the following specific configuration file entries:
+\cc{channel::okxem channel}.
+
+It also uses: \cc{paths:counter data},
+\cc{counter:;file extension},\cc{counter::lock file},\cc{counter::port},\cc{counter::status file} and 
+\cc{counter::header generator}.
+
+\section{prs10log.pl}
+\hypertarget{h:prs10log}{}
+
+\section{ticclog.py}
+\hypertarget{h:ticclog}{}
+
+\cc{ticclog.py} is used to log data from a TAPR Timestamping/TIme Interval Counter (TICC).
+See \cc{https://www.tapr.org/kits\_ticc.html} for more information about this counter.
+
+The command line options are:
+\begin{description*}
+ \item[-h, -{}-help] print help and exit
+ \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
+ \item[-{}-debug, -d]           run in debugging mode
+ \item[-{}-settings, -s]        print the counter settings
+  \item[-{}-version, -v]        	print version information and exit
+\end{description*}
+
+There are no specific configuration file entries for this script.
+
+\section{jnslog.pl}
+\hypertarget{h:jnslog}{}
+There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
+
+\section{nvslog.pl}
+\hypertarget{h:nvslog}{}
+
+The NVS receiver is entirely configured using the script.
+
+\section{restlog.pl}
+\hypertarget{h:restlog}{}
+
+The Resolution T receiver is entirely configured using the script.
+
+\section{ubloxlog.pl}
+\hypertarget{h:ubloxlog}{}
+
+The ublox receiver is entirely configured using the script.
+
+\input{srcs/rxdelaycal}

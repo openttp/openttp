@@ -29,7 +29,7 @@
 #  2. 8.01    RBW  Begun for Trimble ACE UTC
 #  07-06-2005 MJW  Resumed. Modification of the script used for the ACE UTC
 #  14-10-2005 MJW Many changes over the past month to allow polling of the
-# 								 ephemeris etc. Still tuning this up.
+#                 ephemeris etc. Still tuning this up.
 #  07-06-2007 MJW Enable UTC time in 8FAB packet for use by ntpd
 #  08-07-2007 MJW	1 pps offset now set on start up
 #
@@ -37,17 +37,21 @@
 #  19-02-2009 MJW Timeout if no messages received 
 #                 PRNS in rcvr_status
 #                 Bug fix. rcvr_status message empty of there are no 
-#													 satellites
+#                 satellites
 #  26-02-2009 MJW Added lockFile for interoperation with lcdmonitor
 #  20-08-2009 MJW Version info output
 #  20-04-2010 MJW Extra status information in rx.status
 #  14-02-2012 MJW Woho ! Real bug fix. Any trailing 0x10's in a data 
-#									packet were erroneously removed
+#	                packet were erroneously removed
 #	 24-08-2015 MJW Cleanups; Resolution 360 compatibility added						
 #  26-08-2016 MJW Remove backwards compatibility.
 #  22-02-2017 MJW Minor changes for operation as non-GPSCV receiver
 #  23-02-2017 MJW Changes to operate as a single constellation receiver (SMT 360 only) and reduce the amount of logged data
-# 
+#  10-12-2017 MJW Configurable path for UUCP lock files
+#		              Version changed to 3.0.2
+#  11-12-2017 MJW Code cleanups
+#
+#
 # Improvements?
 # Use 6D for tracking visible satellites but this is not strictly correct
 # since this reports satelites used for position/time fix NOT visible
@@ -64,7 +68,7 @@ use Getopt::Std;
 use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
-$VERSION="3.0.1";
+$VERSION="3.0.2";
 $AUTHORS="Michael Wouters, Bruce Warrington";
 
 $RESOLUTION_T=0;
@@ -185,23 +189,6 @@ else{
 }
 Debug("Receiver model is ".$Init{"receiver:model"});
 
-#Open the serial ports to the receiver
-$rxmask="";
-$port=$Init{"receiver:port"};
-$port="/dev/$port" unless $port=~m#/#;
-
-unless (`/usr/local/bin/lockport $port $0`==1) {
-	printf "! Could not obtain lock on $port. Exiting.\n";
-	exit;
-}
-
-$rx=&TFConnectSerial($port,
-		(ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
-			oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
-# Set up a mask which specifies this port for select polling later on
-vec($rxmask,fileno $rx,1)=1;
-print "> Port $port to Rx is open\n";
-
 #Initialise parameters
 $params[$UTC_PARAMETERS][$LAST_REQUESTED]=-1;
 $params[$UTC_PARAMETERS][$LAST_RECEIVED]=-1;
@@ -218,6 +205,8 @@ if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
 		$Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
 }
 	
+&InitSerial();
+
 $now=time();
 $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
 &OpenDataFile($mjd,1);
@@ -231,6 +220,7 @@ if (defined $Init{"receiver:time-transfer"}){
 		Debug("NOT operating as time-transfer receiver");
 	}
 }
+
 &ConfigureReceiver();
 
 $input="";
@@ -348,6 +338,7 @@ LOOP: while (!$killed)
 
 BYEBYE:
 if (-e $lockFile) {unlink $lockFile;}
+`/usr/local/bin/lockport -r -d $uucpLockPath $port`;
 
 @_=gmtime();
 $msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d $0 killed\n",
@@ -406,6 +397,31 @@ sub Initialise
 	
 }# Initialise
 
+# ----------------------------------------------------------------------------
+sub InitSerial
+{
+	#Open the serial ports to the receiver
+	$rxmask="";
+	$port=$Init{"receiver:port"};
+	$port="/dev/$port" unless $port=~m#/#;
+
+	$uucpLockPath="/var/lock";
+	if (defined $Init{"paths:uucp lock"}){
+		$uucpLockPath = $Init{"paths:uucp lock"};
+	}
+
+	unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
+		printf "! Could not obtain lock on $port. Exiting.\n";
+		exit;
+	}
+
+	$rx=&TFConnectSerial($port,
+			(ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
+				oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
+	# Set up a mask which specifies this port for select polling later on
+	vec($rxmask,fileno $rx,1)=1;
+	print "> Port $port to Rx is open\n";
+}
 
 #-----------------------------------------------------------------------------
 sub Debug
@@ -516,8 +532,10 @@ sub ConfigureReceiver
 			}
 			elsif ($timingMode =~ /GLONASS/){
 				# GLONASS is
-				# 1 + 2 + 0 + 0 + 16 + 64
-				&SendCommand("\x8E\xA2\x53"); 
+				# 1 + 2 + 0 + 0 + 0 + 64
+				# (but use UTC for time of day and not GLONASS so we don't have to muck about in ntpd
+				# to fix the 3hr offset)
+				&SendCommand("\x8E\xA2\x43"); 
 			}
 	  }
 	}
