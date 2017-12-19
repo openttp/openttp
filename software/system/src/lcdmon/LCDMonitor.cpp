@@ -181,19 +181,16 @@ void LCDMonitor::showSysInfo()
 	int nline=0;
 
 	ifstream fin(sysInfoConf.c_str());
-	//cout << sysInfoConf << endl;
 	if (!fin.good())
 		mb->setLine(1,"File not found");
 	else{
 		string tmp;
 
-		while (!fin.eof())
-		{
+		while (!fin.eof()){
 			getline(fin,tmp);
 			if (fin.eof())
 				break;
-			if (fin.fail())
-			{
+			if (fin.fail()){
 				mb->setLine(0," ");mb->setLine(2," ");mb->setLine(3," ");
 				mb->setLine(1,"Bad sysinfo file");
 				break;
@@ -250,19 +247,6 @@ void LCDMonitor::showIP()
 	delete mb;
 }
 
-// This does not seem to be called from anywhere...
-void LCDMonitor::networkDisable() // Does this do anything?
-{                                 // No, it does not!
-
-	clearDisplay();
-	updateLine(0,"Disabling network");
-	sleep(1);
-	updateLine(1,"Done");
-	sleep(1);
-	log("networking disabled");
-}
-
-// Disabled for OpenTTP
 void LCDMonitor::networkConfigDHCP()
 {
 
@@ -270,9 +254,7 @@ void LCDMonitor::networkConfigDHCP()
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
 	bool ret = execDialog(dlg);
 	std::string lastError="No error";
-	if (ret)
-	{
-
+	if (ret){
 		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
 		ofstream fout(ftmp.c_str());
 		// A minimal DHCP configuration
@@ -283,18 +265,15 @@ void LCDMonitor::networkConfigDHCP()
 		string tmp;
 		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
 		ifstream fin(ifcfg.c_str());
-		if (!fin.good())
-		{
+		if (!fin.good()){
 			lastError="ifcfg-eth0 not found";
 			goto DIE;
 		}
-		while (!fin.eof())
-		{
+		while (!fin.eof()){
 			getline(fin,tmp);
 			if (fin.eof())
 				break;
-			if (fin.fail())
-			{
+			if (fin.fail()){
 				lastError="Bad ifcfg-eth0 ";
 				goto DIE;
 			}
@@ -336,7 +315,6 @@ void LCDMonitor::networkConfigDHCP()
 }
 
 
-// Disabled for OpenTTP
 void LCDMonitor::networkConfigStaticIP4()
 {
 	clearDisplay();
@@ -680,11 +658,9 @@ void LCDMonitor::LCDBacklightTimeout()
 	
 	bool ret = execDialog(dlg);
 	
-	if (ret)
-	{
+	if (ret){
 		// store new value for timeout in settings file and assign new value to global variable
-		if (nw->value() != displaytimeout)
-		{
+		if (nw->value() != displaytimeout){
 			displaytimeout = nw->value();
 			std::string sbuf;
 			ostringstream ossbuf(sbuf);
@@ -692,8 +668,7 @@ void LCDMonitor::LCDBacklightTimeout()
 			updateConfig("ui","lcd timeout",ossbuf.str());
 		}
 	}
-	else // we cancelled
-	{
+	else{ // we cancelled
 		// do nothing...
 	}
 	delete dlg;
@@ -821,8 +796,7 @@ void LCDMonitor::restartNtpd()
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm NTP restart");
 	bool ret = execDialog(dlg);
-	if (ret)
-	{
+	if (ret){
 		clearDisplay();
 		updateLine(1,"  Restarting ntpd");
 		runSystemCommand(ntpdRestartCommand,"ntpd restarted","ntpd restart failed");
@@ -1132,25 +1106,6 @@ void LCDMonitor::showStatus()
 		updateLine(2,buf);
 	}
 
-	#ifdef CWDEBUG
-	{
-		Dout(dc::trace,"-------------------");
-		Dout(dc::trace,"  12345678901234567890");
-		for (int i=0;i<4;i++)
-		{
-			char l;
-			switch (statusLED[i])
-			{
-				case Off: l='O';break;
-				case RedOn: l='R';break;
-				case GreenOn:l='G';break;
-				case Unknown:l='U';break; 
-			}
-			Dout(dc::trace,l << " " << status[i].c_str());
-		}
-		Dout(dc::trace,"-------------------");
-	}
-	#endif
 }
 
 void LCDMonitor::execMenu()
@@ -1158,9 +1113,10 @@ void LCDMonitor::execMenu()
 	bool showMenu=true;
 	std::stack<Menu *> menus;
 
-	// No longer required, we removed networking from the menu
-	//parseNetworkConfig(); // keep this up to date
-
+	#ifndef OTTP
+	parseNetworkConfig(); // keep this up to date
+	#endif
+	
 	int currRow=0;
 	statusLEDsOff();
 	showCursor(true);
@@ -1440,9 +1396,10 @@ void LCDMonitor::init()
 
 	configure();
 
-	// No longer required, we removed networking from the menu
-	//parseNetworkConfig();
-
+	#ifndef OTTP
+	parseNetworkConfig();
+	#endif
+	
 	// this will be true for compact systems
 	NTPProtocolVersion=4;
 	NTPMajorVersion=2;
@@ -1455,29 +1412,23 @@ void LCDMonitor::init()
 	detectNTPVersion();
 	if (4==NTPProtocolVersion)
 	{
-		if (NTPMajorVersion < 2)
-		{
+		if (NTPMajorVersion < 2){
 			currPacketsTag="new version packets";
 			oldPacketsTag="old version packets";
 			badPacketsTag="unknown version number";
 		}
-		else
-		{
+		else{
 			currPacketsTag="current version";
-			//oldPacketsTag="previous version";
 			oldPacketsTag="older version";
-			//badPacketsTag="bad version";
 			badPacketsTag="bad length or format";
 		}
 	}
 
-	if(Serial_Init(PORT,BAUD))
-	{
+	if(Serial_Init(PORT,BAUD)){
 		DBGMSG(debugStream,TRACE, "Could not open port " << PORT << " at " << BAUD << " baud.");
 		exit(EXIT_FAILURE);
 	}
-	else
-	{
+	else{
 		DBGMSG(debugStream,TRACE,PORT << " opened at "<< BAUD <<" baud");
 	}
 
@@ -1485,8 +1436,7 @@ void LCDMonitor::init()
 	while(BytesAvail())
     GetByte();
 
-	for (int i=0;i<4;i++)
-	{
+	for (int i=0;i<4;i++){
 		status[i]="";
 		statusLED[i]=Unknown;
 	}
@@ -1533,13 +1483,10 @@ void LCDMonitor::configure()
 	int itmp;
 
 	// set some sensible defaults
-
 	displayMode = GPS;
 
 	poweroffCommand="/sbin/poweroff";
 	rebootCommand="/sbin/shutdown -r now";
-	//ntpdRestartCommand="/sbin/service ntpd-nmi restart";
-	//ntpdRestartCommand="/usr/sbin/service ntpd restart";
 	ntpdRestartCommand="/bin/systemctl restart ntp";
 	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
@@ -1808,26 +1755,21 @@ void LCDMonitor::makeMenu()
 	WidgetCallback<LCDMonitor> *cb;
 	MenuItem *mi;
 
-		/*
-		// Commenting out this block effectively removes this option from the
-		// "Setup..." menu.
-		// I had to move the declarations of *cb and *mi out of this block. If this
-		// option is restored, you need to remove the two declares above. Or change
-		// the code below!
-		protocolM = new Menu("Network boot protocol...");
+#ifdef TTS 
+		protocolM = new Menu("Networking ...");
 		setupM->insertItem(protocolM);
 
-			WidgetCallback<LCDMonitor> *cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
+			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
 			midDHCP=protocolM->insertItem("DHCP...",cb);
-			MenuItem *mi = protocolM->itemAt(midStaticIP4);
+			mi = protocolM->itemAt(midStaticIP4);
 			if (mi != NULL) mi->setChecked(networkProtocol==DHCP);
 
 			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4);
 			midStaticIP4=protocolM->insertItem("Static IPv4...",cb);
 			mi = protocolM->itemAt(midStaticIP4);
 			if (mi != NULL) mi->setChecked(networkProtocol==StaticIPV4);
-		*/
-
+#endif
+			
 		lcdSetup = new Menu("LCD setup...");
 		setupM->insertItem(lcdSetup);
 		
@@ -1880,31 +1822,26 @@ void LCDMonitor::makeMenu()
 void LCDMonitor::getResponse()
 {
 	int timed_out =1;
-	for(int k=0;k<=100;k++)
-	{
+	for(int k=0;k<=100;k++){
 		usleep(10000);
-		if(packetReceived())
-		{
+		if(packetReceived()){
 
 			ShowReceivedPacket();
 			timed_out = 0; 
 			break;
 		}
 	}
-	if(timed_out)
-	{
+	if(timed_out){
 		DBGMSG(debugStream,TRACE,"Timed out waiting for a response");
 		log("I/O timeout");
 
 		Uninit_Serial();
 
-		if(Serial_Init(PORT,BAUD))
-		{
+		if(Serial_Init(PORT,BAUD)){
 			DBGMSG(debugStream,TRACE, "Could not open port " << PORT << " at " << BAUD << " baud.");
 			exit(EXIT_FAILURE);
 		}
-		else
-		{
+		else{
    	 DBGMSG(debugStream,TRACE, PORT << " opened at "<< BAUD <<" baud");
 		}
 
@@ -1995,12 +1932,10 @@ void LCDMonitor::updateCursor(int row,int col)
 void LCDMonitor::repaintWidget(Widget *w,std::vector<std::string> &display,bool forcePaint)
 {
 
-	if (w->dirty() || forcePaint)
-	{
+	if (w->dirty() || forcePaint){
 		w->paint(display);
 
-		for (int i=0;i<4;i++)
-		{
+		for (int i=0;i<4;i++){
 			if (display.at(i).size()>0)
 					updateLine(i,display.at(i));
 		}
@@ -2060,27 +1995,20 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	std::string tmp;
 	bool gotSats=false;
 
-	while (!fin.eof())
-	{
+	while (!fin.eof()){
 		getline(fin,tmp);
-		//if (string::npos != tmp.find("sats"))
-		if (string::npos != tmp.find("GPS sats"))
-		{
+		if (string::npos != tmp.find("GPS sats")){
 			gotSats=true;
 			std::string sbuf;
-			//parseConfigEntry(tmp,sbuf,'=');
 			parseConfigEntry(tmp,sbuf,':');
 			int ntmp=-1;
 			ntmp=atoi(sbuf.c_str());
-			//cout << "checkGPS - sbuf: " << sbuf << endl << "ntmp: " << ntmp << endl;
-			if (ntmp >=0)
-			{
+			if (ntmp >=0){
 				gotSats=true;
 				*nsats=ntmp;
 			}
 		}
-		else if (string::npos != tmp.find("prns"))
-		{
+		else if (string::npos != tmp.find("prns")){
 			parseConfigEntry(tmp,prns,'=');
 			//cout << "prns = " << prns << endl;
 		}
@@ -2096,8 +2024,7 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 
 	*unexpectedEOF=false;
 	bool ret = checkFile(GPSDOStatusFile.c_str());
-	if (!ret)
-	{
+	if (!ret){
 		DBGMSG(debugStream,TRACE,"stale file");
 		return false; // don't display stale information
 	}
@@ -2112,28 +2039,19 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 
 	std::string tmp;
 
-	while (!fin.eof())
-	{
+	while (!fin.eof()){
 		getline(fin,tmp);
-		if (string::npos != tmp.find("Lock status                   : "))
-		{
+		if (string::npos != tmp.find("Lock status                   : ")){
 			parseConfigEntry(tmp,status,'-');
-			//cout << "GPSDO status: >" << status << endl;
 		}
-		else if (string::npos != tmp.find("EFC percentage (%)            : "))
-		{
+		else if (string::npos != tmp.find("EFC percentage (%)            : ")){
 			parseConfigEntry(tmp,EFC,':');
-			//cout << "GPSDO EFC(%): >" << EFC << endl;
 		}
-		else if (string::npos != tmp.find("Estimated frequency accuracy  : "))
-		{
+		else if (string::npos != tmp.find("Estimated frequency accuracy  : ")){
 			parseConfigEntry(tmp,ffe,':');
-			//cout << "GPSDO ffe: >" << ffe << endl;
 		}
-		else if (string::npos != tmp.find("GPSDO health                  : "))
-		{
+		else if (string::npos != tmp.find("GPSDO health                  : ")){
 			parseConfigEntry(tmp,health,':');
-			//cout << "GPSDO health: >" << health << endl;
 		}
 	}
 	fin.close();
@@ -2229,18 +2147,11 @@ bool LCDMonitor::detectNTPVersion()
 	return ret;
 }
 
-// I do not think this is working correctly (with ntpq), because I see no old packets
-// or bad packets. Maybe that is just because the ntp works so nicely on this machine!
-// I said it is not working properly because oldpkts and badpkts are -1 all the time,
-// but that may be just because there are none of these...
-// see the /var/log/ntpstats/sysstats file(s)
-
 void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 {
 
 	char buf[1024];
 
-	//FILE *fp=popen("/usr/local/bin/ntpdc -c sysstats","r");
 	// Louis 2016-10-25 ntpdc is deprecated, use ntpq now
 	FILE *fp=popen("/usr/local/bin/ntpq -c sysstats","r");
 	while (fgets(buf,1023,fp) != NULL)
@@ -2291,7 +2202,6 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 		}
 	}
 	pclose(fp);
-	//printf("getNTPStats() oldpkts: %d newpkts %d badpkts %d\n\n",*oldpkts,*newpkts,*badpkts);
 	DBGMSG(debugStream,TRACE, "old,new,bad =" << *oldpkts << " " << *newpkts << " " << *badpkts);
 }
 
@@ -2306,44 +2216,28 @@ bool LCDMonitor::checkFile(const char *fname)
 	sysinfo(&info);
 	retval = stat(fname,&statbuf);
 
-	//Debug();
-	//fprintf(stderr,"squealer_check_file(): %s modified %i rebooted %i\n",fname,
-	//		(int) statbuf.st_mtime,(int) (ttime - info.uptime));
-
-	//cout << "checkFile() - file name: " << fname << endl;
-
-	if (retval == 0) /* file exists */
-	{
+	if (retval == 0){ /* file exists */
 		/* Was it created since the last boot */
-		if (statbuf.st_mtime > ttime - info.uptime)
-		{
+		if (statbuf.st_mtime > ttime - info.uptime){
 			/* Is it current ? */
-			if (ttime - statbuf.st_mtime < MAX_FILE_AGE)
-			{
+			if (ttime - statbuf.st_mtime < MAX_FILE_AGE){
 				DBGMSG(debugStream,TRACE,  fname << " ok");
-				//cout << "checkFile() - file OK\n";
 				return true;
 			}
-			else
-			{
-				DBGMSG(debugStream,TRACE, fname <<" too old");
-				//cout << "checkFile() - file too old " << ttime - statbuf.st_mtime << endl;
+			else{
+				DBGMSG(debugStream,TRACE, fname <<" too old" << ttime - statbuf.st_mtime);
 				return false;
 			}
 		}
-		else
-		{
-			DBGMSG(debugStream,TRACE,  fname <<" predates boot");
-			//cout << "checkFile() - file predates boot " << statbuf.st_mtime << " > " << ttime - info.uptime << endl;
+		else{
+			DBGMSG(debugStream,TRACE,  fname <<" predates boot" << statbuf.st_mtime << " > " << ttime - info.uptime);
 			return false; /* predates boot */
 		}
 
 	}
-	else /* file doesn't exist */
-	{
+	else{ /* file doesn't exist */
 		/* Have we just booted ? OK if we have */
 		DBGMSG(debugStream,TRACE,  fname << "doesn't exist");
-		//cout << "File does not exist!\n";
 		return (info.uptime < BOOT_GRACE_PERIOD);
 	}
 
@@ -2361,13 +2255,11 @@ bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string 
 {
 	int sysret = system(cmd.c_str());
 	DBGMSG(debugStream,TRACE,   cmd << " returns " << sysret);
-	if (sysret == 0)
-	{
+	if (sysret == 0){
 		log(okmsg);
 		updateLine(2,okmsg);
 	}
-	else
-	{
+	else{
 		log(failmsg);
 		updateLine(2,failmsg);
 	}
@@ -2390,8 +2282,7 @@ string LCDMonitor::relativeToAbsolutePath(string path,string rootDir)
 void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim)
 {
 	size_t pos = entry.find(delim);
-	if (pos != string::npos)
-	{
+	if (pos != string::npos){
 		val = entry.substr(pos+1);//FIXME needs checking
 	}
 }
@@ -2400,25 +2291,20 @@ void LCDMonitor::parseNetworkConfig()
 {
 	DBGMSG(debugStream,TRACE,"");
 
-	//
 	// Set some defaults
-	//
-
 	ipv4gw = "192.168.1.1";
 	ipv4nm = "255.255.255.0";
 	ipv4ns = "192.168.1.1";
 	ipv4addr="192.168.1.10";
 
 	std::ifstream fin(networkConf.c_str());
-	if (!fin.good())
-	{
+	if (!fin.good()){
 		string msg = "Couldn't open " + networkConf;
 		log(msg);
 		return;
 	}
 	string tmp;
-	while (!fin.eof())
-	{
+	while (!fin.eof()){
 		getline(fin,tmp);
 		if (fin.eof())
 			break;
@@ -2428,20 +2314,17 @@ void LCDMonitor::parseNetworkConfig()
 	fin.close();
 
 	std::ifstream fin2(eth0Conf.c_str());
-	if (!fin2.good())
-	{
+	if (!fin2.good()){
 		string msg = "Couldn't open " + eth0Conf;
 		log(msg);
 		return;
 	}
 
-	while (!fin2.eof())
-	{
+	while (!fin2.eof()){
 		getline(fin2,tmp);
 		if (fin2.eof())
 			break;
-		if (string::npos != tmp.find("BOOTPROTO"))
-		{
+		if (string::npos != tmp.find("BOOTPROTO")){
 			parseConfigEntry(tmp,bootProtocol,'=');
 			if (bootProtocol=="dhcp")
 				networkProtocol=DHCP;
@@ -2457,22 +2340,19 @@ void LCDMonitor::parseNetworkConfig()
 
 	// !!! Different format
 	std::ifstream fin3(DNSconf.c_str());
-	if (!fin3.good())
-	{
+	if (!fin3.good()){
 		string msg = "Couldn't open " + DNSconf;
 		log(msg);
 		return;
 	}
 	std::string val;
 	fin3 >> tmp >> val;
-	while (!fin3.eof())
-	{
-		if (string::npos != tmp.find("nameserver"))
-		{
+	while (!fin3.eof()){
+		if (string::npos != tmp.find("nameserver")){
 			ipv4ns = val;
 			break;
 		}
 		fin3 >> tmp >> val;
 	}
-	fin.close();
+	fin3.close();
 }

@@ -62,7 +62,6 @@ class LCDMonitor:public CFA635
 		void showSysInfo();
 		void showIP();
 		
-		void networkDisable();
 		void networkConfigDHCP();
 		void networkConfigStaticIP4();
 	

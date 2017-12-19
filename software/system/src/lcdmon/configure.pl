@@ -29,12 +29,12 @@ $SYSTEMD="systemd";
 # The first entry is OS-defined string, second is our name for tarballs etc,
 # then init system
 @os =(
-	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6",$UPSTART], 
-	["CentOS release 6","centos6",$UPSTART],
-	["CentOS Linux 7","centos7",$SYSTEMD],
-	["Ubuntu 14.04","ubuntu14",$UPSTART],
-	["Ubuntu 16.04","ubuntu16",$UPSTART],
-	["BeagleBoard.org Debian","bbdebian8",$SYSTEMD]
+	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel",$UPSTART], 
+	["CentOS release 6","rhel",$UPSTART],
+	["CentOS Linux 7","rhel",$SYSTEMD],
+	["Ubuntu 14.04","debian",$UPSTART],
+	["Ubuntu 16.04","debian",$UPSTART],
+	["BeagleBoard.org Debian","debian",$SYSTEMD]
 	);
 
 # Try for /etc/os-release first (systemd systems only)
@@ -62,10 +62,18 @@ while ($l=<IN>){
 	if ($l=~/^DEFINES/){
 		print OUT "DEFINES = ";
 		if ($thisos =~ /Beagleboard/){
-			print OUT " -DOTTP -DSYSTEMD";
+			print OUT " -DOTTP -DDEBIAN -DSYSTEMD";
 		}
 		else{
 			print OUT "-DTTS";
+			
+			if ($os[$osid][1] eq "debian"){
+				print OUT " -DDEBIAN";
+			}
+			elsif ($os[$osid][1] eq "rhel"){
+				print OUT " -DRHEL";
+			}
+			
 			if ($os[$osid][2] eq $SYSTEMD){
 				print OUT " -DSYSTEMD";
 			}
