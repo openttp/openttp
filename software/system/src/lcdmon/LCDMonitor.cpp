@@ -91,6 +91,9 @@ using namespace::boost;
 bool LCDMonitor::timeout=false;
 extern LCDMonitor *app;
 bool showHealth = true;
+#ifdef TTS
+bool showGLOBD = true;
+#endif
 
 extern ostream *debugStream;
 extern string   debugFileName;
@@ -346,21 +349,19 @@ void LCDMonitor::networkConfigStaticIP4()
 
 	bool ret = execDialog(dlg);
 	std::string lastError="No error";
-	if (ret)
-	{
+	if (ret){
 		ipv4addr = ipw->ipAddress();
 		ipv4nm =   nmw->ipAddress();
 		ipv4gw =   gww->ipAddress();
 		ipv4ns =   nsw->ipAddress();
 
 		// make temporary files and copy across
-		// note that temporay files are made in the same directory
+		// note that temporary files are made in the same directory
 		// as the target because rename() does not work across devices (partitions)
 		// network
 		string netcfg("/etc/sysconfig/network");
 		ifstream fin(netcfg.c_str());
-		if (!fin.good())
-		{
+		if (!fin.good()){
 			lastError="Missing /etc/sysconfig/network";
 			goto DIE;
 		}
@@ -369,24 +370,20 @@ void LCDMonitor::networkConfigStaticIP4()
 		string ftmp("/etc/sysconfig/network.tmp");
 		ofstream fout(ftmp.c_str());
 		bool gotGATEWAY=false;
-		while (!fin.eof())
-		{
+		while (!fin.eof()){
 			getline(fin,tmp);
 			if (fin.eof())
 				break;
-			if (fin.fail())
-			{
+			if (fin.fail()){
 				lastError="Error in /etc/sysconfig/network";
 				goto DIE;
 			}
-			if (string::npos != tmp.find("GATEWAY"))
-			{
+			if (string::npos != tmp.find("GATEWAY")){
 				fout << "GATEWAY=" << ipv4gw << endl;
 				gotGATEWAY=true;
 			}
 			else
 				fout << tmp << endl;
-
 		}
 
 		if (!gotGATEWAY)
@@ -396,8 +393,7 @@ void LCDMonitor::networkConfigStaticIP4()
 		fout.close();
 
 		int retval;
-		if (0 != (retval = rename(ftmp.c_str(),netcfg.c_str())))
-		{
+		if (0 != (retval = rename(ftmp.c_str(),netcfg.c_str()))){
 			DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << netcfg << " failed err = " << errno);
 			lastError="Rename of network failed";
 			goto DIE;
@@ -406,8 +402,7 @@ void LCDMonitor::networkConfigStaticIP4()
 		// ifcfg-eth0
 		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
 		ifstream fin2(ifcfg.c_str());
-		if (!fin2.good())
-		{
+		if (!fin2.good()){
 			lastError="ifcfg-eth0 not found";
 			goto DIE;
 		}
@@ -417,106 +412,101 @@ void LCDMonitor::networkConfigStaticIP4()
 		bool gotIPADDR=false;
 		bool gotNETMASK=false;
 		bool gotBOOTPROTO=false;
-
-		while (!fin2.eof())
-		{
+		bool gotDNS1=false;
+		
+		while (!fin2.eof()){
 			getline(fin2,tmp);
 			if (fin2.eof())
 				break;
-			if (fin2.fail())
-			{
+			if (fin2.fail()){
 				lastError="Error in ifcfg-eth0";
 				goto DIE;
 			}
-			if (string::npos != tmp.find("IPADDR"))
-			{
+			if (string::npos != tmp.find("IPADDR")){
 				fout2 << "IPADDR=" << ipv4addr << endl;
 				gotIPADDR=true;
 			}
-			else if ( (string::npos != tmp.find("NETMASK")) || (string::npos != tmp.find("PREFIX")))
-			{
+			else if ( (string::npos != tmp.find("NETMASK")) || (string::npos != tmp.find("PREFIX"))){
 				// replace NETMASK with PREFIX
 				// FIXME could do better
 				fout2 << "NETMASK=" << ipv4nm << endl;
 				gotNETMASK=true;
 			}
-			else if (string::npos != tmp.find("BOOTPROTO"))
-			{
+			else if (string::npos != tmp.find("BOOTPROTO")){
 				fout2 << "BOOTPROTO=none" << endl; // none==static
 				gotBOOTPROTO=true;
 			}
-			else if (string::npos != tmp.find("DNS1"))
-			{
+			else if (string::npos != tmp.find("DNS1")){
 				fout2 << "DNS1=" << ipv4ns << endl;
-				gotBOOTPROTO=true;
+				gotDNS1=true;
 			}
 			else
 				fout2 << tmp << endl;
 		}
 
+		// If the required fields weren't there, update them from the dialog results anyway
 		if (!gotIPADDR)
 			fout2 << "IPADDR=" << ipv4addr << endl;
 		if (!gotNETMASK)
 			fout2 << "NETMASK=" << ipv4nm << endl;
 		if (!gotBOOTPROTO)
 			fout2 << "BOOTPROTO=none" << endl;
-
+		if (!gotDNS1) // FIXME when is this used?
+			fout2 << "DNS1=" << ipv4ns << endl;
+		
 		fin2.close();
 		fout2.close();
 
-		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str())))
-		{
+		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str()))){
 			DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
 			lastError = "Rename of tmp.ifcfg-eth0 failed";
 			goto DIE;
 		}
 
-		// /etc/resolv.conf
-		string nscfg("/etc/resolv.conf");
-		ifstream fin3(nscfg.c_str());
-		if (!fin3.good())
-		{
-			lastError="resolv.conf not found";
-			goto DIE;
-		}
-		ftmp="/etc/resolv.conf.tmp";
-		ofstream fout3(ftmp.c_str());
-		bool gotNS=false; // should only be one NS defined but if someone has manually fiddled
-										// then make sure we only change the first one configured in resolv.conf
-		while (!fin3.eof())
-		{
-			getline(fin3,tmp);
-			if (fin3.eof())
-				break;
-			if (fin3.fail())
-			{
-				lastError="Error in resolv.conf";
+		// Try /etc/resolv.conf if there is no nameserver configured in 
+		// FIXME unclear how DNS1 propagates
+		if (!gotDNS1){
+			string nscfg("/etc/resolv.conf");
+			ifstream fin3(nscfg.c_str());
+			if (!fin3.good()){
+				lastError="resolv.conf not found";
 				goto DIE;
 			}
-			if ((!gotNS) && (string::npos != tmp.find("nameserver")))
-			{
-				fout3 << "nameserver " << ipv4ns << endl;
-				gotNS=true;
+			ftmp="/etc/resolv.conf.tmp";
+			ofstream fout3(ftmp.c_str());
+			bool gotNS=false; // should only be one NS defined but if someone has manually fiddled
+											// then make sure we only change the first one configured in resolv.conf
+			while (!fin3.eof()){
+				getline(fin3,tmp);
+				if (fin3.eof())
+					break;
+				if (fin3.fail()){
+					lastError="Error in resolv.conf";
+					goto DIE;
+				}
+				if ((!gotNS) && (string::npos != tmp.find("nameserver"))){
+					fout3 << "nameserver " << ipv4ns << endl;
+					gotNS=true;
+				}
+				else
+					fout3 << tmp << endl;
+
 			}
-			else
-				fout3 << tmp << endl;
+			if (!gotNS)
+				fout3 << "nameserver " << ipv4ns << endl;
 
+			fin3.close();
+			fout3.close();
+
+			if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str()))){
+				DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+				lastError="Rename of resolv.conf.tmp failed";
+				goto DIE;
+			}
 		}
-		if (!gotNS)
-			fout3 << "nameserver " << ipv4ns << endl;
-
-		fin3.close();
-		fout3.close();
-
-		if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str())))
-		{
-			DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
-			lastError="Rename of resolv.conf.tmp failed";
-			goto DIE;
-		}
-
+		
 		restartNetworking();
-	}
+	} // if dialog accepted
 
 	delete dlg;
 	return;
@@ -725,6 +715,27 @@ void LCDMonitor::setGPSDODisplayMode()
 
 	clearDisplay();
 }
+
+#ifdef TTS
+void LCDMonitor::setGLOBDDisplayMode()
+{
+	if (displayMode==GLOBD) return;
+	//
+	displayMode=GLOBD;
+	MenuItem *mi = displayModeM->itemAt(midGPSDisplayMode);
+	mi->setChecked(false);
+	mi = displayModeM->itemAt(midNTPDisplayMode);
+	mi->setChecked(false);
+	mi = displayModeM->itemAt(midGPSDODisplayMode);
+	mi->setChecked(false);
+	mi = displayModeM->itemAt(midGLOBDDisplayMode);
+	mi->setChecked(true);
+	//
+	updateConfig("ui","display mode","GLOBD");
+	//
+	clearDisplay();
+}
+#endif
 
 void LCDMonitor::restartGPS()
 {
@@ -1056,8 +1067,72 @@ void LCDMonitor::showStatus()
 					updateLine(2,"");
 				}
 				break;
+			} //
+#ifdef TTS
+			case GLOBD:
+			{
+				std::string GLOsats = "", BDsats = "";
+				bool unexpectedEOF;
+				if(checkGLOBD(GLOsats,BDsats,&unexpectedEOF))
+				{
+					if (unexpectedEOF){
+						DBGMSG(debugStream,TRACE,"unexpected EOF from checkGLOBD");
+					}
+					else
+					{
+						std::vector<std::string> sprns;
+						std::vector<int> prns;
+						std::string sbuf;
+						ostringstream ossbuf(sbuf);
+						int n1 = 4,bufwd,maxn;
+						if(showGLOBD){ // Show GLONASS sats
+							boost::split(sprns,GLOsats,is_any_of(","));
+							ossbuf << "GLONASS";
+							bufwd = 3;
+							maxn = 11;
+						}
+						else{ // Show Beidou sats
+							boost::split(sprns,BDsats,is_any_of(","));
+							ossbuf << "Beidou ";
+							bufwd = 3; // was 4 when 2xx was used as prn no
+							maxn = 11; // was 9 when 2xx was used as prn no
+						}
+						for (unsigned int i=0;i<sprns.size();i++){
+							prns.push_back(atoi(sprns.at(i).c_str()));
+							// subtract 200 from prn number to get sv number for Beidou satellites
+							if(!showGLOBD) prns[i] = prns[i] - 200;
+						}
+						sort(prns.begin(),prns.end());
+						int nprns = prns.size();
+						if (nprns > n1) nprns = n1;
+						for (int s=0;s<nprns;s++){
+							ossbuf.width(bufwd);
+							ossbuf << prns[s];
+						}
+						updateLine(1,ossbuf.str().c_str());
+						nprns = prns.size();
+						if (nprns > maxn) nprns = maxn;
+						nprns -= n1; // number left to show
+						ossbuf.clear(); // clear any errors 
+						ossbuf.str("");
+						for (int s=0;s<nprns;s++){
+							ossbuf.width(bufwd);
+							ossbuf << prns[s+n1];
+						}
+						updateLine(2,ossbuf.str().c_str());
+						showGLOBD = !showGLOBD;
+					}
+				}
+				else // most likely stale file
+				{
+					updateLine(1,"GLONASS - nothing");
+					updateLine(2,"Beidou - nothing");
+				}
+				break;
 			}
+#endif
 		}
+		
 		//if (GPSOK)
 		//	updateStatusLED(1,GreenOn);
 		//else
@@ -1504,11 +1579,19 @@ void LCDMonitor::configure()
 	networkConf="/etc/sysconfig/network";
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
 	sysInfoConf="/usr/local/etc/sysinfo.conf";
-	receiverName="resolutiont";
+	receiverName="nv08";
 	alarmPath="/home/cvgps/logs/alarms";
-	refStatusFile="/home/cvgps/logs/prs10.status";
-	GPSStatusFile="/home/cvgps/logs/rest.status";
+	refStatusFile="/home/cvgps/logs/gpsdo.status";
+	GPSStatusFile="/home/cvgps/logs/gpscv.status";
+#ifdef TTS
+	GLONASSStatusFile="/home/cvgps/logs/rest.status";
+	BeidouStatusFile="/home/cvgps/logs/navspark.status";
+#endif
 
+#ifdef OTTP
+	
+#endif
+	
 	string sysmonConfig("/home/cvgps/etc/sysmonitor.conf");
 	string gpscvConfig("/home/cvgps/etc/gpscv.conf");
 
@@ -1596,8 +1679,7 @@ void LCDMonitor::configure()
 	else
 		log("Show PRNs not found in config file");
 
-	if (list_get_int_value(last,"UI","LCD intensity",&itmp))
-	{
+	if (list_get_int_value(last,"UI","LCD intensity",&itmp)){
 		intensity = itmp;
 		if (intensity <0) intensity=0;
 		if (intensity >100) intensity=100;
@@ -1605,8 +1687,7 @@ void LCDMonitor::configure()
 	else
 		log("LCD intensity not found in config file");
 
-	if (list_get_int_value(last,"UI","LCD contrast",&itmp))
-	{
+	if (list_get_int_value(last,"UI","LCD contrast",&itmp)){
 		contrast= itmp;
 		if (contrast <0) contrast=0;
 		if (contrast >255) contrast=255;
@@ -1614,8 +1695,7 @@ void LCDMonitor::configure()
 	else
 		log("LCD contrast not found in config file");
 
-	if (list_get_int_value(last,"UI","LCD timeout",&itmp))
-	{
+	if (list_get_int_value(last,"UI","LCD timeout",&itmp)){
 		displaytimeout = itmp;
 		if (displaytimeout < 0) displaytimeout = 0;
 		if (displaytimeout > 3600) displaytimeout = 3600;
@@ -1623,8 +1703,7 @@ void LCDMonitor::configure()
 	else
 		log("LCD backlight timeout not found in config file");
 
-	if (list_get_string_value(last,"UI","display mode",&stmp))
-	{
+	if (list_get_string_value(last,"UI","display mode",&stmp)){
 		boost::to_upper(stmp);
 		if (0==strcmp(stmp,"GPS"))
 			displayMode = GPS;
@@ -1632,8 +1711,11 @@ void LCDMonitor::configure()
 			displayMode = NTP;
 		else if (0==strcmp(stmp,"GPSDO"))
 			displayMode = GPSDO;
-		else
-		{
+#ifdef TTS
+		else if (0==strcmp(stmp,"GLOBD"))
+			displayMode = GLOBD;
+#endif
+		else{
 			ostringstream msg;
 			msg << "Unknown display mode " << stmp;
 			log(msg.str());
@@ -1646,8 +1728,7 @@ void LCDMonitor::configure()
 	// Parse gpscv.conf
 	//
 
-	if (!configfile_parse_as_list(&last,gpscvConfig.c_str()))
-	{
+	if (!configfile_parse_as_list(&last,gpscvConfig.c_str())){
 		ostringstream msg;
 		msg << "failed to read " << gpscvConfig;
 		log(msg.str());
@@ -1680,22 +1761,32 @@ void LCDMonitor::configure()
 	else
 		log("reference:status file not found in gpscv.conf");
 
+#ifdef TTS
+	if (list_get_string_value(last,"GNSS","GLONASS status",&stmp))
+		GLONASSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+	else
+		log("GLONASS status not found in gpscv.conf");
+	
+	if (list_get_string_value(last,"GNSS","Beidou status",&stmp))
+		BeidouStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+	else
+		log("Beidou status not found in gpscv.conf");
+#endif
+	
 	list_clear(last);
 
 	//
 	// Parse sysmon.conf
 	//
 
-	if (!configfile_parse_as_list(&last,sysmonConfig.c_str()))
-	{
+	if (!configfile_parse_as_list(&last,sysmonConfig.c_str())){
 		ostringstream msg;
 		msg << "failed to read " << sysmonConfig;
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
 
-	if (list_get_string_value(last,"Alarms","Status File Directory",&stmp))
-	{
+	if (list_get_string_value(last,"Alarms","Status File Directory",&stmp)){
 		alarmPath=stmp;
 		alarmPath+="/*";
 	}
@@ -1797,7 +1888,13 @@ void LCDMonitor::makeMenu()
 		  midGPSDODisplayMode = displayModeM ->insertItem("GPSDO",cb);
 			mi = displayModeM->itemAt(midGPSDODisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==GPSDO);
-			
+#ifdef TTS
+			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGLOBDDisplayMode);
+		  midGLOBDDisplayMode = displayModeM ->insertItem("GLOBD",cb);
+			mi = displayModeM->itemAt(midGLOBDDisplayMode);
+			DBGMSG(debugStream,TRACE,"midGLOBDDisplayMode = " << midGLOBDDisplayMode);
+			if (mi != NULL) mi->setChecked(displayMode==GLOBD);
+#endif		
 		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showIP);
 		setupM->insertItem("Show IP addresses..",cb);
 
@@ -2090,6 +2187,56 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	DBGMSG(debugStream,TRACE,"done");
 	return ret;
 }
+
+#ifdef TTS
+
+bool LCDMonitor::checkGLOBD(std::string &GLOprns, std::string &BDprns, bool  *unexpectedEOF)
+{
+	*unexpectedEOF=false;
+	bool ret = checkFile(GLONASSStatusFile.c_str());
+	if (!ret){
+		DBGMSG(debugStream,TRACE,"GLONASS stale file");
+		return false; // don't display stale information
+	}
+	ret = checkFile(BeidouStatusFile.c_str());
+	if (!ret){
+		DBGMSG(debugStream,TRACE,"Beidou stale file");
+		return false; // don't display stale information
+	}
+	// status files are current so extract useful stuff
+	std::ifstream fin(GLONASSStatusFile.c_str());
+	if (!fin.good()){ // not really going to happen
+		DBGMSG(debugStream,TRACE,"GLONASS stream error");
+		return false;
+	}
+	std::string tmp;
+	while (!fin.eof()){
+		getline(fin,tmp);
+		if (string::npos != tmp.find("prns=")){
+			parseConfigEntry(tmp,GLOprns,'=');
+		}
+	}
+	fin.close();
+	trim(GLOprns); // using boost
+	// Now Beidou
+	std::ifstream fin2(BeidouStatusFile.c_str());
+	if (!fin2.good()){ // not really going to happen
+		DBGMSG(debugStream,TRACE,"Beidou stream error");
+		return false;
+	}
+	while (!fin2.eof()){
+		getline(fin2,tmp);
+		if (string::npos != tmp.find("prns=")){
+			parseConfigEntry(tmp,BDprns,'=');
+		}
+	}
+	fin2.close();
+	trim(BDprns); // using boost
+	*unexpectedEOF = ((GLOprns.empty()) || (BDprns.empty())) ;
+	DBGMSG(debugStream,TRACE,"done");
+	return ret;
+}
+#endif
 
 bool LCDMonitor::detectNTPVersion()
 {

@@ -70,7 +70,9 @@ class LCDMonitor:public CFA635
 		void setGPSDisplayMode();
 		void setNTPDisplayMode();
 		void setGPSDODisplayMode();
-		
+#ifdef TTS
+		void setGLOBDDisplayMode();
+#endif	
 		void restartGPS();
 		void restartNtpd();
 		void reboot();
@@ -79,7 +81,7 @@ class LCDMonitor:public CFA635
 	private:
 	
 		enum LEDState {Off,RedOn,GreenOn,Unknown};
-		enum DisplayMode {GPS,NTP,GPSDO};
+		enum DisplayMode {GPS,NTP,GPSDO,GLOBD};
 		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
 		
 		void getIPaddress(std::string &, std::string &);
@@ -163,6 +165,13 @@ class LCDMonitor:public CFA635
 		
 		std::string receiverName;
 		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile;
+		
+#ifdef TTS
+		std::string GLONASSStatusFile,BeidouStatusFile;
+		int midGLOBDDisplayMode;
+		//              GLOsats       BDsats
+		bool checkGLOBD(std::string &,std::string &,bool *);
+#endif
 		
 		// some settings
 		int intensity;
