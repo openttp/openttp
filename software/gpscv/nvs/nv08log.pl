@@ -62,6 +62,8 @@ use strict;
 # 2017-08-10         Louis Marais     Using antenna delay command to implement pps
 #                                     offset. This feature was missing from the program
 # 2017-12-11         Michael Wouters  Configurable path for UUCP lock files
+# 2018-01-06         Michael Wouters  BINR output for use with 3rd party software
+#
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 
@@ -84,9 +86,13 @@ my($glosats,$gpssats,$hdop,$vdop,$tdop,$nv08id,$dts,$saw);
 my(%Init);
 my($AUTHORS,$configFile,@info,@required);
 my($lockPath,$statusPath);
+my($fileFormat,$OPENTTP,$NATIVE);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "2.0.2";
+$VERSION = "2.0.3";
+
+$OPENTTP=0;
+$NATIVE=1;
 
 $0=~s#.*/##;
 
@@ -149,6 +155,14 @@ if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
   $Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
 }
 
+$fileFormat = $OPENTTP;
+if (defined($Init{"receiver:file format"})){
+	if ($Init{"receiver:file format"} eq "native"){
+		$fileFormat = $NATIVE;
+		$Init{"receiver:file extension"}=".binr";
+	}
+}
+
 &InitSerial();
 
 $now=time();
@@ -173,27 +187,37 @@ $tdop = 999.9;
 $gpssats = 0;
 
 $receiverTimeout=600;
-if (defined($Init{"receiver timeout"})) {$receiverTimeout=$Init{"receiver timeout"};}
+if (defined($Init{"receiver:timeout"})) {$receiverTimeout=$Init{"receiver:timeout"};}
 $lastMsg=time(); 
 
-while (!$killed)
-{
+while (!$killed){
   # see if there is text waiting (every 100 ms)
   $nfound=select $tmask=$rxmask,undef,undef,0.1; # ... ,0.1;
+  
+  # The $lastMsg variable is updated when msg52h show that there are GPS / GLONASS 
+  # satellites available.
+  if (time()-$lastMsg > $receiverTimeout){
+		@_=gmtime();
+		$msg=sprintf("%04d-%02d-%02d %02d:%02d:%02d no satellites visible - exiting\n",
+									$_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
+		if ($fileFormat == $OPENTTP){
+			printf OUT "# ".$msg;
+		}
+		else{
+			printf "# ".$msg;
+		}
+    $killed = 1;
+  }
+  
   next unless $nfound;
-  # For debugging:
-  #print time(),": \$nfound: ",$nfound,"\n";
   # to prevent sysread attempting to read a negative length:
   if ($nfound < 0) { $killed = 1; last; }
   # Read until we have a complete message
-  sysread $rx,$input,$nfound,length($input);    
-  #if($DEBUG) {print hexStr($input);}
-  #print "\$input: ",hexStr($input),"\n";
+  sysread $rx,$input,$nfound,length($input);
+  
   # Check to see if we can find the end of a message
-  if ($input=~/(\x10+)\x03/)
-  {
-    if ((length $1) & 1)
-    {
+  if ($input=~/(\x10+)\x03/){
+    if ((length $1) & 1){
       # ETX preceded by odd number of DLE: got the packet termination
       #$dle = substr $&,0; # <-- this does nothing now, in restlog it strips out first and last character
       $data = $save.$`.$&;  #$dle;
@@ -202,11 +226,9 @@ while (!$killed)
       # Is the first character a DLE? If not we may have stray bytes
       # transmitted...
       # Strip off first character until string is too short or DLE is found
-      if (length($data) > 2)
-      {  
+      if (length($data) > 2){  
         $first = 0x00;
-        while ($first != 0x10) 
-        {
+        while ($first != 0x10){
           $first = ord(substr $data,0,1);
           # strip off first character if we have not found DLE, but
           # only if the string is long enough
@@ -247,6 +269,9 @@ while (!$killed)
           $nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
           $then=$now;
         }
+        if ($fileFormat == $NATIVE){
+					print OUT $data;
+        }
         # Strip off DLE at start and DLE ETX at end
         $data = stripDLEandETX ($data);
         # Strip out double DLE in message
@@ -255,7 +280,9 @@ while (!$killed)
         $msgID = substr $data,0,1;
         $msg = substr $data,1;      
         $lastMsg=$now;
-        printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$msg);
+        if ($fileFormat == $OPENTTP){
+					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$msg);
+				}
         switch ($msgID)
         {
           case "\x52"
@@ -298,16 +325,7 @@ while (!$killed)
     $input = $';	
     # Note on special variables: $' is POSTMATCH string
   }
-  # The $lastMsg variable is updated when msg52h show that there are GPS / GLONASS 
-  # satellites available.
-  if (time()-$lastMsg > $receiverTimeout)
-  {
-    @_=gmtime();
-    $msg=sprintf("%04d-%02d-%02d %02d:%02d:%02d no satellites visible - exiting\n",
-                  $_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
-    printf OUT "# ".$msg;
-    $killed = 1;
-  }
+  
 }
 
 BYEBYE:
@@ -316,11 +334,16 @@ if (-e $lockFile) {unlink $lockFile;}
 
 @_=gmtime();
 $msg=sprintf ("%04d-%02d-%02d %02d:%02d:%02d $0 killed\n",
-              $_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
+							$_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
 printf $msg;
-printf OUT "# ".$msg;
+if ($fileFormat == $OPENTTP){
+	printf OUT "# ".$msg;
+}
 close OUT;
 
+if ($fileFormat == $OPENTTP){
+	select STDOUT;
+}
 # end of main 
 
 #-----------------------------------------------------------------------------
@@ -417,7 +440,7 @@ sub InitSerial()
   # Set up a mask which specifies this port for select polling later on
   vec($rxmask,fileno $rx,1)=1;
 
-  print "> Port $port to NV08C (GPS) Rx is open\n";
+  print "> Port $port to NV08C Rx is open\n";
   # Wait a bit
   sleep(1);
 }
@@ -439,36 +462,41 @@ sub OpenDataFile
   Debug("Opening $name");
 
   open OUT,">>$name" or die "Could not write to $name";
-  select OUT;
-  $|=1;
-  printf "# %s $0 (version $Init{version}) %s\n",
-    &TFTimeStamp(),($_[1]? "beginning" : "continuing");
-  printf "# %s file $name\n",
-    ($old? "Appending to" : "Beginning new");
-  printf "\@ MJD=%d\n",$mjd;
-  select STDOUT;
-
+  
+  if ($fileFormat == $OPENTTP){
+		select OUT;
+	}
+	elsif ($fileFormat == $NATIVE){
+		binmode OUT;
+	}
+	
+	$|=1;
+	printf "# %s $0 (version $Init{version}) %s\n",
+		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
+	printf "# %s file $name\n",
+		($old? "Appending to" : "Beginning new");
+	printf "\@ MJD=%d\n",$mjd;
+	
+	if ($fileFormat == $OPENTTP){
+		select STDOUT;
+	}
+	
+	
+	
 } # OpenDataFile
-
-#----------------------------------------------------------------------------
-
-
-# +-----------------------------------------------------------------------------+
-# |                                                                             | 
-# |  NOTE1: COMMANDS SETTING STUFF UP COMMENTED OUT TO DEBUG 1PPS "drift" ISSUE |
-# |                                                                             | 
-# |  NOTE2: ANTENNA DELAY CANNED TO -3.5 us TO ALLOW EACH 1PPS TO BE MEASURED   |
-# |                                                                             | 
-# +-----------------------------------------------------------------------------+
-
 
 #----------------------------------------------------------------------------
 
 sub ConfigureReceiver
 {
-  if ($opt_r) # hard reset
-  {
-    print OUT "# Resetting receiver\n";	
+  if ($opt_r){ # hard reset
+		if ($fileFormat == $OPENTTP){
+			print OUT "# Resetting receiver\n";
+		}
+		else{
+			print "# Resetting receiver\n";
+		}
+		
     sendCmd("\x01\x00\x01\x21\x01\x00\x00");
     #          |   |   |   |   |   |   |   
     #          |   |   |   |   |   |   +--- Reboot type: x00 is Cold start, x01 is Warm start
