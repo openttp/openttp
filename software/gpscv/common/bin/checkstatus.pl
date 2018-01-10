@@ -74,8 +74,8 @@ $ENV{HOSTNAME}=hostname() unless defined $ENV{HOSTNAME}; # very old Linuxen
 $home=$ENV{HOME};
 
 # Assume the following all exist
-$logpath="$home/logs";
-$binpath="$home/bin"; 
+#$logpath="$home/logs";
+#$binpath="$home/bin"; 
 $configpath="$home/etc"; 
 $cggttspath="$home/cggtts"; 
 $rxpath="$home/raw";  

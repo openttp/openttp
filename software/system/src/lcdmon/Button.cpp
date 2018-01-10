@@ -25,12 +25,20 @@
 // Modification history
 //
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include "Button.h"
 #include "Functor.h"
 #include "KeyEvent.h"
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cstdio>
+
+using namespace std;
+
+extern ostream *debugStream;
 
 Button::Button(std::string t,Functor *cb,Widget *parent):Widget(parent)
 {
@@ -40,7 +48,7 @@ Button::Button(std::string t,Functor *cb,Widget *parent):Widget(parent)
 
 Button::~Button()
 {
-	Dout(dc::trace,"Button::~Button() " << txt);
+	DBGMSG(debugStream,TRACE,txt);
 }
 
 bool Button::keyEvent(KeyEvent &ke)
@@ -48,7 +56,7 @@ bool Button::keyEvent(KeyEvent &ke)
 	int ev=ke.event();
 	if  (ev & KeyEvent::KeyEnter)
 	{
-		Dout(dc::trace,"Button::keyEvent -> Enter " << txt);
+		DBGMSG(debugStream,TRACE, "Enter " << txt);
 		if (callback)
 			callback->Call();
 		return true;

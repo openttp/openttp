@@ -4,14 +4,14 @@ BINDIR = $(INSTDIR)/sbin
 ETCDIR = $(INSTDIR)/etc
 GROUP = suck
 CC = g++
-DEBUGFLAG = -g
 LIBS = -L/usr/local/lib -lconfigurator -lstdc++ -lboost_regex
-DEBUGFLAG = -g
+DEBUGFLAG = -g -DDEBUG
 CFLAGS = -Wall -Wno-unused $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
-
-LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o LCDMonitor.o Menu.o Main.o Widget.o \
-	SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o MessageBox.o
+DEFINES = 
+LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o NumberWidget.o \
+	 LCDMonitor.o Menu.o Main.o Widget.o SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o \
+	 MessageBox.o
 
 LCDCONFIGOBJS=CFA635.o Debug.o LCDConfigure.o
 
@@ -29,40 +29,38 @@ lcdmonitor:	$(LCDMONOBJS)
 lcdconfig:	$(LCDCONFIGOBJS)
 	$(CC) $(CFLAGS) -o lcdconfig $(LCDCONFIGOBJS) $(LIBS)
 	
-Button.o: Button.h Widget.h Functor.h
+Button.o: Button.h Debug.h Widget.h Functor.h
 
-CFA635.o: CFA635.h
+CFA635.o: CFA635.h Debug.h
 
-ConfirmationDialog.o: ConfirmationDialog.h Dialog.h Widget.h KeyEvent.h
+ConfirmationDialog.o: ConfirmationDialog.h Debug.h Dialog.h Widget.h KeyEvent.h
 
-ContrastWidget.o: Widget.h SliderWidget.h KeyEvent.h ContrastWidget.h
+ContrastWidget.o: Debug.h Widget.h SliderWidget.h KeyEvent.h ContrastWidget.h
 
-Debug.o: Debug.h
+Dialog.o: Debug.h Dialog.h Widget.h KeyEvent.h
 
-Dialog.o: Dialog.h Widget.h KeyEvent.h
+IPWidget.o: Debug.h Widget.h IPWidget.h KeyEvent.h
 
-IPWidget.o: Widget.h IPWidget.h KeyEvent.h
+IntensityWidget.o: Debug.h Widget.h SliderWidget.h KeyEvent.h IntensityWidget.h
 
-IntensityWidget.o: Widget.h SliderWidget.h KeyEvent.h IntensityWidget.h
+Label.o: Debug.h Widget.h Label.h
 
-Label.o: Widget.h Label.h
-
-LCDMonitor.o: CFA635.h Dialog.h IPWidget.h LCDMonitor.h WidgetCallback.h KeyEvent.h Functor.h \
+LCDMonitor.o: CFA635.h Debug.h Dialog.h IPWidget.h LCDMonitor.h WidgetCallback.h KeyEvent.h Functor.h \
 	Version.h SliderWidget.h IntensityWidget.h ContrastWidget.h Wizard.h
 
-LCDConfigure.o: CFA635.h LCDConfigure.h Version.h
+LCDConfigure.o: CFA635.h Debug.h LCDConfigure.h Version.h
 
-MessageBox.o: Widget.h Dialog.h Label.h KeyEvent.h
+MessageBox.o: Widget.h Debug.h Dialog.h Label.h KeyEvent.h
 
-Wizard.o: Wizard.h Dialog.h Widget.h KeyEvent.h Button.h WidgetCallback.h
+Wizard.o: Wizard.h Debug.h Dialog.h Widget.h KeyEvent.h Button.h WidgetCallback.h
 
 Main.o: LCDMonitor.h
 
 Menu.o: Menu.h
 
-SliderWidget.o: Widget.h SliderWidget.h KeyEvent.h
+SliderWidget.o: Debug.h Widget.h SliderWidget.h KeyEvent.h
 
-Widget.o: KeyEvent.h Widget.h
+Widget.o: Debug.h KeyEvent.h Widget.h
 
 install: mkversion lcdmonitor lcdconfig
 	@ install -o root -g root -m 0744 ./lcdconfig  $(BINDIR)

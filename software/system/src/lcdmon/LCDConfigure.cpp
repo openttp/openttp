@@ -26,7 +26,6 @@
 //
 
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include <errno.h>
@@ -61,6 +60,13 @@ using namespace std;
 using namespace::boost;
 
 bool LCDConfigure::timeout=false;
+using namespace std;
+
+ostream *debugStream;
+string   debugFileName;
+ofstream debugLog;
+int verbosity=1;
+bool shortDebugMessage=false;
 
 LCDConfigure *app;
 
@@ -69,13 +75,29 @@ LCDConfigure::LCDConfigure(int argc,char **argv)
 
 	//char c; // does not work where char is unsigned, such as on BBB
 	int c;
-	while ((c=getopt(argc,argv,"hvdu:")) != EOF)
+	while ((c=getopt(argc,argv,"hvd:u:")) != EOF)
 	{
 		switch(c)
   	{
 			case 'h':showHelp(); exit(EXIT_SUCCESS);
 			case 'v':showVersion();exit(EXIT_SUCCESS);
-			case 'd':Debug(dc::trace.on());break;
+			case 'd':
+			{
+				string dbgout = optarg;
+				if ((string::npos != dbgout.find("stderr"))){
+					debugStream = & std::cerr;
+				}
+				else{
+					debugFileName = dbgout;
+					debugLog.open(debugFileName.c_str(),ios_base::app);
+					if (!debugLog.is_open()){
+						cerr << "Unable to open " << dbgout << endl;
+						exit(EXIT_FAILURE);
+					}
+					debugStream = & debugLog;
+				}
+				break;
+			}
 			case 'u':user=optarg;break;
 		}
 	}
@@ -123,11 +145,11 @@ void LCDConfigure::signalHandler(int sig)
 	switch (sig)
 	{
 		case SIGALRM: 
-			Dout(dc::trace,"LCDConfigure::signalHandler SIGALRM");
+			DBGMSG(debugStream,TRACE, "SIGALRM");
 			LCDConfigure::timeout=true;
 			break;// can't call Debug()
 		case SIGTERM: case SIGQUIT: case SIGINT: case SIGHUP:
-			Dout(dc::trace,"LCDConfigure::signalHandler SIGxxx");
+			DBGMSG(debugStream,TRACE, "SIGxxx");
 			delete app;
 			exit(EXIT_SUCCESS);
 			break;
@@ -170,14 +192,12 @@ void LCDConfigure::log(std::string msg)
 void LCDConfigure::init()
 {
 
-	if(Serial_Init(PORT,BAUD))
-	{
-		Dout(dc::trace,"Could not open port " << PORT << " at " << BAUD << " baud.");
+	if(Serial_Init(PORT,BAUD)){
+		DBGMSG(debugStream,TRACE, "Could not open port " << PORT << " at " << BAUD << " baud.");
 		exit(EXIT_FAILURE);
 	}
-	else
-	{
-    Dout(dc::trace,PORT << " opened at "<< BAUD <<" baud");
+	else{
+    DBGMSG(debugStream,TRACE, PORT << " opened at "<< BAUD <<" baud");
 	}
 
 	/* Clear the buffer */
@@ -238,9 +258,8 @@ void LCDConfigure::getResponse()
 			break;
 		}
 	}
-	if(timed_out)
-	{
-		Dout(dc::trace,"LCDConfigure::getResponse() Timed out waiting for a response");
+	if(timed_out){
+		DBGMSG(debugStream,TRACE,"Timed out waiting for a response");
 	}
 }
 
@@ -313,15 +332,8 @@ void LCDConfigure::storeState()
 
 int main(int argc,char **argv)
 {
-
-	Debug(lcdmonitor::debug::init());
-
-	LCDConfigure *lcd = new LCDConfigure(argc,argv);
-	app = lcd;
-
-	lcd->run();
-
-	Dout(dc::trace,"main()");
-
+	debugStream = NULL;
+	app = new LCDConfigure(argc,argv);
+	app->run();
 	return(EXIT_SUCCESS);
 }

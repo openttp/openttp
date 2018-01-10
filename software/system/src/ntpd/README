@@ -1,0 +1,8 @@
+In order for ntpd to pick up the PPS refclocks, replace the ntp startup script
+in /etc/init.d/ with the ntp-ottp script.
+
+This can be done by executing:
+sudo cp ntp-ottp /etc/init.d/ 
+
+Copy the ntp configuration file to /etc:
+sudo cp ntp.conf /etc/

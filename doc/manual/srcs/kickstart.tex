@@ -22,6 +22,16 @@ The command line options are:
 
 \subsection{configuration file}
 
+An example configuration file is:
+\begin{lstlisting}
+targets = okxem
+[okxem]
+target = okxem
+command = bin/okxemlog.pl 
+lock file = logs/okxem.gpscv.lock
+\end{lstlisting}
+
+
 {\bfseries targets}\\
 This defines a list of sections, each of which corresponds to a process to monitor.\\
 \textit{Example:}
@@ -29,12 +39,11 @@ This defines a list of sections, each of which corresponds to a process to monit
 targets = restlog , okxem
 \end{lstlisting}
 
-An example target is:
+{\bfseries target}\\
+This defines a target identifier. It is used to construct filenames and in logged messages.\\
+\textit{Example:}
 \begin{lstlisting}
-[okxem]
 target = okxem
-command = bin/okxemlog.pl 
-lock file = logs/okxem.gpscv.lock
 \end{lstlisting}
 
 {\bfseries command}\\
@@ -51,12 +60,7 @@ This defines the lock file associated with a target.\\
 lock file = logs/okxem.gpscv.lock
 \end{lstlisting}
 
-{\bfseries target}\\
-This defines a target identifier. It is used to construct filenames and in logged messages.\\
-\textit{Example:}
-\begin{lstlisting}
-target = okxem
-\end{lstlisting}
+
 
 \subsection{log file}
 

@@ -26,27 +26,34 @@
 //
 
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+
 #include "LCDMonitor.h"
+
+using namespace std;
+
+ostream *debugStream;
+string   debugFileName;
+ofstream debugLog;
+int verbosity=1;
+bool shortDebugMessage=false;
 
 LCDMonitor *app;
 
 int main(int argc,char **argv)
 {
 
-	Debug(lcdmonitor::debug::init());
-
-	LCDMonitor *lcd = new LCDMonitor(argc,argv);
-	app = lcd;
-
-	lcd->run();
-	
-	Dout(dc::trace,"main()");
+	debugStream= NULL;
+	app = new LCDMonitor(argc,argv);
+	app->run();
 
 	return(EXIT_SUCCESS);
 }

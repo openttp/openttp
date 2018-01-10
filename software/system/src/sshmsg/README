@@ -1,0 +1,5 @@
+Replace the files in /etc with these two issue files.
+
+This will replace the standard Beagle Bone Black welcome message with one 
+that makes sense for the OpenTTP system.
+

@@ -3,7 +3,7 @@ CC = gcc
 INCLUDE = 
 LDFLAGS= 
 LIBS= 
-CFLAGS= -Wall -O -DUSE_PARALLEL_PORT
+CFLAGS= -Wall -O -DUSE_SIO8186x
 OBJECTS = ppsd.o
 
 .SUFFIXES: .o .c
@@ -19,6 +19,6 @@ $(PROGRAM): $(OBJECTS)
 install: $(PROGRAM)
 	cp ppsd.conf /usr/local/etc
 	cp $(PROGRAM) /usr/local/sbin
-
+	
 clean:
 	rm -f *.o $(PROGRAM)

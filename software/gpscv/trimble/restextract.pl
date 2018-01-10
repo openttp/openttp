@@ -31,19 +31,20 @@ use Getopt::Std;
 use TFLibrary;
 use vars qw($opt_a $opt_c $opt_f $opt_h $opt_m $opt_l $opt_L $opt_u $opt_p $opt_r $opt_s $opt_t $opt_v $opt_x);
 
-$VERSION="2.0";
+$VERSION="2.0.1";
 
 $M_PI=4*atan2(1,1);
 $CVACUUM=299792458.0;
 
 $SKIP=-1;
 $MSG8F=1;
-$MSG6D=2;
-$MSG45=3;
-$MSG47=4;
-$MSG58=5;
-$MSG5A=6;
-$MSG84=7;
+$MSG6C=2; #SMT360
+$MSG6D=3;
+$MSG45=4;
+$MSG47=5;
+$MSG58=6;
+$MSG5A=7;
+$MSG84=8;
 
 $RESOLUTION_T=0;
 #$RESOLUTION_SMT=1;
@@ -154,6 +155,7 @@ while (<RXDATA>)
 {
 	$msg = $SKIP;
 	if (/^8F /) {$msg=$MSG8F;}
+	elsif(/^6C /){$msg=$MSG6C;}
 	elsif(/^6D /){$msg=$MSG6D;}
 	elsif(/^45 /){$msg=$MSG45;}
 	elsif(/^47 /){$msg=$MSG47;}
@@ -223,6 +225,13 @@ while (<RXDATA>)
 			printf "Build date and time:        %4d-%02d-%02d %02d:00\n",
 				2000+$data[3],$data[4],$data[5],$data[6];
 		}
+	}
+	elsif(($msg==$MSG6C) && $opt_s)
+	{
+		# don't bother reversing bytes of stuff we don't want
+		@data=unpack "C2f4C",(pack "H*",$_[2]);
+		print $data[6];
+		
 	}
 	elsif(($msg==$MSG6D) && $opt_s)
 	{

@@ -25,10 +25,18 @@
 // Modification history
 //
 
-#include "Sys.h"
 #include "Debug.h"
 
 #include "Label.h"
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cstdio>
+
+using namespace std;
+
+extern ostream *debugStream;
 
 Label::Label(std::string t,Widget *parent):Widget(parent)
 {
@@ -38,7 +46,7 @@ Label::Label(std::string t,Widget *parent):Widget(parent)
 
 Label::~Label()
 {
-	Dout(dc::trace,"Label::~Label() " << txt);
+	DBGMSG(debugStream,TRACE,txt);
 }
 
 void Label::setText(std::string t)

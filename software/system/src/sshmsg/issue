@@ -1,0 +1,11 @@
+Debian GNU/Linux 8 \n \l
+
+BeagleBoard.org Debian Image 2016-11-06
+
+Support/FAQ: http://elinux.org/Beagleboard:BeagleBoneBlack_Debian
+
+This Beaglebone Black hosts the Open Traceable Time Platform
+Visit www.opentpp.org for more information
+
+The IP Address for eth0 is: 10.64.39.232
+The IP Address for usb0 is: 192.168.7.2

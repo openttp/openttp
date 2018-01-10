@@ -1,0 +1,228 @@
+
+This chapter describes basic setup of the OpenTTP reference  platform, verification of its operation and logging in to the unit.
+
+Warning !
+The  unit contains a computer. This must be shut down properly
+before power is removed from the unit. Failure to do this can 
+result in inoperability of the system.
+\marginpar{\epsfig{file=figures/warning.eps,silent=,width=48pt}}
+The system can be shut down from the front panel (\ref{sKeypad}) or by
+logging in (\ref{sLoggingIn}).
+
+
+\section{The front panel \label{sFrontPanel}}
+
+\begin{figure}[h]
+\psfig{file=figures/frontpanel.eps,silent=}
+\caption{Front panel of the unit}
+\end{figure}
+
+\begin{itemize}
+	\item[\mykey{A}] Status LEDs
+	\item[\mykey{B}] LCD display
+	\item[\mykey{C}] Keypad
+\end{itemize}
+
+The top line of the LCD display shows UTC date and time.
+The date and time displayed will typically only be accurate to 1 s.
+The contents of the second and third lines of the display depend on the display mode.
+
+When in GPS mode, the identifiers of up
+to 10 currently visible GPS space vehicles are displayed. 
+
+When in NTP mode, the second line shows
+the number of NTP packets received per minute. The third line shows information about
+synchronization status, including leap second announcements.
+
+In GPSDO mode, the second line shows whether the GPSDO is locked or not. 
+The third line alternates between the `health' byte (\ref{sGPSDO}), and the estimated fractional frequency error 
+(reported by the GPSDO) and the electronic frequency control (EFC) voltage, normalized to a maximum of 100.
+
+The bottom line is reserved for notification of system alarms and either shows
+`System OK' or `System Alarm'.
+The LED beside this line will be red if there is a running alarm.
+
+\subsection{Using the front panel keypad \label{sKeypad} }
+
+The keypad provides access to status information and limited control and configuration of the unit. 
+It can be used to cleanly shut down or reboot the computer without logging in. 
+
+System status is normally displayed on the screen.  
+The menus are accessed by pressing any key. Menus are navigated  using the keypad:\\
+%%\begin{table}[h]
+\begin{tabular}{ll}
+ \mykey{\begin{turn}{270}\ding{228}\end{turn}}& Move to next menu item \\
+ \mykey{\begin{turn}{90}\ding{228}\end{turn}} & Move to previous menu item \\
+ \mykey{\ding{228}}, \mykey{\ding{52}}& Select menu item \\
+ \mykey{\begin{turn}{180}\ding{228}\end{turn}}  &Back to previous menu \\
+ \mykey{\ding{54}}  & Back to the status display
+\end{tabular}
+%%\end{table}
+\\
+Escaping back to the status  after making a change will not undo the change.
+Where a sub-menu lists a number of options, the currently selected option is flagged with an asterisk.
+
+Dialogs are navigated using the cursor keys. A dialog will typically consist of a number of input fields. Some of these work like buttons and are selected using the \mykey{\ding{52}} key; others may require inputting a value and this is done by cycling through the possible values with the cursor keys. If you move out of an input field, focus will pass to the next valid input field. You can quit a dialog using the \mykey{\ding{54}} key. Any changes made in a dialog will not be applied if you quit it. If a menu or dialog has been inactive for more than 5 minutes, the display returns
+to showing system status.
+
+\subsection{Menus}
+
+The menu hierarchy is shown below:
+
+\begin{itemize}
+	\item Setup
+		\begin{itemize}
+			\item LCD setup
+				\begin{itemize}
+					\item LCD settings
+					\item LCD backlight time
+				\end{itemize}
+			\item Display mode
+				\begin{itemize}
+					\item GPS
+					\item NTP
+					\item GPSDO
+				\end{itemize}
+			\item Show IP addresses
+		\end{itemize}
+		
+	\item Show alarms
+	\item Show system info
+	\item Restart
+		\begin{itemize}
+			\item GPS
+			\item NTPD
+			\item Reboot
+			\item Power down
+		\end{itemize}
+\end{itemize}
+
+\subsubsection{LCD setup}
+
+The intensity and contrast of the LCD display can be set using this menu.
+A timeout can also be set on the backlight.
+
+\subsubsection{Display mode}
+
+The status information displayed by the unit in the second and third lines of the LCD display
+can be selected as relating to either GPS, NTP or the GPSDO.
+
+\subsubsection{Show alarms}
+
+This shows any currently running alarms.
+It displays the alarms that are recorded in \cc{/home/cvgps/logs/alarms}.
+
+\subsubsection{Show system info}
+
+This displays version and serial number information and the make of the installed oscillator.
+This information is read from the file \cc{/usr/local/etc/sysinfo.conf} which has to be manually
+updated as needed.
+  
+\subsubsection{Restart}
+
+This allows the user to restart several processes (GPS common view logging and \cc{ntpd}) as well as reboot or power down the unit. 
+You will be asked to confirm power down or reboot.
+
+\pagebreak
+
+\section{The rear panel}
+
+\begin{figure}[h]
+\psfig{file=figures/rearpanel.eps,silent=}
+\caption{Rear panel of the unit}
+\end{figure}
+
+\begin{table}[h]
+	\begin{tabular}{llll}
+	& Function & Connector & Signal characteristics \\ 
+	\mykey{A} & DC power input & & 7.5 V, 5A \\
+	\mykey{B} & USB & & \\
+	\mykey{C} & USB & & \\
+	\mykey{D} & Video & HDMI & \\
+	\mykey{E} & Network & RJ45 & \\
+	\mykey{F} & BB USB network & & \\
+	\mykey{G} & GPS 1 pps OUT & SMA & 5V DC supplied\\
+	\mykey{H} & Reference 1 pps OUT & SMA & \\
+	\mykey{I} & GPS antenna & SMB & \\
+	\mykey{J} & Reference 10 MHz OUT& SMA & \\
+	\mykey{K} & Reference 5 MHz OUT & SMA & \\
+	\mykey{L} & 1 PPS IN & SMA & TTL\\
+	\mykey{M} & General purpose I/O & SMA & TTL \\
+	\mykey{N} & Beaglebone Black reset & &
+	\end{tabular}
+	\caption{Rear panel electrical connections}
+\end{table}
+
+If connected to a computer via the USB connector \mykey{F}, a network adapter should show up on your computer.
+The \sysname{} will provide your computer with an IP address of either 192.168.7.1 or 192.168.6.1, depending on the type of USB network adapter
+supported by your computer's operating system. The \sysname{} will reserve 192.168.7.2 or 192.168.6.2 for itself.
+
+%% \enlargethispage*{48pt}
+%% \pagebreak
+
+\section{Installation}
+
+\subsection{Operating environment}
+
+The \sysname{} is designed for indoor use only and is neither water nor moisture-proof.
+It should not be subjected to large mechanical shocks or excessive heat and dust.
+
+\subsection{Install the GPS antenna and cable}
+
+The unit supplies 5 V DC to the antenna. This can be changed to 3.3 V via a jumper J1.
+More details are given in \ref{sAntenna}.
+
+The GNSS antenna should be installed in a location with a clear
+view of the sky above $10^{\circ}$. All exposed connections should be
+weatherproofed. Make sure that all connections are tight but do not apply
+excessive torque as this can result in connectors detaching from the cable.
+
+A strain relief bulkhead is supplied for making the connection to the short 
+`N'-terminated cable. 
+
+\subsection{Make system connections}
+
+
+
+\subsubsection{Network connection}
+
+A network connection is not required for operation as a time-transfer system
+but may be useful to the user for maintenance and downloading data files. 
+
+For operation as an NTP server, the unit will require a network connection.
+The unit can operate using DHCP or with
+a static IP address. The default is to use DHCP. The configured address can be conveniently found using the 
+front panel menu.
+
+A static IP can be set by using the system utility \cc{connmanctl} or by editing the file 
+\cc{/etc/network/interfaces}.
+
+\subsection{Checking system operation}
+
+Upon initial startup, a number of alarms may be running. 
+All alarms should clear within five minutes of startup.
+Information on alarms and troubleshooting hints are given in \ref{sAlarms}. Troubleshooting
+will rqeuire logging into the system (\ref{sLoggingIn}).
+
+
+\section{Logging into the system \label{sLoggingIn}}
+
+The \sysname{} runs under Debian. The desktop environment has been disabled to reduce memory usage.
+Familiarity with a command-line Linux environment is therefore essential for operating and maintaining
+the \sysname{}. It is beyond the scope of this manual to provide a Linux tutorial. The reader should 
+consult one of the many online resources that exist.
+
+Login is via the user \cc{cvgps}. The default password is supplied separately and you should change
+this after logging in.
+
+You can check that logging of GNSS and counter data is occurring by looking in the directory 
+\cc{/home/cvgps/raw}.
+
+Processing of data takes place at UTC0015 daily. 
+
+\section{Time of day}
+
+The system is NTP-synchronized using the GPS receiver's time of day messages and its 1 pps. The system operates on UTC. 
+	
+
+

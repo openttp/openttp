@@ -33,6 +33,7 @@
 # 2017-05-10 ELM Added lockStatusCheck directory. The lock file is stored here. It is a RAM disk.
 #                Added code around $SIG{INT} to exit gracefully when terminating with Ctrl-C.
 #                Fixed typos - $lockFile was $lockfile in several locations.
+# 2017-12-11 MJW Fallback to logPath if lockStatusCheck doesn't exist
 #
 
 use POSIX;
@@ -43,7 +44,7 @@ use TFLibrary;
 
 use vars qw($opt_c $opt_d $opt_h $opt_v);
 
-$VERSION="0.1.1";
+$VERSION="0.1.2";
 $AUTHOR="Michael Wouters";
 
 $alarmTimeout = 120; # SIGAARLM timout 
@@ -72,19 +73,20 @@ else
 	ErrorExit("No ~/etc directory found!\n");
 } 
 
-#if (-d "$home/logs")  {
-#	$logpath="$home/logs";
-#} 
-#else{
-#	ErrorExit("No ~/logs directory found!\n");
-#}
+if (-d "$home/logs")  {
+	$logPath="$home/logs";
+} 
+else{
+	ErrorExit("No ~/logs directory found!\n");
+}
 
 if (-d "$home/lockStatusCheck")  {
-	$lockpath="$home/lockStatusCheck";
-	$statuspath="$home/lockStatusCheck";
+	$lockPath="$home/lockStatusCheck";
+	$statusPath="$home/lockStatusCheck";
 }
 else{
-	ErrorExit("No ~/lockStatusCheck directory found!\n");
+	$lockPath=$logPath;
+	$statusPath=$logPath;
 }
 
 $configFile=$configpath."/gpscv.conf";
@@ -108,7 +110,7 @@ foreach (@check) {
 }
 
 # Check the lock file
-$lockFile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$lockpath);
+$lockFile = TFMakeAbsoluteFilePath($Init{"counter:lock file"},$home,$lockPath);
 if (!TFCreateProcessLock($lockFile)){
 	ErrorExit("Process is already running\n");
 }
@@ -118,7 +120,7 @@ $chan = $Init{"counter:okxem channel"};
 
 $statusFileName =$Init{"counter:status file"};
 if (defined $statusFileName){
-	$statusFileName = TFMakeAbsoluteFilePath($statusFileName,$home,$statuspath);
+	$statusFileName = TFMakeAbsoluteFilePath($statusFileName,$home,$statusPath);
 }
 
 $headerGen="";

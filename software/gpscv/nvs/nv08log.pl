@@ -34,7 +34,7 @@ use strict;
 #                         The Trimble SMT360 issue could not be resolved, so Michael
 #                         started code to use the NV08 as the GPS timing receiver for
 #                         the version 3 system.
-# Last modification date: 2016-06-22
+# Last modification date: 2017-12-11
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Modification record:
@@ -59,6 +59,11 @@ use strict;
 #                                     disk. This is to make the SD card last longer.
 #                                     status and lock files are stored here, because
 #                                     they don't need to survive a reboot.
+# 2017-08-10         Louis Marais     Using antenna delay command to implement pps
+#                                     offset. This feature was missing from the program
+# 2017-12-11         Michael Wouters  Configurable path for UUCP lock files
+# 2018-01-06         Michael Wouters  BINR output for use with 3rd party software
+#
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 
@@ -74,72 +79,66 @@ use Getopt::Std;
 use NV08C::DecodeMsg;
 
 # declare variables - required because of 'use strict'
-my($home,$configPath,$logPath,$lockFile,$pid,$VERSION,$rx,$rxStatus);
+my($home,$configPath,$logPath,$lockFile,$uucpLockPath,$pid,$VERSION,$rx,$rxStatus,$port);
 my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
 my($glosats,$gpssats,$hdop,$vdop,$tdop,$nv08id,$dts,$saw);
 my(%Init);
 my($AUTHORS,$configFile,@info,@required);
 my($lockPath,$statusPath);
+my($fileFormat,$OPENTTP,$NATIVE);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "2.0.1";
+$VERSION = "2.0.3";
+
+$OPENTTP=0;
+$NATIVE=1;
 
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
 $configFile="$home/etc/gpscv.conf";
 
-if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) 
-{
+if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h){ 
   ShowHelp();
   exit;
 }
 
-if ($opt_v)
-{
+if ($opt_v){
   print "$0 version $VERSION\n";
   print "Written by $AUTHORS\n";
   exit;
 }
 
-if (!(-d "$home/etc"))  
-{
+if (!(-d "$home/etc"))  {
   ErrorExit("No ~/etc directory found!\n");
 } 
 
-if (-d "$home/logs")  
-{
+if (-d "$home/logs"){
   $logPath="$home/logs";
 } 
-else
-{
+else{
   ErrorExit("No ~/logs directory found!\n");
 }
 
-if (-d "$home/lockStatusCheck")
-{
+if (-d "$home/lockStatusCheck"){
   $lockPath="$home/lockStatusCheck";
   $statusPath="$home/lockStatusCheck";
 }
-else
-{
+else{
   ErrorExit("No ~/lockStatusCheck directory found!\n");
 }
 
-if (defined $opt_c)
-{
+if (defined $opt_c){
   $configFile=$opt_c;
 }
 
-if (!(-e $configFile))
-{
+if (!(-e $configFile)){
   ErrorExit("A configuration file was not found!\n");
 }
 
 &Initialise($configFile);
 
-# Check for an existing lock file
 # Check the lock file
 $lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$lockPath);
 if (!TFCreateProcessLock($lockFile)){
@@ -152,10 +151,19 @@ $rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$statusPath);
 
 $Init{"paths:receiver data"}=TFMakeAbsolutePath($Init{"paths:receiver data"},$home);
 
-if (!($Init{"receiver:file extension"} =~ /^\./)) # do we need a period ?
-{
+if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
   $Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
 }
+
+$fileFormat = $OPENTTP;
+if (defined($Init{"receiver:file format"})){
+	if ($Init{"receiver:file format"} eq "native"){
+		$fileFormat = $NATIVE;
+		$Init{"receiver:file extension"}=".binr";
+	}
+}
+
+&InitSerial();
 
 $now=time();
 $mjd=int($now/86400) + 40587;	
@@ -179,27 +187,37 @@ $tdop = 999.9;
 $gpssats = 0;
 
 $receiverTimeout=600;
-if (defined($Init{"receiver timeout"})) {$receiverTimeout=$Init{"receiver timeout"};}
+if (defined($Init{"receiver:timeout"})) {$receiverTimeout=$Init{"receiver:timeout"};}
 $lastMsg=time(); 
 
-while (!$killed)
-{
+while (!$killed){
   # see if there is text waiting (every 100 ms)
   $nfound=select $tmask=$rxmask,undef,undef,0.1; # ... ,0.1;
+  
+  # The $lastMsg variable is updated when msg52h show that there are GPS / GLONASS 
+  # satellites available.
+  if (time()-$lastMsg > $receiverTimeout){
+		@_=gmtime();
+		$msg=sprintf("%04d-%02d-%02d %02d:%02d:%02d no satellites visible - exiting\n",
+									$_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
+		if ($fileFormat == $OPENTTP){
+			printf OUT "# ".$msg;
+		}
+		else{
+			printf "# ".$msg;
+		}
+    $killed = 1;
+  }
+  
   next unless $nfound;
-  # For debugging:
-  #print time(),": \$nfound: ",$nfound,"\n";
   # to prevent sysread attempting to read a negative length:
   if ($nfound < 0) { $killed = 1; last; }
   # Read until we have a complete message
-  sysread $rx,$input,$nfound,length($input);    
-  #if($DEBUG) {print hexStr($input);}
-  #print "\$input: ",hexStr($input),"\n";
+  sysread $rx,$input,$nfound,length($input);
+  
   # Check to see if we can find the end of a message
-  if ($input=~/(\x10+)\x03/)
-  {
-    if ((length $1) & 1)
-    {
+  if ($input=~/(\x10+)\x03/){
+    if ((length $1) & 1){
       # ETX preceded by odd number of DLE: got the packet termination
       #$dle = substr $&,0; # <-- this does nothing now, in restlog it strips out first and last character
       $data = $save.$`.$&;  #$dle;
@@ -208,11 +226,9 @@ while (!$killed)
       # Is the first character a DLE? If not we may have stray bytes
       # transmitted...
       # Strip off first character until string is too short or DLE is found
-      if (length($data) > 2)
-      {  
+      if (length($data) > 2){  
         $first = 0x00;
-        while ($first != 0x10) 
-        {
+        while ($first != 0x10){
           $first = ord(substr $data,0,1);
           # strip off first character if we have not found DLE, but
           # only if the string is long enough
@@ -253,6 +269,9 @@ while (!$killed)
           $nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
           $then=$now;
         }
+        if ($fileFormat == $NATIVE){
+					print OUT $data;
+        }
         # Strip off DLE at start and DLE ETX at end
         $data = stripDLEandETX ($data);
         # Strip out double DLE in message
@@ -261,7 +280,9 @@ while (!$killed)
         $msgID = substr $data,0,1;
         $msg = substr $data,1;      
         $lastMsg=$now;
-        printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$msg);
+        if ($fileFormat == $OPENTTP){
+					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$msg);
+				}
         switch ($msgID)
         {
           case "\x52"
@@ -304,28 +325,25 @@ while (!$killed)
     $input = $';	
     # Note on special variables: $' is POSTMATCH string
   }
-  # The $lastMsg variable is updated when msg52h show that there are GPS / GLONASS 
-  # satellites available.
-  if (time()-$lastMsg > $receiverTimeout)
-  {
-    @_=gmtime();
-    $msg=sprintf("%04d-%02d-%02d %02d:%02d:%02d no satellites visible - exiting\n",
-                  $_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
-    printf OUT "# ".$msg;
-    $killed = 1;
-  }
+  
 }
 
 BYEBYE:
 if (-e $lockFile) {unlink $lockFile;}
+`/usr/local/bin/lockport -r -d $uucpLockPath $port`;
 
 @_=gmtime();
 $msg=sprintf ("%04d-%02d-%02d %02d:%02d:%02d $0 killed\n",
-              $_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
+							$_[5]+1900,$_[4]+1,$_[3],$_[2],$_[1],$_[0]);
 printf $msg;
-printf OUT "# ".$msg;
+if ($fileFormat == $OPENTTP){
+	printf OUT "# ".$msg;
+}
 close OUT;
 
+if ($fileFormat == $OPENTTP){
+	select STDOUT;
+}
 # end of main 
 
 #-----------------------------------------------------------------------------
@@ -372,8 +390,7 @@ sub Initialise
     "receiver:pps offset","receiver:lock file");
   %Init=&TFMakeHash2($name,(tolower=>1));
   
-  if (!%Init)
-  {
+  if (!%Init){
     print "Couldn't open $name\n";
     exit;
   }
@@ -382,27 +399,35 @@ sub Initialise
   
   # Check that all required information is present
   $err=0;
-  foreach (@required) 
-  {
-    unless (defined $Init{$_}) 
-    {
+  foreach (@required) {
+    unless (defined $Init{$_}) {
       print STDERR "! No value for $_ given in $name\n";
       $err=1;
     }
   }
   exit if $err;
 
-  # Open the serial port to the receiver
-  $rxmask = "";
-  my($port) = $Init{"receiver:port"};
   
-  unless (`/usr/local/bin/lockport $port $0`==1) 
-  {
+} # Initialise
+
+#----------------------------------------------------------------------------
+sub InitSerial()
+{
+	# Open the serial port to the receiver
+	$rxmask = "";
+	$port = $Init{"receiver:port"};
+	$port="/dev/$port" unless $port=~m#/#;
+  
+	$uucpLockPath="/var/lock";
+	if (defined $Init{"paths:uucp lock"}){
+		$uucpLockPath = $Init{"paths:uucp lock"};
+	}
+
+  unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
     printf "! Could not obtain lock on $port. Exiting.\n";
     exit;
   }
-  $port="/dev/$port" unless $port=~m#/#;
-
+  
   # Open port to NV08C UART B (COM2) at 115200 baud, 8 data bits, 1 stop bit,
   # odd parity, no flow control (see paragraph 2, page 8 of 91 in BINR
   # protocol specification).
@@ -415,11 +440,10 @@ sub Initialise
   # Set up a mask which specifies this port for select polling later on
   vec($rxmask,fileno $rx,1)=1;
 
-  print "> Port $port to NV08C (GPS) Rx is open\n";
+  print "> Port $port to NV08C Rx is open\n";
   # Wait a bit
   sleep(1);
-} # Initialise
-
+}
 
 #----------------------------------------------------------------------------
 
@@ -438,36 +462,41 @@ sub OpenDataFile
   Debug("Opening $name");
 
   open OUT,">>$name" or die "Could not write to $name";
-  select OUT;
-  $|=1;
-  printf "# %s $0 (version $Init{version}) %s\n",
-    &TFTimeStamp(),($_[1]? "beginning" : "continuing");
-  printf "# %s file $name\n",
-    ($old? "Appending to" : "Beginning new");
-  printf "\@ MJD=%d\n",$mjd;
-  select STDOUT;
-
+  
+  if ($fileFormat == $OPENTTP){
+		select OUT;
+	}
+	elsif ($fileFormat == $NATIVE){
+		binmode OUT;
+	}
+	
+	$|=1;
+	printf "# %s $0 (version $Init{version}) %s\n",
+		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
+	printf "# %s file $name\n",
+		($old? "Appending to" : "Beginning new");
+	printf "\@ MJD=%d\n",$mjd;
+	
+	if ($fileFormat == $OPENTTP){
+		select STDOUT;
+	}
+	
+	
+	
 } # OpenDataFile
-
-#----------------------------------------------------------------------------
-
-
-# +-----------------------------------------------------------------------------+
-# |                                                                             | 
-# |  NOTE1: COMMANDS SETTING STUFF UP COMMENTED OUT TO DEBUG 1PPS "drift" ISSUE |
-# |                                                                             | 
-# |  NOTE2: ANTENNA DELAY CANNED TO -3.5 us TO ALLOW EACH 1PPS TO BE MEASURED   |
-# |                                                                             | 
-# +-----------------------------------------------------------------------------+
-
 
 #----------------------------------------------------------------------------
 
 sub ConfigureReceiver
 {
-  if ($opt_r) # hard reset
-  {
-    print OUT "# Resetting receiver\n";	
+  if ($opt_r){ # hard reset
+		if ($fileFormat == $OPENTTP){
+			print OUT "# Resetting receiver\n";
+		}
+		else{
+			print "# Resetting receiver\n";
+		}
+		
     sendCmd("\x01\x00\x01\x21\x01\x00\x00");
     #          |   |   |   |   |   |   |   
     #          |   |   |   |   |   |   +--- Reboot type: x00 is Cold start, x01 is Warm start
@@ -610,7 +639,14 @@ sub ConfigureReceiver
   # Set receiver Antenna delay
   # Antenna delay is set to zero here. The actual antenna cable delay is taken care of in the processing software.
   # Convert the data type to FP64 (as expected by the receiver)
-  my($antDelFP64) = pack "d1",0;
+  #my($antDelFP64) = pack "d1",0;
+
+
+  # OK we need to use this feature to offset the PPS signal...
+  # The command accepts a value in miiliseconds, so we need to convert the nanosecond value in
+  # the configuration file to milliseconds.
+  my($ppsOffset) = pack "d1",-($Init{"receiver:pps offset"})/1.0E6;
+  sendCmd("\x1D\x01".$ppsOffset);
 
   # For testing set antenna delay to -3.5 microseconds so that counter can catch each 1PPS
   # my($antDelFP64) = pack "d1",-0.0035; # milliseconds

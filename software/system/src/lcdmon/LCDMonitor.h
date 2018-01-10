@@ -60,16 +60,19 @@ class LCDMonitor:public CFA635
 		
 		void showAlarms();
 		void showSysInfo();
+		void showIP();
 		
-		void networkDisable();
 		void networkConfigDHCP();
 		void networkConfigStaticIP4();
 	
 		void LCDConfig();
+		void LCDBacklightTimeout();
 		void setGPSDisplayMode();
 		void setNTPDisplayMode();
 		void setGPSDODisplayMode();
-		
+#ifdef TTS
+		void setGLOBDDisplayMode();
+#endif	
 		void restartGPS();
 		void restartNtpd();
 		void reboot();
@@ -78,8 +81,10 @@ class LCDMonitor:public CFA635
 	private:
 	
 		enum LEDState {Off,RedOn,GreenOn,Unknown};
-		enum DisplayMode {GPS,NTP,GPSDO};
+		enum DisplayMode {GPS,NTP,GPSDO,GLOBD};
 		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
+		
+		void getIPaddress(std::string &, std::string &);
 		
 		static void signalHandler(int);
 		void startTimer(long secs=10);
@@ -145,7 +150,7 @@ class LCDMonitor:public CFA635
 		
 		bool showPRNs;
 
-		Menu *menu,*displayModeM,*protocolM;
+		Menu *menu,*displayModeM,*protocolM,*lcdSetup;
 		int midGPSDisplayMode,midNTPDisplayMode,midGPSDODisplayMode; // some menu items we want to track
 		int midDHCP,midStaticIP4,midStaticIP6;
 		
@@ -159,14 +164,23 @@ class LCDMonitor:public CFA635
 		std::string DNSconf,networkConf,eth0Conf;
 		
 		std::string receiverName;
-		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile; 
+		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile;
+		
+#ifdef TTS
+		std::string GLONASSStatusFile,BeidouStatusFile;
+		int midGLOBDDisplayMode;
+		//              GLOsats       BDsats
+		bool checkGLOBD(std::string &,std::string &,bool *);
+#endif
 		
 		// some settings
 		int intensity;
 		int contrast;
 		int displayMode;
+		int displaytimeout;
+		bool displaybacklightoff;
 		int networkProtocol;
-		// 
+		//
 		struct timeval lastNTPtrafficPoll,currNTPtrafficPoll;
 		int    lastNTPPacketCount,currNTPPacketCount;
 		

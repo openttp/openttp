@@ -51,6 +51,11 @@ AUTHORS = "Michael Wouters"
 TS_UNIX = 0
 TS_TOD  = 1
 
+# Counter mode
+TIC_MODE_TS=0 # time stamp mode
+TIC_MODE_TI=1 # time interval mode
+
+
 # Globals
 debug = False
 killed = False
@@ -97,6 +102,7 @@ def Initialise(configFile):
 # ------------------------------------------
 
 tsformat = TS_TOD
+tic_mode = TIC_MODE_TS
 
 home =os.environ['HOME'] + '/';
 configFile = os.path.join(home,'etc/ticc.conf');
@@ -140,6 +146,12 @@ if (cfg.has_key('counter:header generator')):
 	headerGen = ottplib.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
 print headerGen
 
+if (cfg.has_key('counter:mode')):
+	if (cfg['counter:mode'] == 'timestamp'):
+		tic_mode = TIC_MODE_TS
+	elif (cfg['counter:mode'] == 'time interval'):
+		tic_mode = TIC_MODE_TI
+		
 if (cfg.has_key('counter:timestamp format')):
 	if (cfg['counter:timestamp format'] == 'unix'):
 		tsformat = TS_UNIX
@@ -179,9 +191,20 @@ ctrcfg=''
 oldmjd=-1
 while (state < 4):
 	try:
-		l = ser.readline()[:-2]
+		l = ser.readline()
 	except select.error as (code,msg):
 		sys.exit(0)
+	if (len(l) == 0):
+		print 'Timeout'
+		sys.exit(0)
+	# If already connected then we won't see the startup bumpf
+	l=l[:-2]
+	if (len(l) == 0):
+		continue
+	# If the first character is not # then break out of this completely
+	if (not (l[0] == '#')):
+		state=4
+		
 	if (state == 1):
 		if (l.find('TICC Configuration') != -1):
 			state = 2
@@ -194,12 +217,23 @@ while (state < 4):
 				ottplib.RemoveProcessLock(lockFile)
 				ser.close()
 				subprocess.check_output(['/usr/local/bin/lockport','-r',port]) 
-				exit()
+				sys.exit(0)
 	elif (state == 3):
-		if (l.find('time interval A->B (seconds)') != -1):
+		if ((tic_mode == TIC_MODE_TI) and (l.find('time interval A->B (seconds)') != -1)):
+			state = 4
+		elif ((tic_mode == TIC_MODE_TS) and (l.find('Timestamp') != -1)):
 			state = 4
 
 nbad = 0
+
+# Can get some buffered stuff at the beginning if already running so toss it
+for i in xrange(20):
+	try:
+		l = ser.readline()
+	except select.error as (code,msg): # CTRL-C returns code=4
+		print msg
+		break;
+	
 while (not killed):
 	
 	# Check whether we need to create a new log file
@@ -207,43 +241,82 @@ while (not killed):
 	mjd = ottplib.MJD(tt)
 	if (not( mjd == oldmjd)):
 		oldmjd = mjd
-		fnout = dataPath + str(mjd) + ctrExt
-		if (not os.path.isfile(fnout)):
-			fout = open(fnout,'w',0)
+		if (tic_mode == TIC_MODE_TI):
+			fnoutA = dataPath + str(mjd) + ctrExt
+		elif (tic_mode == TIC_MODE_TS):
+			fnoutA = dataPath + str(mjd) + '.A' + ctrExt
+			fnoutB = dataPath + str(mjd) + '.B' + ctrExt
+		if (not os.path.isfile(fnoutA)):
+			foutA = open(fnoutA,'w',0)
 			if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
 				header=subprocess.check_output([headerGen])
-				fout.write(header)
-			fout.write(ctrcfg) # Configuration after the header
+				foutA.write(header)
+			foutA.write(ctrcfg) # Configuration after the header
 		else:
-			fout = open(fnout,'a',0)
-		Debug('Opened '+fnout)
+			foutA = open(fnoutA,'a',0)
+			
+		Debug('Opened '+fnoutA)
 		
+		if (tic_mode == TIC_MODE_TS):
+			if (not os.path.isfile(fnoutB)):
+				foutB = open(fnoutB,'w',0)
+				if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
+					header=subprocess.check_output([headerGen])
+					foutB.write(header)
+				foutB.write(ctrcfg) # Configuration after the header
+			else:
+				foutB = open(fnoutB,'a',0)
+			Debug('Opened '+fnoutB)
+			
 	try:
 		l = ser.readline()[:-2]
 	except select.error as (code,msg): # CTRL-C returns code=4
 		print msg
 		break;
-		
-	if (l.find('TI(A->B)') != -1):
-		if (tsformat == TS_UNIX):
-			fout.write(str(time.time())+' '+l.split()[0]+'\n')
-		elif (tsformat == TS_TOD):
-			fout.write(time.strftime('%H:%M:%S',time.gmtime()) + ' ' + l.split()[0]+'\n')
-		nbad = nbad - 1
-		if (nbad < 0):
-			nbad = 0
-	else:
-		nbad = nbad + 1
 	
+	if (tic_mode == TIC_MODE_TI): 
+		if (l.find('TI(A->B)') != -1):
+			if (tsformat == TS_UNIX):
+				foutA.write(str(time.time())+' '+l.split()[0]+'\n')
+			elif (tsformat == TS_TOD):
+				foutA.write(time.strftime('%H:%M:%S',time.gmtime()) + ' ' + l.split()[0]+'\n')
+			nbad = nbad - 1
+		else:
+			nbad = nbad + 1
+	elif (tic_mode == TIC_MODE_TS):
+		if (l.find('chA') != -1):
+			ts = l.split()[0]
+			if (None == re.match('^\d+\.\d{12}',ts)):
+				nbad =nbad + 1
+			else:
+				if (tsformat == TS_UNIX):
+					foutA.write(str(time.time())+' '+ts+'\n')
+				elif (tsformat == TS_TOD):
+					foutA.write(time.strftime('%H:%M:%S',time.gmtime()) + ' ' + ts +'\n')
+				nbad =nbad -1
+		elif (l.find('chB') != -1):
+			ts = l.split()[0]
+			if (None == re.match('^\d+\.\d{12}',ts)):
+				nbad =nbad + 1
+			else:
+				if (tsformat == TS_UNIX):
+					foutB.write(str(time.time())+' '+ts+'\n')
+				elif (tsformat == TS_TOD):
+					foutB.write(time.strftime('%H:%M:%S',time.gmtime()) + ' ' + ts +'\n')
+				nbad =nbad -1
+				
+	if (nbad < 0):
+		nbad =0
+					
 	if (nbad >= 30):
-		fout.close()
+		foutA.close()
 		ottplib.RemoveProcessLock(lockFile)
 		ser.close()
 		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
 		ErrorExit("Too many bad readings - no signal?")
 
 # All done - cleanup		
-fout.close()
+foutA.close()
 ottplib.RemoveProcessLock(lockFile)
 ser.close()
 subprocess.check_output(['/usr/local/bin/lockport','-r',port])
