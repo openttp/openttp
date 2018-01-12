@@ -4,7 +4,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2015  R. Bruce Warrington
+# Copyright (c) 2015  R. Bruce Warrington, Michael Wouters, Peter Fisk
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -40,11 +40,11 @@
 #  8. 1.03	1.2.0		RBW Optional fixed position mode, with XYZ from cctf_header
 #  2.12.08	1.3.0		MJW Read receiver setup from a file
 #												Delay between commands added (present in other versions of jnslog)
-#												Delayed 1 pps synchronization on start and periodic 1 pps synchronization therafter
+#												Delayed 1 pps synchronization on start and periodic 1 pps synchronization thereafter
 # 											Restart of receiver on empty SI message
 # 2016-01-25 2.0.0	MJW Imported into OpenTTP. Renamed from tclog to jnslog.pl
 # 2016-04-27 2.0.1	MJW Testing. Some fixups due to changes elsewhere in OpenTTP
-# 2018-01-12 2.0.2  MJW Removde 'fixed position' and replaced with 'positioning mode'
+# 2018-01-12 2.0.2  MJW Removed 'fixed position' and replaced with 'positioning mode'
 #
 
 # TO DO:
@@ -58,7 +58,7 @@ use POSIX;
 use vars qw($opt_d $opt_h $opt_r $opt_v);
 
 $VERSION="2.0.2";
-$AUTHORS="Bruce Warrington, Michael Wouters";
+$AUTHORS="Bruce Warrington, Michael Wouters, Peter Fisk";
 
 $home=$ENV{HOME};
 $configFile="$home/etc/gpscv.conf";
