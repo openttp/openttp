@@ -31,6 +31,8 @@
 # 28-08-2015 MJW Many changes to tidy this up and work with rin2cggts-produced files
 # 05-02-2016 MJW More flexible handling of data paths added
 # 19-04-2016 MJW SVNs, IOE added to matched track output file. Option to required matched ephemeris
+# 12-01-2017 MJW Detect r2cggtts-generated P3 and bail out. Fixed bug in construction of BIPM file names.
+#
 
 use POSIX qw(strftime);
 use Getopt::Std;
@@ -38,7 +40,7 @@ use Getopt::Std;
 use subs qw(MyPrint);
 use vars qw($opt_a $opt_c $opt_d $opt_f $opt_h $opt_i $opt_m $opt_n $opt_o $opt_p $opt_q $opt_r $opt_s $opt_t $opt_v $opt_x $opt_y);
 
-$VERSION = "2.0.1";
+$VERSION = "2.0.2";
 
 $MINTRACKLENGTH=750;
 $DSGMAX=200;
@@ -188,7 +190,7 @@ if ($opt_c){
 	}
 	elsif ($opt_c =~/meas/){
 		if (!$caldf){
-			print "\n!!! Calibration receiver is not dual frequency: '-c measured' is not a valid option\n\n";
+			print "\n!!! CAL data is not dual frequency: '-c measured' is not a valid option\n\n";
 			ShowHelp();
 			exit;
 		}
@@ -202,11 +204,43 @@ if ($opt_r){
 	}
 	elsif ($opt_r =~/meas/){
 		if (!$refdf){
-			print "\n!!! Reference receiver is not dual frequency: '-r measured' is not a valid option\n\n";
+			print "\n!!! REF data is not dual frequency: '-r measured' is not a valid option\n\n";
 			ShowHelp();
 			exit;
 		}
 		$REFIONO=$MSIO;
+	}
+}
+
+# Try to detect P3 data, and bail out if we are trying to remove the ionosphere
+if (1==$IONOCORR){
+	if ($refdf){
+		# No sure way to detect P3 but if MDIO == MSIO then the file was probably produced by r2cggtts
+		# Check a few values
+		$ntotest = 30;
+		if ($ntotest > $#ref + 1){
+			$ntotest = $#ref + 1;
+		}
+		for ($i=0;$i<$ntotest;$i++){
+			last if ($ref[$i][$MSIO] != $ref[$i][$MDIO]);
+		}
+		if ($i==$ntotest){
+			print "\n!!! REF data appears to be P3 and this is not supported.\n";
+			exit;
+		}
+	}
+	if ($caldf){
+		$ntotest = 30;
+		if ($ntotest > $#cal + 1){
+			$ntotest = $#cal + 1;
+		}
+		for ($i=0;$i<$ntotest;$i++){
+			last if ($cal[$i][$MSIO] != $cal[$i][$MDIO]);
+		}
+		if ($i==$ntotest){
+			print "\n!!! CAL data appears to be P3 and this is not supported.\n";
+			exit;
+		}
 	}
 }
 
@@ -613,7 +647,7 @@ sub ReadCCTF
 	if (!-e $f){ # try BIPM style name - $rxext is ignored 
 		$mjdYY=int($mjd/1000);
 		$mjdXXX=$mjd % 1000;
-		$f = "$rcvr/$rxprefix$mjdYY.$mjdXXX";
+		$f = sprintf("$rcvr/$rxprefix$mjdYY.%03d",$mjdXXX);
 	}
 	
 	if (!-e $f){
