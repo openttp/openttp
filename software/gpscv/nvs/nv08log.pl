@@ -121,9 +121,13 @@ else{
   ErrorExit("No ~/logs directory found!\n");
 }
 
-if (-d "$home/lockStatusCheck"){
+if (-d "$home/lockStatusCheck"){ # OpenTTP
   $lockPath="$home/lockStatusCheck";
   $statusPath="$home/lockStatusCheck";
+}
+elsif (-d "$home/logs"){
+  $lockPath=$logPath;
+  $statusPath=$logPath;
 }
 else{
   ErrorExit("No ~/lockStatusCheck directory found!\n");
