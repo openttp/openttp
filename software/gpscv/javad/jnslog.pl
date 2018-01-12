@@ -44,7 +44,9 @@
 # 											Restart of receiver on empty SI message
 # 2016-01-25 2.0.0	MJW Imported into OpenTTP. Renamed from tclog to jnslog.pl
 # 2016-04-27 2.0.1	MJW Testing. Some fixups due to changes elsewhere in OpenTTP
+# 2018-01-12 2.0.2  MJW Removde 'fixed position' and replaced with 'positioning mode'
 #
+
 # TO DO:
 # Enforce checksum checking for incoming messages
 # Better message parsing: count hex characters instead of pattern matching
@@ -55,7 +57,7 @@ use TFLibrary;
 use POSIX;
 use vars qw($opt_d $opt_h $opt_r $opt_v);
 
-$VERSION="2.0.1";
+$VERSION="2.0.2";
 $AUTHORS="Bruce Warrington, Michael Wouters";
 
 $home=$ENV{HOME};
@@ -348,18 +350,20 @@ sub GetFixedPositionCommands {
 	my %pos=();
 	my $msg;
 
-	if ((defined $Init{"receiver:fixed position"}) && ($Init{"receiver:fixed position"}=~/^1/)){
-		$pos{X}=$Init{"antenna:X"};
-		$pos{Y}=$Init{"antenna:Y"};
-		$pos{Z}=$Init{"antenna:Z"};
-		if ($pos{X} && $pos{Y} && $pos{Z}) {
-			$cmd="set,ref/pos/gps/xyz,{W84,$pos{X},$pos{Y},$pos{Z}}";
-			$cmd=~s/\+//g;
+	if ((defined $Init{"receiver:positioning mode"})){
+		if ($Init{"receiver:positioning mode"} eq 'fixed'){
+			$pos{X}=$Init{"antenna:X"};
+			$pos{Y}=$Init{"antenna:Y"};
+			$pos{Z}=$Init{"antenna:Z"};
+			if ($pos{X} && $pos{Y} && $pos{Z}) {
+				$cmd="set,ref/pos/gps/xyz,{W84,$pos{X},$pos{Y},$pos{Z}}";
+				$cmd=~s/\+//g;
+			}
 		}
 	}
  
 	unless ($cmd) {
-		$msg="Could not obtain fixed XYZ position: setting static mode OFF";
+		$msg="Fixed XYZ position not set: setting static mode OFF";
 		print OUT "# $msg\n";
 		@_=gmtime;
 		printf "%02d/%02d/%02d %02d:%02d:%02d $msg\n",
