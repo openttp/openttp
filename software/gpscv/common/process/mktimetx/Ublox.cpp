@@ -447,7 +447,7 @@ bool Ublox::readLog(string fname,int mjd)
 	// Do this initially and then every time a step is detected
 	
 	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
-	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g << 1)){
+	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
 		if (!(g & constellations)) continue;
 		GNSSSystem *gnss;
 		switch (g){

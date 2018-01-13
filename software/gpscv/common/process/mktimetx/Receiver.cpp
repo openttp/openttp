@@ -111,8 +111,8 @@ void Receiver::interpolateMeasurements()
 	// For each SV, build up a list of all measurements for the day
 	// Loop over all constellation+signal combinations
 	
-	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g<< 1)){ 
-		
+	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g<<= 1)){ 
+		DBGMSG(debugStream,1,"GNSS system " << g);
 		if (!(constellations & g)) continue;
 		
 		GNSSSystem *gnss;
@@ -123,8 +123,8 @@ void Receiver::interpolateMeasurements()
 			case GNSSSystem::GPS:gnss = &gps ;
 		}
 		
-		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code << 1)){
-			
+		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code <<= 1)){
+			DBGMSG(debugStream,1,"GNSS code " << code);
 			if (!(codes & code)) continue;
 			
 			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination

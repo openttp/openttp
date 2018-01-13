@@ -232,11 +232,6 @@ void Application::run()
 	
 	makeFilenames();
 	
-	RINEX rnx;
-	rnx.readNavigationFile(receiver,GNSSSystem::BEIDOU,"/home/michael/rinex/AC4800USA_R_20171600000_01D_MN.rnx");
-	rnx.writeNavigationFile(receiver,GNSSSystem::BEIDOU,RINEX::V3,"test.n",MJD);
-	exit(EXIT_SUCCESS);
-	
 	// Create the log file, erasing any existing file
 	ofstream ofs;
 	ofs.open(logFile.c_str());
@@ -821,6 +816,7 @@ bool Application::loadConfig()
 		}
 
 		setConfig(last,"rinex","agency",agency,&configOK);
+	
 	}
 	
 	DBGMSG(debugStream,TRACE,"parsed RINEX config");
@@ -1159,7 +1155,7 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 {
 	FILE *fout;
 	
-	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g<< 1)){ 
+	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g <<= 1)){ 
 		
 		if (!(rx->constellations & g)) continue;
 		
@@ -1171,7 +1167,7 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 			case GNSSSystem::GPS:gnss = &(rx->gps) ;
 		}
 		
-		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code << 1)){
+		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code <<= 1)){
 			
 			if (!(rx->codes & code)) continue;
 			

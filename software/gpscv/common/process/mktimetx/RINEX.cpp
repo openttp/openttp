@@ -223,7 +223,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 		if (mpairs[currMeas]->flags==0x03){
 			ReceiverMeasurement *rm = mpairs[currMeas]->rm;
 			
-			double ppsTime = useTIC*(rm->cm->rdg+rm->sawtooth) - rx->ppsOffset*1.0E-9; // correction to the local clock
+			double ppsTime = useTIC*(rm->cm->rdg+rm->sawtooth - rx->ppsOffset*1.0E-9); // correction to the local clock
 			
 			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
 			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
