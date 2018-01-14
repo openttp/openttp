@@ -255,8 +255,7 @@ while (!$killed){
         $now = time(); # got one - tag the time
         $mjd = int($now/86400) + 40587;
       
-        if ($now>=$next)
-        {
+        if ($now>=$next){
           # (this way is safer than just incrementing $mjd)
           $mjd=int($now/86400) + 40587;	# don't call &TFMJD(), for speed
           OpenDataFile($mjd,0); # New file
@@ -266,8 +265,7 @@ while (!$killed){
           ConfigureReceiver();
           $next=($mjd-40587+1)*86400;	# seconds at next MJD
         }
-        if ($now>$then)
-        {
+        if ($now>$then){
           # update string version of time stamp
           @_=gmtime $now;
           $nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
@@ -297,7 +295,7 @@ while (!$killed){
           }
           case "\x60"
           {
-            ($ret,$gpssats,$glosats,$hdop,$vdop) = decodeMsg60(unpack "H*",$msg);
+            ($gpssats,$glosats,$hdop,$vdop) = decodeMsg60(unpack "H*",$msg);
           }
           case "\x61"
           {

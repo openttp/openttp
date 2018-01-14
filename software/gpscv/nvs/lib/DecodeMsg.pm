@@ -284,9 +284,8 @@ sub decodeMsg60
   my($HDOP) = unpack "f1",substr $s,2,4;
   # Next 4 bytes: VDOP
   my($VDOP) = unpack "f1",substr $s,6,4;
-  # Return result
-  my($res) = sprintf "\nNumber of sats - GPS: %2d GLONASS: %2d\nDilution of precision - HDOP: %5.1f VDOP: %5.1f",$GPSsats,$GLONASSsats,$HDOP,$VDOP;
-  return ($res,$GPSsats,$GLONASSsats,$HDOP,$VDOP);
+  
+  return ($GPSsats,$GLONASSsats,$HDOP,$VDOP);
 } # decodeMsg60 
 
 # decode message 61h - DOP and RMS for calculated PVT
@@ -328,21 +327,22 @@ sub decodeMsg61
 
 sub decodeMsg70
 {
-  my($s) = @_;
-  # hex to binary
-  $s = hextobin($s);
-  # Check the length of the string passed to the sub routine
-  if (length($s) != 76) { return ""; }
+  
   # First byte: Number of channels
-  my($noChnls) = ord(substr $s,0,1);
   # Next 21 bytes: Equipment and software version number (text string)
-  my($devID) = substr $s,1,21;
   # Next 4 bytes: Serial number (device ID)
-  my($sn) = unpack "I1",substr $s,22,4;
   # Rest of the message is made up of reserved fields - not decoded
-  # Return result
-  my($res) = sprintf ("NV08C Device ID: %s, Serial number: %d, No of channels: %d",$devID,$sn,$noChnls);
-  return $res;
+ 
+  my $m=$_[0];
+	if (length($m) != (76*2)){
+		return "";
+	}
+	my ($chan,$vers,$sn)=unpack "CA21I",(pack "H*",$m);
+	my $ret = "\n$chan channels\n";
+	$ret .= "software/equipment version:$vers\n";
+	$ret .= "s/n:$sn";
+	return $ret;
+	
 } # decodeMsg70
 
 # decode message 72h - Time and Frequency Parameters
@@ -442,15 +442,15 @@ sub decodeMsg74
   # Check the length of the message
   if(length($s) != 51) { return ""; }
   # First 10 bytes is GPS scale shift from receiver internal time scale (ms)
-  my($GPSscaleShift) = toFP80(substr $s,0,10);
+  my($GPSscaleShift) = FP80toFP64(substr $s,0,10);
   # Next 10 bytes is GLONASS scale shift from receiver internal time scale (ms)
-  my($GLONASSscaleShift) = toFP80(substr $s,10,10);
+  my($GLONASSscaleShift) = FP80toFP64(substr $s,10,10);
   # Next 10 bytes is GPS time scale shift from UTC (ms)
-  my($GPSvUTC) = toFP80(substr $s,20,10);
+  my($GPSvUTC) = FP80toFP64(substr $s,20,10);
   # Next 10 bytes is GLONASS scale shift from UTC(SU) (ms)
-  my($GLONASSvUTCSU) = toFP80(substr $s,30,10);
+  my($GLONASSvUTCSU) = FP80toFP64(substr $s,30,10);
   # Next 10 bytes is GPS scale shift from GLONASS (ignoring 3 hour difference) (ms)
-  my($GPSvGLONASS) = toFP80(substr $s,40,10);
+  my($GPSvGLONASS) = FP80toFP64(substr $s,40,10);
   # Last byte is Data validity flags
   #   Bit    Value
   #    1   GPS time is valid
@@ -460,6 +460,7 @@ sub decodeMsg74
   my($datavalid) = ord(substr $s,50,1);
   return ($GPSscaleShift,$GLONASSscaleShift,$GPSvUTC,$GLONASSvUTCSU,$GPSvGLONASS,$datavalid);
 }
+
 
 # decode message 88h - PVT vector
 
@@ -803,7 +804,7 @@ sub decodeMsgF5
   # Next byte is Receiver time scale correction, ms
   my($rxtscorr) = toINT8S(substr $s,26,1);
   # For each channel decode raw data
-  my(@signaltype,@satno,@glonasscarrierno,@snr,@carrierphase,@psuedorange,@dopplerfreq,@rawdataflags);
+  my(@signaltype,@satno,@glonasscarrierno,@snr,@carrierphase,@pseudorange,@dopplerfreq,@rawdataflags);
   my($channel) = 0;
   while(length($s) >= (27+30*($channel+1)))
   {
@@ -821,7 +822,7 @@ sub decodeMsgF5
     # Next 8 bytes is carrier phase, cycles
     $carrierphase[$channel] = unpack "d1", substr $s,(31+(30*$channel)),8;
     # Next 8 bytes is psuedo range, ms
-    $psuedorange[$channel] =  unpack "d1", substr $s,(39+(30*$channel)),8;
+    $pseudorange[$channel] =  unpack "d1", substr $s,(39+(30*$channel)),8;
     # Next 8 bytes is Doppler frequency, Hz
     $dopplerfreq[$channel] =  unpack "d1", substr $s,(47+(30*$channel)),8;
     # Next byte is Raw data flags
@@ -841,22 +842,22 @@ sub decodeMsgF5
   $table = $table."GPS-UTC time shift      : $gps_UTC ms\n";
   $table = $table."GLONASS-UTC time shift  : $glonass_UTC ms\n";
   $table = $table."Rx time scale correction: $rxtscorr ms\n\n";
-  $table = $table."                                        Carrier       Psuedo      Doppler   Raw\n";
-  $table = $table."Signal Satellite   GLONASS    SNR        phase        range      Frequency Data\n";
-  $table = $table." type   number   carrier no (dB-Hz)     (cycles)       (ms)         (Hz)   Flags\n\n";
+  $table = $table."                                        Carrier       Pseudo      Doppler   Raw\n";
+  $table = $table."Signal Satellite   GLONASS    SNR        phase        range      frequency data\n";
+  $table = $table." type   number   carrier no (dB-Hz)     (cycles)       (ms)         (Hz)   flags\n\n";
   #                  02      99         99        99   1234.134 12345. 342342343 0xFF
   #                  02      99         --        99   1234.134 12345. 
   for(my $i = 0; $i < $channel; $i++)
   {
     $table = $table.sprintf("  %02d %7d         ",$signaltype[$i],$satno[$i]);
     if($signaltype[$i] != 1){
-      $table = $table."--"; 
+      $table = $table."---"; 
     } else { 
-      $table = $table.sprintf("%2d",$glonasscarrierno[$i]); 
+      $table = $table.sprintf("%3d",$glonasscarrierno[$i]); 
     }
     $table = $table.sprintf("%10d  ",$snr[$i]);
     $table = $table.sprintf("%15.5f ",$carrierphase[$i]);
-    $table = $table.sprintf("%10.5f ",$psuedorange[$i]);
+    $table = $table.sprintf("%10.5f ",$pseudorange[$i]);
     $table = $table.sprintf("%12.5f 0x",$dopplerfreq[$i]);
     $table = $table.sprintf("%02x\n",$rawdataflags[$i]);
   }
@@ -867,26 +868,17 @@ sub decodeMsgF5
 
 sub decodeMsgF6
 {
-  my($s)=@_;
-  # hex to binary
-  $s = hextobin($s);
-  # Check the length of the message
-  if (length($s) != 49) { return ""; }
-  # First 8 bytes is X in metres
-  my($X) = unpack "d1", substr $s,0,8;
-  # Next 8 bytes is Y in metres
-  my($Y) = unpack "d1", substr $s,8,8;
-  # Next 8 bytes is Z in metres
-  my($Z) = unpack "d1", substr $s,16,8;
-  # Next 8 bytes is RMS error of X in metres
-  my($Xrms) = unpack "d1", substr $s,24,8;
-  # Next 8 bytes is RMS error of Y in metres
-  my($Yrms) = unpack "d1", substr $s,32,8;
-  # Next 8 bytes is RMS error of Z in metres
-  my($Zrms) = unpack "d1", substr $s,40,8;
-  # Last byte indicates Static (0) or Dynamic (1) mode
-  my($mode) = ord(substr $s,48,1);
-  return ($X,$Y,$Z,$Xrms,$Yrms,$Zrms,$mode);
+	my ($m)=@_;
+	my @data=();
+	if (length($m) != (49*2)){
+		return @data;
+	}
+	# Antenna position
+	# RMS error in antenna position
+	# Mode flag
+	@data=unpack "d6c",(pack "H*",$m);
+  if($data[6] > 1)  { return (0,0,0,0,0,0,99); } # check if data are good
+	return @data;
 }
 
 # decode message F7h - Extended Ephemeris of Satellites
@@ -1062,72 +1054,41 @@ sub hextobin
   return $s;
 } #hextobin
 
-sub toFP80
+sub FP80toFP64
 {
-  # For debugging:
-  #print "\nIn toFP80 subroutine\n";
-
-  # takes an FP80 and returns a number in FP64 format.
-  # based on FP80toFP64 routine in NVS.cpp in the TTS data processing chain
-  my($s) = @_;
-
-  # For debugging:
-  #print "Input: ",hexStr($s),"\n";
+  # Takes an FP80 and returns a number in FP64 format.
+  # Based on FP80toFP64 routine in NVS.cpp in the TTS data processing chain
   
+  my($s) = @_;
   my($sign) = 1;
   my($chk) = ord(substr $s,9,1);
   if(($chk & 0x80) != 0x00) { $sign = -1; }
   
-  # For debugging:
-  #print "\$sign: $sign\n";
-  
   my($buf8) = ord(substr $s,8,1);
   my($exponent) = (($chk & 0x7f) << 8) + $buf8;
   
-  # For debugging:
-  #print "\$exponent: $exponent\n";
-  
-  # We do not have a uint64 - construct by hand, little endian style!
+  # We may not have a uint64 - construct by hand, little endian style!
   my($mantissa) = 0;
-  for(my $i = 0;$i < 7; $i++)
-  {
+  for(my $i = 0;$i < 7; $i++){
     $mantissa = $mantissa + ord(substr $s,$i,1) * 2**(8*$i);
   }
-  # handle MSB separately - we cannot do this: $mantissa &= 0x7FFFFFFFFFFFFFFF
+  # Handle MSB separately - we cannot do this: $mantissa &= 0x7FFFFFFFFFFFFFFF
   # after calculuting the initial value, as it throws a non-protability warning.
   $mantissa = $mantissa + (ord(substr $s,7,1) & 0x7F) * 2**(8*7);
   
-  # For debugging:
-  #print "\$mantissa: $mantissa\n";
-
   my($normaliseCorrection);
-  if((ord(substr $s,7,1) & 0x80) != 0x00)
-  {
+  if((ord(substr $s,7,1) & 0x80) != 0x00){
     $normaliseCorrection = 1;
   }
-  else
-  {
+  else{
     $normaliseCorrection = 0;
   }
   
-  # For debugging:
-  #print "\$normaliseCorrection: $normaliseCorrection\n";
-    
-  # This works, but throws a warning: 
-  #     Hexadecimal number > 0xffffffff non-portable at testFP80.pl line 63.
-  # How can we do this differently to avoid it? See above, it is solved.
-  
-  #$mantissa &= 0x7FFFFFFFFFFFFFFF;
-  
-  # For debugging:
-  #print "\$mantissa: $mantissa\n";
-
-  # For debugging:
-  #my($tempVar) = $mantissa/(1 << 63);
-  #print "\$tempVar : $tempVar\n";
-  
+ 
   return ($sign * 2**($exponent-16383) * ($normaliseCorrection + $mantissa/(1 << 63)));
-} # toFP80
+} # FP80toFP64
+
+
 
 # Sample of message 74, hex encoded
 # 74 00:00:02 006835a7feffcf840d4000000000000000000000004036b3ffffcf840d40000000000000a08ced3f006835a7feffcf840d401f
