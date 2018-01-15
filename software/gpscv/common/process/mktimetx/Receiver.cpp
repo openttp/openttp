@@ -105,6 +105,7 @@ void Receiver::interpolateMeasurements()
 	// FIXME This uses Lagrange interpolation to estimate the pseudorange at tmfracs=0
 	// Possibly, this method can be removed in the future
 	
+	DBGMSG(debugStream,1,"starting");
 	
 	vector<SVMeasurement *> track;
 	
@@ -112,8 +113,9 @@ void Receiver::interpolateMeasurements()
 	// Loop over all constellation+signal combinations
 	
 	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g<<= 1)){ 
-		DBGMSG(debugStream,1,"GNSS system " << g);
+		
 		if (!(constellations & g)) continue;
+		
 		
 		GNSSSystem *gnss;
 		switch (g){
@@ -122,10 +124,13 @@ void Receiver::interpolateMeasurements()
 			case GNSSSystem::GLONASS:gnss = &glonass ;
 			case GNSSSystem::GPS:gnss = &gps ;
 		}
+		DBGMSG(debugStream,1,"GNSS system :" << gnss->name());
 		
 		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code <<= 1)){
-			DBGMSG(debugStream,1,"GNSS code " << code);
+			
 			if (!(codes & code)) continue;
+			
+			DBGMSG(debugStream,1,"GNSS code " << code);
 			
 			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
 				
@@ -215,7 +220,7 @@ void Receiver::interpolateMeasurements()
 			} // for (int prn=1 ...
 		} // for (int code =
 	}
-
+	DBGMSG(debugStream,1,"done");
 }
 
 

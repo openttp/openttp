@@ -463,8 +463,8 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 	// Fix 1 ms ambiguities/steps in the pseudo range
 	// Do this initially and then every time a step is detected
 	
-	
-	for (int svn=1;gps.nsats();svn++){
+	DBGMSG(debugStream,1,"Fixing ms ambiguities");
+	for (int svn=1;svn<=gps.nsats();svn++){
 		unsigned int lasttow=99999999,currtow=99999999;
 		double lastmeas,currmeas;
 		double corr=0.0;
