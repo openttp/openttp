@@ -63,6 +63,7 @@ class CGGTTS
 		int minTrackLength; // in seconds
 		double minElevation; // in degrees
 		double maxDSG; // in ns
+		double maxURA; // in m
 		
 	private:
 		

@@ -27,6 +27,7 @@
 
 #include <time.h>
 #include <vector>
+#include <boost/concept_check.hpp>
 
 #include "GNSSSystem.h"
 
@@ -51,6 +52,8 @@ class GPS: public GNSSSystem
 		
 	public:
 	
+		static const double *URA;
+		
 	class IonosphereData
 	{
 		public:
@@ -76,7 +79,7 @@ class GPS: public GNSSSystem
 			UINT8 SVN;
 			SINGLE t_ephem;
 			UINT16 week_number;
-			UINT8 SV_accuracy_raw;
+			UINT8 SV_accuracy_raw;  // this is URA index
 			UINT8 SV_health;
 			UINT16 IODC;
 			SINGLE t_GD;
@@ -107,6 +110,8 @@ class GPS: public GNSSSystem
 			DOUBLE r1me2;
 			DOUBLE OMEGA_N;
 			DOUBLE ODOT_n;
+			
+			int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
 	};
 	
 	GPS();
@@ -121,8 +126,9 @@ class GPS: public GNSSSystem
 			
 	void addEphemeris(EphemerisData *);
 	vector<EphemerisData *> sortedEphemeris[NSATS+1];
-	EphemerisData *nearestEphemeris(int,int);
-
+	EphemerisData *nearestEphemeris(int,int,double);
+	bool fixWeekRollovers();
+	
 	bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
 	
 	bool satXYZ(EphemerisData *ed,double t,double *Ek,double x[3]);

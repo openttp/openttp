@@ -49,6 +49,11 @@ extern int verbosity;
 
 #define CLIGHT 299792458.0
 
+// Lookup table to convert URA index [0,15] to URA value in m for SV accuracy
+
+static const double URAvalues[] = {2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
+const double* GPS::URA = URAvalues;
+
 GPS::GPS():GNSSSystem()
 {
 	n="GPS";
@@ -76,7 +81,10 @@ void GPS::deleteEphemeris()
 }
 
 
-// Adding to the ephemeris this way builds the sorted ephemeris
+// The ephemeris is sorted so that the RINEX navigation file is written correctly
+// A hash table is alos built for quick ephemeris lookup
+// Note that when the ephemeris is completely read, another fixup must be done for week rollovers
+
 void GPS::addEphemeris(EphemerisData *ed)
 {
 	// Check whether this is a duplicate
@@ -91,6 +99,7 @@ void GPS::addEphemeris(EphemerisData *ed)
 	if (ephemeris.size()>0){
 
 		// Update the ephemeris list - this is time-ordered
+		
 		std::vector<EphemerisData *>::iterator it;
 		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
 			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
@@ -133,14 +142,16 @@ void GPS::addEphemeris(EphemerisData *ed)
 	}
 }
 
-GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow)
+GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow,double maxURA)
 {
 	EphemerisData *ed = NULL;
 	double dt,tmpdt;
 	
 	if (sortedEphemeris[svn].size()==0)
 		return ed;
-				
+	
+	// This algorithm does not depend one the epemeris being sorted
+	// (and, at present, because week rollovers are not accounted for,it isn't fully sorted)
 	for (unsigned int i=0;i<sortedEphemeris[svn].size();i++){
 		tmpdt=sortedEphemeris[svn][i]->t_oe - tow;
 		// handle week rollover
@@ -148,18 +159,65 @@ GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow)
 			tmpdt += 7*86400;
 		}
 		// algorithm as per previous software
-		if (ed==NULL && tmpdt >=0 && fabs(tmpdt) < 0.1*86400){ // first time
+		// Initially, we pick the first ephemeris after TOW that is close enough 
+		if ((ed==NULL) && (tmpdt >=0) && (fabs(tmpdt) < 0.1*86400) && (sortedEphemeris[svn][i]->SV_accuracy <= maxURA)){ // first time
 			dt=fabs(tmpdt);
 			ed=sortedEphemeris[svn][i];
 		}
-		else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 ) && fabs(tmpdt) < 0.1*86400){
+		// then we try to find a closer one
+		else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 ) && (fabs(tmpdt) < 0.1*86400) && (sortedEphemeris[svn][i]->SV_accuracy <= maxURA)){
 			dt=fabs(tmpdt);
 			ed=sortedEphemeris[svn][i];
 		}
 	}
 				
 	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_oe="<< ((ed!=NULL)?(int)(ed->t_oe):-1));
+	
 	return ed;
+}
+
+bool GPS::fixWeekRollovers()
+{
+	// There are two cases:
+	// (1) We are at the end of the week and get an ephemeris for the next day. Week number can't be used to discriminate.
+	//      In this case, the ephemeris needs to be moved to the end
+	// (2) We are at the beginning of the week and get an ephemeris for the previous day. 
+	//      This ephemeris must move to the beginning of the day
+	// Note that further disambiguation information is available from the time the message was logged
+	
+	if (ephemeris.size() <= 1) return false;
+	
+	std::vector<EphemerisData *>::iterator it;
+	for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+		GPS::EphemerisData *ed = (*it);
+		//cout << (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
+	}
+	
+	// Because the ephemeris has been ordered by t_OC, the misplaced ephemerides can be moved as a block
+	
+	// This handles case (1)
+	int tOClast = ephemeris[0]->t_OC;
+	for (unsigned i=1; i < ephemeris.size(); i++){
+		GPS::EphemerisData *ed = ephemeris[i];
+		if (ed->t_OC - tOClast > 5*86400){ // Detect the position of the break 
+			DBGMSG(debugStream,INFO,"GPS week rollover detected in ephemeris");
+			// Have to copy the first "i" entries to the end
+			for (unsigned int j=0;j<i;j++)
+				ephemeris.push_back(ephemeris[j]);
+			// and then remove the first i entries
+			ephemeris.erase(ephemeris.begin(),ephemeris.begin()+i);
+			std::vector<EphemerisData *>::iterator it;
+			for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+				GPS::EphemerisData *ed = (*it);
+			//	cout << (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
+			}
+			return true;
+		}
+		else
+			tOClast = ed->t_OC;
+	}
+	
+	return false;
 }
 
 bool GPS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *rxm,SVMeasurement *svm,double *corr)
@@ -167,7 +225,7 @@ bool GPS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *rxm,SVMeasure
 	*corr=0.0;
 	bool ok=false;
 	// find closest ephemeris entry
-	GPS::EphemerisData *ed = nearestEphemeris(svm->svn,rxm->gpstow);
+	GPS::EphemerisData *ed = nearestEphemeris(svm->svn,rxm->gpstow,3.0); // max URA probably not important
 	if (ed != NULL){
 		double x[3],Ek;
 		

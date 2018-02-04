@@ -241,7 +241,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 				npts=0;
 				for ( unsigned int q=0;q<nqfits;q++){
 					if (ed==NULL) // use only one ephemeris for each track
-							ed = rx->gps.nearestEphemeris(sv,gpsTOW[q]);
+							ed = rx->gps.nearestEphemeris(sv,gpsTOW[q],maxURA);
 					if (NULL == ed) ephemerisMisses++;
 					
 					double refsyscorr,refsvcorr,iono,tropo,az,el;
@@ -274,7 +274,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
 					if (tmeas==tsearch){
 						if (ed==NULL) // use only one ephemeris for each track
-							ed = rx->gps.nearestEphemeris(sv,rxmt->gpstow);
+							ed = rx->gps.nearestEphemeris(sv,rxmt->gpstow,maxURA);
 						if (NULL == ed) ephemerisMisses++;
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
 						// FIXME MDIO needs to change for L2
@@ -417,6 +417,7 @@ void CGGTTS::init()
 	minTrackLength=390;
 	minElevation=10.0;
 	maxDSG=100.0;
+	maxURA=3.0; // as reported by receivers, typically 2.0 m, with a few at 2.8 m
 }
 		
 void CGGTTS::writeHeader(FILE *fout)

@@ -29,6 +29,10 @@
 #include <cmath>
 #include <cstdio>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/regex.hpp> // nb C++11 has this
 
@@ -48,10 +52,6 @@ extern Application *app;
 extern ostream *debugStream;
 
 const char * RINEXVersionName[]= {"2.12","3.03"};
-
-// Lookup table to convert URA index to URA value in m for SV accuracy
-//      0   1 2   3 4    5  6  7  8   9  10  11   12   13   14  15
-double URA[]={2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
 
 #define SBUFSIZE 160
 
@@ -364,7 +364,19 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	
 	FILE *fin;
 	char line[SBUFSIZE];
-				 
+	
+	// Test for directory name since fopen() will return  non-NULL on a directory
+	struct stat sstat;
+	if (0==stat(fname.c_str(),&sstat)){
+		if (S_ISDIR(sstat.st_mode)){
+			app->logMessage(fname + " is not a regular file");
+			return false;
+		}
+	}
+	else{
+		app->logMessage("Unable to stat the navigation file " + fname);
+		return false;
+	}
 	if (NULL == (fin=fopen(fname.c_str(),"r"))){
 		app->logMessage("Unable to open the navigation file " + fname);
 		return false;
@@ -383,7 +395,7 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	}
 
 	if (feof(fin)){
-		app->logMessage("Unable to determine RINEX version in " + fname);
+		app->logMessage("Unable to determine the RINEX version in " + fname);
 		return false;
 	}
 	
@@ -579,6 +591,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 		double Toc=rx->gps.ephemeris[i]->t_OC;
 		if (-1==lastToc) {lastToc = Toc;}
 		// If GPS week is unchanged and Toc has gone backwards by more than 2 days, increment GPS week
+		// It is assumed that ephemeris entries have been correctly ordered (using fixWeeKRollovers() prior to writing out
 		if ((GPSWeek == lastGPSWeek) && (Toc-lastToc < -2*86400)){
 			weekRollovers=1;
 		}
@@ -644,7 +657,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 			rx->gps.ephemeris[i]->IDOT,1.0,(double) GPSWeek,0.0);
 	
 		fprintf(fout,buf," ", // broadcast orbit 6
-			URA[rx->gps.ephemeris[i]->SV_accuracy_raw],(double) rx->gps.ephemeris[i]->SV_health,rx->gps.ephemeris[i]->t_GD,(double) rx->gps.ephemeris[i]->IODC);
+			GPS::URA[rx->gps.ephemeris[i]->SV_accuracy_raw],(double) rx->gps.ephemeris[i]->SV_health,rx->gps.ephemeris[i]->t_GD,(double) rx->gps.ephemeris[i]->IODC);
 		
 		fprintf(fout,buf," ", // broadcast orbit 7
 			rx->gps.ephemeris[i]->t_ephem,4.0,0.0,0.0);
@@ -994,8 +1007,9 @@ GPS::EphemerisData* RINEX::getGPSEphemeris(int ver,FILE *fin,unsigned int *lineC
 	ed->SV_health=dbuf2; ed->t_GD=dbuf3; ed->IODC=dbuf4;
 	int i=0;
 	ed->SV_accuracy_raw=0.0;
-	while (URA[i] > 0){
-		if (URA[i] == dbuf1){
+	ed->SV_accuracy=dbuf1;
+	while (GPS::URA[i] > 0){
+		if (GPS::URA[i] == dbuf1){
 			ed->SV_accuracy_raw=i;
 			break;
 		}

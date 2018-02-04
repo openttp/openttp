@@ -22,6 +22,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//
+// 2018-02-03 MJW Checked that SV_accuracy and SV_accuracy_raw have the expected values
+//
+
 #include <stdio.h>
 #include <cstdlib>
 #include <sys/types.h>
@@ -422,7 +426,12 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 					HexToBin((char *) reversestr(msg.substr(147*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->r1me2));
 					HexToBin((char *) reversestr(msg.substr(155*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->OMEGA_N));
 					HexToBin((char *) reversestr(msg.substr(163*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->ODOT_n));
-					DBGMSG(debugStream,3,"Ephemeris: SVN="<< (unsigned int) ed->SVN);
+					int pchh,pcmm,pcss;
+					if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss)))
+						ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
+					else
+						ed->tLogged = -1;
+					DBGMSG(debugStream,3,"Ephemeris: SVN="<< (unsigned int) ed->SVN << " " << (int) ed->SV_accuracy_raw << " " << ed->SV_accuracy);
 					gps.addEphemeris(ed);
 					continue;
 				}
@@ -448,6 +457,18 @@ bool TrimbleResolution::readLog(string fname,int mjd)
 		app->logMessage("failed to find UTC parameters - no 580205 messages");
 		return false;
 	}
+	
+	gps.fixWeekRollovers();
+	
+	for (int svn=1;svn<=gps.nsats();svn++){
+		//cout << "SVN" << svn << endl;
+		for (unsigned int e=0;e<gps.sortedEphemeris[svn].size();e++){
+			GPS::EphemerisData *ed = gps.sortedEphemeris[svn].at(e);
+			//cout << svn << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
+		}
+	}
+	
+	//exit(0);
 	
 	// Post-load cleanups
 	// Calculate GPS time of measurements, now that the number of leap seconds is known

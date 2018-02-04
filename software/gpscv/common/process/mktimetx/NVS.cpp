@@ -468,7 +468,8 @@ bool NVS::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr(122*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->a_f0));
 						ed->a_f0 *= 1.0E-3;
 						HexToBin((char *) msg.substr(126*2,2*sizeof(INT16U)).c_str(), sizeof(INT16U),  (unsigned char *) &int16ubuf);
-						ed->SV_accuracy_raw=int16ubuf;
+						ed->SV_accuracy_raw = int16ubuf;
+						ed->SV_accuracy = GPS::URA[ed->SV_accuracy_raw];
 						HexToBin((char *) msg.substr(128*2,2*sizeof(INT16U)).c_str(), sizeof(INT16U), (unsigned char *) &int16ubuf);
 						ed->IODE=int16ubuf;
 						HexToBin((char *) msg.substr(130*2,2*sizeof(INT16U)).c_str(), sizeof(INT16U), (unsigned char *) &int16ubuf);
@@ -478,8 +479,12 @@ bool NVS::readLog(string fname,int mjd)
 						HexToBin((char *) msg.substr(136*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U), (unsigned char *) &(ed->week_number));
 						
 						ed->t_ephem=0.0; // FIXME unknown - how to flag ?
-					
-						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC);
+						int pchh,pcmm,pcss;
+						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss)))
+							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
+						else
+							ed->tLogged = -1;
+						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->SV_accuracy_raw);
 						gps.addEphemeris(ed);
 					
 					}

@@ -282,10 +282,14 @@ void Application::run()
 					receiver->gps.deleteEphemeris();
 					RINEX rnx;
 					string fname=rnx.makeFileName(CGGTTSoutputs.at(i).ephemerisFile,MJD);
+					if (fname.empty()){
+						cerr << "Unable to make a RINEX navigation file name from the specified pattern: " << CGGTTSoutputs.at(i).ephemerisFile << endl;
+						exit(EXIT_FAILURE);
+					}
 					string navFile=CGGTTSoutputs.at(i).ephemerisPath+"/"+fname;
 					DBGMSG(debugStream,INFO,"using nav file " << navFile);
-					if (rnx.readNavigationFile(receiver,GNSSSystem::GPS,navFile)){
-						
+					if (!rnx.readNavigationFile(receiver,GNSSSystem::GPS,navFile)){
+						exit(EXIT_FAILURE);
 					}
 				}
 			}
@@ -302,6 +306,7 @@ void Application::run()
 			cggtts.refDly=refCableDelay;
 			cggtts.minElevation=CGGTTSminElevation;
 			cggtts.maxDSG = CGGTTSmaxDSG;
+			cggtts.maxURA = CGGTTSmaxURA;
 			cggtts.minTrackLength=CGGTTSminTrackLength;
 			cggtts.ver=CGGTTSversion;
 			cggtts.constellation=CGGTTSoutputs.at(i).constellation;
@@ -421,6 +426,7 @@ void Application::init()
 	CGGTTSlab="KAOS";
 	CGGTTSminElevation=10.0;
 	CGGTTSmaxDSG=10.0;
+	CGGTTSmaxURA=3.0;
 	CGGTTSminTrackLength=390;
 	
 	observer="Time and Frequency";
@@ -750,6 +756,7 @@ bool Application::loadConfig()
 		setConfig(last,"cggtts","comments",CGGTTScomment,&configOK,false);
 		setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength,&configOK,false);
 		setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG,&configOK,false);
+		setConfig(last,"cggtts","maximum ura",&CGGTTSmaxURA,&configOK,false);
 		setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation,&configOK,false);
 		if (setConfig(last,"cggtts","naming convention",stmp,&configOK,false)){
 			boost::to_upper(stmp);

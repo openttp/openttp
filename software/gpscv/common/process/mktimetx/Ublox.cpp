@@ -389,6 +389,11 @@ bool Ublox::readLog(string fname,int mjd)
 				}
 				else if (msg.size()==(104+2)*2){
 					GPS::EphemerisData *ed = decodeGPSEphemeris(msg);
+					int pchh,pcmm,pcss;
+						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss)))
+							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
+						else
+							ed->tLogged = -1;
 					gps.addEphemeris(ed);
 				}
 				else{
@@ -523,7 +528,8 @@ GPS::EphemerisData* Ublox::decodeGPSEphemeris(string msg)
 	HexToBin((char *) msg.substr(8*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	
 	ed->week_number = MID(u4buf,14,23);
-	ed->SV_accuracy=MID(u4buf,8,11);
+	ed->SV_accuracy_raw=MID(u4buf,8,11); 
+	ed->SV_accuracy = GPS::URA[ed->SV_accuracy_raw];
 	ed->SV_health=MID(u4buf,2,7);
 	// IODC b23-b24 (upper bits)
 	unsigned int hibits=MID(u4buf,0,1);

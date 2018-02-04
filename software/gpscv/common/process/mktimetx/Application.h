@@ -133,7 +133,7 @@ class Application
 		int CGGTTSversion;
 		int CGGTTSRevDateYYYY,CGGTTSRevDateMM,CGGTTSRevDateDD;
 		int CGGTTSminTrackLength;
-		double CGGTTSminElevation, CGGTTSmaxDSG;
+		double CGGTTSminElevation, CGGTTSmaxDSG,CGGTTSmaxURA;
 		
 		string observer;
 		string agency;
