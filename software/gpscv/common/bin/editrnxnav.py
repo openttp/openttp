@@ -135,7 +135,7 @@ for l in fin:
 			tmp = l
 			tmp=tmp.replace("D","E")
 			ura = float(tmp[:22])
-			if (ura > uralim):
+			if ((ura > uralim) or (ura == 0)):
 				output=False
 				ndropped = ndropped + 1
 	elif (recLine == 9):
