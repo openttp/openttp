@@ -187,6 +187,20 @@ else{
 }
 `cp $PARS.bak $PARS`;
 
+# Cleanup
+
+unlink $rnxout1;
+unlink $rnxout2;
+unlink "$MJD.cggtts.mix.tmp";
+unlink "inputFile.dat";
+unlink "biasC1P1.dat";
+unlink "biasC2P2.dat";
+unlink "$MJD.cggtts.log.tmp";
+unlink "$PARS.bak";
+unlink "$MJD.cctf";
+unlink "paramCGGTTS.dat";
+unlink "$PARS.tmp";
+
 sub MakeRINEXObservationName
 {
 	my ($obsdir,$sta,$yy,$doy,$req) = @_;
