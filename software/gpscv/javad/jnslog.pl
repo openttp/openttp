@@ -45,7 +45,7 @@
 # 2016-01-25 2.0.0	MJW Imported into OpenTTP. Renamed from tclog to jnslog.pl
 # 2016-04-27 2.0.1	MJW Testing. Some fixups due to changes elsewhere in OpenTTP
 # 2018-01-12 2.0.2  MJW Removed 'fixed position' and replaced with 'positioning mode'
-#
+# 2018-02-13 2.0.3  MJW Optional uucp lock file path 
 
 # TO DO:
 # Enforce checksum checking for incoming messages
@@ -57,7 +57,7 @@ use TFLibrary;
 use POSIX;
 use vars qw($opt_d $opt_h $opt_r $opt_v);
 
-$VERSION="2.0.2";
+$VERSION="2.0.3";
 $AUTHORS="Bruce Warrington, Michael Wouters, Peter Fisk";
 
 $home=$ENV{HOME};
@@ -326,7 +326,13 @@ sub Initialise {
 
 	# Open the serial port to the receiver
 	$port=$Init{"receiver:port"};
-	unless (`/usr/local/bin/lockport -p $$ $port $0`==1) {
+	
+	$uucpLockPath="/var/lock";
+	if (defined $Init{"paths:uucp lock"}){
+		$uucpLockPath = $Init{"paths:uucp lock"};
+	}
+
+	unless (`/usr/local/bin/lockport -d $uucpLockPath -p $$ $port $0`==1) {
 		printf "! Could not obtain lock on $port. Exiting.\n";
 		exit;
 	}
