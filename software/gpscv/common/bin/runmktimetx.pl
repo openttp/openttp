@@ -30,7 +30,7 @@ use POSIX;
 use Getopt::Std;
 use TFLibrary;
 
-use vars qw($opt_a $opt_d $opt_h $opt_v $opt_x);
+use vars qw($opt_a $opt_c $opt_d $opt_h $opt_v $opt_x);
 
 $VERSION="0.1.1";
 $AUTHORS="Michael Wouters";
@@ -48,19 +48,7 @@ else{
 	ErrorExit("No ~/etc directory found!\n");
 } 
 
-if (-d "$home/bin")  {
-	$binPath="$home/bin";
-}
-else{	
-	ErrorExit("No ~/bin directory found!\n");
-} 
-
-$configFile=$configPath."/gpscv.conf";
-if (!(-e $configFile)){
-	ErrorExit("The configuration file $configFile was not found!\n");
-}
-
-if (!(getopts('a:dhvx')) || $opt_h){
+if (!(getopts('a:c:dhvx')) || $opt_h){
 	&ShowHelp();
 	exit;
 }
@@ -70,6 +58,23 @@ if ($opt_v){
 	print "Written by $AUTHORS\n";
 	exit;
 }
+
+if (-d "$home/bin")  {
+	$binPath="$home/bin";
+}
+else{	
+	ErrorExit("No ~/bin directory found!\n");
+} 
+
+$configFile=$configPath."/gpscv.conf";
+if ($opt_c){
+	$configFile=$opt_c;
+}
+
+if (!(-e $configFile)){
+	ErrorExit("The configuration file $configFile was not found!\n");
+}
+
 
 $maxAge = $MAX_AGE;
 if (defined $opt_a){
@@ -98,7 +103,7 @@ else{
 if (!$opt_x){
 	for ($mjd=$mjdStart;$mjd <= $mjdStop;$mjd++){
 		Debug("Processing $mjd");
-		`$binPath/mktimetx -m $mjd`;
+		`$binPath/mktimetx --configuration $configFile -m $mjd`;
 	}
 }
 else{
@@ -178,7 +183,7 @@ else{
 				if (!(-e $cggttsFile)){ # only attempt to regenerate missing files 
 					Debug("\t-->missing");
 					Debug("\t-->processing $mjd");
-					`$binPath/mktimetx -m $mjd`;
+					`$binPath/mktimetx --configuration $configFile -m $mjd`;
 				}
 				else{
 					Debug("\t-->exists");
@@ -201,7 +206,7 @@ else{
 			if (!(-e $rnxFile || -e $rnxFilegzip)){
 				Debug("\t-->missing");
 				Debug("\t-->processing $mjd");
-				`$binPath/mktimetx -m $mjd`;
+				`$binPath/mktimetx --configuration $configFile -m $mjd`;
 			}
 			else{
 				Debug("\t-->exists");
@@ -220,10 +225,11 @@ sub ShowHelp
 	print "Usage: $0 [OPTION] ... [startMJD] [stopMJD]\n";
 	print "\t-a <num> maximum age of files to look for when reprocessing\n";
 	print "            missing files, in days (default $MAX_AGE)\n";
+	print "\t-c <file> use the specified configuration file\n";
 	print "\t-d debug\n";
-  print "\t-h show this help\n";
+	print "\t-h show this help\n";
 	print "\t-x run missed processing\n";
-  print "\t-v print version\n";
+	print "\t-v print version\n";
 	print "\nIf an MJD range is not specified, the previous day is processed\n";
 }
 
