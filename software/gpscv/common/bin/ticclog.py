@@ -28,6 +28,8 @@
 #
 # Modification history
 # 2017-03-02 MJW First version
+# 2018-02-15 MJW Specify path for lock file. Use gpscv.conf as default config file
+#								 Bug fix. Arguments to subprocess() constructed incorrectly.
 #
 
 import argparse
@@ -44,7 +46,7 @@ import time
 
 import ottplib
 
-VERSION = 0.1
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -105,7 +107,7 @@ tsformat = TS_TOD
 tic_mode = TIC_MODE_TS
 
 home =os.environ['HOME'] + '/';
-configFile = os.path.join(home,'etc/ticc.conf');
+configFile = os.path.join(home,'etc/gpscv.conf');
 
 parser = argparse.ArgumentParser(description='Log a TAPR TICC in TI mode')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
@@ -157,6 +159,8 @@ if (cfg.has_key('counter:timestamp format')):
 		tsformat = TS_UNIX
 	elif (cfg['counter:timestamp format'] == 'time of day'):
 		tsformat = TS_TOD
+		
+
 
 # Create the process lock		
 lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
@@ -165,7 +169,12 @@ if (not ottplib.CreateProcessLock(lockFile)):
 	ErrorExit("Couldn't create a lock")
 
 # Create UUCP lock for the serial port
-ret = subprocess.check_output(['/usr/local/bin/lockport','-p '+str(os.getpid()),port,sys.argv[0]])
+uucpLockPath="/var/lock";
+if (cfg.has_key('paths:uucp lock')):
+	uucpLockPath = cfg['paths:uucp lock']
+
+ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,'-p',str(os.getpid()),port,sys.argv[0]])
+
 if (re.match('1',ret)==None):
 	ottplib.RemoveProcessLock(lockFile)
 	ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
