@@ -28,6 +28,9 @@
 # Modification history:					
 # 02-05-2016 MJW First version, derived restlog.pl
 # 27-02-2017 MJW Minor cleanups for configuration path
+# 16-02-2017 MJW uucp lock file from config
+# 19-02-2018 MJW Added checksumming and basic status info
+#
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
@@ -36,7 +39,8 @@ use Getopt::Std;
 use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
-$VERSION="0.1";
+
+$VERSION="0.1.1";
 $AUTHORS="Michael Wouters";
 
 $REMOVE_SV_THRESHOLD=600; #interval after which  a SV marked as disappeared is removed
@@ -121,18 +125,22 @@ $ubxmsgs=":";
 
 
 # Check for an existing lock file
-# Check the lock file
 $lockFile = TFMakeAbsoluteFilePath($Init{"receiver:lock file"},$home,$logPath);
 if (!TFCreateProcessLock($lockFile)){
 	ErrorExit("Process is already running\n");
 }
 
-#Open the serial ports to the receiver
+# Open the serial port to the receiver
 $rxmask="";
 $port=$Init{"receiver:port"};
 $port="/dev/$port" unless $port=~m#/#;
 
-unless (`/usr/local/bin/lockport $port $0`==1) {
+$uucpLockPath="/var/lock";
+	if (defined $Init{"paths:uucp lock"}){
+		$uucpLockPath = $Init{"paths:uucp lock"};
+	}
+
+  unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
 	printf "! Could not obtain lock on $port. Exiting.\n";
 	exit;
 }
@@ -143,7 +151,8 @@ $rx=&TFConnectSerial($port,
 			
 # Set up a mask which specifies this port for select polling later on
 vec($rxmask,fileno $rx,1)=1;
-print "> Port $port to Rx is open\n";
+Debug("Port $port to Rx is open");
+
 
 $rxStatus=$Init{"receiver:status file"};
 $rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$logPath);
@@ -188,9 +197,11 @@ LOOP: while (!$killed)
 	# Wait for input
 	$nfound=select $tmask=$rxmask,undef,undef,0.2;
 	next unless $nfound;
+	
 	if ($nfound<0) {$killed=1; last}
 	# Read input, and append it to $input
 	sysread $rx,$input,$nfound,length $input;
+	
 	# Look for a message in what we've accumulated
 	# $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
 
@@ -231,15 +242,20 @@ LOOP: while (!$killed)
 				@_=gmtime $now;
 				$nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
 				$then=$now;
-				print "---\n";
 			}
 	
 			if ( $ubxmsgs =~ /:$classid:/){ # we want this one
 				($class,$id)=unpack("CC",$classid);
 				#printf "%02x%02x $nowstr %i %i %i\n",$class,$id,$payloadLength,$packetLength,$inputLength;
-				#printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
+				printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
 				if ($class == 0x01 && $id == 0x35){
-					UpdateSVInfo($data);
+					if (CheckSumOK($input)){
+						UpdateSVInfo($data);
+						UpdateStatus();
+					}
+					else{
+						Debug('Bad checksum')
+					}
 				}
 				
 				if ($class == 0x01 && $id == 0x22){ # last of periodic messages is the clock solution
@@ -248,7 +264,7 @@ LOOP: while (!$killed)
 				}
 				
 				if ($class == 0x0b){
-					ParseGPSSystemDataMessage($id,$payloadLength,$data);
+					&ParseGPSSystemDataMessage($id,$payloadLength,$data);
 				}
 			}
 			else{
@@ -399,10 +415,13 @@ sub ConfigureReceiver
 	# so it's a good idea to use udev to map the device to a 
 	# fixed name
 	if ($opt_r){ # hard reset
+		Debug("Resetting");
 		$msg="\x06\x04\x04\x00\xff\xff\x00\x00";
 		SendCommand($msg);
 		sleep 5;
 	}
+	
+	Debug("Configuring receiver");
 	
 	my $observations = 'gps'; # default is GPS
 	# Valid combinations for the ublox 8 LEA 8MT are
@@ -417,71 +436,82 @@ sub ConfigureReceiver
 	# GLONASS, BeiDou
 	# SBAS, QZSS can only be enabled with GPS enabled 
 	
-	my $coldstart=0;
   if (defined($Init{"receiver:observations"})){
 		$observations=lc $Init{"receiver:observations"};
-		$coldstart=1; # won't try to be clever and detect changes
-  }
-  
-  # WARNING! Only a few (useful) combinations are supported here
-  my $ngnss = 0;
-	my $cfg = '';
-	# Calculate the number of GNSS systems
-  if ($observations =~ /gps/){ # GPS combos
-		$ngnss=1;
-		if ($observations =~ /glonass/){
-			$ngnss++;
+
+		# WARNING! Only a few (useful) combinations are supported here
+		my $ngnss = 0;
+		my $cfg = '';
+		# Calculate the number of GNSS systems
+		if ($observations =~ /gps/){ # GPS combos
+			$ngnss=1;
+			if ($observations =~ /glonass/){
+				$ngnss++;
+			}
+			elsif ($observations =~ /beidou/){
+				$ngnss++;
+			}
+		}
+		elsif ($observations =~ /glonass/){ # GLONASS combos 
+			$ngnss=1;
+			if ($observations =~ /beidou/){
+				$ngnss++;
+			}
 		}
 		elsif ($observations =~ /beidou/){
-			$ngnss++;
+			$ngnss=1;
 		}
-  }
-  elsif ($observations =~ /glonass/){ # GLONASS combos 
-		$ngnss=1;
-		if ($observations =~ /beidou/){
-			$ngnss++;
+		
+		if ($ngnss == 0){
+			ErrorExit("Problem with receiver:observations: no valid GNSS systems were found");
 		}
-  }
-  elsif ($observations =~ /beidou/){
-		$ngnss=1;
-	}
-	
-	if ($ngnss == 0){
-		ErrorExit("Problem with receiver:observations: no valid GNSS systems were found");
-	}
-	
-	$msgSize=pack('v',4+8*$ngnss); # little-endian, 16 bits unsigned
-	$numConfigBlocks=pack('C',$ngnss);
-	$cfg = "\x06\x3e$msgSize\xff\xff$numConfigBlocks";
-	if ($observations =~ /gps/){ # GPS combos
-		$cfg .= EnableGNSS('gps',16,16);
-		if ($observations =~ /glonass/){
-			$cfg .= EnableGNSS('glonass',16,16);
+		
+		$msgSize=pack('v',4+8*$ngnss); # little-endian, 16 bits unsigned
+		$numConfigBlocks=pack('C',$ngnss);
+		$cfg = "\x06\x3e$msgSize\xff\xff$numConfigBlocks";
+		if ($observations =~ /gps/){ # GPS combos
+			$cfg .= EnableGNSS('gps',16,16);
+			if ($observations =~ /glonass/){
+				$cfg .= EnableGNSS('glonass',16,16);
+			}
+			elsif ($observations =~ /beidou/){
+				$cfg .= EnableGNSS('beidou',16,16);	
+			}
+		}
+		elsif ($observations =~ /glonass/){ # GLONASS combos 
+			$cfg .= EnableGNSS('glonass',16,16);	
+			if ($observations =~ /beidou/){
+				$cfg .= EnableGNSS('beidou',16,16);	
+			}
 		}
 		elsif ($observations =~ /beidou/){
 			$cfg .= EnableGNSS('beidou',16,16);	
 		}
-  }
-  elsif ($observations =~ /glonass/){ # GLONASS combos 
-		$cfg .= EnableGNSS('glonass',16,16);	
-		if ($observations =~ /beidou/){
-			$cfg .= EnableGNSS('beidou',16,16);	
-		}
-  }
-  elsif ($observations =~ /beidou/){
-		$cfg .= EnableGNSS('beidou',16,16);	
-	}
+		
+		SendCommand($cfg);
 	
-	SendCommand($cfg);
-	
-  # Cold start is recommended after GNSS reconfiguration
-  # This doesn't scrub the GNSS selection
-  if ($coldstart){
+		# Cold start is recommended after GNSS reconfiguration
+		# This doesn't scrub the GNSS selection
+		Debug("Restarting after GNSS reconfiguration");
 		$msg="\x06\x04\x04\x00\xff\xff\x00\x00";
 		SendCommand($msg);
-		sleep 5;
+		
+		close $rx;
+		
+		sleep 30;
+		
+		# We get a disconnect on reset so have have to close the serial port
+		# and reopen it
+	
+		Debug("Opening again");
+		$rx=&TFConnectSerial($port, (ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
+			oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
+		
+		# No need to update the locks
+		
   }
   
+  Debug("Configuring");
   SendCommand('\x06\x3e\x00\x00'); # Get the new configuration
   
 	# Navigation/measurement rate settings
@@ -525,6 +555,8 @@ sub ConfigureReceiver
 	
 	PollVersionInfo();
 	PollChipID();
+	
+	Debug("Done configuring");
 	
 } # ConfigureReceiver
 
@@ -620,9 +652,13 @@ sub UpdateSVInfo
 	# Uses 0x01 0x35 message 
 	# This is used to track SVs as they appear and disappear so that we know
 	# when to request a new ephemeris
+	# Flags whether the list was updated
+	#
 	my $data=shift;
 	my $numSVs=(length($data)-8-2)/12;
 	my $i;
+	my ($cno,$azim,$prRes,$nowstr,$elev);
+	my $satsUpdated = 0;
 	
 	# Mark all SVs as not visible so that non-visible SVs can be pruned
 	for ($i=0;$i<=$#SVdata;$i++){
@@ -655,6 +691,7 @@ sub UpdateSVInfo
 			$SVdata[$j][$LAST_EPHEMERIS_REQUESTED]=-1;
 			$SVdata[$j][$STILL_VISIBLE]=1;
 			$SVdata[$j][$DISAPPEARED]=-1;
+			$satsUpdated=1;
 		}
 	}
 	
@@ -667,16 +704,34 @@ sub UpdateSVInfo
 			if ($SVdata[$i][$DISAPPEARED]==-1){
 				$SVdata[$i][$DISAPPEARED]=time;
 				Debug("$SVdata[$i][$SVN] has disappeared");
+				$satsUpdated=1;
 			}
 			elsif (time - $SVdata[$i][$DISAPPEARED] > $REMOVE_SV_THRESHOLD){	
 				Debug("$SVdata[$i][$SVN] removed");
-				splice @SVdata,$i,1;	
+				splice @SVdata,$i,1;
+				$satsUpdated=1;
 			}	
 		}
 	}
-			
+	
+	return $satsUpdated;
 }
 
+# ---------------------------------------------------------------------------
+sub UpdateStatus
+{
+	my $nvis=$#SVdata+1;
+	open(STA,">$rxStatus");
+	print STA "sats=$nvis\n";
+	print STA "prns=";
+	for (my $i=0;$i<=$#SVdata-1;$i++){
+		print STA $SVdata[$i][$SVN],",";
+	}
+	if ($nvis > 0) {print STA $SVdata[$#SVdata][$SVN];}
+		print STA "\n";
+	close STA;
+}
+			
 # ---------------------------------------------------------------------------
 sub ParseGPSSystemDataMessage()
 {
@@ -709,18 +764,37 @@ sub EnableGNSS
 	$resTrkCh = pack('C',$resTrkCh);
 	$maxTrkCh = pack('C',$maxTrkCh);
 	my ($gnssID,$flags);
-	if ($gnss == 'gps'){
+	if ($gnss eq 'gps'){
 		$gnssID = pack('C',0);
 		$flags = pack('V',0x01 | 0x010000); # little endian, unsigned 32 bits
 	}
-	elsif ($gnss == 'beidou'){
+	elsif ($gnss eq 'beidou'){
 		$gnssID = pack('C',3);
 		$flags = pack('V',0x01 | 0x010000);
 	}
-	elsif ($gnss == 'glonass'){
+	elsif ($gnss eq 'glonass'){
 		$gnssID = pack('C',6);
 		$flags = pack('V',0x01 | 0x010000);
 	}
 	return "$gnssID$resTrkCh$maxTrkCh$flags";
 }
 
+# ------------------------------------------------------------------------------
+# Verify the checksum
+# Note that a full message, including the UBX header, is assumed
+#
+sub CheckSumOK
+{
+	my $str = $_[0];
+	my @msg=split "",$str; # convert string to array
+	my $cka=0;
+	my $ckb=0;
+	my $l = length($str);
+	for (my $i=2;$i<$l-2;$i++){ # skip the two bytes of the header (start) and the checksum (end) 
+		$cka = $cka + ord($msg[$i]);
+		$cka = $cka & 0xff;
+		$ckb = $ckb + $cka;
+		$ckb = $ckb & 0xff;
+	}
+	return (($cka == ord($msg[$l-2])) && ($ckb == ord($msg[$l-1])));
+}
