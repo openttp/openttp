@@ -47,7 +47,7 @@ import time
 
 import ottplib
 
-VERSION = 0.1
+VERSION = '0.1.1'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -96,6 +96,16 @@ def Initialise(configFile):
 		
 	return cfg
 
+# ------------------------------------------
+def DecodeUBX_MON_VER(msg):
+	nExtended = int((len(msg) - 2*(2+40))/60)
+	if (not(len(msg) == 2*(40+2+nExtended*30))):
+		return ['?','?']
+	packed=binascii.unhexlify(msg)
+	unpacked=struct.unpack_from('30s10s',packed)
+	# TO DO parse extended version strings
+	return unpacked
+	
 # ------------------------------------------
 def DecodeUBX_NAV_CLOCK(msg):
 	if not(len(msg)==(20+2)*2):
@@ -196,6 +206,7 @@ parser.add_argument('--config','-c',help='use an alternate configuration file',d
 parser.add_argument('--debug','-d',help='debug',action='store_true')
 parser.add_argument('--mjd','-m',help='mjd',default=mjd)
 parser.add_argument('--uniqid',help='chip id',action='store_true')
+parser.add_argument('--monver',help='hardware and software versions',action='store_true')
 parser.add_argument('--navclock',help='nav-clock',action='store_true')
 parser.add_argument('--navsat',help='nav-sat',action='store_true')
 parser.add_argument('--navtimeutc',help='nav-timeutc',action='store_true')
@@ -263,7 +274,11 @@ for line in fdata:
 		hhmmss = tstamp.split(':')
 		tt = int(hhmmss[0])*3600 + int(hhmmss[1])*60 + int(hhmmss[2])
 
-	if (msgid == '0d01'):
+	if (msgid == '0a04'):
+		if (args.monver):
+			msgf=DecodeUBX_MON_VER(msg)
+			print 'SW:',msgf[0],'HW:',msgf[1]
+	elif (msgid == '0d01'):
 		if (args.timtp):
 			msgf=DecodeUBX_TIM_TP(msg)
 			print tt,msgf[2] # in ps
