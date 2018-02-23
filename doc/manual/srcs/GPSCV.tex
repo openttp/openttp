@@ -35,7 +35,7 @@ Miscellaneous & & \\
 \caption{GPSCV software overview}
 \end{table}
 
-\section{crontab}
+\section{crontab \label{ss:crontab}}
 
 Automatic logging, processing and archival of data is performed through the user \cc{cvgps}' \cc{crontab}.
 
@@ -110,7 +110,7 @@ TO 00:00:02 cdfbc75a9a8c353fc5
 Hex encoding of binary messages results in much larger files but these compress to a size not much larger
 than the original binary data.
 
-\subsection{Time-interval counter}
+\subsection{Time-interval counter \label{s:TICformat}}
 
 This text file records the difference between GNSS receiver and the Reference Oscillator 1 pps,
 measured each second. Entries are successive lines of the form:
@@ -172,23 +172,55 @@ The command line options are:
 
 There are no specific configuration file entries for this script.
 
-\section{jnslog.pl}
+\section{Javad/Topcon receivers}
+
+\subsection{jnslog.pl}
 \hypertarget{h:jnslog}{}
 There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
 
-\section{nvslog.pl}
+Configuration commands in \cc{gpscv.conf} specific to this receiver are:
+
+\section{NVS NV08C receivers}
+\subsection{nvslog.pl}
 \hypertarget{h:nvslog}{}
 
 The NVS receiver is entirely configured using the script.
 
-\section{restlog.pl}
+\section{Trimble Resolution T receivers}
+\subsection{restlog.pl}
 \hypertarget{h:restlog}{}
 
 The Resolution T receiver is entirely configured using the script.
 
-\section{ubloxlog.pl}
+\section{NVS Technologies NV08C receivers}
+
+\subsection{ubloxlog.pl}
 \hypertarget{h:ubloxlog}{}
 
 The ublox receiver is entirely configured using the script.
 
 \input{srcs/rxdelaycal}
+
+\section{Miscellaneous tools}
+
+\subsection{cggttsqc.py}
+
+\cc{cggttsqc.py} performs various checks on CGGTTS files.
+Running it on a single CGGTTS file with no options will produce the  output like:
+
+\begin{tabular}{lrrrrrr}
+File         & Tracks  & Short & min SV & max SV   &  DSG  &  elv \\
+57401.cctf   &   706   &  71   &   3    &  11      & 0     &  0   \\
+\end{tabular}
+
+where:\\
+`Tracks' is the total number of tracks\\
+`Short'  is the number of tracks with length less a specified threshold (default 780 s)\\
+`min SV' is the minimum number of SVs visible\\
+`max SV' is the maximum number of SVs visible \\
+`DSG'    is the number of tracks with DSG above a threshold (default 20 ns)\\
+`elv'    is the number of tracks with elevation below a threshold (default 10 degrees)\\
+	
+\subsection{editrnxnav.py}
+
+\subsection{fetchigs.py}

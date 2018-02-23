@@ -5,7 +5,8 @@
 \hypertarget{h:rxdelaycal}{}
 
 \cc{rxdelaycal.pl} can be used to calibrate the internal delay of a GNSS receiver by comparing CGGTTS time-transfer data.
-It performs a linear fit to the matched data.
+More generally, it can be used to compare two sets of CGGTTS data files.
+It performs a linear fit to the matched data, 
 
 It produces a number of files, some of which can be used for further analysis if desired.
 \begin{itemize}
@@ -20,7 +21,7 @@ It produces a number of files, some of which can be used for further analysis if
 
 \subsection{usage}
 
-To run \cc{ppsd} on the command line, use:
+To run \cc{rxdelaycal.pl} on the command line, use:
 \begin{lstlisting}[mathescape=true]
 rxdelaycal.pl [OPTION] $\ldots$ ref_rx_directory cal_rx_directory start_MJD stop_MJD
 \end{lstlisting}

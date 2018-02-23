@@ -25,22 +25,13 @@ logging in (\ref{sLoggingIn}).
 
 The top line of the LCD display shows UTC date and time.
 The date and time displayed will typically only be accurate to 1 s.
-The contents of the second and third lines of the display depend on the display mode.
-
-When in GPS mode, the identifiers of up
-to 10 currently visible GPS space vehicles are displayed. 
-
-When in NTP mode, the second line shows
-the number of NTP packets received per minute. The third line shows information about
-synchronization status, including leap second announcements.
-
-In GPSDO mode, the second line shows whether the GPSDO is locked or not. 
-The third line alternates between the `health' byte (\ref{sGPSDO}), and the estimated fractional frequency error 
-(reported by the GPSDO) and the electronic frequency control (EFC) voltage, normalized to a maximum of 100.
+The contents of the second and third lines of the display depend on the display mode
+\ref{ss:DisplayMode}.
 
 The bottom line is reserved for notification of system alarms and either shows
 `System OK' or `System Alarm'.
 The LED beside this line will be red if there is a running alarm.
+The other LEDs are currently unused.
 
 \subsection{Using the front panel keypad \label{sKeypad} }
 
@@ -102,15 +93,25 @@ The menu hierarchy is shown below:
 The intensity and contrast of the LCD display can be set using this menu.
 A timeout can also be set on the backlight.
 
-\subsubsection{Display mode}
+\subsubsection{Display mode \label{ss:DisplayMode}}
 
 The status information displayed by the unit in the second and third lines of the LCD display
 can be selected as relating to either GPS, NTP or the GPSDO.
 
+When in GPS mode, the identifiers of up
+to 10 currently visible GPS space vehicles are displayed. 
+
+When in NTP mode, the second line shows
+the number of NTP packets received per minute. The third line shows information about
+synchronization status, including leap second announcements.
+
+In GPSDO mode, the second line shows whether the GPSDO is locked or not. 
+The third line alternates between the `health' byte (\ref{sGPSDO}), and the estimated fractional frequency error 
+(reported by the GPSDO) and the electronic frequency control (EFC) voltage, normalized to a maximum of 100.
+
 \subsubsection{Show alarms}
 
-This shows any currently running alarms.
-It displays the alarms that are recorded in \cc{/home/cvgps/logs/alarms}.
+This shows any currently running alarms as listed in \cc{/home/cvgps/logs/alarms}.
 
 \subsubsection{Show system info}
 
@@ -177,17 +178,17 @@ view of the sky above $10^{\circ}$. All exposed connections should be
 weatherproofed. Make sure that all connections are tight but do not apply
 excessive torque as this can result in connectors detaching from the cable.
 
-A strain relief bulkhead is supplied for making the connection to the short 
+A strain relief bulkhead is normally used for making the connection to the short 
 `N'-terminated cable. 
 
 \subsection{Make system connections}
 
 
-
 \subsubsection{Network connection}
 
 A network connection is not required for operation as a time-transfer system
-but may be useful to the user for maintenance and downloading data files. 
+but may be useful to the user for maintenance and downloading data files. Otherwise, 
+a keyboard and monitor can be plugged in.
 
 For operation as an NTP server, the unit will require a network connection.
 The unit can operate using DHCP or with
@@ -197,32 +198,70 @@ front panel menu.
 A static IP can be set by using the system utility \cc{connmanctl} or by editing the file 
 \cc{/etc/network/interfaces}.
 
-\subsection{Checking system operation}
+\subsubsection{Keyboard and monitor}
 
-Upon initial startup, a number of alarms may be running. 
-All alarms should clear within five minutes of startup.
-Information on alarms and troubleshooting hints are given in \ref{sAlarms}. Troubleshooting
-will rqeuire logging into the system (\ref{sLoggingIn}).
+A HDMI monitor and USB keyboard and mouse can be used with the \sysname{}. 
+This will allow a console login \ref{sLoggingIn}.
 
+The HDMI output may be disabled in some software images. If there is no HDMI output, TO DO. 
 
-\section{Logging into the system \label{sLoggingIn}}
+\subsubsection{Time and frequency signals}
 
-The \sysname{} runs under Debian. The desktop environment has been disabled to reduce memory usage.
+Specifications of the various output signals are given in \ref{s:electricalspecs}.
+
+\section{Logging in \label{sLoggingIn}}
+
+The \sysname{} runs under Debian Linux. The desktop environment normally available has been disabled to reduce memory usage.
 Familiarity with a command-line Linux environment is therefore essential for operating and maintaining
 the \sysname{}. It is beyond the scope of this manual to provide a Linux tutorial. The reader should 
 consult one of the many online resources that exist.
 
-Login is via the user \cc{cvgps}. The default password is supplied separately and you should change
+Login is via the user \cc{cvgps} (this name is used for historical reasons). 
+The default password is supplied separately and you should change
 this after logging in.
 
+\section{The cvgps user}
+
+The \cc{cvgps} user is the account used to log and process data.
+
+It contains the 
+
+Automatic operation is managed through the \cc{cvgps} \cc{crontab} file \ref{ss:crontab}.
+\section{Checking  operation}
+
+Upon startup, a number of alarms may be produced. 
+All alarms should clear within five minutes of startup.
+Information on alarms and troubleshooting hints are given in \ref{sAlarms}. Troubleshooting
+will require logging into the system (\ref{sLoggingIn}).
+
 You can check that logging of GNSS and counter data is occurring by looking in the directory 
-\cc{/home/cvgps/raw}.
+\cc{/home/cvgps/raw}. Files in this directory are 
 
-Processing of data takes place at UTC0015 daily. 
+Processing of data takes place at UTC0015 daily. CGGTTS files will be placed in the 
+\cc{/home/cvgps/raw} directory.
 
-\section{Time of day}
+The \sysname{} is NTP-synchronized using the GPS receiver's time of day messages and its 1 pps. 
+The \sysname{} operates on UTC. 
+NTP operation can be checked using the command \cc{ntpq -p}. This should display 
 
-The system is NTP-synchronized using the GPS receiver's time of day messages and its 1 pps. The system operates on UTC. 
-	
+\begin{table}[j]
+\caption{Checking NTP operation}
+\end{table}
+
+\section{Essential configuration}
+
+To produce CGGTTS files, the processing software needs accurate antenna coordinates.
+These can be obtained from the \sysname{} receiver or by a separate survey.
+
+\section{Updating the software}
+
+Debian Linux is updated separately from the OpenTTP software.
+Updating the kernel is a separate procedure. 
+
+Updating the OpenTTP software is most conveniently done via the git repository.
+
+
+\section{Securing the system}
+
 
 

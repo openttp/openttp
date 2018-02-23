@@ -1,7 +1,7 @@
 
 
 
-This chapter givens a short introduction to the Open Traceable Time Platform (OpenTTP), describing the Reference Platform and other supported hardware.
+This chapter gives a short introduction to the Open Traceable Time Platform (OpenTTP), describing the Reference Platform and other supported hardware.
 
 \section{What is OpenTTP?}
 
@@ -20,26 +20,30 @@ The goals of the OpenTTP project are:
 	
 	\item Easy extension to new receivers
 
-	\item Low cost 
+	\item Low cost
+	
+	\item Provision of a convenient framework for further research and development.
 
 \end{enumerate}
 
 Applications currently include provision of traceable time of day and auditing of NTP-synchronized systems.
 
-\section{The OpenTTP software}
+\section{The OpenTTP software suite}
 
-The OpenTTP software provides a full solution for automated logging and processing of time-transfer data.
+The OpenTTP software suite provides a full solution for automated logging and processing of time-transfer data.
 It is available via GitHub:
 \begin{lstlisting}
 https://github.com/openttp
 \end{lstlisting}
 and users are invited to contribute to its development.
 
-The software supports several different GNSS receivers and counter/timers. 
+The software currently supports several different GNSS receivers and counter/timers. 
 The supported GNSS receivers are mostly low-cost, single-frequency receivers since low cost is a key objective of 
 the OpenTTP project.
 	
-	\subsection{GNSS receivers}
+	\subsection{Supported GNSS receivers}
+	
+	OpenTTP currently supports the receivers listed in \ref{t:receivers}
 	
 	\begin{table}[h]
 	\begin{tabular}{lll}
@@ -47,28 +51,33 @@ the OpenTTP project.
 	Javad & GRIL receivers & obsolete \\
 	NVS   & NV08 & \\
 	Trimble & Resolution T & obsolete\\
-	ublox & Neo8MT & \\
+	ublox & Neo8MT & may work with earlier receivers\\
 	\end{tabular}
-	\caption{Supported GPS/GNSS receivers.}
+	\caption{Supported GPS/GNSS receivers.\label{t:receivers}}
 	\end{table}
 	
-	Note that OpenTTP uses a custom file format for logging GPS receiver data. It does not read native receiver binary-format files.
+	OpenTTP uses a custom file format for logging GPS receiver data. 
+	It does not read native receiver binary-format files.
 	
 	Guidance on testing a receiver for suitability for time-transfer, and writing software to process
 	the receiver's data, is given in the OpenTTP Developer's Guide.
 	
-	\subsection{Counter/timers}
+	\subsection{Supported counter/timers}
+	
+	Counter/timers supported by OpenTTP are listed in \ref{t:counters}.
 	
 	\begin{table}[h]
 	\begin{tabular}{lll}
 	Manufacturer & models & notes \\ \hline
 	Agilent & 5313x &  needs IOTech GPIB to RS232 converter\\
-	OpenTTP & XEM6001 & \\
-	SRS & PRS10 & uses input 1 pps time-tagging function\\
+	OpenTTP & XEM6001 & simple FPGA-based counter/timer \\
+	SRS & PRS10 & uses the input 1 pps time-tagging function\\
 	TAPR & TICC &\\
 	\end{tabular}
-	\caption{Supported counter/timers.}
+	\caption{Supported counter/timers. \label{t:counters}}
 	\end{table}
+	
+	The file format used \ref{s:TICformat} is very simple and it should be easy to convert from another format, if needed.
 	
 \section{The OpenTTP reference platform}
 
