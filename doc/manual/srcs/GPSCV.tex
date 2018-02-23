@@ -146,11 +146,9 @@ The command line options are:
 \end{description*}
 
 It has the following specific configuration file entries:
-\cc{channel::okxem channel}.
-
-It also uses: \cc{paths:counter data},
-\cc{counter:;file extension},\cc{counter::lock file},\cc{counter::port},\cc{counter::status file} and 
-\cc{counter::header generator}.
+\begin{itemize}
+	\item \hyperlink{h:okxem_channel}{channel::okxem channel}.
+\end{itemize}
 
 \section{prs10log.pl}
 \hypertarget{h:prs10log}{}
@@ -167,7 +165,7 @@ The command line options are:
  \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
  \item[-{}-debug, -d]           run in debugging mode
  \item[-{}-settings, -s]        print the counter settings
-  \item[-{}-version, -v]        	print version information and exit
+  \item[-{}-version, -v]        print version information and exit
 \end{description*}
 
 There are no specific configuration file entries for this script.
@@ -180,24 +178,55 @@ There is a file \cc{receiver.conf} which lists the commands used to configure th
 
 Configuration commands in \cc{gpscv.conf} specific to this receiver are:
 
+JNS receivers have a number of specific configuration entries in \cc{gpscv.conf}:
+\begin{itemize}
+\item \hyperlink{h:configuration}{receiver::configuration}
+\item \hyperlink{h:pps_synchronization}{receiver::pps synchronization}
+\item \hyperlink{h:pps_synchronization_delay}{receiver::pps synchronization delay}
+\item \hyperlink{h:rinex_l1l2}{paths::rinex l1l2}
+\end{itemize}
+
+\subsection{jnsextract.pl}
+
+\subsection{runrinexobstc.pl}
+
 \section{NVS NV08C receivers}
+
 \subsection{nvslog.pl}
 \hypertarget{h:nvslog}{}
 
 The NVS receiver is entirely configured using the script.
 
+\subsection{nv08extract.pl}
+
+\subsection{nv08info.pl}
+
 \section{Trimble Resolution T receivers}
+
 \subsection{restlog.pl}
+
 \hypertarget{h:restlog}{}
 
 The Resolution T receiver is entirely configured using the script.
 
-\section{NVS Technologies NV08C receivers}
+\subsection{restextract.pl}
+
+\subsection{restinfo.pl}
+
+\subsection{restconfig.pl}
+
+\subsection{restplayer.pl}
+
+\section{ublox NEO-8MT receivers}
 
 \subsection{ubloxlog.pl}
+
 \hypertarget{h:ubloxlog}{}
 
 The ublox receiver is entirely configured using the script.
+
+\subsection{ubloxextract.py}
+
 
 \input{srcs/rxdelaycal}
 
