@@ -1,0 +1,128 @@
+%%
+%% \chapter{Software installation}
+%% 
+
+\section{Installation requirements}
+
+In addition to a basic Linux development environment, you will likely need the development packages for:
+\begin{description*}
+	\item[\cc{boost}]  C++ libraries
+	\item[\cc{libgsl}] GNU scientific library
+\end{description*}
+
+Depending on your Linux installation, you may also need:
+\begin{description*}
+	\item[\cc{Time::HiRes}] Perl library
+\end{description*}
+
+The above requirements are by no means comprehensive.
+What you will need to install will depend very much on the
+Linux distribution you are using.
+
+\section{Obtaining, building and installing the software}
+
+The OpenTTP software is obtained from the git repository hosted by GitHub.
+There are two main branches, the `master' and `develop' branches.
+The `develop' branch is generally stable, but may occasionally be broken.
+
+Clone the repository
+\begin{lstlisting}
+git clone https://github.com/openttp/openttp.git
+\end{lstlisting}
+change directory to the repository and then check out the branch you want to use
+\begin{lstlisting}
+git checkout develop
+\end{lstlisting}
+
+\begin{figure}
+\dirtree{%
+	.1 openttp.
+	.2 doc.
+	.2 software.
+	.3 gpscv.
+	.4 common.
+	.5 bin.
+	.5 etc.
+	.5 process.
+	.6 mktimetx.
+	.5 prs10c.
+	.4 gpsdo.
+	.4 javad.
+	.4 nvs.
+	.4 trimble.
+	.4 ublox.
+	.3 system.
+	.4 device-tree-overlays.
+	.4 src.
+	.5 dioctrl.
+	.5 fpga.
+	.5 lcdmon.
+	.5 libconfigurator.
+	.5 ntpd.
+	.5 okbitloader.
+	.5 okcounterd.
+	.5 OpenOK2.
+	.5 ppsd.
+	.5 sysmonitor.
+	.4 udev.
+}
+\caption{Overview of the OpenTTP software source}
+\end{figure}
+
+Two scripts are provided for building and installing the software.
+\begin{lstlisting}
+software/system/installsys.pl
+software/gpscv/install.pl
+\end{lstlisting}
+
+The installer has been used with current versions of RedHat Enterprise Linux, 
+CentOS, Ubuntu and Debian (on the BeagleBone Black).
+
+\cc{installsys.pl} must be run first (with superuser privileges), 
+because it installs `C' libraries which are needed by the GPSCV software.
+
+\cc{installsys.pl} can also be used to install various targets individually.
+Run \cc{installsys.pl -h} to see the options available. 
+This may be helpful when trying to resolve problems with building the software.
+
+\cc{install.pl} will archive any existing scripts and binaries, and create any
+directories it needs in the current user's home directory.
+
+\section{Building the documentation}
+
+The documentation is written in LaTeX and uses some packages and fonts that are generally packaged as `extras'
+and will probably need to be installed. The various packages used can be inspected in the file
+\cc{doc/manual/OpenTTPManual.tex}.
+To build the documentation as a PDF, change directory to \cc{doc/manual} and run \cc{make}.
+
+\section{A minimal software setup}
+
+Some users may wish to use their own hardware and are only interested in the core software that OpenTTP provides.
+This section describes the minimum setup required for operation.
+
+The OpenTTP software distribution is comprised of various C/C++ applications and Perl and python scripts.
+As a minimum, you will need:
+\begin{description*}
+	\item \cc{TFLibrary.pm}, a Perl module for commonly used tasks, such as reading configuration files
+	\item \cc{ottplib.py}, the \cc{python} version of \cc{TFLibrary.pm}
+	\item \cc{libconfigurator}, a C library for parsing configuration files
+	\item \cc{lockport}, a utility to create a UUCP lock file
+	\item \cc{mktimetx}, to create time-transfer files
+	\item one of the OpenTTP-provided scripts to log your receiver
+	\item one of the OpenTTP-provided scripts to log your counter/timer
+\end{description*}
+
+You must use one of the OpenTTP receiver logging scripts for the GNSS receiver because \cc{mktimetx}
+expects a custom file-format \ref{s:DataFileFormat}. In particular, the
+receiver's native binary formats are not readable by \cc{mktimetx}. Similarly, OpenTTP uses a custom file
+format for the counter-timer measurement files, although in this case, conversion from another format
+will probably be straight-forward. Most likely, users will have to provide their own software for
+logging their counter/timer, given the large number of possible devices here, and the limited
+support within OpenTTP.
+
+You may also find the following useful:
+\begin{description*}
+	\item[] \cc{kickstart.pl} for automatic start of logging processes
+	\item[] \cc{runmktimetx.pl} for automated processing, and reprocessing
+	\item[] \cc{gziplogs.pl} for managing log file compression
+\end{description*} 

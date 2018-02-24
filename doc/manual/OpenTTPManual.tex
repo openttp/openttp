@@ -21,10 +21,10 @@
 \usepackage{hyperref} % wants to be last
 
 \hypersetup{
-  colorlinks   = true, %Colours links instead of ugly boxes
-  urlcolor     = blue, %Colour for external hyperlinks
-  linkcolor    = blue, %Colour of internal links
-  citecolor   = red %Colour of citations
+  colorlinks   = true, % Colours links instead of ugly boxes
+  urlcolor     = blue, % Colour for external hyperlinks
+  linkcolor    = blue, % Colour of internal links
+  citecolor    = red   % Colour of citations
 }
 
 \pagestyle{fancy}
@@ -152,7 +152,12 @@ This chapter provides a more detailed description of the reference platform hard
 
 \input{srcs/antenna}
 \input{srcs/counter}
+\input{srcs/electricalspecs}
 
+%% ****************************************************************************************
+\chapter{Installing the software}
+%% ****************************************************************************************
+\input{srcs/SoftwareInstallation.tex}
 
 %% ****************************************************************************************
 \chapter{GPSCV software}
@@ -164,6 +169,8 @@ This chapter provides a more detailed description of the reference platform hard
 \chapter{System software}
 %% ****************************************************************************************
 
+\input{srcs/dioctrl}
+
 \input{srcs/kickstart}
 
 \input{srcs/mjd}
@@ -172,24 +179,18 @@ This chapter provides a more detailed description of the reference platform hard
 
 \input{srcs/okcounterdctl}
 
+\input{srcs/okbitloader}
+
 \input{srcs/lcdmonitor}
 
-\section{libraries}
+\input{srcs/libraries}
 
-\subsection{libconfigurator}
-
-\subsection{TFLibrary.pm}
+\input{srcs/ppsd}
 
 \input{srcs/sysmonitor}
 
 \input{srcs/gziplogs}
 
-%% ****************************************************************************************
-\chapter{Installing the software}
-%% ****************************************************************************************
-
-
-% \input{srcs/SoftwareInstallation}
 
 \end{document}
 

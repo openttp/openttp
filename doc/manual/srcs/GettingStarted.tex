@@ -30,7 +30,7 @@ The contents of the second and third lines of the display depend on the display 
 
 The bottom line is reserved for notification of system alarms and either shows
 `System OK' or `System Alarm'.
-The LED beside this line will be red if there is a running alarm.
+The adjacent LED will be red if there is a running alarm.
 The other LEDs are currently unused.
 
 \subsection{Using the front panel keypad \label{sKeypad} }
@@ -50,43 +50,46 @@ The menus are accessed by pressing any key. Menus are navigated  using the keypa
 \end{tabular}
 %%\end{table}
 \\
-Escaping back to the status  after making a change will not undo the change.
+Escaping back to the status page after making a change will not undo the change.
 Where a sub-menu lists a number of options, the currently selected option is flagged with an asterisk.
 
-Dialogs are navigated using the cursor keys. A dialog will typically consist of a number of input fields. Some of these work like buttons and are selected using the \mykey{\ding{52}} key; others may require inputting a value and this is done by cycling through the possible values with the cursor keys. If you move out of an input field, focus will pass to the next valid input field. You can quit a dialog using the \mykey{\ding{54}} key. Any changes made in a dialog will not be applied if you quit it. If a menu or dialog has been inactive for more than 5 minutes, the display returns
+Dialogs are navigated using the cursor keys. A dialog will typically consist of a number of input fields.
+Some of these work like buttons and are selected using the \mykey{\ding{52}} key; others may require inputting
+a value and this is done by cycling through the possible values with the cursor keys.
+
+If you move out of an input field, focus will pass to the next valid input field.
+
+You can quit a dialog using the \mykey{\ding{54}} key. Any changes made in a dialog will not be applied if you quit it.
+
+If a menu or dialog has been inactive for more than 5 minutes, the display returns
 to showing system status.
 
 \subsection{Menus}
 
-The menu hierarchy is shown below:
+The menu structure is shown below:
 
-\begin{itemize}
-	\item Setup
-		\begin{itemize}
-			\item LCD setup
-				\begin{itemize}
-					\item LCD settings
-					\item LCD backlight time
-				\end{itemize}
-			\item Display mode
-				\begin{itemize}
-					\item GPS
-					\item NTP
-					\item GPSDO
-				\end{itemize}
-			\item Show IP addresses
-		\end{itemize}
-		
-	\item Show alarms
-	\item Show system info
-	\item Restart
-		\begin{itemize}
-			\item GPS
-			\item NTPD
-			\item Reboot
-			\item Power down
-		\end{itemize}
-\end{itemize}
+\begin{figure}[h]
+\dirtree{%
+ .1 Home screen.
+ .2 Setup.
+ .3 LCD setup.
+ .4 LCD settings.
+ .4 LCD backlight time.
+ .3 Display mode.
+ .4 GPS.
+ .4 NTP.
+ .4 GPSDO.
+ .3 Show IP addresses.
+ .2 Show alarms.
+ .2 Show system info.
+ .2 Restart.
+ .3 GPS.
+ .3 NTPD.
+ .3 Reboot.
+ .3 Power down.
+}
+\caption{Menu structure}
+\end{figure}
 
 \subsubsection{LCD setup}
 
@@ -117,7 +120,7 @@ This shows any currently running alarms as listed in \cc{/home/cvgps/logs/alarms
 
 This displays version and serial number information and the make of the installed oscillator.
 This information is read from the file \cc{/usr/local/etc/sysinfo.conf} which has to be manually
-updated as needed.
+updated if the installed oscillator is changed.
   
 \subsubsection{Restart}
 
@@ -154,9 +157,10 @@ You will be asked to confirm power down or reboot.
 	\caption{Rear panel electrical connections}
 \end{table}
 
-If connected to a computer via the USB connector \mykey{F}, a network adapter should show up on your computer.
+If connected to a computer via the USB connector \mykey{F}, a network adapter should show up on the computer.
 The \sysname{} will provide your computer with an IP address of either 192.168.7.1 or 192.168.6.1, depending on the type of USB network adapter
 supported by your computer's operating system. The \sysname{} will reserve 192.168.7.2 or 192.168.6.2 for itself.
+Further information can be found in the BeagleBone Black documentation.
 
 %% \enlargethispage*{48pt}
 %% \pagebreak
@@ -181,7 +185,7 @@ excessive torque as this can result in connectors detaching from the cable.
 A strain relief bulkhead is normally used for making the connection to the short 
 `N'-terminated cable. 
 
-\subsection{Make system connections}
+\subsection{Make other system connections}
 
 
 \subsubsection{Network connection}
@@ -203,7 +207,7 @@ A static IP can be set by using the system utility \cc{connmanctl} or by editing
 A HDMI monitor and USB keyboard and mouse can be used with the \sysname{}. 
 This will allow a console login \ref{sLoggingIn}.
 
-The HDMI output may be disabled in some software images. If there is no HDMI output, TO DO. 
+The HDMI output may be disabled in some installations. If there is no HDMI output, TO DO. 
 
 \subsubsection{Time and frequency signals}
 
@@ -224,7 +228,22 @@ this after logging in.
 
 The \cc{cvgps} user is the account used to log and process data.
 
-It contains the 
+It contains the following standard directories.
+
+\begin{figure}[h]
+\dirtree{%
+	.1 /home/cvgps.
+	.2 bin\DTcomment{executables}.
+	.2 etc\DTcomment{configuration files}.
+	.2 cggtts.
+	.2 logs.
+	.3 alarms.
+	.2 raw\DTcomment{data files from the receiver, counter, and GPSDO}.
+	.2 rinex.
+	.2 tmp.
+}
+\caption{Directories in the \cc{cvgps} account}
+\end{figure}
 
 Automatic operation is managed through the \cc{cvgps} \cc{crontab} file \ref{ss:crontab}.
 \section{Checking  operation}
