@@ -232,24 +232,8 @@ The ublox receiver is entirely configured using the script.
 
 \section{Miscellaneous tools}
 
-\subsection{cggttsqc.py}
+\input{srcs/cggttsqc.tex}
 
-\cc{cggttsqc.py} performs various checks on CGGTTS files.
-Running it on a single CGGTTS file with no options will produce the  output like:
-
-\begin{tabular}{lrrrrrr}
-File         & Tracks  & Short & min SV & max SV   &  DSG  &  elv \\
-57401.cctf   &   706   &  71   &   3    &  11      & 0     &  0   \\
-\end{tabular}
-
-where:\\
-`Tracks' is the total number of tracks\\
-`Short'  is the number of tracks with length less a specified threshold (default 780 s)\\
-`min SV' is the minimum number of SVs visible\\
-`max SV' is the maximum number of SVs visible \\
-`DSG'    is the number of tracks with DSG above a threshold (default 20 ns)\\
-`elv'    is the number of tracks with elevation below a threshold (default 10 degrees)\\
-	
 \subsection{editrnxnav.py}
 
 \subsection{fetchigs.py}

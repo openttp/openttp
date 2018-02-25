@@ -1,0 +1,42 @@
+\subsection{cggttsqc.py}
+
+\cc{cggttsqc.py} performs various checks on CGGTTS files.
+Running it on a single CGGTTS file with no options will produce the  output like:
+
+\begin{tabular}{lrrrrrr}
+File         & Tracks  & Short & min SV & max SV   &  DSG  &  elv \\
+57401.cctf   &   706   &  71   &   3    &  11      & 0     &  0   \\
+\end{tabular}
+
+where:\\
+`Tracks' is the total number of tracks\\
+`Short'  is the number of tracks with length less than a specified threshold (default 780 s)\\
+`min SV' is the minimum number of SVs visible\\
+`max SV' is the maximum number of SVs visible \\
+`DSG'    is the number of tracks with DSG above a specified threshold (default 20 ns)\\
+`elv'    is the number of tracks with elevation below a specified threshold (default 10 degrees)\\
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+cggttsqc.py [OPTION] $\ldots$ file [file $ldots$]
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[--help,-h]	print the help information and exit
+	\item[--debug,-d]	print debugging information to stderr
+	\item[--nowarn]   suppress warnings (eg about missing files, bad formatting in CGGTTS files)
+	\item[--DSG DSG]  set the upper limit for acceptable DSG. The units are ns.
+	\item[--elevation ELEVATION] set the lower limit for acceptable elevation. The units are degrees.
+	\item[--tracklength  ELEVATION] set the lower limit for acceptable track length. The units seconds.
+	\item[--checkheader] show when significant fields in the header change, for example the delays.
+	\item[--sequence, -s] interpret the input files as a sequence.
+	\item[--version,-v] show the version information and exit
+\end{description*}
+Mutiple files can be checked and a sequence can be specified with two file names and the \cc{--sequence} option.
+For example:
+\begin{lstlisting}
+cggtsqc.py -s --DSG 5 GZAA0157.834 GZAA0157.876
+\end{lstlisting}
+will report on all files between MJDs 57834 and 57876, indicating in the DSG field the number of tracks with DSG greater
+than 5 ns.

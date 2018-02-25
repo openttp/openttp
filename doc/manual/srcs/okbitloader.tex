@@ -1,1 +1,16 @@
-\section{okbitloader}
+\section{okbfloader}
+
+\cc{okbfloader} is used to load a bitfile to the XEM6001.
+Normally, \cc{okcounterd} will load the bitfile it needs on startup.
+\cc{okbfloader} is mainly used during development and testing.
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+okbfloader [OPTION] $\ldots$ BITFILE
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}

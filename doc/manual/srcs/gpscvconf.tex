@@ -44,6 +44,21 @@ Section & Key \\ \hline
 
 \subsection{[Antenna] section}
 
+Entries used to create the RINEX header are:
+\begin{itemize}
+\item antenna number
+\item antenna type
+\item delta H, delta E, delta N
+\item marker name
+\item marker number
+\item X,Y,Z
+\end{itemize}
+
+Entries used to create the CGGTTS header are:
+\begin{itemize}
+\item X,Y,Z
+\end{itemize}
+
 \hypertarget{h:antenna}{}
 {\bfseries antenna number}\\
 This appears as ANTNUM in the RINEX header.\\
@@ -127,15 +142,10 @@ Z=-1234567.890
 
 \hypertarget{h:cggtts}{Entries} in this section control the format and content of CGGTTS files and filtering applied to CGGTTS tracks.
 
-{\bfseries BIPM cal id}\\
-This defines CAL\_ID for the internal delay, as used in v2E CGGTTS headers.\\
-\textit{Example:}
-\begin{lstlisting}
-BIPM cal id=none
-\end{lstlisting}
 
 {\bfseries comments}\\
-This defines COMMENTS in the CGGTTS header.\\
+This defines COMMENTS in the CGGTTS header.
+he output line will be truncated at 128 characters.\\
 \textit{Example:}
 \begin{lstlisting}
 comments=none
@@ -162,7 +172,7 @@ This specifies a pattern for user-provided RINEX navigation files.
 Currently, only patterns of the form \cc{XXXXddd0.yyn} are recognized.\\
 \textit{Example:}
 \begin{lstlisting}
-ephemeris file=SYDNddd0.yyn
+ephemeris file=brdcddd0.yyn
 \end{lstlisting}
 
 {\bfseries ephemeris path}\\
@@ -170,13 +180,6 @@ This specifies the path to user-provided RINEX navigation files.\\
 \textit{Example:}
 \begin{lstlisting}
 ephemeris path=igsproducts
-\end{lstlisting}
-
-{\bfseries internal delay}\\
-This defines INT DLY in the CGGTTS header. The units are ns.\\
-\textit{Example:}
-\begin{lstlisting}
-INT DLY=0.0
 \end{lstlisting}
 
 {\bfseries lab id}\\
@@ -195,7 +198,7 @@ maximum DSG = 10.0
 \end{lstlisting}
 
 {\bfseries minimum elevation}\\
-CGGTTS tracks lower than this will be filtered out. 
+CGGTTS tracks with elevations lower than this will be filtered out. 
 The units are degrees.\\
 \textit{Example:}
 \begin{lstlisting}
@@ -211,7 +214,7 @@ minimum track length = 390
 \end{lstlisting}
 
 {\bfseries maximum URA}\\
-GPS ephemerides with URA greater than this will not be used. T
+GPS ephemerides with URA greater than this will not be used. 
 They will still be written to RINEX navigation files, however.\\
 \textit{Example:}
 \begin{lstlisting}
@@ -219,7 +222,7 @@ maximum URA = 3.0
 \end{lstlisting}
 
 {\bfseries naming convention}\\
-Defines the CGGTTS file naming convention. Valid options are `plain' (MJD.cctf) and `BIPM'.
+Defines the CGGTTS file naming convention. Valid options are `plain' (MJD.cctf) and `BIPM' styles.
 The \cc{lab id} and \cc{receiver id} should be defined in conjunction with BIPM-style filenames.\\
 \textit{Example:}
 \begin{lstlisting}
@@ -256,12 +259,15 @@ revision date = 2015-12-31
 \end{lstlisting}
 
 {\bfseries version}\\
-This defines the version of CGGTTS output.Valid versions are v1 and v2E. 
+This defines the version of CGGTTS output. Valid versions are v1 and v2E. 
 The \cc{lab id} and \cc{receiver id} should be defined in conjunction with v2E ouput\\
 \textit{Example:}
 \begin{lstlisting}
 version = v2E
 \end{lstlisting}
+
+
+
 
 \subsubsection{CGGTTS output sections}
 
@@ -276,19 +282,33 @@ BIPM cal id = none
 internal delay = 11.0
 \end{lstlisting}
 
-The new entries for a CGGTTS output section are:\\
-{\bfseries code}\\
-This defines the GNSS signal code. Valid values are C1,P1 and P2.\\
+{\bfseries BIPM cal id}\\
+This defines CAL\_ID for the internal delay, as used in v2E CGGTTS headers.\\
 \textit{Example:}
 \begin{lstlisting}
-code=C1
+BIPM cal id=none
+\end{lstlisting}
+
+{\bfseries code}\\
+This defines the observation code. For most of the receivers supported by OpenTTP, this is `C1'.
+`P1' and `P2' are supported for Javad receivers.
+\textit{Example:}
+\begin{lstlisting}
+code=P1
 \end{lstlisting}
 
 {\bfseries constellation}\\
-This defines the GNSS constellation. Only GPS is supported currently.\\
+This defines the GNSS constellation. Only GPS is supported currently for CGGTTS generation.\\
 \textit{Example:}
 \begin{lstlisting}
 constellation=GPS
+\end{lstlisting}
+
+{\bfseries internal delay}\\
+This defines INT DLY in the CGGTTS header. The units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+INT DLY=0.0
 \end{lstlisting}
 
 {\bfseries path}\\
@@ -296,6 +316,27 @@ This defines the directory in which output files are placed.\\
 \textit{Example:}
 \begin{lstlisting}
 path=cggtts
+\end{lstlisting}
+
+In v1 CGGTTS files, the delays are specified via INT DLY, CAB DLY and ANT DLY.  
+For v2E files, the delays may be specified via the `system delay' and `total delay'.
+If multiple delays (eg both internal and system delay are present) are defined in
+\cc{gpscv.conf}, the precedence order is internal, system and then total delay.
+
+The entries used to specify system and total delay are:\\
+
+{\bfseries system delay}\\
+This defines SYS DLY in the CGGTTS header. The units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+SYS DLY=0.0
+\end{lstlisting}
+
+{\bfseries total delay}\\
+This defines TOT DLY in the CGGTTS header. The units are ns.\\
+\textit{Example:}
+\begin{lstlisting}
+TOT DLY=0.0
 \end{lstlisting}
 
 \subsection{[Counter] section}
@@ -311,7 +352,7 @@ file extension=tic
 \end{lstlisting}
 
 {\bfseries GPIB address}\\
-For GPIB devices, the GPIB address must be defined.
+For GPIB devices, the GPIB address must be defined.\\
 \textit{Example:}
 \begin{lstlisting}
 GPIB address=3
@@ -319,7 +360,7 @@ GPIB address=3
 
 {\bfseries GPIB converter}\\
 This defines the GPIB interface converter (eg RS232 to GPIB).
-Valid values are `Micro488'.
+Valid values are `Micro488'.\\
 \textit{Example:}
 \begin{lstlisting}
 GPIB converter = Micro488
