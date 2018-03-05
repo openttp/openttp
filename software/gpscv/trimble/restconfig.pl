@@ -34,7 +34,7 @@ use Getopt::Std;
 use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_d $opt_h $opt_v);
 
-$VERSION="2.1";
+$VERSION="2.1.1";
 
 $RESOLUTION_T=0;
 #$RESOLUTION_SMT=1;
@@ -151,15 +151,18 @@ Debug("Receiver model = " .($rxModel==$RESOLUTION_T?"Resolution T":"Resolution S
 $rxmask="";
 $port=&GetConfig($localMajorVersion,"gps port","receiver:port");
 $port="/dev/$port" unless $port=~m#/#;
-Debug("Opening $port");
 
-unless (`/usr/local/bin/lockport $port $0`==1) {
-	print "! Could not obtain lock on $port. Exiting.\n";
-	exit;
+$uucpLockPath="/var/lock";
+if (defined $Init{"paths:uucp lock"}){
+        $uucpLockPath = $Init{"paths:uucp lock"};
 }
 
-# Set up a mask which specifies this port for select polling later on
-vec($rxmask,fileno $rx,1)=1;
+unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
+        printf "! Could not obtain lock on $port. Exiting.\n";
+        exit;
+}
+
+Debug("Opening $port");
 
 if ($rxModel==$RESOLUTION_T){
 	print "Note! Default serial port settings for the Resolution T are assumed:\n";
@@ -176,6 +179,8 @@ elsif ($rxModel==$RESOLUTION_SMT_360){
 			oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|PARENB|PARODD|CLOCAL));
 }
 
+# Set up a mask which specifies this port for select polling later on
+vec($rxmask,fileno $rx,1)=1;
 
 #Initialise parameters
 
