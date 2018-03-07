@@ -32,6 +32,7 @@
 # 14. 2.05 MJW Add serial port locking
 # 17-04-2008 MJW Use TFLibrary for initialisation
 # 2015-04-05 MJW Use new configuration file etc.
+# 2018-03-07 MJW Configuration of UUCP lock file path
 
 use POSIX;
 use TFLibrary;
@@ -124,9 +125,14 @@ $SIG{TERM} = sub {unlink $lockFile;ErrorExit("Received SIGTERM - exiting.")};
 
 # Initialise the port, which also powers the converter, and let it reset
 
-unless (`/usr/local/bin/lockport -p $$ $port $0`==1) {
-	print "! Could not obtain lock on $port. Exiting.\n";
-	exit;
+$uucpLockPath="/var/lock";
+if (defined $Init{"paths:uucp lock"}){
+        $uucpLockPath = $Init{"paths:uucp lock"};
+}
+
+unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
+        printf "! Could not obtain lock on $port. Exiting.\n";
+        exit;
 }
 
 connectserial($port);
