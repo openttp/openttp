@@ -146,7 +146,7 @@ if ($localMajorVersion == 2){
 		$rxModel=$RESOLUTION_SMT_360;
 	}
 	else{
-		print "Unknown receiver model: ".$Init{"receiver:model"}."\n";
+		print "Unknown receiver model: ".$Init{"receiver:model"}." - assuming SMT 360\n";
 	}
 }
 
@@ -155,14 +155,22 @@ $rxmask="";
 $port=&GetConfig($localMajorVersion,"gps port","receiver:port");
 $port="/dev/$port" unless $port=~m#/#;
 
-unless (`/usr/local/bin/lockport $port $0`==1) {
+$uucpLockPath="/var/lock";
+if (defined $Init{"paths:uucp lock"}){
+	$uucpLockPath = $Init{"paths:uucp lock"};
+}
+
+unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
 	printf "! Could not obtain lock on $port. Exiting.\n";
 	exit;
 }
 
+	
+
 $rx=&TFConnectSerial($port,
 		(ispeed=>0010002,ospeed=>0010002,iflag=>IGNBRK,
-			oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
+		oflag=>0,lflag=>0,cflag=>CS8|CREAD|HUPCL|CLOCAL));
+
 # Set up a mask which specifies this port for select polling later on
 vec($rxmask,fileno $rx,1)=1;
 
@@ -266,7 +274,7 @@ sub Debug
 sub SendCommand
 {
   my $cmd=shift;
-  $cmd=~s/\x10/\x10\x10/g;		# 'stuff' (double) DLE in data
+  $cmd=~s/\x10/\x10\x10/g;# 'stuff' (double) DLE in data
   print $rx "\x10".$cmd."\x10\x03";	# DLE at start, DLE/ETX at end
 } # SendCommand
 
