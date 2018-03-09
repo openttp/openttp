@@ -487,7 +487,7 @@ sub CheckRefLocked
 			while ($line=<IN>){
 				if ($line=~/GPSDO\s+health/){
 					Debug("Got GPSDO status:");
-					if ($line =~ /:\s+0x0/){
+					if (($line =~ /:\s+0x0/) || ($line =~ /:\s*Completely\s+healthy/)){
 						Debug('GPSDO healthy');
 						return 1;
 					}
