@@ -438,7 +438,7 @@ sub CheckNTPRefClock
 	Debug("Checking $mon->{refid}");
 	if (defined $ntpqClks{$mon->{refid}}){
 		Debug("$mon->{refid} reachability $ntpqClks{$mon->{refid}}");
-		return ($ntpqClks{$mon->{refid}} == 377);
+		return ($ntpqClks{$mon->{refid}} >0);
 	}
 	return 0; # if it's not there, there may have been a problem with device initialization by OS
 }
