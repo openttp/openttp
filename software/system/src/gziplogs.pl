@@ -106,7 +106,6 @@ elsif (defined $Init{"targets"}){
 		$targets[$t]=~ s/\s+$//;
 		if (defined $Init{"$targets[$t]:files"}){
 			@files = split /,/,$Init{"$targets[$t]:files"};
-			print $Init{"$targets[$t]:files"},"\n";
 			for ($i=0;$i<=$#files;$i++){
 				$files[$i]=~ s/^\s+//; # trim white space
 				$files[$i]=~ s/\s+$//;
