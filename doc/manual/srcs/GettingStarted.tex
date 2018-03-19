@@ -182,7 +182,7 @@ view of the sky above $10^{\circ}$. All exposed connections should be
 weatherproofed. Make sure that all connections are tight but do not apply
 excessive torque as this can result in connectors detaching from the cable.
 
-A strain relief bulkhead is normally used for making the connection to the short 
+A strain relief bulkhead is  used for making the connection to the short 
 `N'-terminated cable. 
 
 \subsection{Make other system connections}
@@ -199,15 +199,15 @@ The unit can operate using DHCP or with
 a static IP address. The default is to use DHCP. The configured address can be conveniently found using the 
 front panel menu.
 
-A static IP can be set by using the system utility \cc{connmanctl} or by editing the file 
+A static IP can be set by using the utility \cc{connmanctl} or by editing the file 
 \cc{/etc/network/interfaces}.
 
 \subsubsection{Keyboard and monitor}
 
 A HDMI monitor and USB keyboard and mouse can be used with the \sysname{}. 
-This will allow a console login \ref{sLoggingIn}.
+However, this only allows a console login \ref{sLoggingIn}.
+The graphical login and desktop environment normally available have been disabled to reduce memory usage.
 
-The HDMI output may be disabled in some installations. If there is no HDMI output, TO DO. 
 
 \subsubsection{Time and frequency signals}
 
@@ -228,7 +228,7 @@ this after logging in.
 
 The \cc{cvgps} user is the account used to log and process data.
 
-It contains the following standard directories.
+It contains the following standard directories, some of which are mounted on the SSD.
 
 \begin{figure}[h]
 \dirtree{%
@@ -254,27 +254,33 @@ Information on alarms and troubleshooting hints are given in \ref{sAlarms}. Trou
 will require logging into the system (\ref{sLoggingIn}).
 
 You can check that logging of GNSS and counter data is occurring by looking in the directory 
-\cc{/home/cvgps/raw}. Files in this directory are 
+\cc{/home/cvgps/raw}.
 
 Processing of data takes place at UTC0015 daily. CGGTTS files will be placed in the 
-\cc{/home/cvgps/raw} directory.
+\cc{/home/cvgps/cggtts} directory.
 
 The \sysname{} is NTP-synchronized using the GPS receiver's time of day messages and its 1 pps. 
 The \sysname{} operates on UTC. 
 NTP operation can be checked using the command \cc{ntpq -p}. This should display 
 
-\begin{table}[j]
+\begin{table}
+\begin{tabular}{clrrrrrrrr}
+     remote      &     refid   &   st & t &  when &poll & reach  &  delay &  offset & jitter \\
+% ==============================================================================
+
+\end{tabular}
 \caption{Checking NTP operation}
 \end{table}
 
-\section{Essential configuration}
+\section{Local configuration}
 
 To produce CGGTTS files, the processing software needs accurate antenna coordinates.
-These can be obtained from the \sysname{} receiver or by a separate survey.
+These can be obtained from the \sysname{} receiver, using \cc{navigator}.
 
 \section{Updating the software}
 
 Debian Linux is updated separately from the OpenTTP software.
+
 Updating the kernel is a separate procedure. 
 
 Updating the OpenTTP software is most conveniently done via the git repository.
