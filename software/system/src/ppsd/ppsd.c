@@ -42,6 +42,7 @@
  *								starts in the next second .... (v1.1.2)
  * 11-05-2015 MJW Fixups forchanges in Linux ... (v1.2.0)
  * 12-05-2015 MJW Support for SIO81865/66
+ * 22-03-2018 MJW Fixups for time steps (v2.0.1)
  */
  	
 /* Compile with gcc -O -Wall -o ppsd ppsd.c */
@@ -68,7 +69,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#define PPSD_VERSION "2.0.0"
+#define PPSD_VERSION "2.0.1"
 #define PID_FILE _PATH_VARRUN "ppsd.pid"
 #define PPSD_CONFIG "/usr/local/etc/ppsd.conf"
 
@@ -245,7 +246,8 @@ main(
 	struct sched_param	sched;
 	long twait;
 	struct timeval tv;
-
+	long tloop;
+	
 #ifdef USE_PARALLEL_PORT
 	int j;
 #endif
@@ -473,10 +475,12 @@ main(
 		if (debugOn)
 			fprintf(stderr,"%i us to go\n",(int)
 				((tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec));
-		
-		while ((tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec > 0)
+		tloop = (tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec;
+		/* Guard against the system time going backwards while we are looping by restricting tloop */
+		while ( tloop > 0 && tloop < 20000 ){
 			gettimeofday(&tv,NULL);
-				
+			tloop = (tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec;
+		}		
 #ifdef USE_PARALLEL_PORT
 		outb(0xff,PPBASE); /* We go high    */ 
 		for (j=1;j<=10;j++)/* We wait a bit */

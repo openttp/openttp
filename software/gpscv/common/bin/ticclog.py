@@ -146,7 +146,6 @@ if (None == re.search(r'\.$',ctrExt)):
 headerGen=''
 if (cfg.has_key('counter:header generator')):
 	headerGen = ottplib.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
-print headerGen
 
 if (cfg.has_key('counter:mode')):
 	if (cfg['counter:mode'] == 'timestamp'):
@@ -160,8 +159,6 @@ if (cfg.has_key('counter:timestamp format')):
 	elif (cfg['counter:timestamp format'] == 'time of day'):
 		tsformat = TS_TOD
 		
-
-
 # Create the process lock		
 lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
 Debug("Creating lock " + lockFile)
