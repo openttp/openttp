@@ -60,7 +60,7 @@ IPWidget::IPWidget(std::string ipaddr,IPV ipver,Widget *parent):Widget(parent)
 		unsigned int posdelim=ipaddr.find('.',pos);
 		if (posdelim == std::string::npos) posdelim=ipaddr.length();
 		std::string bs =ipaddr.substr(pos,posdelim-pos);
-		std::cout << bs << std::endl;
+		
 		std::istringstream iss(bs);
 		int b;
 		iss >>b;
@@ -68,7 +68,7 @@ IPWidget::IPWidget(std::string ipaddr,IPV ipver,Widget *parent):Widget(parent)
 		
 		oss << std::setfill('0') << std::setw(3) << b;
 		if (i<quadcnt-1) oss << '.';
-		std::cout << b << " " << oss.str() << std::endl;
+		
 	}
 	ip=oss.str();
 }

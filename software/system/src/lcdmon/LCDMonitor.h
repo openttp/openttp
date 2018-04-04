@@ -84,7 +84,7 @@ class LCDMonitor:public CFA635
 		enum DisplayMode {GPS,NTP,GPSDO,GLOBD};
 		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
 		
-		void getIPaddress(std::string &, std::string &);
+		void getIPaddress(std::string &, std::string &,std::string &);
 		
 		static void signalHandler(int);
 		void startTimer(long secs=10);
@@ -121,10 +121,13 @@ class LCDMonitor:public CFA635
 		
 		bool checkFile(const char *);
 		bool serviceEnabled(const char *);
-		void restartNetworking();
+		bool restartNetworking();
 		bool runSystemCommand(std::string,std::string,std::string);
 		
 		std::string relativeToAbsolutePath(std::string,std::string);
+		std::string  prefix2netmask(std::string);
+		std::string  netmask2prefix(std::string);
+		std::string quote(std::string);
 		
 		time_t lastLazyCheck;
 		
@@ -139,7 +142,7 @@ class LCDMonitor:public CFA635
 		std::string gpsLoggerLockFile;
 
 		std::string bootProtocol;
-		std::string ipv4addr,ipv4nm,ipv4gw,ipv4ns;
+		std::string ipv4addr,ipv4nm,ipprefix,ipv4gw,ipv4ns;
 		
 		int NTPProtocolVersion,NTPMajorVersion,NTPMinorVersion; 
 		std::string currPacketsTag,oldPacketsTag,badPacketsTag;

@@ -24,6 +24,7 @@
 //
 // Modification history
 //
+// 2018-04-05 MJW Many fixups for networking but still not working for OpenTTP
 
 #include "Debug.h"
 
@@ -47,6 +48,7 @@
 #include <stack>
 #include <fstream>
 #include <sstream>
+#include <string>
 
 #include <boost/regex.hpp>
 #include <boost/lexical_cast.hpp>
@@ -72,7 +74,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "1.2.2"
+#define LCDMONITOR_VERSION "2.0.0"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -207,13 +209,14 @@ void LCDMonitor::showSysInfo()
 	delete mb;
 }
 
-void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &usb0ip)
+void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::string &usb0ip)
 {
 	struct ifaddrs * ifAddrStruct=NULL;
 	struct ifaddrs * ifa=NULL;
 	void * tmpAddrPtr=NULL;
 	
 	eth0ip = "Not assigned";
+	eth1ip=  "Not assigned";
 	usb0ip = "Not assigned";
 	
 	getifaddrs(&ifAddrStruct);
@@ -227,8 +230,9 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &usb0ip)
 			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
 			char addressBuffer[INET_ADDRSTRLEN];
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-			if(strcmp(ifa->ifa_name,"eth0") == 0) eth0ip = addressBuffer;
-			if(strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
+			if ((strcmp(ifa->ifa_name,"eth0") == 0) || (strcmp(ifa->ifa_name,"enp2s0") == 0)) eth0ip = addressBuffer;
+			if ((strcmp(ifa->ifa_name,"eth1") == 0) || (strcmp(ifa->ifa_name,"enp3s0") == 0)) eth1ip = addressBuffer;
+			if (strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
 		}
 	}
 	if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
@@ -236,16 +240,19 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &usb0ip)
 
 void LCDMonitor::showIP()
 {
-	std::string eth0ip, usb0ip;
-	getIPaddress(eth0ip,usb0ip);
+	std::string eth0ip, eth1ip,usb0ip;
+	getIPaddress(eth0ip,eth1ip,usb0ip);
 	
 	clearDisplay();
 
 	MessageBox *mb = new MessageBox(" "," "," "," ");
 
-	if(eth0ip != "") mb->setLine(0,"eth0: " + eth0ip);
+	if(eth0ip != "") mb->setLine(0,"eth0: " + eth0ip);	
+#ifdef OTTP
 	if(usb0ip != "") mb->setLine(1,"usb0: " + usb0ip);
-
+#else
+	if(eth1ip != "") mb->setLine(1,"eth1: " + eth1ip);
+#endif
 	execDialog(mb);
 	delete mb;
 }
@@ -257,19 +264,17 @@ void LCDMonitor::networkConfigDHCP()
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
 	bool ret = execDialog(dlg);
 	std::string lastError="No error";
+	
+	// A DHCP copnfiguration is created from the existing configuration, removing any 
+	// static IP-related configuration
 	if (ret){
 		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
 		ofstream fout(ftmp.c_str());
-		// A minimal DHCP configuration
-		fout << "DEVICE=eth0" << endl;
-		fout << "BOOTPROTO=dhcp" << endl;
-		fout << "ONBOOT=yes" << endl;
-
+		
 		string tmp;
-		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
-		ifstream fin(ifcfg.c_str());
+		ifstream fin(eth0Conf.c_str());
 		if (!fin.good()){
-			lastError="ifcfg-eth0 not found";
+			lastError= eth0Conf + " not found";
 			goto DIE;
 		}
 		while (!fin.eof()){
@@ -280,21 +285,32 @@ void LCDMonitor::networkConfigDHCP()
 				lastError="Bad ifcfg-eth0 ";
 				goto DIE;
 			}
-			if (string::npos != tmp.find("HWADDR"))	 // preserve this in case of multiple ethernet interfaces
-				fout << tmp;
+			if (string::npos != tmp.find("BOOTPROTO"))	 // preserve this in case of multiple ethernet interfaces
+				fout << "BOOTPROTO=" << quote("dhcp") << endl;
+			else if (string::npos != tmp.find("IPADDR") ||
+							 string::npos != tmp.find("PREFIX") ||
+							 string::npos != tmp.find("NETMASK")||
+							 string::npos != tmp.find("GATEWAY")||
+							 string::npos != tmp.find("DNS")    ||
+							 string::npos != tmp.find("DOMAIN")  ){
+				// skip
+			}
+			else
+				fout << tmp << endl;
 		}
 
 		fin.close();
 
 		fout.close();
 		int retval;
-		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str()))){
-			DBGMSG(debugStream,TRACE, "rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+		if (0 != (retval =rename(ftmp.c_str(),eth0Conf.c_str()))){
+			DBGMSG(debugStream,TRACE, "rename of " << ftmp << " to " << eth0Conf<< " failed err = " << errno);
 			lastError = "Rename of tmp.ifcfg-eth0 failed";
 			goto DIE;
 		}
 
-		restartNetworking();
+		if (restartNetworking())
+			networkProtocol = DHCP;
 
 	}
 
@@ -359,17 +375,22 @@ void LCDMonitor::networkConfigStaticIP4()
 		// note that temporary files are made in the same directory
 		// as the target because rename() does not work across devices (partitions)
 		// network
+		
+		string tmp,ftmp;
+		int retval;
+		bool gotGW=false;
+		
+#ifdef UPSTART
 		string netcfg("/etc/sysconfig/network");
 		ifstream fin(netcfg.c_str());
 		if (!fin.good()){
 			lastError="Missing /etc/sysconfig/network";
 			goto DIE;
 		}
-
-		string tmp;
-		string ftmp("/etc/sysconfig/network.tmp");
+		
+		ftmp = "/etc/sysconfig/network.tmp";
 		ofstream fout(ftmp.c_str());
-		bool gotGATEWAY=false;
+		
 		while (!fin.eof()){
 			getline(fin,tmp);
 			if (fin.eof())
@@ -380,30 +401,30 @@ void LCDMonitor::networkConfigStaticIP4()
 			}
 			if (string::npos != tmp.find("GATEWAY")){
 				fout << "GATEWAY=" << ipv4gw << endl;
-				gotGATEWAY=true;
+				gotGW=true;
 			}
 			else
 				fout << tmp << endl;
 		}
 
-		if (!gotGATEWAY)
+		if (!gotGW)
 			fout << "GATEWAY=" << ipv4gw << endl;
 
 		fin.close();
 		fout.close();
 
-		int retval;
 		if (0 != (retval = rename(ftmp.c_str(),netcfg.c_str()))){
 			DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << netcfg << " failed err = " << errno);
 			lastError="Rename of network failed";
 			goto DIE;
 		}
+#endif
 
 		// ifcfg-eth0
-		string ifcfg("/etc/sysconfig/network-scripts/ifcfg-eth0");
-		ifstream fin2(ifcfg.c_str());
+		
+		ifstream fin2(eth0Conf.c_str());
 		if (!fin2.good()){
-			lastError="ifcfg-eth0 not found";
+			lastError="eth0 config not found";
 			goto DIE;
 		}
 		ftmp="/etc/sysconfig/network-scripts/tmp.ifcfg-eth0"; // take care not to leave an ifcfg that the init scripts could pick up
@@ -413,32 +434,36 @@ void LCDMonitor::networkConfigStaticIP4()
 		bool gotNETMASK=false;
 		bool gotBOOTPROTO=false;
 		bool gotDNS1=false;
+		gotGW=false;
 		
 		while (!fin2.eof()){
 			getline(fin2,tmp);
 			if (fin2.eof())
 				break;
 			if (fin2.fail()){
-				lastError="Error in ifcfg-eth0";
+				lastError="Error in " + eth0Conf;
 				goto DIE;
 			}
 			if (string::npos != tmp.find("IPADDR")){
-				fout2 << "IPADDR=" << ipv4addr << endl;
+				fout2 << "IPADDR=" << quote(ipv4addr) << endl;
 				gotIPADDR=true;
 			}
 			else if ( (string::npos != tmp.find("NETMASK")) || (string::npos != tmp.find("PREFIX"))){
 				// replace NETMASK with PREFIX
-				// FIXME could do better
-				fout2 << "NETMASK=" << ipv4nm << endl;
+				fout2 << "NETMASK=" << quote(ipv4nm) << endl;
 				gotNETMASK=true;
 			}
 			else if (string::npos != tmp.find("BOOTPROTO")){
-				fout2 << "BOOTPROTO=none" << endl; // none==static
+				fout2 << "BOOTPROTO=" << quote("none") << endl; // none==static
 				gotBOOTPROTO=true;
 			}
 			else if (string::npos != tmp.find("DNS1")){
-				fout2 << "DNS1=" << ipv4ns << endl;
+				fout2 << "DNS1=" << quote(ipv4ns) << endl;
 				gotDNS1=true;
+			}
+			else if (string::npos != tmp.find("GATEWAY")){
+				fout2 << "GATEWAY=" << quote(ipv4gw) << endl;
+				gotGW=true;
 			}
 			else
 				fout2 << tmp << endl;
@@ -446,19 +471,21 @@ void LCDMonitor::networkConfigStaticIP4()
 
 		// If the required fields weren't there, update them from the dialog results anyway
 		if (!gotIPADDR)
-			fout2 << "IPADDR=" << ipv4addr << endl;
+			fout2 << "IPADDR=" << quote(ipv4addr) << endl;
 		if (!gotNETMASK)
-			fout2 << "NETMASK=" << ipv4nm << endl;
+			fout2 << "NETMASK=" << quote(ipv4nm) << endl;
 		if (!gotBOOTPROTO)
-			fout2 << "BOOTPROTO=none" << endl;
+			fout2 << "BOOTPROTO=" << quote("none") << endl;
 		if (!gotDNS1) // FIXME when is this used?
-			fout2 << "DNS1=" << ipv4ns << endl;
+			fout2 << "DNS1=" << quote(ipv4ns) << endl;
+		if (!gotGW)
+			fout2 << "GATEWAY=" << quote(ipv4gw) << endl;
 		
 		fin2.close();
 		fout2.close();
 
-		if (0 != (retval =rename(ftmp.c_str(),ifcfg.c_str()))){
-			DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+		if (0 != (retval =rename(ftmp.c_str(),eth0Conf.c_str()))){
+			DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << eth0Conf << " failed err = " << errno);
 			lastError = "Rename of tmp.ifcfg-eth0 failed";
 			goto DIE;
 		}
@@ -499,13 +526,15 @@ void LCDMonitor::networkConfigStaticIP4()
 			fout3.close();
 
 			if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str()))){
-				DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << ifcfg << " failed err = " << errno);
+				DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << eth0Conf << " failed err = " << errno);
 				lastError="Rename of resolv.conf.tmp failed";
 				goto DIE;
 			}
 		}
 		
-		restartNetworking();
+		if (restartNetworking())
+			networkProtocol = StaticIPV4;
+		
 	} // if dialog accepted
 
 	delete dlg;
@@ -520,32 +549,61 @@ void LCDMonitor::networkConfigStaticIP4()
 }
 
 // Disabled for OpenTTP
-void LCDMonitor::restartNetworking()
+bool LCDMonitor::restartNetworking()
 {
+	bool ret= false;
+	
 	clearDisplay();
 
 	updateLine(1,"Restarting network");
+#ifdef  UPSTART
 	runSystemCommand("/sbin/service network restart","Restarted OK","Restart failed !");
 	sleep(1);
 
 	if (serviceEnabled("S55sshd")) // don't start if disabled
 	{
+		clearDisplay();
 		updateLine(1,"Restarting ssh");
 		runSystemCommand("/sbin/service sshd restart","Restarted OK","Restart failed !");
 		sleep(1);
 	}
 
+	clearDisplay();
 	updateLine(1,"Restarting ntpd");
 	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
 
 	if (serviceEnabled("S85httpd")) // don't start if disabled
 	{
+		clearDisplay();
 		updateLine(1,"Restarting httpd");
 		runSystemCommand("/sbin/service httpd restart","Restarted OK","Restart failed !");
 		sleep(1);
 	}
+#endif
 
+#ifdef SYSTEMD
+	runSystemCommand("/bin/systemctl restart network","Restarted OK","Restart failed !");
+	sleep(1);
+	
+	clearDisplay();
+	updateLine(1,"Trying ssh restart");
+	runSystemCommand("/bin/systemctl try-restart sshd","Restarted OK","Restart failed !");
+	sleep(1);
+	
+	clearDisplay();
+	updateLine(1,"Restarting ntpd");
+	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
+	sleep(1);
+	
+	clearDisplay();
+	updateLine(1,"Trying httpd restart");
+	runSystemCommand("/bin/systemctl try-restart httpd","Restart OK","Restart failed!");
+	sleep(1);
+	
+#endif
+	
+	return ret;
 }
 
 void LCDMonitor::LCDConfig()
@@ -809,7 +867,6 @@ void LCDMonitor::restartNtpd()
 	bool ret = execDialog(dlg);
 	if (ret){
 		clearDisplay();
-		updateLine(1,"  Restarting ntpd");
 		runSystemCommand(ntpdRestartCommand,"ntpd restarted","ntpd restart failed");
 	}
 	delete dlg;
@@ -825,7 +882,6 @@ void LCDMonitor::reboot()
 	if (ret)
 	{
 		clearDisplay();
-		updateLine(1,"  Rebooting");
 		runSystemCommand(rebootCommand,"Rebooting ...","Reboot failed !");
 	}
 	delete dlg;
@@ -840,7 +896,6 @@ void LCDMonitor::poweroff()
 	if (ret)
 	{
 		clearDisplay();
-		updateLine(1,"  Powering down");
 		runSystemCommand(poweroffCommand,"Powering off ...","Poweroff failed !");
 	}
 	delete dlg;
@@ -1576,8 +1631,17 @@ void LCDMonitor::configure()
 	cvgpsHome="/home/cvgps/";
 	ntpadminHome="/home/ntp-admin/";
 	DNSconf="/etc/resolv.conf";
+	// This is empty in CentOS7
 	networkConf="/etc/sysconfig/network";
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
+#ifdef RHEL
+	#ifdef UPSTART
+	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
+	#endif
+	#ifdef SYSTEMD
+	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-enp2s0";
+	#endif
+#endif
 	sysInfoConf="/usr/local/etc/sysinfo.conf";
 	receiverName="nv08";
 	alarmPath="/home/cvgps/logs/alarms";
@@ -1825,7 +1889,7 @@ void LCDMonitor::showHelp()
 {
 	cout << "Usage: lcdmonitor [options]" << endl;
 	cout << "Available options are" << endl;
-	cout << "\t-d" << endl << "\t Turn on debuggging" << endl;
+	cout << "\t-d <file>" << endl << "\t Turn on debuggging" << endl;
 	cout << "\t-h" << endl << "\t Show this help" << endl;
 	cout << "\t-v" << endl << "\t Show version" << endl;
 }
@@ -1852,7 +1916,7 @@ void LCDMonitor::makeMenu()
 
 			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
 			midDHCP=protocolM->insertItem("DHCP...",cb);
-			mi = protocolM->itemAt(midStaticIP4);
+			mi = protocolM->itemAt(midDHCP);
 			if (mi != NULL) mi->setChecked(networkProtocol==DHCP);
 
 			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4);
@@ -2393,9 +2457,13 @@ bool LCDMonitor::checkFile(const char *fname)
 
 bool LCDMonitor::serviceEnabled(const char *service)
 {
+#ifdef SYSTEMD
+	return true;
+#else
 	struct stat statbuf;
 	std::string sname = std::string("/etc/rc.d/rc3.d/") + service;
 	return (0 == stat(sname.c_str(),&statbuf));
+#endif
 }
 
 bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string failmsg)
@@ -2430,7 +2498,14 @@ void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim
 {
 	size_t pos = entry.find(delim);
 	if (pos != string::npos){
-		val = entry.substr(pos+1);//FIXME needs checking
+		val = entry.substr(pos+1);
+		// Strip any leading or trailing quotes
+		size_t pos = val.find_first_of('"');
+		if (pos != string::npos)
+			val = val.substr(pos+1);
+		pos = val.find_last_of('"');
+		if (pos != string::npos)
+			val = val.substr(0,pos);
 	}
 }
 
@@ -2443,14 +2518,18 @@ void LCDMonitor::parseNetworkConfig()
 	ipv4nm = "255.255.255.0";
 	ipv4ns = "192.168.1.1";
 	ipv4addr="192.168.1.10";
-
+	ipprefix = "24";
+	
+	string tmp;
+	
+#ifdef UPSTART
 	std::ifstream fin(networkConf.c_str());
 	if (!fin.good()){
 		string msg = "Couldn't open " + networkConf;
 		log(msg);
 		return;
 	}
-	string tmp;
+	
 	while (!fin.eof()){
 		getline(fin,tmp);
 		if (fin.eof())
@@ -2459,7 +2538,8 @@ void LCDMonitor::parseNetworkConfig()
 			parseConfigEntry(tmp,ipv4gw,'=');
 	}
 	fin.close();
-
+#endif
+	
 	std::ifstream fin2(eth0Conf.c_str());
 	if (!fin2.good()){
 		string msg = "Couldn't open " + eth0Conf;
@@ -2475,17 +2555,27 @@ void LCDMonitor::parseNetworkConfig()
 			parseConfigEntry(tmp,bootProtocol,'=');
 			if (bootProtocol=="dhcp")
 				networkProtocol=DHCP;
-			else if (bootProtocol=="static")
+			else if (bootProtocol=="static" || bootProtocol=="none") 
 				networkProtocol=StaticIPV4;
 		}
 		else if (string::npos != tmp.find("IPADDR"))
 			parseConfigEntry(tmp,ipv4addr,'=');
 		else if (string::npos != tmp.find("NETMASK"))
 			parseConfigEntry(tmp,ipv4nm,'=');
+		else if (string::npos != tmp.find("GATEWAY")) // rhel7
+			parseConfigEntry(tmp,ipv4gw,'=');
+		else if (string::npos != tmp.find("PREFIX")){ // rhel7
+			parseConfigEntry(tmp,ipprefix,'=');
+			ipv4nm = prefix2netmask(ipprefix);
+		}
+		else if (string::npos != tmp.find("DNS1")){ // rhel7
+			parseConfigEntry(tmp,ipv4ns,'=');
+		}
 	}
 	fin2.close();
 
 	// !!! Different format
+	// FIXME I don't know if resolv.conf overrides ifcfg-xxx
 	std::ifstream fin3(DNSconf.c_str());
 	if (!fin3.good()){
 		string msg = "Couldn't open " + DNSconf;
@@ -2503,3 +2593,45 @@ void LCDMonitor::parseNetworkConfig()
 	}
 	fin3.close();
 }
+
+
+std::string  LCDMonitor::prefix2netmask(std::string pfx)
+{
+	int cidr = atoi(pfx.c_str());
+	uint32_t ipv4nm = 0xffffffff;
+	ipv4nm  <<=  32-cidr; // bytes are in host order
+	char buf[INET_ADDRSTRLEN+1];
+	struct in_addr sin_addr;
+	sin_addr.s_addr= htonl(ipv4nm); // to network byte order
+	inet_ntop(AF_INET,&sin_addr,buf,INET_ADDRSTRLEN + 1);
+	DBGMSG(debugStream,TRACE,"netmask " << buf);
+	return std::string(buf);
+}
+
+std::string  LCDMonitor::netmask2prefix(std::string nm)
+{
+	struct in_addr sin_addr;
+	inet_pton(AF_INET,nm.c_str(),&sin_addr);
+	uint32_t ipv4nm = ntohl(sin_addr.s_addr); // to host byte order
+	int nbits=0;
+	ipv4nm = ~ipv4nm;
+	while (ipv4nm != 0){
+		ipv4nm >>= 1;
+		nbits++;
+	}
+	DBGMSG(debugStream,TRACE,"prefix " << 32 - nbits);
+	std::string ret = boost::lexical_cast<std::string>(32 - nbits);
+	return ret;
+}
+
+std::string LCDMonitor::quote(std::string s)
+{
+#ifdef UPSTART
+	return s;
+#endif
+#ifdef SYSTEMD
+	return "\"" + s + "\"";
+#endif
+}
+
+		
