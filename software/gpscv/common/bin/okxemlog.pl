@@ -166,7 +166,7 @@ while (1)
 			if (open OUT,">>$file_out"){
 				@header = split /\n/,`$headerGen`;
 				for ($i=0;$i<=$#header;$i++){
-					print OUT "# $header[0]\n";
+					print OUT "# $header[$i]\n";
 				}
 				close OUT;
 			}
