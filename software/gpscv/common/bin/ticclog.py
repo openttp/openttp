@@ -70,7 +70,7 @@ def SignalHandler(signal,frame):
 
 # ------------------------------------------
 def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
+	print  os.path.basename(sys.argv[0]),'version',VERSION
 	print "Written by",AUTHORS
 	return
 
@@ -106,8 +106,8 @@ def Initialise(configFile):
 tsformat = TS_TOD
 tic_mode = TIC_MODE_TS
 
-home =os.environ['HOME'] + '/';
-configFile = os.path.join(home,'etc/gpscv.conf');
+home =os.environ['HOME'] + os.sep
+configFile = os.path.join(home,'etc','gpscv.conf')
 
 parser = argparse.ArgumentParser(description='Log a TAPR TICC in TI mode')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
@@ -255,8 +255,8 @@ while (not killed):
 		if (not os.path.isfile(fnoutA)):
 			foutA = open(fnoutA,'w',0)
 			if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
-				header=subprocess.check_output([headerGen])
-				foutA.write(header)
+				header=subprocess.check_output([headerGen,'-c',configFile])
+				foutA.write(header.rstrip())
 			foutA.write(ctrcfg) # Configuration after the header
 		else:
 			foutA = open(fnoutA,'a',0)
@@ -268,7 +268,7 @@ while (not killed):
 				foutB = open(fnoutB,'w',0)
 				if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
 					header=subprocess.check_output([headerGen])
-					foutB.write(header)
+					foutB.write(header.rstrip())
 				foutB.write(ctrcfg) # Configuration after the header
 			else:
 				foutB = open(fnoutB,'a',0)
