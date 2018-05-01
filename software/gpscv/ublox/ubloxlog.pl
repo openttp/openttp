@@ -30,7 +30,7 @@
 # 27-02-2017 MJW Minor cleanups for configuration path
 # 16-02-2017 MJW uucp lock file from config
 # 19-02-2018 MJW Added checksumming and basic status info
-#
+# 01-05-2018 MJW Native output
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
@@ -40,8 +40,11 @@ use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
 
 
-$VERSION="0.1.1";
+$VERSION="0.1.2";
 $AUTHORS="Michael Wouters";
+
+$OPENTTP=0;
+$NATIVE=1;
 
 $REMOVE_SV_THRESHOLD=600; #interval after which  a SV marked as disappeared is removed
 $COLDSTART_HOLDOFF = 0;
@@ -162,7 +165,15 @@ $Init{"paths:receiver data"}=TFMakeAbsolutePath($Init{"paths:receiver data"},$ho
 if (!($Init{"receiver:file extension"} =~ /^\./)){ # do we need a period ?
 		$Init{"receiver:file extension"} = ".".$Init{"receiver:file extension"};
 }
-	
+
+$fileFormat = $OPENTTP;
+if (defined($Init{"receiver:file format"})){
+	if ($Init{"receiver:file format"} eq "native"){
+		$fileFormat = $NATIVE;
+		$Init{"receiver:file extension"}=".ubx";
+	}
+}
+
 $now=time();
 $mjd=int($now/86400) + 40587;
 &OpenDataFile($mjd,1);
@@ -190,9 +201,14 @@ LOOP: while (!$killed)
 		@_=gmtime();
 		$msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d no response from receiver\n",
 			$_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
-		printf OUT "# ".$msg;
-		goto BYEBYE;
+		if ($fileFormat == $OPENTTP){
+			printf OUT "# ".$msg;
 		}
+		else{
+			printf "# ".$msg;
+		}
+		goto BYEBYE;
+	}
   
 	# Wait for input
 	$nfound=select $tmask=$rxmask,undef,undef,0.2;
@@ -243,11 +259,17 @@ LOOP: while (!$killed)
 				$nowstr=sprintf "%02d:%02d:%02d",$_[2],$_[1],$_[0];
 				$then=$now;
 			}
-	
+			
+			if ($fileFormat == $NATIVE){
+				print OUT $data;
+			}
+			
 			if ( $ubxmsgs =~ /:$classid:/){ # we want this one
 				($class,$id)=unpack("CC",$classid);
 				#printf "%02x%02x $nowstr %i %i %i\n",$class,$id,$payloadLength,$packetLength,$inputLength;
-				printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
+				if ($fileFormat == $OPENTTP){
+					printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
+				}
 				if ($class == 0x01 && $id == 0x35){
 					if (CheckSumOK($input)){
 						UpdateSVInfo($data);
@@ -294,8 +316,14 @@ if (-e $lockFile) {unlink $lockFile;}
 $msg=sprintf "%02d/%02d/%02d %02d:%02d:%02d $0 killed\n",
   $_[3],$_[4]+1,$_[5]%100,$_[2],$_[1],$_[0];
 printf $msg;
-printf OUT "# ".$msg;
+if ($fileFormat == $OPENTTP){
+	printf OUT "# ".$msg;
+}
 close OUT;
+
+if ($fileFormat == $OPENTTP){
+	select STDOUT;
+}
 
 # end of main 
 
@@ -371,14 +399,24 @@ sub OpenDataFile
 	Debug("Opening $name");
 
 	open OUT,">>$name" or die "Could not write to $name";
-	select OUT;
+	
+	if ($fileFormat == $OPENTTP){
+		select OUT;
+	}
+	elsif ($fileFormat == $NATIVE){
+		binmode OUT;
+	}
+	
 	$|=1;
-	printf "# %s $0 (version $VERSION) %s\n",
+	
+	if ($fileFormat == $OPENTTP){
+		printf "# %s $0 (version $VERSION) %s\n",
 		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
-	printf "# %s file $name\n",
+		printf "# %s file $name\n",
 		($old? "Appending to" : "Beginning new");
-	printf "\@ MJD=%d\n",$mjd;
-	select STDOUT;
+		printf "\@ MJD=%d\n",$mjd;
+		select STDOUT;
+	}
 
 } # OpenDataFile
 
