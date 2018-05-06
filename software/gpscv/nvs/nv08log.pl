@@ -473,17 +473,15 @@ sub OpenDataFile
 	}
 	
 	$|=1;
-	printf "# %s $0 (version $Init{version}) %s\n",
-		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
-	printf "# %s file $name\n",
-		($old? "Appending to" : "Beginning new");
-	printf "\@ MJD=%d\n",$mjd;
 	
 	if ($fileFormat == $OPENTTP){
+		printf "# %s $0 (version $Init{version}) %s\n",
+			&TFTimeStamp(),($_[1]? "beginning" : "continuing");
+		printf "# %s file $name\n",
+			($old? "Appending to" : "Beginning new");
+		printf "\@ MJD=%d\n",$mjd;
 		select STDOUT;
 	}
-	
-	
 	
 } # OpenDataFile
 

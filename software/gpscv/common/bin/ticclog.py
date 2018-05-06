@@ -256,7 +256,7 @@ while (not killed):
 			foutA = open(fnoutA,'w',0)
 			if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
 				header=subprocess.check_output([headerGen,'-c',configFile])
-				foutA.write(header.rstrip())
+				foutA.write(header.rstrip()+'\n') # make sure there is just one linefeed
 			foutA.write(ctrcfg) # Configuration after the header
 		else:
 			foutA = open(fnoutA,'a',0)
@@ -268,7 +268,7 @@ while (not killed):
 				foutB = open(fnoutB,'w',0)
 				if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
 					header=subprocess.check_output([headerGen])
-					foutB.write(header.rstrip())
+					foutB.write(header.rstrip()+'\n')
 				foutB.write(ctrcfg) # Configuration after the header
 			else:
 				foutB = open(fnoutB,'a',0)
