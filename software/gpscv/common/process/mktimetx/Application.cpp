@@ -93,8 +93,6 @@ static struct option longOptions[] = {
 using boost::lexical_cast;
 using boost::bad_lexical_cast;
 
-#define MPAIRS_SIZE 86400
-
 //
 //	Public
 //
@@ -739,7 +737,7 @@ bool Application::loadConfig()
 						continue;
 					}
 				}
-		
+				
 				if (setConfig(last,configs.at(i).c_str(),"path",stmp,&configOK)){ // got everything
 					// FIXME check compatibility of constellation+code
 					stmp=relativeToAbsolutePath(stmp);
@@ -747,6 +745,7 @@ bool Application::loadConfig()
 					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly,delayKind,
 						ephemerisSource,ephemerisPath,ephemerisFile));
 				}
+				
 				
 			} // for
 		} // if setConfig

@@ -76,6 +76,111 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 	DBGMSG(debugStream,1,"Using TIC = " << (TICenabled? "yes":"no"));
 	writeHeader(fout);
 	
+	int lowElevationCnt=0; // a few diagnostics
+	int highDSGCnt=0;
+	int shortTrackCnt=0;
+	int goodTrackCnt=0;
+	int ephemerisMisses=0;
+	int pseudoRangeFailures=0;
+	int badMeasurementCnt=0;
+	
+	// Constellation/code identifiers as per V2E
+	
+	string GNSSsys;
+	string GNSScode;
+	
+	switch (code){
+		case GNSSSystem::C1:GNSScode="L1C";break;
+		case GNSSSystem::P1:GNSScode="L1P";break;
+		case GNSSSystem::P2:GNSScode="L2P";break;
+		default:break;
+	}
+			
+	switch (constellation){
+		case GNSSSystem::BEIDOU:
+			GNSSsys="C"; break;
+		case GNSSSystem::GALILEO:
+			GNSSsys="E"; break;
+		case GNSSSystem::GLONASS:
+			GNSSsys="R"; break;
+		case GNSSSystem::GPS:
+			GNSSsys="G";
+		default:break;
+	}
+	
+	if (0){
+		
+		FILE *foutdbg;
+		fname += ".dbg";
+		if (!(foutdbg = fopen(fname.c_str(),"w"))){
+			cerr << "Unable to open " << fname << endl;
+			return false;
+		}
+		writeHeader(foutdbg);
+		// Don't be fancy - no ordering
+		char sout[155];
+		for (int m=0;m<MPAIRS_SIZE;m++){	
+			if ((mpairs[m]->flags==0x03)){
+				ReceiverMeasurement *rm = mpairs[m]->rm;
+				int tmeas=rint(rm->tmUTC.tm_sec + rm->tmUTC.tm_min*60+ rm->tmUTC.tm_hour*3600+rm->tmfracs);
+				int hh = tmeas / 3600;
+				int mm = (tmeas - hh*3600)/60;
+				int ss = tmeas - hh*3600 - mm*60;
+				if (tmeas % 30 !=0) continue;
+				for (unsigned int sv=0;sv<rm->meas.size();sv++){
+					SVMeasurement * svm = rm->meas.at(sv);
+					if (svm->constellation == constellation && svm->code == code){
+						
+						GPS::EphemerisData *ed=NULL;
+						ed = rx->gps.nearestEphemeris(svm->svn,rm->gpstow,maxURA);
+						if (NULL == ed) ephemerisMisses++;
+						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps,refsv,refsys;
+						int ioe;
+						// FIXME MDIO needs to change for L2
+						// getPseudorangeCorrections will check for NULL ephemeris
+						if (rx->gps.getPseudorangeCorrections(rm->gpstow,svm->meas,ant,ed,code,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+							refpps= useTIC*(rm->cm->rdg + rm->sawtooth)*1.0E9;
+							refsv = svm->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
+							refsys =svm->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
+							
+							el=rint(el*10);
+							az=rint(az*10);
+							refsv=rint((refsv-measDelay)*10); // apply total measurement system delay
+							refsys=rint((refsys-measDelay)*10); // apply total measurement system delay
+							iono=rint(iono*10);
+							tropo=rint(tropo*10);
+							
+							if (el >= minElevation*10 ){
+								goodTrackCnt++;
+								
+								snprintf(sout,154,"%s%02i %2s %5i %02i%02i%02i %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",
+									GNSSsys.c_str(),svm->svn,"FF",mjd,hh,mm,ss,1,(int) el,(int) az,(int) refsv,0, (int) refsys, 0, 0, ioe, (int) tropo, 0, (int) iono, 0,0,0,GNSScode.c_str());
+								fprintf(foutdbg,"%s%02X\n",sout,checkSum(sout) % 256);
+							}
+							else{
+								if (el < minElevation*10) lowElevationCnt++;
+							}
+						
+						}
+						else{
+							pseudoRangeFailures++;
+						}
+						
+					}	
+				}
+			} 
+		}
+		
+// 		app->logMessage("Ephemeris search misses: " + boost::lexical_cast<string>(ephemerisMisses));
+// 		app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<string>(pseudoRangeFailures-ephemerisMisses) );
+// 		app->logMessage("Bad measurements: " + boost::lexical_cast<string>(badMeasurementCnt) );
+// 		
+// 		app->logMessage(boost::lexical_cast<string>(goodTrackCnt) + " good measurements");
+// 		app->logMessage(boost::lexical_cast<string>(lowElevationCnt) + " low elevation measurements");
+// 		
+		
+	}
+	
 	// Generate the observation schedule as per DefraignePetit2015 pg3
 
 	int schedule[NTRACKS+1];
@@ -103,42 +208,11 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 	switch (ver){
 		case V1: quadFits=true;break;
 		case V2E:quadFits=false;break;
-	}
-	
-	// Constellation/code identifiers as per V2E
-	
-	string GNSSsys;
-	string GNSScode;
-	
-	switch (code){
-		case GNSSSystem::C1:GNSScode="L1C";break;
-		case GNSSSystem::P1:GNSScode="L1P";break;
-		case GNSSSystem::P2:GNSScode="L2P";break;
-		default:break;
-	}
-			
-	switch (constellation){
-		case GNSSSystem::BEIDOU:
-			GNSSsys="C"; break;
-		case GNSSSystem::GALILEO:
-			GNSSsys="E"; break;
-		case GNSSSystem::GLONASS:
-			GNSSsys="R"; break;
-		case GNSSSystem::GPS:
-			GNSSsys="G";
-		default:break;
+		default:quadFits=false;
 	}
 	
 	// Use a fixed array of vectors so that we can use the index as a hash for the SVN. Memory is cheap
 	vector<SVMeasurement *> svtrk[MAXSV+1];
-	
-	int lowElevationCnt=0; // a few diagnostics
-	int highDSGCnt=0;
-	int shortTrackCnt=0;
-	int goodTrackCnt=0;
-	int ephemerisMisses=0;
-	int pseudoRangeFailures=0;
-	int badMeasurementCnt=0;
 	
 	for (int i=0;i<ntracks;i++){
 		int trackStart = schedule[i]*60;

@@ -25,6 +25,8 @@
 #ifndef __MEASUREMENT_PAIR_H_
 #define __MEASUREMENT_PAIR_H_
 
+#define MPAIRS_SIZE 86400
+
 class MeasurementPair
 {
 	public:
