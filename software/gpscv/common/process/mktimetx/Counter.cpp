@@ -55,7 +55,7 @@ Counter::~Counter()
 {
 }
 	
-bool Counter::readLog(string fname)
+bool Counter::readLog(string fname,int startTime,int stopTime)
 {
 	// Expected format is
 	// (optional) comments prefaced with
@@ -74,10 +74,12 @@ bool Counter::readLog(string fname)
 	string line;
   if (infile.is_open()){
     while ( getline (infile,line) ){
-			int hh,mm,ss;
+			int hh,mm,ss,t;
 			double rdg;
 			if (4==sscanf(line.c_str(),"%d:%d:%d %lf",&hh,&mm,&ss,&rdg)){
-				measurements.push_back(new CounterMeasurement(hh,mm,ss,mSign*rdg));
+				t = hh*3600+mm*60+ss;
+				if (t>= startTime && t<= stopTime)
+					measurements.push_back(new CounterMeasurement(hh,mm,ss,mSign*rdg));
 			}
 			// check how much data there is - shouldn't be more than 86400 readings
 			if (measurements.size() > MAXSIZE){ //something is really wrong

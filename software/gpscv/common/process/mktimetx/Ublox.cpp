@@ -97,7 +97,7 @@ Ublox::~Ublox()
 {
 }
 
-bool Ublox::readLog(string fname,int mjd)
+bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 {
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	

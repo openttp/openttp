@@ -111,7 +111,7 @@ TrimbleResolution::~TrimbleResolution()
 {
 }
 
-bool TrimbleResolution::readLog(string fname,int mjd)
+bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime)
 {
 	DBGMSG(debugStream,1,"reading " << fname);	
 	struct stat statbuf;

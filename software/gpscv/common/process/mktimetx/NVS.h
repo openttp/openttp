@@ -39,7 +39,7 @@ class NVS:public Receiver
 		NVS(Antenna *,string);
 		virtual ~NVS();
 	
-		virtual bool readLog(string,int);
+		virtual bool readLog(string,int,int,int);
 		
 	protected:
 	

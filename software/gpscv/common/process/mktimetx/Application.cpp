@@ -75,13 +75,11 @@ Application *app;
 
 static struct option longOptions[] = {
 		{"configuration",required_argument, 0,  0 },
-		{"counter-path",required_argument, 0,  0 },
-		{"comment",  required_argument, 0,  0 },
 		{"debug",         required_argument, 0,  0 },
 		{"disable-tic", no_argument, 0,  0 },
 		{"help",          no_argument, 0, 0 },
-		{"no-navigation", no_argument, 0,  0 },
-		{"receiver-path",required_argument, 0,  0 },
+		{"start",required_argument, 0,  0 },
+		{"stop",required_argument, 0,  0 },
 		{"verbosity",     required_argument, 0,  0 },
 		{"timing-diagnostics",no_argument, 0,  0 },
 		{"version",       no_argument, 0,  0 },
@@ -106,7 +104,8 @@ Application::Application(int argc,char **argv)
 	// Process the command line options
 	// These override anything in the configuration file, default or specified
 	int longIndex;
-	int c;
+	int c,hh,mm,ss;
+	
 	string RINEXHeaderFile("");
 	
 	while ((c=getopt_long(argc,argv,"hm:",longOptions,&longIndex)) != -1)
@@ -120,15 +119,7 @@ Application::Application(int argc,char **argv)
 						case 0:
 							configurationFile=optarg;
 							break;
-							
 						case 1:
-							counterPath=optarg;
-							break;
-						
-						case 2:
-							//CGGTSComment=optarg;
-							break;
-						case 3:
 							{
 								string dbgout = optarg;
 								if ((string::npos != dbgout.find("stderr"))){
@@ -138,50 +129,57 @@ Application::Application(int argc,char **argv)
 									debugFileName = dbgout;
 									debugLog.open(debugFileName.c_str(),ios_base::app);
 									if (!debugLog.is_open()){
-										cerr << "Unable to open " << dbgout << endl;
+										cerr << "Error! Unable to open " << dbgout << endl;
 										exit(EXIT_FAILURE);
 									}
 									debugStream = & debugLog;
 								}
 								break;
 							}
-						case 4:
+						case 2:
 							TICenabled=false;
 							break;
-						case 5:
+						case 3:
 							showHelp();
 							exit(EXIT_SUCCESS);
 							break;
-						
+						case 4:
+							if (!Utility::TODStrtoTOD(optarg,&hh,&mm,&ss)){
+								cerr << "Error! Bad value for option --start" << endl;
+								showHelp();
+								exit(EXIT_FAILURE);
+							}
+							startTime = hh*3600 + mm*60 + ss;
+							break;
+						case 5:
+							if (!Utility::TODStrtoTOD(optarg,&hh,&mm,&ss)){
+								cerr << "Error! Bad value for option --stop" << endl;
+								showHelp();
+								exit(EXIT_FAILURE);
+							}
+							stopTime = hh*3600 + mm*60 + ss;
+							break;
 						case 6:
-							generateNavigationFile=false;
-							break;
-							
-						case 7:
-							receiverPath=optarg;
-							break;
-							
-						case 8:
 							{
 								if (1!=sscanf(optarg,"%i",&verbosity)){
-									cerr << "Bad value for option --verbosity" << endl;
+									cerr << "Error! Bad value for option --verbosity" << endl;
 									showHelp();
 									exit(EXIT_FAILURE);
 								}
 							}
 							break;
-						case 9:
+						case 7:
 							timingDiagnosticsOn=true;
 							break;
 							
-						case 10:
+						case 8:
 							showVersion();
 							exit(EXIT_SUCCESS);
 							break;
-						case 11:
+						case 9:
 							SVDiagnosticsOn=true;
 							break;
-						case 12:
+						case 10:
 							shortDebugMessage=true;
 							break;
 					}
@@ -194,7 +192,7 @@ Application::Application(int argc,char **argv)
 			case 'm':
 				{
 					if (1!=sscanf(optarg,"%i",&MJD)){
-						cerr << "Bad value for option --mjd" << endl;
+						cerr << "Error! Bad value for option --mjd" << endl;
 						showHelp();
 						exit(EXIT_FAILURE);
 					}
@@ -205,10 +203,14 @@ Application::Application(int argc,char **argv)
 			
 		}
 	}
-	
+
+	if (startTime > stopTime){
+		cerr  << "Error! The start time is after the stop time" << endl;
+		exit(EXIT_FAILURE);
+	}
 	
 	if (!loadConfig()){
-		cerr << "Configuration failed - exiting" << endl;
+		cerr << "Error! Configuration failed" << endl;
 		exit(EXIT_FAILURE);
 	}
 	
@@ -261,7 +263,7 @@ void Application::run()
 	if (recompress) compress(receiverFile);
 	
 	recompress = decompress(counterFile);
-	if (!counter->readLog(counterFile)){
+	if (!counter->readLog(counterFile,startTime,stopTime)){
 		cerr << "Exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
@@ -358,13 +360,12 @@ void Application::showHelp()
 	cout << "Usage: " << APP_NAME << " [options]" << endl;
 	cout << "Available options are" << endl;
 	cout << "--configuration <file> full path to the configuration file" << endl;
-	cout << "--counter-path <path>  path to counter/timer measurements" << endl; 
-	cout << "--comment <message>    comment for the CGGTTS file" << endl;
 	cout << "--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << endl;
 	cout << "--disable-tic          disables use of sawtooth-corrected TIC measurements" << endl;
 	cout << "-h,--help              print this help message" << endl;
 	cout << "-m <n>                 set the mjd" << endl;
-	cout << "--receiver-path <path> path to GNSS receiver logs" << endl;
+	cout << "--start HH:MM:SS/HHMMSS  set start time" << endl;
+	cout << "--stop  HH:MM:SS/HHMMSS  set stop time" << endl;
 	cout << "--short-debug-message  shorter debugging messages" << endl;
 	cout << "--sv-diagnostics       write SV diagnostics files" << endl;
 	cout << "--timing-diagnostics   write receiver timing diagnostics file" << endl;
@@ -435,6 +436,8 @@ void Application::init()
 	
 	interval=30;
 	MJD = int(time(0)/86400)+40587 - 1;// yesterday
+	startTime=0;
+	stopTime=86399;
 	
 	timingDiagnosticsOn=false;
 	SVDiagnosticsOn=false;

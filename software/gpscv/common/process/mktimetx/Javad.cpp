@@ -110,7 +110,7 @@ Javad::~Javad()
 {
 }
 
-bool Javad::readLog(string fname,int mjd)
+bool Javad::readLog(string fname,int mjd,int startTime,int stopTime)
 {
 	Timer timer;
 	

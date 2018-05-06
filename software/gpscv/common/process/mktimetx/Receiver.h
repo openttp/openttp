@@ -75,7 +75,7 @@ class Receiver
 		
 		int ppsOffset; // 1 pps offset, in nanoseconds
 		
-		virtual bool readLog(string,int){return true;} // must be reimplemented
+		virtual bool readLog(string,int,int startTime=0,int stopTime=86399){return true;} // must be reimplemented
 		
 		vector<ReceiverMeasurement *> measurements;
 		

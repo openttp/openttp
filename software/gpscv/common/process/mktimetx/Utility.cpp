@@ -23,8 +23,11 @@
 // THE SOFTWARE.
 
 #include <cmath>
+#include <cstring>
 #include <time.h>
 #include <gsl/gsl_multifit.h>
+
+#include <boost/regex.hpp>
 
 #include "Utility.h"
 
@@ -52,6 +55,28 @@ void Utility::MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday)
 	*mon  = utc->tm_mon+1;
 	*mday = utc->tm_mday;
 	*yday = utc->tm_yday+1;
+}
+
+bool Utility::TODStrtoTOD(std::string const& todstr,int *hh,int *mm,int *ss)
+{
+	// Two formats OK
+	// HHMMSS or HH:MM:SS
+	boost::regex re1("^(\\d{2})(\\d{2})(\\d{2})$");
+	boost::smatch matches;
+	if (boost::regex_search(todstr,matches,re1)){
+		*hh = atoi(matches[1].str().c_str()); // regex has already checked input is valid
+		*mm = atoi(matches[2].str().c_str());
+		*ss = atoi(matches[3].str().c_str());
+		return (*hh <= 23 && *mm <= 59 && *ss <= 59);
+	}
+	boost::regex re2("^(\\d{2}):(\\d{2}):(\\d{2})$");
+	if (boost::regex_search(todstr,matches,re2)){
+		*hh = atoi(matches[1].str().c_str()); // regex has already checked input is valid
+		*mm = atoi(matches[2].str().c_str());
+		*ss = atoi(matches[3].str().c_str());
+		return (*hh <= 23 && *mm <= 59 && *ss <= 59);
+	}
+	return false;
 }
 
 bool Utility::linearFit(double x[], double y[],int n,double xinterp,double *yinterp,double *c,double *m,double *rmsResidual)

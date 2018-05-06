@@ -117,7 +117,7 @@ NVS::~NVS()
 {
 }
 
-bool NVS::readLog(string fname,int mjd)
+bool NVS::readLog(string fname,int mjd,int startTime,int stopTime)
 {
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	

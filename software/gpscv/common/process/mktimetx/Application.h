@@ -142,7 +142,7 @@ class Application
 		
 		string logFile;
 		
-		int MJD;
+		int MJD,startTime,stopTime;
 		int interval;
 		int RINEXversion;
 		string homeDir;
