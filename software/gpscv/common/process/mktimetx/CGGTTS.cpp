@@ -61,7 +61,7 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,bool TICenabled)
+bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled)
 {
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
@@ -119,7 +119,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 		writeHeader(foutdbg);
 		// Don't be fancy - no ordering
 		char sout[155];
-		for (int m=0;m<MPAIRS_SIZE;m++){	
+		for (int m=startTime;m<=stopTime;m++){	
 			if ((mpairs[m]->flags==0x03)){
 				ReceiverMeasurement *rm = mpairs[m]->rm;
 				int tmeas=rint(rm->tmUTC.tm_sec + rm->tmUTC.tm_min*60+ rm->tmUTC.tm_hour*3600+rm->tmfracs);
@@ -218,6 +218,8 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,
 		int trackStart = schedule[i]*60;
 		int trackStop =  schedule[i]*60+780-1;
 		if (trackStop >= 86400) trackStop=86400-1;
+		// Now window it
+		if (trackStart < startTime || trackStart > stopTime) continue;
 		// Matched measurement pairs can be looked up without a search since the index is TOD
 		for (int m=trackStart;m<=trackStop;m++){
 			

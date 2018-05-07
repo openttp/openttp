@@ -255,15 +255,23 @@ void Application::run()
 // 			}
 // 	}
 	
+	// Subtract 4 hours to make sure we get ephemeris, UTC, ionosphere ...
+	int sloppyStartTime = startTime - 4*3600;
+	if (sloppyStartTime < 0) sloppyStartTime = 0;
+	
+	// add 960 s to capture CGGTTS tracks which don't end before stopTime
+	int sloppyStopTime = stopTime + 960;
+	if (sloppyStopTime > 86399) sloppyStopTime = 86399;
+			
 	bool recompress = decompress(receiverFile);
-	if (!receiver->readLog(receiverFile,MJD)){
+	if (!receiver->readLog(receiverFile,MJD,sloppyStartTime,sloppyStopTime)){
 		cerr << "Exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
 	if (recompress) compress(receiverFile);
 	
 	recompress = decompress(counterFile);
-	if (!counter->readLog(counterFile,startTime,stopTime)){
+	if (!counter->readLog(counterFile,startTime,sloppyStopTime)){
 		cerr << "Exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
@@ -314,7 +322,7 @@ void Application::run()
 			cggtts.calID=CGGTTSoutputs.at(i).calID;
 		
 			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
-			cggtts.writeObservationFile(CGGTTSfile,MJD,mpairs,TICenabled);
+			cggtts.writeObservationFile(CGGTTSfile,MJD,startTime,stopTime,mpairs,TICenabled);
 	
 		}
 	} // if createCGGTTS

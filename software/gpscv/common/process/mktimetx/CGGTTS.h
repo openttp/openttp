@@ -44,7 +44,7 @@ class CGGTTS
 		enum DELAYS {INTDLY=0,SYSDLY=2,TOTDLY=3};
 		
 		CGGTTS(Antenna *,Counter *,Receiver *);
-		bool writeObservationFile(string fname,int mjd,MeasurementPair **mpairs,bool TICenabled);
+		bool writeObservationFile(string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled);
 	
 		string ref;
 		string lab;

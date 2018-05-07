@@ -210,6 +210,13 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime)
 				continue;
 			}
 			
+			int hh,mm,ss;
+			if ((3==sscanf(currpctime.c_str(),"%d:%d:%d",&hh,&mm,&ss))){
+				int ts = hh*3600+mm*60+ss;
+				if (ts < startTime || ts > stopTime)
+					continue;
+			}
+							
 			// FIXME could improve parser by converting the msgid to a hex value?
 			// Some messages we just don't want
 			if (msgid == "NP"){
