@@ -31,6 +31,8 @@
 # 16-02-2017 MJW uucp lock file from config
 # 19-02-2018 MJW Added checksumming and basic status info
 # 01-05-2018 MJW Native output
+# 08-05-2018 MJW Stupid bug in native output
+#
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
@@ -215,8 +217,10 @@ LOOP: while (!$killed)
 	next unless $nfound;
 	
 	if ($nfound<0) {$killed=1; last}
-	# Read input, and append it to $input
-	sysread $rx,$input,$nfound,length $input;
+	
+	# Read the new input and append it to $input
+	sysread $rx,$currinput,$nfound;			
+	$input .= $currinput;
 	
 	# Look for a message in what we've accumulated
 	# $`=pre-match string, $&=match string, $'=post-match string (Camel book p128)
@@ -260,14 +264,10 @@ LOOP: while (!$killed)
 				$then=$now;
 			}
 			
-			if ($fileFormat == $NATIVE){
-				print OUT $data;
-			}
-			
 			if ( $ubxmsgs =~ /:$classid:/){ # we want this one
 				($class,$id)=unpack("CC",$classid);
 				#printf "%02x%02x $nowstr %i %i %i\n",$class,$id,$payloadLength,$packetLength,$inputLength;
-				if ($fileFormat == $OPENTTP){
+				if ($fileFormat  == $OPENTTP){
 					printf OUT "%02x%02x $nowstr %s\n",$class,$id,(unpack "H*",(substr $data,0,$payloadLength+2));
 				}
 				if ($class == 0x01 && $id == 0x35){
@@ -307,6 +307,11 @@ LOOP: while (!$killed)
 			# nuffink
 		}
 	}
+	
+	if ($fileFormat == $NATIVE){
+		print OUT $currinput;
+	}
+	
 }
 
 BYEBYE:
