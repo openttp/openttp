@@ -32,7 +32,7 @@
 # 19-02-2018 MJW Added checksumming and basic status info
 # 01-05-2018 MJW Native output
 # 08-05-2018 MJW Stupid bug in native output
-#
+# 16-05-2018 MJW Path fixups for consistency with other scripts
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
@@ -80,49 +80,48 @@ $params[$UTC_IONO_PARAMETERS][$LAST_RECEIVED]=-1;
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
-$configPath="$home/etc";
-if (!(-d "$home/etc")){
-	ErrorExit("No $configPath directory found!\n");
-}
+$configFile="$home/etc/gpscv.conf";
 
-$logPath="$home/logs";
-if (!(-d "$home/logs")){
-	ErrorExit("No ~/logs directory found!\n");
-}
-
-if (-e "$configPath/ublox.conf"){ # this takes precedence
-	$configFile=$configPath."/ublox.conf";
-}
-elsif (-e "$configPath/gpscv.conf"){
-	$configFile=$configPath."/gpscv.conf";
-}
-else{
-	ErrorExit("A configuration file was not found!");
-}
-
-if( !(getopts('c:dhrv')) || ($#ARGV>=1)) {
+if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h){ 
   ShowHelp();
   exit;
 }
 
 if ($opt_v){
-	print "$0 version $VERSION\n";
-	print "Written by $AUTHORS\n";
-	exit;
+  print "$0 version $VERSION\n";
+  print "Written by $AUTHORS\n";
+  exit;
 }
 
-if (defined $opt_c){ 
-  if (-e $opt_c){
-    $configFile=$opt_c;
-  }
-  else{
-    ErrorExit( "$opt_c not found!");
-  }
+if (!(-d "$home/etc"))  {
+  ErrorExit("No ~/etc directory found!\n");
+} 
+
+if (-d "$home/logs"){
+  $logPath="$home/logs";
+} 
+else{
+  ErrorExit("No ~/logs directory found!\n");
 }
 
-if ($opt_h){
-	ShowHelp();
-	exit;
+if (-d "$home/lockStatusCheck"){ # OpenTTP
+  $lockPath="$home/lockStatusCheck";
+  $statusPath="$home/lockStatusCheck";
+}
+elsif (-d "$home/logs"){
+  $lockPath=$logPath;
+  $statusPath=$logPath;
+}
+else{
+  ErrorExit("No ~/lockStatusCheck or ~/logs directory found!\n");
+}
+
+if (defined $opt_c){
+  $configFile=$opt_c;
+}
+
+if (!(-e $configFile)){
+  ErrorExit("A configuration file was not found!\n");
 }
 
 $ubxmsgs=":";
