@@ -57,7 +57,8 @@ class RINEX
 		
 		string observer;
 		string agency;
-
+	
+		bool allObservations;
 		
 	private:
 		

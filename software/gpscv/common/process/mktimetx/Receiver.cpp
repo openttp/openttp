@@ -126,7 +126,7 @@ void Receiver::interpolateMeasurements()
 		}
 		DBGMSG(debugStream,1,"GNSS system :" << gnss->name());
 		
-		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code <<= 1)){
+		for (int code = GNSSSystem::C1;code <=GNSSSystem::L2; (code <<= 1)){
 			
 			if (!(codes & code)) continue;
 			
@@ -147,7 +147,7 @@ void Receiver::interpolateMeasurements()
 						}
 					}
 				}
-				
+				DBGMSG(debugStream,1,svn << " " << track.size());
 				// Now interpolate the measurements
 				if (track.size() < 3) continue;
 				
@@ -213,13 +213,15 @@ void Receiver::interpolateMeasurements()
 			}
 
 			track.clear();
-			// Zero the fractional part of the measurement time
-			for (unsigned int i=0;i<measurements.size();i++){
-				measurements.at(i)->tmfracs=0;
 			
-			} // for (int prn=1 ...
 		} // for (int code =
 	}
+	
+	// Zero the fractional part of the measurement time
+	for (unsigned int i=0;i<measurements.size();i++){
+		measurements.at(i)->tmfracs=0;
+	} 
+			
 	DBGMSG(debugStream,1,"done");
 }
 

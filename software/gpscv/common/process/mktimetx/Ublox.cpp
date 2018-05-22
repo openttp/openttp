@@ -53,9 +53,9 @@ extern Application *app;
 #define ICD_PI 3.1415926535898
 
 #define MAX_CHANNELS 16 // max channels per constellation
-#define SLOPPINESS 0.99
+#define SLOPPINESS 0.1
 #define CLOCKSTEP  0.001
-
+#define MAX_GAP    3   // maximum permissible gap in observation sequence before ambiguity resolution is triggered
 // types used by ublox receivers     
 typedef signed char    I1;
 typedef unsigned char  U1;
@@ -89,7 +89,7 @@ Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
-		app->logMessage("Assuming LEA8MT");
+		app->logMessage("Assuming NEO8MT");
 	}
 }
 
@@ -220,7 +220,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 					}// if (gpsmeas.size() > 0)
 				} 
 				else{
-					DBGMSG(debugStream,1,pctime << " reqd message missing, flags = " << currentMsgs);
+					DBGMSG(debugStream,TRACE,pctime << " reqd message missing, flags = " << currentMsgs);
 					deleteMeasurements(svmeas);
 				}
 				
@@ -254,9 +254,17 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 								HexToBin((char *) msg.substr((16+32*m)*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &r8buf); //pseudorange (m)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
-								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); 
-								svmeas.push_back(new SVMeasurement(svID,gnssSys,GNSSSystem::C1,r8buf/CLIGHT+0.016,NULL));
-								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) u1buf);
+								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
+								int prStdDev= u1buf & 0x0f;
+								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
+								int trkStat=u1buf;
+								// When PR is reported, trkStat is always 1 but .
+								if (trkStat > 0 && r8buf/CLIGHT < 1.0){
+									SVMeasurement *svm = new SVMeasurement(svID,gnssSys,GNSSSystem::C1,r8buf/CLIGHT,NULL);
+									//svm->dbuf1=0.01*pow(2.0,prStdDev); 
+									svmeas.push_back(svm);
+								}
+								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) trkStat);
 							}
 						}
 						currentMsgs |= MSG0215;
@@ -452,6 +460,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 	// Do this initially and then every time a step is detected
 	
 	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
+	int nDropped;
 	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
 		if (!(g & constellations)) continue;
 		GNSSSystem *gnss;
@@ -464,12 +473,13 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 		}
 		for (int svn=1;svn<=gnss->nsats();svn++){
 			unsigned int lasttow=99999999,currtow=99999999;
-			double lastmeas,currmeas;
+			double lastmeas=0,currmeas;
 			double corr=0.0;
 			bool first=true;
 			bool ok=false;
 			for (unsigned int i=0;i<measurements.size();i++){
-				for (unsigned int m=0;m < measurements[i]->meas.size();m++){
+				unsigned int m=0;
+				while (m < measurements[i]->meas.size()){
 					if (svn==measurements[i]->meas[m]->svn){
 						lasttow=currtow;
 						lastmeas=currmeas;
@@ -478,7 +488,13 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 						
 						DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
 						if (first){
-							first=false;
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							if (ok){
+								first=false;
+							}
+						}
+						else if (currtow - lasttow > MAX_GAP){
+							DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
 							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
 						}
 						else if (currtow > lasttow){ // FIXME better test of gaps
@@ -487,21 +503,29 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
 							}
 						}
-						if (ok) measurements[i]->meas[m]->meas += corr;
+						if (ok){ 
+							measurements[i]->meas[m]->meas += corr;
+							m++;
+						}
+						else{ // ambiguity correction failed, so drop the measurement
+							nDropped++;
+							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
+						}
 						break;
 					}
+					else
+						m++;
 					
-				}
-			}
+				} // 
+			} // for (unsigned int i=0;i<measurements.size();i++){
 		}
 	}
-	// interpolateMeasurements(measurements);
-	// Note that after this, tmfracs is now zero and all measurements have been interpolated to a 1 s grid
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
+	DBGMSG(debugStream,INFO,"dropped " << nDropped << " SV measurements (ms ambiguity failure)"); 
 	
 	return true;
 	

@@ -37,7 +37,7 @@ class GNSSSystem
 	public:
 		
 		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08};
-		enum Code {C1=0x01,P1=0x02,P2=0x04};
+		enum Code {C1=0x01,P1=0x02,P2=0x04,L1=0x08,L2=0x10};
 		
 		GNSSSystem(){};
 		~GNSSSystem(){};

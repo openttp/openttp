@@ -331,6 +331,7 @@ void Application::run()
 		RINEX rnx;
 		rnx.agency = agency;
 		rnx.observer=observer;
+		rnx.allObservations=allObservations;
 		
 		if (generateNavigationFile) 
 			rnx.writeNavigationFile(receiver,GNSSSystem::GPS,RINEXversion,RINEXnavFile,MJD);
@@ -438,6 +439,7 @@ void Application::init()
 	
 	observer="Time and Frequency";
 	agency="NMIx";
+	allObservations=false;
 	
 	refCableDelay=0.0;
 	antCableDelay=0.0;
@@ -832,6 +834,12 @@ bool Application::loadConfig()
 			}
 		}
 
+		if (setConfig(last,"rinex","observations",stmp,&configOK)){
+			if (stmp=="all"){
+				allObservations=true;
+			}
+		}
+		
 		setConfig(last,"rinex","agency",agency,&configOK);
 	
 	}
@@ -1157,6 +1165,8 @@ void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,stri
 		return;
 	}
 	
+	DBGMSG(debugStream,INFO,"writing to " << fname);
+	
 	for (unsigned int i=0;i<MPAIRS_SIZE;i++){
 		if (mpairs[i]->flags == 0x03){
 			CounterMeasurement *cm= mpairs[i]->cm;
@@ -1172,6 +1182,8 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 {
 	FILE *fout;
 	
+	DBGMSG(debugStream,INFO,"writing to " << path);
+	
 	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g <<= 1)){ 
 		
 		if (!(rx->constellations & g)) continue;
@@ -1184,18 +1196,17 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 			case GNSSSystem::GPS:gnss = &(rx->gps) ;
 		}
 		
-		for (int code = GNSSSystem::C1;code <=GNSSSystem::P2; (code <<= 1)){
+		for (int code = GNSSSystem::C1;code <=GNSSSystem::L2; (code <<= 1)){
 			
 			if (!(rx->codes & code)) continue;
 			
 			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
 				ostringstream sstr;
-				sstr << path << "/" << gnss->oneLetterCode() << ".dat";
+				sstr << path << "/" << gnss->oneLetterCode() << svn << ".dat";
 				if (!(fout = fopen(sstr.str().c_str(),"w"))){
 					cerr << "Unable to open " << sstr.str().c_str() << endl;
 					return;
 				}
-				
 				for (unsigned int m=0;m<rx->measurements.size();m++){
 					for (unsigned int svm=0; svm < rx->measurements.at(m)->meas.size();svm++){
 						SVMeasurement *sv=rx->measurements.at(m)->meas.at(svm);

@@ -134,6 +134,14 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					nobs++;
 					obsTypes += "    P2";
 				}
+				if (rx->codes & GNSSSystem::L1){
+					nobs++;
+					obsTypes += "    L1";
+				}
+				if (rx->codes & GNSSSystem::L2){
+					nobs++;
+					obsTypes += "    L2";
+				}
 			}
 			if (rx->constellations & GNSSSystem::GLONASS) {
 				if ( (string::npos == obsTypes.find("C1") ) ){  // if C1 not there
@@ -243,10 +251,20 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						case GNSSSystem::BEIDOU:svconst='C';break;
 						default:break;
 					}
+					// Need to check if this combination is already present
+					bool gotIt = false;
 					sprintf(sbuf,"%s%02d",svconst.c_str(),rm->meas.at(i)->svn);
-					svids.push_back(sbuf);
-					svns.push_back(rm->meas.at(i)->svn);
-					svsys.push_back(rm->meas.at(i)->constellation);
+					for (unsigned int id=0;id<svids.size();id++){
+						if (NULL != strstr(sbuf,svids.at(id).c_str())){
+							gotIt=true;
+							break;
+						}
+					}
+					if (!gotIt){
+						svids.push_back(sbuf);
+						svns.push_back(rm->meas.at(i)->svn);
+						svsys.push_back(rm->meas.at(i)->constellation);
+					}
 				}
 				
 				// Record header
@@ -287,12 +305,12 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					if (ver == V3)
 						fprintf(fout,"%s",svids[sv].c_str());
 					
-					// Order is C1,P1,P2
+					// Order is C1,P1,P2,L1,L2
 					
 					if (rx->codes & GNSSSystem::C1){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
-							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[svc] &&  rm->meas[svc]->code == GNSSSystem::C1){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::C1){
 								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
 								foundit=true;
 								break;
@@ -304,7 +322,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					if (rx->codes & GNSSSystem::P1){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
-							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[svc] &&  rm->meas[svc]->code == GNSSSystem::P1){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::P1){
 								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
 								foundit=true;
 								break;
@@ -316,8 +334,20 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					if (rx->codes & GNSSSystem::P2){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
-							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[svc] &&  rm->meas[svc]->code == GNSSSystem::P2){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::P2){
 								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
+								foundit=true;
+								break;
+							}
+						}
+						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+					}
+					
+					if (rx->codes & GNSSSystem::L1){
+						bool foundit=false;
+						for (unsigned int svc=0;svc<rm->meas.size();svc++){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::L1){
+								fprintf(fout,"%14.3lf%1i%1i",rm->meas[svc]->meas,rm->meas[svc]->lli,rm->meas[svc]->signal);
 								foundit=true;
 								break;
 							}
@@ -1149,6 +1179,7 @@ void RINEX::init()
 {
 	agency = "KAOS";
 	observer = "Siegfried";
+	allObservations=false; // C1 only is default except for Javad
 }
 
 // Note: these subtract one from the index !

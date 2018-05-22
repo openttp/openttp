@@ -102,7 +102,7 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 	manufacturer="NVS";
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1;
+	codes=GNSSSystem::C1|GNSSSystem::L1;
 	channels=32;
 	if (modelName == "NV08C-CSM"){
 		// For the future
@@ -129,7 +129,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime)
 	
 	float rxTimeOffset; // single
 	FP64 sawtooth;     // units are ns
-	FP64  fp64buf;
+	FP64  fp64buf,fp64buf2;
 	INT16U int16ubuf;
 	INT32U int32ubuf;
 	INT8S int8sbuf;
@@ -263,23 +263,27 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime)
 					for (int s=0;s<nsats;s++){
 						HexToBin((char *) msg.substr((27+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&signal); 
 						if (signal &0x02){ // GPS
-							HexToBin((char *) msg.substr((28+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&svn); 
-							HexToBin((char *) msg.substr((39+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf);
+							HexToBin((char *) msg.substr((28+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&svn);
+							HexToBin((char *) msg.substr((31+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf); // carrier phase
+							HexToBin((char *) msg.substr((39+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf2); // pseudo-range
 							HexToBin((char *) msg.substr((55+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&flags);
 							// FIXME use flags to filter measurements 
-							DBGMSG(debugStream,TRACE,pctime << " svn "<< (int) svn << " pr " << fp64buf*1.0E-3 << " flags " << (int) flags);
+							DBGMSG(debugStream,TRACE,pctime << " svn "<< (int) svn << " pr " << fp64buf2*1.0E-3 << " flags " << (int) flags);
 							if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
-								double svmeas = fp64buf*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
+								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
 								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::C1,svmeas,NULL);
 								svm->dbuf3=svmeas;
-								gpsmeas.push_back(svm); 
+								gpsmeas.push_back(svm);
+								svmeas = fp64buf;
+								svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1,svmeas,NULL);
+								gpsmeas.push_back(svm);
 							}
 							else{
 							}
 						}
 					}
 					
-					if (gpsmeas.size() >= MAX_CHANNELS){ // too much data - something is wrong
+					if (gpsmeas.size()/2 >= MAX_CHANNELS){ // too much data - something is wrong
 						DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gpsmeas.size() << ")");
 						deleteMeasurements(gpsmeas);
 						continue;

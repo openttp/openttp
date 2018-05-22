@@ -279,9 +279,15 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime)
 			}
 		
 			if(strncmp(msg.c_str(),"8fac",4)==0){ // Secondary time message (8FAC) 
+				if (model==ResolutionT){
+					HexToBin((char *) reversestr(msg.substr(2*16+2,2*4)).c_str(),4,(unsigned char *) &rxtimeoffset);
+					HexToBin((char *) reversestr(msg.substr(2*60+2,2*4)).c_str(),4,(unsigned char *) &sawtooth);
+				}
+				else if (model == Resolution360){
+					HexToBin((char *) reversestr(msg.substr(2*16+2,2*4)).c_str(),4,(unsigned char *) &sawtooth);
+					rxtimeoffset=0.0;
+				}
 				
-				HexToBin((char *) reversestr(msg.substr(2*16+2,2*4)).c_str(),4,(unsigned char *) &rxtimeoffset);
-				HexToBin((char *) reversestr(msg.substr(2*60+2,2*4)).c_str(),4,(unsigned char *) &sawtooth);
 				sawtooth = sawtooth*sawtoothMultiplier; // nb this in seconds/ns according to firmware 
 				DBGMSG(debugStream,3," 8FAC bias= " << rxtimeoffset << ",sawtooth= " << sawtooth);
 				got8FAC=true;

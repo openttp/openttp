@@ -135,8 +135,10 @@ class Application
 		int CGGTTSminTrackLength;
 		double CGGTTSminElevation, CGGTTSmaxDSG,CGGTTSmaxURA;
 		
+		// RINEX generation
 		string observer;
 		string agency;
+		bool   allObservations;
 		
 		double antCableDelay,refCableDelay;
 		
