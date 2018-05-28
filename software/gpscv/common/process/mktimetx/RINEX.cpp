@@ -51,7 +51,8 @@
 extern Application *app;
 extern ostream *debugStream;
 
-const char * RINEXVersionName[]= {"2.12","3.03"};
+const char * RINEXVersionName[]= {"2.11","3.03"};
+char gsbuf[256];
 
 #define SBUFSIZE 160
 
@@ -149,7 +150,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					nobs++;
 				}
 			}
-			// V2 doesn't support other constellations
+			// V2.11 doesn't support other constellations
 			// max of 3 observation descriptors so don't exceed the maximum of 9 on the line
 			fprintf(fout,"%6d%-54s%-20s\n",nobs,obsTypes.c_str(),"# / TYPES OF OBSERV");
 			break;
@@ -248,7 +249,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						case GNSSSystem::GPS: svconst='G';break;
 						case GNSSSystem::GLONASS: svconst='R';break;
 						case GNSSSystem::GALILEO: svconst='E';break;
-						case GNSSSystem::BEIDOU:svconst='C';break;
+						case GNSSSystem::BEIDOU: svconst='C';break;
 						default:break;
 					}
 					// Need to check if this combination is already present
@@ -311,48 +312,49 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
 							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::C1){
-								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
+								//fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
+								fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 								foundit=true;
 								break;
 							}
 						}
-						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+						if (!foundit) fprintf(fout,"%16s"," "); 
 					}
 					
 					if (rx->codes & GNSSSystem::P1){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
 							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::P1){
-								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
+								fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 								foundit=true;
 								break;
 							}
 						}
-						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+						if (!foundit) fprintf(fout,"%16s"," ");
 					}
 					
 					if (rx->codes & GNSSSystem::P2){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
 							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::P2){
-								fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
+								fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 								foundit=true;
 								break;
 							}
 						}
-						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+						if (!foundit) fprintf(fout,"%16s"," ");
 					}
 					
 					if (rx->codes & GNSSSystem::L1){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
 							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::L1){
-								fprintf(fout,"%14.3lf%1i%1i",rm->meas[svc]->meas,rm->meas[svc]->lli,rm->meas[svc]->signal);
+								fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal)); // ppsTime is never added
 								foundit=true;
 								break;
 							}
 						}
-						if (!foundit) fprintf(fout,"%14.3lf%1i%1i",0.0,0,0);
+						if (!foundit) fprintf(fout,"%16s"," "); // set LLI
 					}
 					
 					fprintf(fout,"\n");
@@ -1180,6 +1182,19 @@ void RINEX::init()
 	agency = "KAOS";
 	observer = "Siegfried";
 	allObservations=false; // C1 only is default except for Javad
+}
+
+char * RINEX::formatFlags(int lli,int sn)
+{
+	if (lli != 0 && sn!=0)
+		sprintf(gsbuf,"%1i%1i",lli,sn);
+	else if (lli != 0 && sn == 0)
+		sprintf(gsbuf,"%1i ",lli);
+	else if (lli ==0 && sn !=0)
+		sprintf(gsbuf," %1i",sn);
+	else
+		sprintf(gsbuf,"  ");
+	return gsbuf;
 }
 
 // Note: these subtract one from the index !

@@ -97,7 +97,7 @@ Ublox::~Ublox()
 {
 }
 
-bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
+bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
@@ -480,7 +480,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 			for (unsigned int i=0;i<measurements.size();i++){
 				unsigned int m=0;
 				while (m < measurements[i]->meas.size()){
-					if (svn==measurements[i]->meas[m]->svn){
+					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1)){
 						lasttow=currtow;
 						lastmeas=currmeas;
 						currmeas=measurements[i]->meas[m]->meas;
@@ -497,7 +497,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime)
 							DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
 							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
 						}
-						else if (currtow > lasttow){ // FIXME better test of gaps
+						else if (currtow > lasttow){
 							if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
 								DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
 								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);

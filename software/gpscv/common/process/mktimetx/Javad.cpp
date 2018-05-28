@@ -110,7 +110,7 @@ Javad::~Javad()
 {
 }
 
-bool Javad::readLog(string fname,int mjd,int startTime,int stopTime)
+bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	Timer timer;
 	

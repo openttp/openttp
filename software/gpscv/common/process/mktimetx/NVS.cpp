@@ -117,7 +117,7 @@ NVS::~NVS()
 {
 }
 
-bool NVS::readLog(string fname,int mjd,int startTime,int stopTime)
+bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
@@ -260,6 +260,8 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime)
 					int nsats=(msg.size()-27*2) / (30*2);
 					INT8U svn,signal,flags;
 					
+					time_t tgps = GPS::GPStoUnix(rint((tmeasUTC+dGPSUTC)/1000),weekNum); // used for tracking loss of lock
+					
 					for (int s=0;s<nsats;s++){
 						HexToBin((char *) msg.substr((27+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&signal); 
 						if (signal &0x02){ // GPS
@@ -274,9 +276,17 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime)
 								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::C1,svmeas,NULL);
 								svm->dbuf3=svmeas;
 								gpsmeas.push_back(svm);
-								svmeas = fp64buf;
-								svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1,svmeas,NULL);
-								gpsmeas.push_back(svm);
+								if (flags & 0x08){ // carrier phase present
+									svmeas = fp64buf;
+									svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1,svmeas,NULL);
+									if (tgps - gps.L1lastunlock[svn] <= rinexObsInterval)
+										svm->lli=0x01;
+									gpsmeas.push_back(svm);
+								}
+								else{ 
+									// Calculate GPS time of measurement so that we can record the last unlock on the L1 measurement
+									gps.L1lastunlock[svn]=tgps;
+								}
 							}
 							else{
 							}

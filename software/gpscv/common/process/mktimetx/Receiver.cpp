@@ -147,7 +147,7 @@ void Receiver::interpolateMeasurements()
 						}
 					}
 				}
-				DBGMSG(debugStream,1,svn << " " << track.size());
+				
 				// Now interpolate the measurements
 				if (track.size() < 3) continue;
 				

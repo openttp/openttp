@@ -24,6 +24,7 @@
 
 
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <iomanip>
 #include <ostream>
@@ -58,6 +59,8 @@ GPS::GPS():GNSSSystem()
 {
 	n="GPS";
 	olc="G";
+	for (int i=0;i<=NSATS;i++)
+		memset((void *)(&L1lastunlock[i]),0,sizeof(time_t)); // all good
 }
 
 GPS::~GPS()

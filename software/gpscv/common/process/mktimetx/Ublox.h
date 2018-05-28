@@ -39,7 +39,7 @@ class Ublox:public Receiver
 		Ublox(Antenna *,string);
 		virtual ~Ublox();
 	
-		virtual bool readLog(string,int,int,int);
+		virtual bool readLog(string,int,int,int,int);
 		
 	protected:
 	

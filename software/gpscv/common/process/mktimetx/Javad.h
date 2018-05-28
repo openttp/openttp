@@ -39,7 +39,7 @@ class Javad:public Receiver
 		Javad(Antenna *,string);
 		virtual ~Javad();
 	
-		virtual bool readLog(string,int,int,int);
+		virtual bool readLog(string,int,int,int,int);
 		
 	protected:
 	

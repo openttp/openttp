@@ -41,7 +41,7 @@ class TrimbleResolution:public Receiver
 		TrimbleResolution(Antenna *,string);
 		virtual ~TrimbleResolution();
 	
-		virtual bool readLog(string,int,int,int);
+		virtual bool readLog(string,int,int,int,int);
 		
 	protected:
 	

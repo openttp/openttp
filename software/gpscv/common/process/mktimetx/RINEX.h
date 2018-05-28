@@ -72,6 +72,8 @@ class RINEX
 		bool writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd);
 		bool writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd);
 		
+		char * formatFlags(int,int);
+		
 		void parseParam(char *str,int start,int len,int *val);
 		void parseParam(char *str,int start,int len,float *val);
 		void parseParam(char *,int start,int len,double *val);

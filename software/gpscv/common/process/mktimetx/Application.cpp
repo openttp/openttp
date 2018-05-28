@@ -239,22 +239,6 @@ void Application::run()
 	
 	logMessage(timeStamp() + APP_NAME +  " version " + APP_VERSION + " run started");
 	
-	// Quick hack for ublox
-// 	if (receiver->manufacturer == "ublox"){
-// 			if (CGGTTSoutputs.at(0).ephemerisSource==CGGTTSOutput::UserSupplied){
-// 				if (CGGTTSoutputs.at(0).constellation == GNSSSystem::GPS){
-// 					receiver->gps.deleteEphemeris();
-// 					RINEX rnx;
-// 					string fname=rnx.makeFileName(CGGTTSoutputs.at(0).ephemerisFile,MJD);
-// 					string navFile=CGGTTSoutputs.at(0).ephemerisPath+"/"+fname;
-// 					DBGMSG(debugStream,INFO,"preloaded nav file " << navFile);
-// 					if (rnx.readNavigationFile(receiver,GNSSSystem::GPS,navFile)){
-// 						// do nothing else at the moment
-// 					}
-// 				}
-// 			}
-// 	}
-	
 	// Subtract 4 hours to make sure we get ephemeris, UTC, ionosphere ...
 	int sloppyStartTime = startTime - 4*3600;
 	if (sloppyStartTime < 0) sloppyStartTime = 0;
@@ -264,7 +248,7 @@ void Application::run()
 	if (sloppyStopTime > 86399) sloppyStopTime = 86399;
 			
 	bool recompress = decompress(receiverFile);
-	if (!receiver->readLog(receiverFile,MJD,sloppyStartTime,sloppyStopTime)){
+	if (!receiver->readLog(receiverFile,MJD,sloppyStartTime,sloppyStopTime,interval)){
 		cerr << "Exiting" << endl;
 		exit(EXIT_FAILURE);
 	}
