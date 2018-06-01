@@ -54,6 +54,8 @@ extern Application *app;
 
 #define SLOPPINESS 0.99
 #define CLOCKSTEP  0.001
+#define MAX_GAP    3   // maximum permissible gap in observation sequence before ambiguity resolution is triggered
+
 #define MAX_CHANNELS 12 // max channels per constellation
 
 
@@ -490,46 +492,75 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	// Fix 1 ms ambiguities/steps in the pseudo range
 	// Do this initially and then every time a step is detected
 	
-	DBGMSG(debugStream,1,"Fixing ms ambiguities");
-	for (int svn=1;svn<=gps.nsats();svn++){
-		unsigned int lasttow=99999999,currtow=99999999;
-		double lastmeas,currmeas;
-		double corr=0.0;
-		bool first=true;
-		bool ok=false;
-		for (unsigned int i=0;i<measurements.size();i++){
-			for (unsigned int m=0;m < measurements[i]->meas.size();m++){
-				if (svn==measurements[i]->meas[m]->svn){
-					lasttow=currtow;
-					lastmeas=currmeas;
-					currmeas=measurements[i]->meas[m]->meas;
-					currtow=measurements[i]->gpstow;
-					
-					DBGMSG(debugStream,4,svn << " " << currtow << " " << currmeas << " ");
-					if (first){
-						first=false;
-						ok = gps.resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-					}
-					else if (currtow > lasttow){ // FIXME better test of gaps
-						if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
-							DBGMSG(debugStream,3,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-							ok = gps.resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
+	int nDropped;
+	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
+		if (!(g & constellations)) continue;
+		GNSSSystem *gnss;
+		switch (g){
+			case GNSSSystem::BEIDOU:gnss=&beidou;break;
+			case GNSSSystem::GALILEO:gnss=&galileo;break;
+			case GNSSSystem::GLONASS:gnss=&glonass;break;
+			case GNSSSystem::GPS:gnss=&gps;break;
+			default:break;
+		}
+		for (int svn=1;svn<=gnss->nsats();svn++){
+			unsigned int lasttow=99999999,currtow=99999999;
+			double lastmeas=0,currmeas;
+			double corr=0.0;
+			bool first=true;
+			bool ok=false;
+			for (unsigned int i=0;i<measurements.size();i++){
+				unsigned int m=0;
+				while (m < measurements[i]->meas.size()){
+					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1)){
+						lasttow=currtow;
+						lastmeas=currmeas;
+						currmeas=measurements[i]->meas[m]->meas;
+						currtow=measurements[i]->gpstow;
+						
+						DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
+						if (first){
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							if (ok){
+								first=false;
+							}
 						}
+						else if (currtow - lasttow > MAX_GAP){
+							DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+						}
+						else if (currtow > lasttow){
+							if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
+								DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							}
+						}
+						if (ok){ 
+							measurements[i]->meas[m]->meas += corr;
+							m++;
+						}
+						else{ // ambiguity correction failed, so drop the measurement
+							nDropped++;
+							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
+						}
+						break;
 					}
-					if (ok) measurements[i]->meas[m]->meas += corr;
-					break;
-				}
-				
-			}
+					else
+						m++;
+					
+				} // 
+			} // for (unsigned int i=0;i<measurements.size();i++){
 		}
 	}
 
 	interpolateMeasurements();
 	
-	ostringstream ss;
-	ss << measurements.size() << " receiver measurements read";
-	app->logMessage(ss.str());
-	DBGMSG(debugStream,1,gps.ephemeris.size() << " GPS ephemeris entries read");
+	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
+	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
+	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
+	DBGMSG(debugStream,INFO,"dropped " << nDropped << " SV measurements (ms ambiguity failure)"); 
+	
 	
 	return true;
 }
