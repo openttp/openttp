@@ -37,6 +37,10 @@ class SVMeasurement;
 
 class GLONASS: public GNSSSystem
 {
+	private:
+		
+		static const int NSATS=32;
+		
 	public:
 	
 	class IonosphereData
@@ -69,9 +73,9 @@ class GLONASS: public GNSSSystem
 			
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
-	private:
-		
-		static const int NSATS=32;
+	time_t L1lastunlock[NSATS+1]; // used for tracking loss of carrier-phase lock
+	
+	
 };
 
 #endif

@@ -74,6 +74,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	}
 	
 	int useTIC = (TICenabled?1:0);
+	DBGMSG(debugStream,1,"Writing  " << fname);
 	DBGMSG(debugStream,1,"Using TIC = " << (TICenabled? "yes":"no"));
 	
 	char obs;

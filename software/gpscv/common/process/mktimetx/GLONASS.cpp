@@ -23,6 +23,8 @@
 // THE SOFTWARE.
 
 
+#include <cstring>
+
 #include "GLONASS.h"
 
 
@@ -30,6 +32,8 @@ GLONASS::GLONASS():GNSSSystem()
 {
 	n="GLONASS";
 	olc="R";
+	for (int i=0;i<=NSATS;i++)
+		memset((void *)(&L1lastunlock[i]),0,sizeof(time_t)); // all good
 }
 
 GLONASS::~GLONASS()
