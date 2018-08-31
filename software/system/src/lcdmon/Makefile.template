@@ -8,6 +8,10 @@ LIBS = -L/usr/local/lib -lconfigurator -lstdc++ -lboost_regex
 DEBUGFLAG = -g -DDEBUG
 CFLAGS = -Wall -Wno-unused $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
+# DEFINES can be:
+#     -DTTS     : Version 3 TTS system
+#     -DRHEL    : Red Hat Linux Enterprise  / CentOS
+#     -DSYSTEMD : SystemD - Linux systems manager
 DEFINES = 
 LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o NumberWidget.o \
 	 LCDMonitor.o Menu.o Main.o Widget.o SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o \
