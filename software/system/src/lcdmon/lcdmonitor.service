@@ -8,11 +8,10 @@ ConditionPathExists=/usr/local/etc/sysinfo.conf
 #             120                           5             20
 #
 
-StartLimitInterval=120
-StartLimitBurst=5
-
 [Service]
 Restart=always
+StartLimitInterval=120
+StartLimitBurst=5
 RestartSec=20
 ExecStart=/usr/local/bin/lcdmonitor
 
