@@ -23,7 +23,7 @@
 // THE SOFTWARE.
 //
 // Modification history
-//
+// 2018-09-03 ELM Conditional added for LCD "splash" message to distinguish TTS / OPENTTP
 
 
 #include "Debug.h"
@@ -133,9 +133,13 @@ void LCDConfigure::clearDisplay()
 void LCDConfigure::run()
 {
 	clearDisplay();
-	//updateLine(1,"   NMI Australia");
+	#ifdef TTS
+	updateLine(1,"   NMI Australia");
+	#endif
 	//            12345678901234567890
+	#ifdef OTTP
 	updateLine(1,"      OpenTTP");
+	#endif
 	updateLine(2,"Time Transfer System");
 	storeState();
 }

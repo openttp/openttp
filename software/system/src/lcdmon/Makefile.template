@@ -9,9 +9,12 @@ DEBUGFLAG = -g -DDEBUG
 CFLAGS = -Wall -Wno-unused $(DEBUGFLAG) -I/usr/local/include
 LDFLAGS = $(DEBUGFLAG)
 # DEFINES can be:
-#     -DTTS     : Version 3 TTS system
-#     -DRHEL    : Red Hat Linux Enterprise  / CentOS
+#     -DTTS     : Version 3 Time Transfer System
+#     -DOTTP    : Open Time Transfer Platform
+#     -DRHEL    : Red Hat Linux Enterprise  / CentOS (i.e. not Debian)
 #     -DSYSTEMD : SystemD - Linux systems manager
+#     -DUPSTART : Upstart - Linux systems manager
+# As a minimum one of -DTTS or -DOTTP MUST be defined
 DEFINES = 
 LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPWidget.o NumberWidget.o \
 	 LCDMonitor.o Menu.o Main.o Widget.o SliderWidget.o IntensityWidget.o ContrastWidget.o Wizard.o \

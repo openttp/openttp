@@ -25,6 +25,7 @@
 // Modification history
 //
 // 2018-04-05 MJW Many fixups for networking but still not working for OpenTTP
+// 2018-09-03 ELM More fixups for menu structure and reading GPSDO status
 
 #include "Debug.h"
 
@@ -93,6 +94,7 @@ using namespace::boost;
 bool LCDMonitor::timeout=false;
 extern LCDMonitor *app;
 bool showHealth = true;
+int statusline = 0;
 #ifdef TTS
 bool showGLOBD = true;
 #endif
@@ -230,7 +232,7 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::stri
 			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
 			char addressBuffer[INET_ADDRSTRLEN];
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-			if ((strcmp(ifa->ifa_name,"eth0") == 0) || (strcmp(ifa->ifa_name,"enp2s0") == 0)) eth0ip = addressBuffer;
+			if ((strcmp(ifa->ifa_name,"eth0") == 0) || (strcmp(ifa->ifa_name,"enp2s0") == 0) || (strcmp(ifa->ifa_name,"eno1") == 0)) eth0ip = addressBuffer;
 			if ((strcmp(ifa->ifa_name,"eth1") == 0) || (strcmp(ifa->ifa_name,"enp3s0") == 0)) eth1ip = addressBuffer;
 			if (strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
 		}
@@ -733,6 +735,10 @@ void LCDMonitor::setGPSDisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(false);
+	#ifdef TTS
+	mi = displayModeM->itemAt(midGLOBDDisplayMode);
+	mi->setChecked(false);
+	#endif
 
 	updateConfig("ui","display mode","GPS");
 
@@ -750,6 +756,10 @@ void LCDMonitor::setNTPDisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(false);
+	#ifdef TTS
+	mi = displayModeM->itemAt(midGLOBDDisplayMode);
+	mi->setChecked(false);
+	#endif
 	lastNTPtrafficPoll.tv_sec=0;
 
 	updateConfig("ui","display mode","NTP");
@@ -768,6 +778,10 @@ void LCDMonitor::setGPSDODisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midNTPDisplayMode);
 	mi->setChecked(false);
+	#ifdef TTS
+	mi = displayModeM->itemAt(midGLOBDDisplayMode);
+	mi->setChecked(false);
+	#endif
 
 	updateConfig("ui","display mode","GPSDO");
 
@@ -857,7 +871,6 @@ void LCDMonitor::restartGPS()
 		log("GPS rx restart failed");
 		sleep(2);
 		delete dlg;
-
 }
 
 void LCDMonitor::restartNtpd()
@@ -870,7 +883,6 @@ void LCDMonitor::restartNtpd()
 		runSystemCommand(ntpdRestartCommand,"ntpd restarted","ntpd restart failed");
 	}
 	delete dlg;
-
 }
 
 void LCDMonitor::reboot()
@@ -889,7 +901,6 @@ void LCDMonitor::reboot()
 
 void LCDMonitor::poweroff()
 {
-
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm poweroff");
 	bool ret = execDialog(dlg);
@@ -1099,7 +1110,8 @@ void LCDMonitor::showStatus()
 						DBGMSG(debugStream,TRACE, "Unexpected EOF from checkGPSDO");
 					}
 					else{
-						status = "GPSDO: " + status; //=+ did not work!
+						#ifdef OTTP
+						status = "GPSDO: " + status;
 						if (status.length() > 20) status.resize(20);
 						updateLine(1,status);
 						std::string buf;
@@ -1109,11 +1121,41 @@ void LCDMonitor::showStatus()
 						size_t pos = health.find("-");
 						health.resize(pos);
 						health = "Health: " + health;
+						if (health.length() > 20) health.resize(20);
 						if(showHealth)
 							updateLine(2,health);
 						else
 							updateLine(2,buf);
 						showHealth = !showHealth;
+						#endif
+						#ifdef TTS
+						updateLine(1,"GPSDO:");
+						// The status file structure is very different. A different approach
+						// is used to display GPSDO parameters
+						switch(statusline)
+						{
+							case(0):
+								if(status.length() > 20) status.resize(20);
+								updateLine(2,status);
+								break;
+							case(1):
+								ffe = "FFE: "+ffe;
+								if(ffe.length() > 20) ffe.resize(20);
+								updateLine(2,ffe);
+								break;
+							case(2):
+								EFC = "EFC: "+EFC;
+								if(EFC.length() > 20) EFC.resize(20);
+								updateLine(2,EFC);
+								break;
+							case(3):
+								if(health.length() > 20) health.resize(20);
+								updateLine(2,health);
+								break;
+						}
+						statusline++;						
+						if(statusline >= 4) statusline = 0;
+						#endif
 					}
 				}
 				else // most likely stale file...
@@ -1827,11 +1869,13 @@ void LCDMonitor::configure()
 
 #ifdef TTS
 	if (list_get_string_value(last,"GNSS","GLONASS status",&stmp))
+	//if (list_get_string_value(last,"gnss","glonass status",&stmp))
 		GLONASSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("GLONASS status not found in gpscv.conf");
 	
 	if (list_get_string_value(last,"GNSS","Beidou status",&stmp))
+	//if (list_get_string_value(last,"gnss","beidou status",&stmp))
 		BeidouStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("Beidou status not found in gpscv.conf");
@@ -2192,6 +2236,7 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 
 	// status file is current so extract useful stuff
 	std::ifstream fin(GPSDOStatusFile.c_str());
+	
 	if (!fin.good()) // not really going to happen
 	{
 		DBGMSG(debugStream,TRACE,"stream error");
@@ -2199,9 +2244,9 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	}
 
 	std::string tmp;
-
 	while (!fin.eof()){
 		getline(fin,tmp);
+		#ifdef OTTP
 		if (string::npos != tmp.find("Lock status                   : ")){
 			parseConfigEntry(tmp,status,'-');
 		}
@@ -2214,7 +2259,24 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 		else if (string::npos != tmp.find("GPSDO health                  : ")){
 			parseConfigEntry(tmp,health,':');
 		}
+		#endif
+	
+		#ifdef TTS
+		if (string::npos != tmp.find("Reported precision ")){
+			parseConfigEntry(tmp,status,'-');
+		}
+		else if (string::npos != tmp.find("EFC voltage: ")){
+			parseConfigEntry(tmp,EFC,':');
+		}
+		else if (string::npos != tmp.find("OCXO frequency error estimate: ")){
+			parseConfigEntry(tmp,ffe,':');
+		}
+		else if (string::npos != tmp.find("GPSDO health: ")){
+			parseConfigEntry(tmp,health,':');
+		}
+		#endif
 	}
+	
 	fin.close();
 	/*
 	if(status.empty())
