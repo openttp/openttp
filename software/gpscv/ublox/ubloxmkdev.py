@@ -4,7 +4,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2017 Michael J. Wouters
+# Copyright (c) 2018 Michael J. Wouters
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,9 +25,10 @@
 # THE SOFTWARE.
 #
 
-# To be used with udev to create uniques device names for each attached navspark device
+# To be used with udev to create uniques device names for each attached ublox device
 # Sample rule
-# KERNEL=="ttyUSB*", ATTRS{idVendor}=="067b", ATTRS{idProduct}=="2303", RUN+="/usr/local/sbin/navsparkmkdev.py '%E{DEVNAME}'"
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="1546", ATTRS{idProduct}=="01a8",  RUN+="/usr/local/sbin/ubloxmkdev.py '%E{DEVNAME}'"
+#
 
 import argparse
 import binascii
@@ -46,6 +47,9 @@ import threading
 debug = False
 killed = False
 
+VERSION = '0.1'
+AUTHORS = "Michael Wouters"
+
 NO_MSG=0
 BIN_MSG=1
 NMEA_MSG=2
@@ -54,6 +58,12 @@ NMEA_MSG=2
 def SignalHandler(signal,frame):
 	global killed
 	killed=True
+	return
+
+# ------------------------------------------
+def ShowVersion():
+	print  os.path.basename(sys.argv[0])," ",VERSION
+	print "Written by",AUTHORS
 	return
 
 # ------------------------------------------
@@ -153,14 +163,24 @@ def ParseInput(inp):
 	
 # ------------------------------------------
 
-parser = argparse.ArgumentParser(description='Detects a ublox NEO8 device and makes a device node (optionally) based on the serial number')
-parser.add_argument('devname',help='devicename',type=str)
+parser = argparse.ArgumentParser(description='Detects a ublox NEO8 device and makes a device node based on the serial number')
+parser.add_argument('devname',nargs='?',help='device name',type=str,default='')
 parser.add_argument('--debug','-d',help='debug',action='store_true')
+parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+
 args = parser.parse_args()
 
 debug = args.debug
 port  = args.devname
 
+if (args.version):
+	ShowVersion()
+	sys.exit(0)
+
+if port == '':
+	parser.print_help()
+	sys.exit(1)
+	
 signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
 
@@ -170,7 +190,7 @@ try:
 	ser = serial.Serial(port,115200,timeout=2)
 except:
 	print 'Error on device ' + port
-	syd.exit(1)
+	sys.exit(1)
 
 try:
 	portfile = open('/usr/local/etc/ublox.conf','r')
