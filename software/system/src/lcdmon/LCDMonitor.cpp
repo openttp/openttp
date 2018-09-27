@@ -249,11 +249,11 @@ void LCDMonitor::showIP()
 
 	MessageBox *mb = new MessageBox(" "," "," "," ");
 
-	if(eth0ip != "") mb->setLine(0,"eth0: " + eth0ip);	
+	if(eth0ip != "") mb->setLine(0,"LAN1: " + eth0ip);	
 #ifdef OTTP
 	if(usb0ip != "") mb->setLine(1,"usb0: " + usb0ip);
 #else
-	if(eth1ip != "") mb->setLine(1,"eth1: " + eth1ip);
+	if(eth1ip != "") mb->setLine(1,"LAN2: " + eth1ip);
 #endif
 	execDialog(mb);
 	delete mb;
@@ -262,6 +262,8 @@ void LCDMonitor::showIP()
 void LCDMonitor::networkConfigDHCP()
 {
 
+	int oldNetworkProtocol = networkProtocol;
+	
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
 	bool ret = execDialog(dlg);
@@ -319,10 +321,14 @@ void LCDMonitor::networkConfigDHCP()
 	{
 	delete dlg;
 
+	int newNetworkProtocol=DHCP;
+	if (!ret && oldNetworkProtocol != DHCP)
+		newNetworkProtocol = StaticIPV4;
+	
 	MenuItem *mi = protocolM->itemAt(midDHCP);
-	mi->setChecked(ret);
+	mi->setChecked(newNetworkProtocol==DHCP);
 	mi = protocolM->itemAt(midStaticIP4);
-	mi->setChecked(!ret);
+	mi->setChecked(newNetworkProtocol==StaticIPV4);
 
 	return;
 	}
@@ -338,6 +344,8 @@ void LCDMonitor::networkConfigDHCP()
 
 void LCDMonitor::networkConfigStaticIP4()
 {
+	int oldNetworkProtocol = networkProtocol;
+	
 	clearDisplay();
 	Wizard *dlg = new Wizard();
 
@@ -538,10 +546,20 @@ void LCDMonitor::networkConfigStaticIP4()
 			networkProtocol = StaticIPV4;
 		
 	} // if dialog accepted
-
+  {
 	delete dlg;
+	
+	int newNetworkProtocol=StaticIPV4;
+	if (!ret && oldNetworkProtocol != StaticIPV4)
+		newNetworkProtocol = DHCP;
+	
+	MenuItem *mi = protocolM->itemAt(midDHCP);
+	mi->setChecked(newNetworkProtocol==DHCP);
+	mi = protocolM->itemAt(midStaticIP4);
+	mi->setChecked(newNetworkProtocol==StaticIPV4);
+	
 	return;
-
+	}
 	DIE:
 		delete dlg;
 		DBGMSG(debugStream,TRACE, "last error: "<< lastError);
