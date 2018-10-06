@@ -58,7 +58,10 @@ $SYSTEMD="systemd";
         ["Ubuntu 16.04","ubuntu16",$UPSTART,
 		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
 	["BeagleBoard.org Debian","bbdebian8",$SYSTEMD,"/usr/local/lib/site_perl",
-		"/usr/local/lib/python2.7/site-packages",]
+		"/usr/local/lib/python2.7/site-packages"],
+	['Debian GNU/Linux 9 (stretch)',"bbdebian9",$SYSTEMD,"/usr/local/lib/site_perl",
+		"/usr/local/lib/python2.7/site-packages"],
+
 	);
 
 @defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
@@ -74,7 +77,7 @@ if (!getopts('hi:lmtv') || $opt_h){
 if ($opt_l){
 	print "Available targets:\n";
 	foreach $target (@targets){
-		print "$target\n";
+		print "\t$target\n";
 	}
 	exit;
 }
@@ -85,11 +88,26 @@ if ($opt_v){
 }
 
 if ($opt_i){
-	@targets = ($opt_i);
+	@targets = ();
+	foreach $target (@defaulttargets){
+		if ($target eq $opt_i){
+			@targets=($opt_i);
+			last;
+		}
+	}
+}
+
+if ($#targets==-1){
+	print "No valid installation targets!\n";
+	print "Available targets:\n";
+	foreach $target (@defaulttargets){
+		print "\t$target\n";
+	}
+	exit;
 }
 	
 if ($EFFECTIVE_USER_ID >0){
-	print "$0 must be run as superuser!\n";
+	print "$0 must be run as superuser! (EUID =$EFFECTIVE_USER_ID) \n";
 	exit;
 }
 
@@ -98,6 +116,7 @@ open (LOG,">./installsys.log");
 # Try for /etc/os-release first (systemd systems only)
 if ((-e "/etc/os-release")){
 	$thisos = `grep '^PRETTY_NAME' /etc/os-release | cut -f 2 -d "="`;
+	chomp $thisos;
 	$thisos =~ s/\"//g;
 }
 else{
@@ -108,15 +127,17 @@ else{
 Log("\n/etc/issue: $thisos\n");
 
 for ($i=0;$i<=$#os;$i++){
-	last if ($thisos =~/$os[$i][0]/);
+	last if ($thisos =~ /\Q$os[$i][0]\E/);
 }
 
-if ($i <= $#os){
+$osindex = $i;
+
+if ($osindex <= $#os){
 	Log("Detected $os[$i][0]\n",$ECHO);
 }
 
 $osid="linux";
-if ($i > $#os){
+if ($osindex > $#os){
 	Log("This does not appear to be a supported operating system\n",$ECHO);
 	print "\nThe supported operating systems are:\n";
 	for ($i=0;$i<=$#os;$i++){
@@ -127,15 +148,19 @@ if ($i > $#os){
 	}
 }
 else{
-	$osid = $os[$i][1];
+	$osid = $os[$osindex][1];
 }
 
-$initsys = $os[$i][2];
+$initsys = $os[$osindex][2];
 
 # Low-level stuff first
 
 if (!(-e '/usr/local/lib/bitfiles')){
 	`mkdir /usr/local/lib/bitfiles`;
+}
+
+if (!(-e $os[$osindex][3])){ # Perl libraries
+	`mkdir $os[$osindex][3]`;
 }
 
 if (grep (/^udevrules/,@targets)){
