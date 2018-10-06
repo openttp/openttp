@@ -173,7 +173,11 @@ int main(
 	}
 #endif
 
-	app->initializeFPGA(bitfile);	
+	
+	if (!app->initializeFPGA(bitfile)){
+		syslog(LOG_ERR,"Cannot initialize the FPGA");
+		return(EXIT_FAILURE);
+	}
 	app->run();
 
 	unlink(PID_FILE);
