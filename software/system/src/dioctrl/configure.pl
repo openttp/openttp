@@ -27,4 +27,14 @@
 
 $Makefile='Makefile.parport';
 
+$arch = `uname -m`;
+chomp $arch;
+
+if ($arch =~ /arm/){
+	$Makefile = 'Makefile.arm';
+}
+else{
+  # parport or SIO8186x	
+}
+
 `cp $Makefile Makefile`;

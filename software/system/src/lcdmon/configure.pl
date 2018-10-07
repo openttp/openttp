@@ -34,7 +34,8 @@ $SYSTEMD="systemd";
 	["CentOS Linux 7","rhel",$SYSTEMD],
 	["Ubuntu 14.04","debian",$UPSTART],
 	["Ubuntu 16.04","debian",$UPSTART],
-	["BeagleBoard.org Debian","debian",$SYSTEMD]
+	["BeagleBoard.org Debian","debian",$SYSTEMD],
+	["Debian GNU/Linux 9 (stretch)","debian",$SYSTEMD]
 	);
 
 # Try for /etc/os-release first (systemd systems only)
@@ -48,7 +49,7 @@ else{
 }
 
 for ($i=0;$i<=$#os;$i++){
-	last if ($thisos =~/$os[$i][0]/);
+	last if ($thisos =~/\Q$os[$i][0]\E/);
 }
 $osid = $i;
 if ($osid> $#os){
@@ -56,12 +57,15 @@ if ($osid> $#os){
 	exit;
 }
 
+$arch = `uname -m`;
+chomp $arch;
+
 open(OUT,">Makefile");
 open(IN, "<Makefile.template");
 while ($l=<IN>){
 	if ($l=~/^DEFINES/){
 		print OUT "DEFINES = ";
-		if ($thisos =~ /Beagleboard/){
+		if ($arch  =~ /armv7/){
 			print OUT " -DOTTP -DDEBIAN -DSYSTEMD";
 		}
 		else{

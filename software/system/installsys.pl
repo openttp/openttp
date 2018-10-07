@@ -41,7 +41,7 @@ use vars qw($opt_h $opt_i $opt_l $opt_m $opt_t $opt_v);
 
 $0=~s#.*/##;	# strip path
 
-$VERSION = "version 0.1";
+$VERSION = "version 0.1.1";
 $ECHO=1;
 
 $UPSTART="upstart";
@@ -67,6 +67,8 @@ $SYSTEMD="systemd";
 @defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
 	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib",
 	"okcounterd","okbitloader","udevrules","gpscvperllibs");
+
+$hints="";
 
 if (!getopts('hi:lmtv') || $opt_h){
 	ShowHelp();	
@@ -153,6 +155,9 @@ else{
 
 $initsys = $os[$osindex][2];
 
+$arch = `uname -m`;
+chomp $arch;
+
 # Low-level stuff first
 
 if (!(-e '/usr/local/lib/bitfiles')){
@@ -226,16 +231,50 @@ if (grep (/^ottplib/,@targets)){
 }
 
 if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
-if (grep (/^dioctrl/,@targets)) {CompileTarget('dioctrl','src/dioctrl','install');}
-if (grep (/^lcdmon/,@targets)) {CompileTarget('lcdmon','src/lcdmon','install');}
+
+if (grep (/^dioctrl/,@targets) ) {
+	if ($arch =~ /arm/){
+		Log("dioctrl is not supported on ARM\n",$ECHO);
+	}
+	else{
+		CompileTarget('dioctrl','src/dioctrl','install');
+	}
+}
+if (grep (/^lcdmon/,@targets)) {
+	CompileTarget('lcdmon','src/lcdmon','install');
+	if ($initsys eq $SYSTEMD){
+		$hints .= "To start lcdmon, run: systemctl start lcdmonitor.service\n";
+	}
+	elsif ($initsys eq $UPSTART){
+		$hints .= "To start lcdmon, run: start lcdmonitor\n";
+	}
+	
+}
 if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
 
 if (grep (/^okcounterd/,@targets)) {
 	CompileTarget('okcounterd','src/okcounterd','install'); 
+	if ($initsys eq $SYSTEMD){
+		$hints .= "To start okcounterd, run: systemctl start okcounterd.service\n";
+	}
+	elsif ($initsys eq $UPSTART){
+		$hints .= "To start okcounterd, run: start okcounterd\n";
+	}
 }
 
-if (grep (/^ppsd/,@targets) && !($os[$i][1] eq 'bbdebian8')){ #FIXME disabled temporrarily for ARM
-	CompileTarget('ppsd','src/ppsd','install');
+if (grep (/^ppsd/,@targets) ){ #FIXME disabled temporarily for ARM
+	if ($arch =~ /arm/){
+		Log("ppsd is not supported on ARM\n",$ECHO);
+	}
+	else{
+		CompileTarget('ppsd','src/ppsd','install');
+		if ($initsys eq $SYSTEMD){
+			$hints .= "To start ppsd, run: systemctl start ppsd.service\n";
+		}
+		elsif ($initsys eq $UPSTART){
+			$hints .= "To start ppsd, run: start ppsd\n";
+		}
+	}
 }
 
 if (grep (/^misc/,@targets)) {CompileTarget('misc','src','install');}
@@ -260,26 +299,16 @@ if (grep (/^sysmonitor/,@targets)){
 			InstallScript('src/sysmonitor/sysmonitor.service','/lib/systemd/system');
 			`systemctl enable sysmonitor.service`;
 			#`systemctl start sysmonitor.service`; # seem to need the full name
+			$hints .= "To start sysmonitor, run: systemctl start sysmonitor.service\n";
 		}
 		elsif ($initsys eq $UPSTART){
 			InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf');
+			$hints .= "To start sysmonitor, run: start sysmonitor\n";
 		}
 }
 
-print "\n\nTo start system services, run :\n";
-if ($initsys eq $SYSTEMD){
-	print "systemctl start lcdmonitor.service\n";
-	print "systemctl start okcounterd.service\n";
-	print "systemctl start sysmonitor.service\n";
-}
-elsif ($initsys eq $UPSTART){
-	print "start lcdmonitor\n";
-	print "start okcounterd\n";
-	print "start sysmonitor\n";
-}
-else{
-	print "whatever\n";
-}
+
+print $hints;
 
 close LOG;
 
