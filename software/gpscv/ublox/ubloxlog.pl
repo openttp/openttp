@@ -3,7 +3,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2016 Michael J. Wouters
+# Copyright (c) 2016-2018 Michael J. Wouters
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 # 01-05-2018 MJW Native output
 # 08-05-2018 MJW Stupid bug in native output
 # 16-05-2018 MJW Path fixups for consistency with other scripts
+# 02-11-2018 ELM Fix issues with uBlox constellation configuration
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
@@ -40,10 +41,10 @@ use POSIX;
 use Getopt::Std;
 use POSIX qw(strftime);
 use vars  qw($tmask $opt_c $opt_r $opt_d $opt_h $opt_v);
+use Switch;
 
-
-$VERSION="0.1.2";
-$AUTHORS="Michael Wouters";
+$VERSION="0.1.3";
+$AUTHORS="Michael Wouters, Louis Marais";
 
 $OPENTTP=0;
 $NATIVE=1;
@@ -140,11 +141,11 @@ $port=$Init{"receiver:port"};
 $port="/dev/$port" unless $port=~m#/#;
 
 $uucpLockPath="/var/lock";
-	if (defined $Init{"paths:uucp lock"}){
+if (defined $Init{"paths:uucp lock"}){
 		$uucpLockPath = $Init{"paths:uucp lock"};
 	}
 
-  unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
+unless (`/usr/local/bin/lockport -d $uucpLockPath $port $0`==1) {
 	printf "! Could not obtain lock on $port. Exiting.\n";
 	exit;
 }
@@ -156,7 +157,6 @@ $rx=&TFConnectSerial($port,
 # Set up a mask which specifies this port for select polling later on
 vec($rxmask,fileno $rx,1)=1;
 Debug("Port $port to Rx is open");
-
 
 $rxStatus=$Init{"receiver:status file"};
 $rxStatus=&TFMakeAbsoluteFilePath($rxStatus,$home,$logPath);
@@ -251,7 +251,8 @@ LOOP: while (!$killed)
 				$mjd=int($now/86400) + 40587;	
 				&OpenDataFile($mjd,0);
 				# Request receiver and software versions
-				# TODO
+				# TODO ELM Does PollVersionInfo do this? It looks like it does.
+				PollVersionInfo();
 				PollChipID();
 				$next=($mjd-40587+1)*86400;	# seconds at next MJD
 			}
@@ -467,7 +468,7 @@ sub ConfigureReceiver
 	
 	my $observations = 'gps'; # default is GPS
 	# Valid combinations for the ublox 8 LEA 8MT are
-	# GPS, Galileo,
+	# GPS, Galileo
 	# GPS, Galileo, GLONASS
 	# GPS, Galileo, Beidou
 	# GPS, GLONASS
@@ -478,57 +479,87 @@ sub ConfigureReceiver
 	# GLONASS, BeiDou
 	# SBAS, QZSS can only be enabled with GPS enabled 
 	
-  if (defined($Init{"receiver:observations"})){
+	# Only the following are supported at present (not all tested):
+	# GPS
+	# GPS, GLONASS
+	# GPS, Beidou
+	# GLONASS
+	# GLONASS, Beidou
+	# Beidou
+	
+	# 2018-11-02 Notes: (ELM, after much testing and fixing some bugs)
+	# 1. If invalid config is sent, the default config is loaded, that is 
+	#    GPS (8 - 16 channels), QZSS (0 - 3 channels), GLONASS (8 - 14 channels)
+	# 2. Even if a valid config is sent, there has to be enough channels available
+	#    for it to execute. With the default config there is only 16 channels 
+	#    available, so trying to enable GPS and Beidou with min = 16 channels each
+	#    does not work. I changed the min to 8 below. Remember there are only 32 
+	#    tracks available.
+	# 3. A valid config message will not be accepted if there are not enough 
+	#    channels available. It's best to send a complete config message, i.e.
+	#    include ALL constellations, disabling the ones you do not want/need.
+	# 4. This has now been tested with all valid combinations currently supported.
+	#    It should be easy to update the code below to enable other constellations,
+	#    just keep in mind that some combinations are not valid. Refer to the table
+	#    under the default for observations above.
+	
+	if (defined($Init{"receiver:observations"})){
 		$observations=lc $Init{"receiver:observations"};
-
+		
 		# WARNING! Only a few (useful) combinations are supported here
-		my $ngnss = 0;
-		my $cfg = '';
-		# Calculate the number of GNSS systems
+		my $ngnss = 0; # number of GNSS systems enabled
+		my $enabled = ""; # string to hold gnss systems to enable. This prevents invalid combinations.
+		# Calculate the number of GNSS systems to enable
 		if ($observations =~ /gps/){ # GPS combos
 			$ngnss=1;
+			$enabled .= "gps ";
 			if ($observations =~ /glonass/){
 				$ngnss++;
+				$enabled .= "glonass ";
 			}
 			elsif ($observations =~ /beidou/){
 				$ngnss++;
+				$enabled .= "beidou ";
 			}
 		}
 		elsif ($observations =~ /glonass/){ # GLONASS combos 
 			$ngnss=1;
+			$enabled .= "glonass ";
 			if ($observations =~ /beidou/){
 				$ngnss++;
+				$enabled .= "beidou ";
 			}
 		}
 		elsif ($observations =~ /beidou/){
 			$ngnss=1;
+			$enabled .= "beidou ";
 		}
-		
 		if ($ngnss == 0){
 			ErrorExit("Problem with receiver:observations: no valid GNSS systems were found");
 		}
 		
-		$msgSize=pack('v',4+8*$ngnss); # little-endian, 16 bits unsigned
-		$numConfigBlocks=pack('C',$ngnss);
-		$cfg = "\x06\x3e$msgSize\xff\xff$numConfigBlocks";
-		if ($observations =~ /gps/){ # GPS combos
-			$cfg .= EnableGNSS('gps',16,16);
-			if ($observations =~ /glonass/){
-				$cfg .= EnableGNSS('glonass',16,16);
-			}
-			elsif ($observations =~ /beidou/){
-				$cfg .= EnableGNSS('beidou',16,16);	
-			}
-		}
-		elsif ($observations =~ /glonass/){ # GLONASS combos 
-			$cfg .= EnableGNSS('glonass',16,16);	
-			if ($observations =~ /beidou/){
-				$cfg .= EnableGNSS('beidou',16,16);	
-			}
-		}
-		elsif ($observations =~ /beidou/){
-			$cfg .= EnableGNSS('beidou',16,16);	
-		}
+		$msgSize=pack('v',4+8*7); # little-endian, 16 bits unsigned
+		$numConfigBlocks=pack('C',7);
+		
+		my $cfg = "\x06\x3e$msgSize\x00\xff\xff$numConfigBlocks";
+		my $en = 0;
+		# GPS
+		if($enabled =~ /gps/) { $en = 1; } else { $en = 0; }
+		$cfg .= ConfigGNSS('gps',8,16,$en);
+		# SBAS
+		$cfg .= ConfigGNSS('sbas',1,3,0);
+		# Galileo
+		$cfg .= ConfigGNSS('galileo',8,16,0); # ...,4,8,0); # default in u-center
+		# Beidou
+		if($enabled =~ /beidou/) { $en = 1; } else { $en = 0; }
+		$cfg .= ConfigGNSS('beidou',8,16,$en);	
+		# IMES
+		$cfg .= ConfigGNSS('imes',0,8,0);
+		# QZSS
+		$cfg .= ConfigGNSS('qzss',0,3,0);
+		# GLONASS
+		if ($enabled =~ /glonass/) { $en = 1 } else { $en = 0; }
+		$cfg .= ConfigGNSS('glonass',8,16,$en);
 		
 		SendCommand($cfg);
 	
@@ -818,7 +849,33 @@ sub EnableGNSS
 		$gnssID = pack('C',6);
 		$flags = pack('V',0x01 | 0x010000);
 	}
-	return "$gnssID$resTrkCh$maxTrkCh$flags";
+	return "$gnssID$resTrkCh$maxTrkCh\x00$flags";
+}
+
+# ------------------------------------------------------------------------------
+sub ConfigGNSS
+{
+	my ($gnss,$resTrkCh,$maxTrkCh,$en) = @_;
+	$resTrkCh = pack('C',$resTrkCh);
+	$maxTrkCh = pack('C',$maxTrkCh);
+	my ($gnssID,$flags);
+	switch($gnss){
+		case 'gps'     { $gnssID = 0; }
+		case 'sbas'    { $gnssID = 1; }
+		case 'galileo' { $gnssID = 2; }
+		case 'beidou'  { $gnssID = 3; }
+		case 'imes'    { $gnssID = 4; }
+		case 'qzss'    { $gnssID = 5; }
+		case 'glonass' { $gnssID = 6; }
+		else { ErrorExit("Invalid gnss system ($gnss) sent to ConfigGNSS routine."); }
+	}
+	$gnssID = pack('C',$gnssID);
+	if($en == 1){
+		$flags = pack('V',0x01 | 0x010000); # little endian, unsigned 32 bits
+	} else {
+		$flags = pack('V',0x00 | 0x010000); # little endian, unsigned 32 bits
+	}
+	return "$gnssID$resTrkCh$maxTrkCh\x00$flags";
 }
 
 # ------------------------------------------------------------------------------
