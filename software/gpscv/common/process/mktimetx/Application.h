@@ -112,6 +112,7 @@ class Application
 		bool writeRIN2CGGTTSParamFile(Receiver *,Antenna *,string);
 		
 		void matchMeasurements(Receiver *,Counter *);
+		void fixBadSawtoothCorrection(Receiver *,Counter *);
 		void writeReceiverTimingDiagnostics(Receiver *,Counter *,string);
 		void writeSVDiagnostics(Receiver *,string);
 		
@@ -168,7 +169,8 @@ class Application
 		bool SVDiagnosticsOn;
 		bool generateNavigationFile;
 		bool TICenabled;
-		
+		bool fixBadSawtooth;
+		double sawtoothStepThreshold;
 };
 #endif
 

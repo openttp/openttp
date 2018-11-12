@@ -60,6 +60,7 @@ Receiver::Receiver(Antenna *ant)
 	dualFrequency=false;
 	codes=GNSSSystem::C1;
 	sawtoothPhase=CurrentSecond;
+	sawtooth=0.0;
 }
 
 Receiver::~Receiver()

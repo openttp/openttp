@@ -263,6 +263,9 @@ void Application::run()
 	
 	matchMeasurements(receiver,counter); // only do this once
 	
+	if (fixBadSawtooth) // this attempts to fix TIC measurements made wrt to GPSDO
+		fixBadSawtoothCorrection(receiver,counter);
+	
 	// Each system+code generates a CGGTTS file
 	if (createCGGTTS){
 		
@@ -437,6 +440,8 @@ void Application::init()
 	SVDiagnosticsOn=false;
 	generateNavigationFile=true;
 	TICenabled=true;
+	fixBadSawtooth=false;
+	sawtoothStepThreshold= -1000000000.0; // ie 1 s so it does nothing by default
 	
 	char *penv;
 	homeDir="";
@@ -888,6 +893,7 @@ bool Application::loadConfig()
 	setConfig(last,"receiver","version",receiver->version,&configOK,false); 
 	setConfig(last,"receiver","pps offset",&receiver->ppsOffset,&configOK);
 	setConfig(last,"receiver","file extension",receiverExtension,&configOK,false);
+	setConfig(last,"receiver","sawtooth size",&receiver->sawtooth,&configOK,false);
 	
 	if (setConfig(last,"receiver","sawtooth phase",stmp,&configOK,false)){
 		boost::to_lower(stmp);
@@ -923,10 +929,18 @@ bool Application::loadConfig()
 	
 	DBGMSG(debugStream,TRACE,"parsed Delays config");
 	
-	
-	
 	setConfig(last,"misc","gzip",gzip,&configOK,false);
-	
+	if (setConfig(last,"misc","fix bad sawtooth correction",stmp,&configOK,false)){
+		boost::to_upper(stmp);
+		if (stmp=="YES"){
+			fixBadSawtooth=true;
+			DBGMSG(debugStream,INFO,"Fixing bad sawtooth");
+		}
+	}
+	if (setConfig(last,"misc","sawtooth step threshold",&sawtoothStepThreshold,&configOK,false)){
+		DBGMSG(debugStream,INFO,"Sawtooth step threshhold " << sawtoothStepThreshold);
+	}
+		
 	DBGMSG(debugStream,TRACE,"parsed Misc config");
 	
 	return configOK;
@@ -1138,6 +1152,24 @@ void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 		}
 	}
 
+}
+
+void Application::fixBadSawtoothCorrection(Receiver *rx,Counter *)
+{
+	
+	// will miss initial (possibly) and last points but who cares 
+	for (unsigned int i=0;i<MPAIRS_SIZE-1;i++){
+		if (mpairs[i]->flags == 0x03 && mpairs[i+1]->flags == 0x03){
+			CounterMeasurement   *cm= mpairs[i]->cm;
+			ReceiverMeasurement  *rxm = mpairs[i]->rm;
+			CounterMeasurement   *cmnext= mpairs[i+1]->cm;
+			ReceiverMeasurement  *rxmnext = mpairs[i+1]->rm;
+			double corr = (cm->rdg+rxm->sawtooth)*1.0E9;
+			double corrnext = (cmnext->rdg+rxmnext->sawtooth)*1.0E9;
+			if (corrnext-corr < sawtoothStepThreshold)
+				cmnext->rdg += rx->sawtooth*1.0E-9; // correct reading towards +ve
+		}
+	}
 }
 
 void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string fname)

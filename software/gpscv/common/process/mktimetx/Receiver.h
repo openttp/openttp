@@ -75,6 +75,8 @@ class Receiver
 		
 		int ppsOffset; // 1 pps offset, in nanoseconds
 		
+		double sawtooth; // sawtooth, peak to peak, in ns;
+		
 		virtual bool readLog(string,int,int startTime=0,int stopTime=86399,int rinexObsInterval=30){return true;} // must be reimplemented
 		
 		vector<ReceiverMeasurement *> measurements;

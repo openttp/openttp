@@ -111,6 +111,7 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 		app->logMessage("Unknown receiver model: " + modelName);
 		app->logMessage("Assuming NV08C-CSM");
 	}
+	sawtooth=38.0;
 }
 
 NVS::~NVS()
