@@ -65,6 +65,8 @@ class Galileo: public GNSSSystem
 	virtual int nsats(){return NSATS;}
 	virtual void deleteEphemeris();
 	
+	virtual bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
+	
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	std::vector<EphemerisData *> ephemeris;

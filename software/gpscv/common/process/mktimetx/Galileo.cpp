@@ -40,4 +40,8 @@ Galileo::~Galileo()
 void Galileo::deleteEphemeris()
 {
 }
-	
+
+bool Galileo::resolveMsAmbiguity(Antenna*,ReceiverMeasurement *,SVMeasurement *,double *)
+{
+	return true;
+}
