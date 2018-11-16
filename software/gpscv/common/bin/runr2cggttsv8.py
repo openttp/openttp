@@ -205,8 +205,15 @@ for f in files:
 	if (os.path.getsize(f) < 1024): # seems to be a reasonable threshold
 		os.unlink(f)
 
+files = glob.glob('CTTS_*')
+for f in files:
+	if (os.path.getsize(f) < 1024): # seems to be a reasonable threshold
+		os.unlink(f)
+		
 # Kludge for the moment
 if (args.rename):
 	if (os.path.exists('CGGTTS_GPS_C1')):
 		os.rename('CGGTTS_GPS_C1',args.cggttsout+'/'+str(mjd)+'.cctf')
 
+if (os.path.exists('CTTS_GPS_30s_C1')):
+	os.rename('CTTS_GPS_30s_C1',str(mjd)+'.gps.C1.30s.dat')
