@@ -195,7 +195,7 @@ shutil.copy(nav1,'rinex_nav_gps')
 if (rnx2 != ''):
 	shutil.copy(rnx2,'rinex_obs_p')
 if (nav2 != ''):
-	shutil.copy(nav2,'rinex_nav_gps_p')
+	shutil.copy(nav2,'rinex_nav_p_gps')
 
 subprocess.call(['r2cggttsv8'])
 
