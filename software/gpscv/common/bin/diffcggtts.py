@@ -189,21 +189,22 @@ while iref < reflen:
 		elif (mjd2 < mjd1):
 			jcal += 1 # need to move pointer 2 forward
 		elif (st2 > st1):
-			break # stop searching - need to move pointer2
+			break # stop searching - need to move pointer 1
 		elif ((mjd1==mjd2)and (st1 == st2)):
 			# times are matched so search for SV
-			while ((mjd1 == mjd2) and (st1 == st2) and (jcal<callen)):
+			jtmp = jcal
+			while ((mjd1 == mjd2) and (st1 == st2) and (jtmp<callen)):
 	
-				mjd2=allcal[jcal][MJD]
-				st2 =allcal[jcal][STTIME]
-				prn2=allcal[jcal][PRN]
+				mjd2=allcal[jtmp][MJD]
+				st2 =allcal[jtmp][STTIME]
+				prn2=allcal[jtmp][PRN]
 				if (prn1 == prn2):
 					break
-				jcal += 1
+				jtmp += 1
 			if ((mjd1 == mjd2) and (st1 == st2) and (prn1 == prn2)):
 				# match!
-				print mjd1,st1,prn1,allref[iref][REFSYS],allcal[jcal][REFSYS]
-				matches.append(allref[iref]+allcal[jcal])
+				# print mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]
+				matches.append(allref[iref]+allcal[jtmp])
 				jcal += 1
 				break
 			else:
@@ -217,22 +218,30 @@ while iref < reflen:
 #print matches
 avmatches=[]
 
+ncols = 12
 lenmatch=len(matches)
-mjd1=matches[1][MJD]
-st1=matches[1][STTIME]
-av = 0
+mjd1=matches[0][MJD]
+st1=matches[0][STTIME]
+avref = matches[0][REFSYS]
+avcal = matches[0][ncols + REFSYS]
 nsv = 1
-imatch=2
+imatch=1
 while imatch < lenmatch:
 	mjd2 = matches[imatch][MJD]
-	st2 = matches[imatch][STTIME]
+	st2  = matches[imatch][STTIME]
 	if (mjd1==mjd2 and st1==st2):
-		nsv +=1
+		nsv += 1
+		avref  += matches[imatch][REFSYS] 
+		avcal  += matches[imatch][ncols + REFSYS] 
 	else:
-		print nsv
+		print mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv
 		mjd1 = mjd2
 		st1  = st2
 		nsv=1
+		avref = matches[imatch][REFSYS]
+		avcal = matches[imatch][ncols + REFSYS]
 	imatch += 1
+# last one
+print mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv
 	
 	
