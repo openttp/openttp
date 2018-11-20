@@ -493,8 +493,8 @@ sub ConfigureReceiver
 	# 2. Even if a valid config is sent, there has to be enough channels available
 	#    for it to execute. With the default config there is only 16 channels 
 	#    available, so trying to enable GPS and Beidou with min = 16 channels each
-	#    does not work. I changed the min to 8 below. Remember there are only 32 
-	#    tracks available.
+	#    does not work. I changed the min to 8 below. Remember there are 72 
+	#    channels available.
 	# 3. A valid config message will not be accepted if there are not enough 
 	#    channels available. It's best to send a complete config message, i.e.
 	#    include ALL constellations, disabling the ones you do not want/need.
@@ -552,14 +552,14 @@ sub ConfigureReceiver
 		$cfg .= ConfigGNSS('galileo',8,16,0); # ...,4,8,0); # default in u-center
 		# Beidou
 		if($enabled =~ /beidou/) { $en = 1; } else { $en = 0; }
-		$cfg .= ConfigGNSS('beidou',8,16,$en);	
+		$cfg .= ConfigGNSS('beidou',8,24,$en);	
 		# IMES
 		$cfg .= ConfigGNSS('imes',0,8,0);
 		# QZSS
 		$cfg .= ConfigGNSS('qzss',0,3,0);
 		# GLONASS
 		if ($enabled =~ /glonass/) { $en = 1 } else { $en = 0; }
-		$cfg .= ConfigGNSS('glonass',8,16,$en);
+		$cfg .= ConfigGNSS('glonass',12,16,$en);
 		
 		SendCommand($cfg);
 	
