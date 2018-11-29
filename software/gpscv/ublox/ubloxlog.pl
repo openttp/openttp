@@ -34,6 +34,7 @@
 # 08-05-2018 MJW Stupid bug in native output
 # 16-05-2018 MJW Path fixups for consistency with other scripts
 # 02-11-2018 ELM Fix issues with uBlox constellation configuration
+# 30-11-2018 ELM Add options for tracking Galileo
 
 use Time::HiRes qw( gettimeofday);
 use TFLibrary;
@@ -474,18 +475,23 @@ sub ConfigureReceiver
 	# GPS, GLONASS
 	# GPS, Beidou
 	# Galileo, GLONASS
-	# Galileo, GLONASS
 	# Galileo, BeiDou
 	# GLONASS, BeiDou
 	# SBAS, QZSS can only be enabled with GPS enabled 
 	
-	# Only the following are supported at present (not all tested):
+	# The following are supported (all tested, support for Galileo added 2018-11-30):
 	# GPS
 	# GPS, GLONASS
 	# GPS, Beidou
 	# GLONASS
 	# GLONASS, Beidou
 	# Beidou
+	# GPS, Galileo
+	# GPS, Galileo, GLONASS
+	# GPS, Galileo, Beidou
+	# GLONASS, Galileo
+	# Beidou, Galileo
+	# Galileo
 	
 	# 2018-11-02 Notes: (ELM, after much testing and fixing some bugs)
 	# 1. If invalid config is sent, the default config is loaded, that is 
@@ -494,7 +500,7 @@ sub ConfigureReceiver
 	#    for it to execute. With the default config there is only 16 channels 
 	#    available, so trying to enable GPS and Beidou with min = 16 channels each
 	#    does not work. I changed the min to 8 below. Remember there are 72 
-	#    channels available.
+	#    channels, but only 32 is for user tracking.
 	# 3. A valid config message will not be accepted if there are not enough 
 	#    channels available. It's best to send a complete config message, i.e.
 	#    include ALL constellations, disabling the ones you do not want/need.
@@ -506,14 +512,26 @@ sub ConfigureReceiver
 	if (defined($Init{"receiver:observations"})){
 		$observations=lc $Init{"receiver:observations"};
 		
-		# WARNING! Only a few (useful) combinations are supported here
+		# WARNING! Only a few (useful) combinations are supported here (no SBAS, IMES or QZSS)
 		my $ngnss = 0; # number of GNSS systems enabled
 		my $enabled = ""; # string to hold gnss systems to enable. This prevents invalid combinations.
 		# Calculate the number of GNSS systems to enable
 		if ($observations =~ /gps/){ # GPS combos
 			$ngnss=1;
 			$enabled .= "gps ";
-			if ($observations =~ /glonass/){
+			if ($observations =~ /galileo/){
+				$ngnss++;
+				$enabled .= "galileo ";
+				if($observations =~ /glonass/){
+					$ngnss++;
+					$enabled .= "glonass ";
+				} 
+				elsif ($observations =~ /beidou/){
+					$ngnss++;
+					$enabled .= "beidou ";
+				}
+			}
+			elsif ($observations =~ /glonass/){
 				$ngnss++;
 				$enabled .= "glonass ";
 			}
@@ -528,11 +546,23 @@ sub ConfigureReceiver
 			if ($observations =~ /beidou/){
 				$ngnss++;
 				$enabled .= "beidou ";
+			} 
+			elsif ($observations =~ /galileo/){
+				$ngnss++;
+				$enabled .= "galileo ";
 			}
 		}
-		elsif ($observations =~ /beidou/){
+		elsif ($observations =~ /beidou/){ # Beidou combos
 			$ngnss=1;
 			$enabled .= "beidou ";
+			if ($observations =~ /galileo/){
+				$ngnss++;
+				$enabled .= "galileo ";
+			}
+		}
+		elsif($observations =~ /galileo/){
+			$ngnss++;
+			$enabled .= "galileo ";
 		}
 		if ($ngnss == 0){
 			ErrorExit("Problem with receiver:observations: no valid GNSS systems were found");
@@ -549,7 +579,16 @@ sub ConfigureReceiver
 		# SBAS
 		$cfg .= ConfigGNSS('sbas',1,3,0);
 		# Galileo
-		$cfg .= ConfigGNSS('galileo',8,16,0); # ...,4,8,0); # default in u-center
+		if($enabled =~ /galileo/) { $en = 1; } else { $en = 0; }
+		$cfg .= ConfigGNSS('galileo',4,10,$en); # ...,4,8,0); <-- default in u-center
+		                                        # Very important: The max number of channels that
+		                                        # can be allocated to Galileo is 10 - see page 
+		                                        # 13 of 394 in u-blox M 8 receiver description 
+		                                        # manual (part no: UBX-13003221 - R16). The pain
+		                                        # is that the receiver will allow you to configure 
+		                                        # more channels but then will NOT allow you to
+		                                        # enable Galileo. It took a few DAYS to find this
+		                                        # little gem!
 		# Beidou
 		if($enabled =~ /beidou/) { $en = 1; } else { $en = 0; }
 		$cfg .= ConfigGNSS('beidou',8,24,$en);	
