@@ -186,7 +186,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 						
 						// Calculate GPS time of measurement 
 						// FIXME why do this ? why not just convert from UTC ? and full WN is known anyway
-						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn);
+						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn,app->referenceTime());
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						

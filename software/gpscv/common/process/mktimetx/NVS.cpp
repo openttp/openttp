@@ -218,10 +218,10 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						rmeas->gpswn=weekNum; // note: this is truncated. Not currently used FIXME UTC or GPS???
 						
 						// UTC time of measurement
-						GPS::GPStoUTC(rmeas->gpstow,rmeas->gpswn,(int) rint(dGPSUTC/1000.0),&(rmeas->tmUTC));
+						GPS::GPStoUTC(rmeas->gpstow,rmeas->gpswn,(int) rint(dGPSUTC/1000.0),&(rmeas->tmUTC),app->referenceTime());
 						
 						// Calculate GPS time of measurement 
-						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn);
+						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn,app->referenceTime());
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
@@ -285,7 +285,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					int nsats=(msg.size()-27*2) / (30*2);
 					INT8U svn,signal,flags;
 					
-					time_t tgps = GPS::GPStoUnix(rint((tmeasUTC+dGPSUTC)/1000),weekNum); // used for tracking loss of lock
+					time_t tgps = GPS::GPStoUnix(rint((tmeasUTC+dGPSUTC)/1000),weekNum,app->referenceTime()); // used for tracking loss of lock
 					
 					int nGPS=0;
 					int nGLONASS=0;

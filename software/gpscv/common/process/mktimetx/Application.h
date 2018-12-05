@@ -92,6 +92,8 @@ class Application
 		string timeStamp();
 		void logMessage(string msg);
 		
+		long referenceTime(){return refTime;}
+		
 	private:
 	
 		enum CGGTTSNamingConvention {Plain,BIPM};
@@ -146,6 +148,7 @@ class Application
 		string logFile;
 		
 		int MJD,startTime,stopTime;
+		long refTime;
 		int interval;
 		int RINEXversion;
 		string homeDir;

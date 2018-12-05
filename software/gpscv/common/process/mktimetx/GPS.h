@@ -146,8 +146,9 @@ class GPS: public GNSSSystem
 	static void UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 		unsigned int *tow,unsigned int *truncatedWN=NULL,unsigned int*fullWN=NULL);
 	
-	static void GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLeapSeconds,struct tm *tmUTC);
-	static time_t GPStoUnix(unsigned int tow, unsigned int truncatedWN);
+	static void GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLeapSeconds,
+		struct tm *tmUTC,long refTime);
+	static time_t GPStoUnix(unsigned int tow, unsigned int truncatedWN,long refTime);
 	
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
