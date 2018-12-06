@@ -473,15 +473,17 @@ sub OpenDataFile
 	}
 	
 	$|=1;
+	printf "# %s $0 (version $Init{version}) %s\n",
+		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
+	printf "# %s file $name\n",
+		($old? "Appending to" : "Beginning new");
+	printf "\@ MJD=%d\n",$mjd;
 	
 	if ($fileFormat == $OPENTTP){
-		printf "# %s $0 (version $Init{version}) %s\n",
-			&TFTimeStamp(),($_[1]? "beginning" : "continuing");
-		printf "# %s file $name\n",
-			($old? "Appending to" : "Beginning new");
-		printf "\@ MJD=%d\n",$mjd;
 		select STDOUT;
 	}
+	
+	
 	
 } # OpenDataFile
 
@@ -514,8 +516,12 @@ sub ConfigureReceiver
   # Set type of messages for COM1 (UART A) - if we are not using it so we may as well turn it off.
   #                                        - If we are using it as a source of time of day for NTP,
   #                                          we need to set it up to send NMEA messages
-  sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Setup for NMEA messages.
-  #sendCmd("\x0B\x01\x00\xC2\x01\x00\x01"); # Setup to turn port off.
+  #                                          This is useful with the storegis software
+  #                                          from NVS.
+  #sendCmd("\x0B\x01\x00\xC2\x01\x00\x04"); # Setup for BINR messages. <- Used for testing 115200 baud
+  #sendCmd("\x0B\x01\x80\x25\x00\x00\x02"); # Setup for NMEA messages. <- Used for testing 9600 baud
+  #sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Setup for NMEA messages. <- Used for testing 115200 baud
+  sendCmd("\x0B\x01\x00\xC2\x01\x00\x01"); # Setup to turn port off. <- This is the default
   #          |   |   |           |   |  
   #          |   |   +-----+-----+   +--- Protocol type: 0 current protocol, 1 no protocol, 2 NMEA protocol, 3 RTCM protocol, 4 BINR protocol, 5 BINR2 protocol  
   #          |   |         +------------- Baud rate: 4800 to 230400 baud, x00 x01 xC2 x00 is 115200 baud
@@ -525,7 +531,7 @@ sub ConfigureReceiver
   #
   # Cancel all transmission requests (turns off transmisson of all messages)
   sendCmd("\x0E");
-  #          | 
+  #          |  
   #          +----------- ID: x0E is the Cancellation of all Transmission Requests control message
   # No response message is sent (which makes sense, as we do NOT want any output!)
   #
@@ -548,7 +554,7 @@ sub ConfigureReceiver
   if (defined($Init{"receiver:observations"})){
 		$observations=lc $Init{"receiver:observations"};
   }
-  
+
   if ($observations=~/gps/){
 		if ($observations =~ /glonass/){
 			if ($observations =~ /sbas/){
@@ -558,8 +564,11 @@ sub ConfigureReceiver
 				sendCmd("\x0D\x02\x00"); # GPS+GLONASS
 			}
 		}
+		elsif ($observations =~ /beidou/){ # Maybe add option for GPS+SBAS+Beidou later.
+			sendCmd("\x0D\x02\x15"); # GPS+Beidou
+		}
 		else{
-			if ($observations =~ /sbas/){
+			if ($observations =~ /sbas/){ 
 				sendCmd("\x0D\x02\x0b"); # GPS+SBAS
 			}
 			else{
@@ -804,6 +813,21 @@ sub stripDLEandETX
   # return the answer
   return $s;
 } # stripDLEandETX
+
+#----------------------------------------------------------------------------
+sub SendNMEACmd
+{
+  # CRLF terminated
+  # Checksum is XOR of all characters
+  my $cmd = $_[0];
+  my @cmdarr=split "",$cmd; # convert string to array
+  my $cksum =0;
+  for (my $i =0; $i<=$#cmdarr; $i++){
+    $cksum ^= ord($cmdarr[$i]);
+  }
+  print  $rx "\$".$cmd."*".sprintf("%02X\r\n",$cksum);
+  sleep(1);
+}
 
 #----------------------------------------------------------------------------
 # Convert ECEF to WGS84 (lat,lon,h) in (rad,rad,m)
