@@ -123,7 +123,7 @@ class BeiDou: public GNSSSystem
 		
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
-	
+	time_t L1lastunlock[NSATS+1]; // used for tracking loss of carrier-phase lock
 };
 
 #endif

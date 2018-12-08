@@ -41,10 +41,13 @@ class NVS:public Receiver
 	
 		virtual bool readLog(string,int,int,int,int);
 		
+		virtual void setVersion(string);
+		
 	protected:
 	
 	private:
 	
+		int fwVersion;
 	
 };
 

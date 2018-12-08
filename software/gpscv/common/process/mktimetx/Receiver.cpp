@@ -78,6 +78,16 @@ unsigned int Receiver::memoryUsage()
 	return mem;
 }
 
+void Receiver::setVersion(string v)
+{
+	version_=v;
+}
+
+string Receiver::version()
+{
+	return version_;
+}
+
 //
 // protected
 //

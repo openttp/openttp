@@ -151,7 +151,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	{
 		case ResolutionT:
 			yearOffset=1900;
-			if (version == "old") sawtoothMultiplier = 1.0;
+			if (version() == "old") sawtoothMultiplier = 1.0;
 			break;
 		case ResolutionSMT:
 			yearOffset=2000;

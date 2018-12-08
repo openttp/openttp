@@ -56,7 +56,8 @@ class Receiver
 		
 		virtual unsigned int memoryUsage();
 		
-		string version; // RX version information used to control processing - set in config NOT by information in RX files
+		virtual void setVersion(string);
+		string version(); // RX version information used to control processing - set in config NOT by information in RX files
 			    
 		string modelName;
 		string manufacturer;
@@ -100,6 +101,8 @@ class Receiver
 		
 	private:
 	
+		string version_;
+		
 };
 #endif
 

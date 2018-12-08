@@ -100,7 +100,6 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 {
 	modelName=m;
 	manufacturer="NVS";
-	swversion="0.1";
 	constellations=GNSSSystem::GPS;
 	codes=GNSSSystem::C1|GNSSSystem::L1;
 	channels=32;
@@ -112,6 +111,7 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 		app->logMessage("Assuming NV08C-CSM");
 	}
 	sawtooth=38.0;
+	fwVersion=4;
 }
 
 NVS::~NVS()
@@ -154,11 +154,14 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	
 	int nGLONASSObs =0;
 	int nGPSObs=0;
+	int nBeiDouObs=0;
 	
 	int numConstellations=0;
 	if (constellations & GNSSSystem::GPS)
 		numConstellations++;
 	if (constellations & GNSSSystem::GLONASS)
+		numConstellations++;
+	if (constellations & GNSSSystem::BEIDOU)
 		numConstellations++;
 	int numCodes=0;
 	if (codes & GNSSSystem::C1)
@@ -289,6 +292,8 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					
 					int nGPS=0;
 					int nGLONASS=0;
+					int nBeiDou=0;
+					
 					for (int s=0;s<nsats;s++){
 						HexToBin((char *) msg.substr((27+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&signal);
 						
@@ -333,6 +338,23 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 									gps.L1lastunlock[svn]=tgps;
 								}
 							}
+							else if ((constellations & GNSSSystem::BEIDOU) && (signal & 0x02)){ // BeiDou FIXME signal flags TBD
+								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::C1,svmeas,NULL);
+								svm->dbuf3=svmeas;
+								gnssmeas.push_back(svm);
+								nBeiDou++;
+								if (flags & 0x08){ // carrier phase present
+									svmeas = fp64buf;
+									svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::L1,svmeas,NULL);
+									if (tgps - beidou.L1lastunlock[svn] <= rinexObsInterval)
+										svm->lli=0x01;
+									gnssmeas.push_back(svm);
+								}
+								else{ 
+									beidou.L1lastunlock[svn]=tgps;
+								}
+							}
 						}
 						else{ // FIXME 
 						}
@@ -346,6 +368,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					}
 					nGLONASSObs += nGLONASS;
 					nGPSObs += nGPS;
+					nBeiDouObs += nBeiDou;
 					currentMsgs |= MSGF5; // All OK
 				}
 				
@@ -633,4 +656,18 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
 	return true;
 	
+}
+
+void NVS::setVersion(string v)
+{
+	Receiver::setVersion(v);
+	char ch = v.at(0);
+	if (ch == '4'){
+		fwVersion = 4;
+		sawtooth = 38.0;
+	}
+	else if (ch=='5'){
+		fwVersion = 5;
+		sawtooth = 38.0; // FIXME
+	}
 }

@@ -893,7 +893,8 @@ bool Application::loadConfig()
 			receiver->constellations |=GNSSSystem::GALILEO;
 	}
 	
-	setConfig(last,"receiver","version",receiver->version,&configOK,false); 
+	if (setConfig(last,"receiver","version",stmp,&configOK,false))
+		receiver->setVersion(stmp);
 	setConfig(last,"receiver","pps offset",&receiver->ppsOffset,&configOK);
 	setConfig(last,"receiver","file extension",receiverExtension,&configOK,false);
 	setConfig(last,"receiver","sawtooth size",&receiver->sawtooth,&configOK,false);
