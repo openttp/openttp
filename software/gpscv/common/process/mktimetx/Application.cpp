@@ -327,7 +327,7 @@ void Application::run()
 			rnx.writeNavigationFile(receiver,GNSSSystem::GPS,RINEXversion,RINEXnavFile,MJD);
 		
 		rnx.writeObservationFile(antenna,counter,receiver,RINEXversion,RINEXobsFile,MJD,interval,mpairs,TICenabled);
-	}
+	} // if createRINEX
 	
 	if (timingDiagnosticsOn) 
 		writeReceiverTimingDiagnostics(receiver,counter,"timing.dat");
@@ -1155,12 +1155,10 @@ void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 			}
 		}
 	}
-
 }
 
 void Application::fixBadSawtoothCorrection(Receiver *rx,Counter *)
 {
-	
 	// will miss initial (possibly) and last points but who cares 
 	for (unsigned int i=0;i<MPAIRS_SIZE-1;i++){
 		if (mpairs[i]->flags == 0x03 && mpairs[i+1]->flags == 0x03){
@@ -1243,7 +1241,4 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 			} //for (int svn= ...
 		}// for (int code = ...
 	} // for (int g =
-	
-	
 }
-

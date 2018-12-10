@@ -154,6 +154,9 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 			// The 0x0215 message starts each second
 			if(msgid == "0215"){ // raw measurements 
 				
+				int nGPS=0;
+				int nBeidou=0;
+				
 				if (currentMsgs == reqdMsgs){ // save the measurements from the previous second
 					if (svmeas.size() > 0){
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
@@ -195,17 +198,26 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 						
 						rmeas->tmfracs=0.0;
 						
-						if (constellations & GNSSSystem::GPS){
+						// Need to add some logic here for determining if a measurement is selected...
+						// I removed tha logic for testing, but it may not work if a datafile is mismatched
+						// the configuration.
+						
+						//if (constellations & GNSSSystem::GPS){
 							for (unsigned int sv=0;sv<svmeas.size();sv++){
 								svmeas.at(sv)->dbuf3 = svmeas.at(sv)->meas; // save for debugging
 								svmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
-								// Now subtract the ms part so that ms ambiguity resolution works
-								svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
+								// Now subtract the ms part so that ms ambiguity resolution works:
+								// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
+								// resolution. We could only keep the ms part, but for now only do this for
+								// GPS because we do get the necessary data for GPS from the ublox.
+								if(svmeas.at(sv)->constellation == GNSSSystem::GPS){
+									svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
+								}
 								svmeas.at(sv)->rm=rmeas;
 							}
 							rmeas->meas=svmeas;
 							svmeas.clear(); // don't delete - we only made a shallow copy!
-						}
+						//}
 						
 						
 						// KEEP THIS it's useful for debugging measurement-time related problems
@@ -254,14 +266,14 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 								HexToBin((char *) msg.substr((16+32*m)*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &r8buf); //pseudorange (m)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
-								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
+								HexToBin((char *) msg.substr((43+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int prStdDev= u1buf & 0x0f;
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int trkStat=u1buf;
 								// When PR is reported, trkStat is always 1 but .
 								if (trkStat > 0 && r8buf/CLIGHT < 1.0){
 									SVMeasurement *svm = new SVMeasurement(svID,gnssSys,GNSSSystem::C1,r8buf/CLIGHT,NULL);
-									//svm->dbuf1=0.01*pow(2.0,prStdDev); 
+									svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
 									svmeas.push_back(svm);
 								}
 								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) trkStat);
@@ -312,7 +324,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					HexToBin((char *) msg.substr(18*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &UTCsec);
 					HexToBin((char *) msg.substr(19*2,2*sizeof(X1)).c_str(),sizeof(X1),(unsigned char *) &UTCvalid);
 					DBGMSG(debugStream,TRACE,currpctime << " UTC:" << UTCyear << " " << (int) UTCmon << " " << (int) UTCday << " "
-						<< (int) UTChour << ":" << (int) UTCmin << ":" << (int) UTCsec << " valid=" << (unsigned int) UTCvalid);
+						<< (int) UTChour << ":" << (int) UTCmin << ":" << (int) UTCsec << std::hex << " valid=0x" << (unsigned int) UTCvalid << std::dec);
 					if (UTCvalid & 0x04)
 						currentMsgs |= MSG0121;
 					else{
@@ -437,7 +449,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	DBGMSG(debugStream,TRACE,"Fixing sawtooth");
 	double prevSawtooth=measurements.at(0)->sawtooth;
 	time_t    tPrevSawtooth=mktime(&(measurements.at(0)->tmUTC));
-	int nBadSawtoothCorrections =1; // first is bad !
+	int nBadSawtoothCorrections = 1; // first is bad !
 	// First point is untouched
 	for (unsigned int i=1;i<measurements.size();i++){
 		double sawTmp = measurements.at(i)->sawtooth;
@@ -460,7 +472,8 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	// Do this initially and then every time a step is detected
 	
 	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
-	int nDropped;
+	int nDroppedGPS;
+	int nDroppedBeidou;
 	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
 		if (!(g & constellations)) continue;
 		GNSSSystem *gnss;
@@ -480,7 +493,8 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 			for (unsigned int i=0;i<measurements.size();i++){
 				unsigned int m=0;
 				while (m < measurements[i]->meas.size()){
-					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1)){
+					// This solves the issue of the software confuding GNSS systems
+					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1) && (measurements[i]->meas[m]->constellation == GNSSSystem::GPS)){
 						lasttow=currtow;
 						lastmeas=currmeas;
 						currmeas=measurements[i]->meas[m]->meas;
@@ -508,13 +522,13 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 							m++;
 						}
 						else{ // ambiguity correction failed, so drop the measurement
-							nDropped++;
+							nDroppedGPS++;
 							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
 						}
 						break;
 					}
 					else
-						m++;
+						m++; // skip over other GNSS systems (for now)
 					
 				} // 
 			} // for (unsigned int i=0;i<measurements.size();i++){
@@ -525,7 +539,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
-	DBGMSG(debugStream,INFO,"dropped " << nDropped << " SV measurements (ms ambiguity failure)"); 
+	DBGMSG(debugStream,INFO,"dropped " << nDroppedGPS << " GPS SV measurements (ms ambiguity failure)"); 
 	
 	return true;
 	
