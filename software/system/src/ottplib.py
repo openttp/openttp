@@ -105,7 +105,7 @@ def TestProcessLock(lockFile):
 		info = flock.readline().split()
 		flock.close()
 		if (len(info)==2):
-			if (os.path.isfile('/proc/'+str(info[1]))):
+			if (os.path.exists('/proc/'+str(info[1]))):
 				return False;
 	return True;
 		
