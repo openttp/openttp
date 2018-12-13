@@ -40,6 +40,39 @@ import sys
 VERSION = "0.1"
 AUTHORS = "Michael Wouters"
 
+# cggtts versions
+
+CGGTTS_RAW = 0
+CGGTTS_V1  = 1
+CGGTTS_V2  = 2
+CGGTTS_V2E = 3
+CGGTTS_UNKNOWN = 999
+
+
+PRN=0
+CL=1  # this may be empty
+MJD=2
+STTIME=3
+TRKL=4
+ELV=5
+AZTH=6
+REFSV=7
+SRSV=8
+REFGPS=9
+REFSYS=9
+DSG=11
+IOE=12
+MDIO=15
+MSIO=17# only for dual frequency
+SMSI=18 # only for dual frequency
+ISG=19 # only for dual frequency
+FRC=21 
+
+MIN_TRACK_LENGTH=750
+DSG_MAX=200
+IONO_CORR=1 # this means the ionospheric correction is removed!
+ELV_MASK=0
+
 # ------------------------------------------
 def ShowVersion():
 	print  os.path.basename(sys.argv[0]),' ',VERSION
@@ -59,55 +92,117 @@ def Warn(msg):
 	return
 
 # ------------------------------------------
+def SetDataColumns(ver,isdf):
+	global PRN,MJD,STTIME,ELV,AZTH,REFSV,REFSYS,IOE,MDTR,MDIO,MSIO,FRC
+	if (CGGTTS_RAW == ver): # CL field is empty
+		PRN=0
+		MJD=1
+		STTIME=2
+		ELV=3
+		AZTH=4
+		REFSV=5
+		REFSYS=6
+		IOE=7
+		MDTR=8
+		MDIO=9
+		MSIO=10
+		FRC=11
+	elif (CGGTTS_V2E == ver):
+		if (isdf):
+			FRC=21
+		else:
+			FRC=19
+# ------------------------------------------
 def ReadCGGTTS(fname,mjd):
 	d=[]
-	Debug('Reading ' + fname)
+	Debug('--> Reading ' + fname)
 	try:
 		fin = open(fname,'r')
 	except:
 		Warn('Unable to open ' + fname)
 		# not fatal
-		return []
+		return ([],[])
 	
+	ver = CGGTTS_UNKNOWN
 	l = fin.readline().rstrip()
-	match = re.match('^\s+RAW CLOCK RESULTS',l)
-	if match:
+	if (re.match('\s+RAW CLOCK RESULTS',l)):
 		Debug('Raw clock results')
+		ver=CGGTTS_RAW
+		
+	elif (re.search('GENERIC DATA FORMAT VERSION = 2E',l)):
+		Debug('V2E')
+		ver=CGGTTS_V2E
 	else:
-		Warn('Unknown format')
-		return []
+		Warn('Unknown format - the header is incorrectly formatted')
+		return ([],[])
 	
+	
+	
+	dualFrequency = False
 	# Eat the header
 	while True:
 		l = fin.readline()
 		if not l:
 			Warn('Bad format')
-			return []
-		match = re.match('^\s+hhmmss',l)
+			return ([],[])
+		if (re.search('STTIME TRKL ELV AZTH',l)):
+			if (re.search('MSIO',l)):
+				dualFrequency=True
+				Debug('Dual frequency data')
+			continue
+		match = re.match('\s+hhmmss',l)
 		if match:
 			break
+		
+	SetDataColumns(ver,dualFrequency)
+	
 	nextday =0
+	stats=[]
+	nLowElevation=0
+	nHighDSG=0
+	nShortTracks=0
 	while True:
 		l = fin.readline().rstrip()
 		if l:
 			fields = l.split()
-			theMJD = int(fields[1])
-			hh = int(fields[2][0:2])
-			mm = int(fields[2][2:4])
-			ss = int(fields[2][4:6])
+			theMJD = int(fields[MJD])
+			hh = int(fields[STTIME][0:2])
+			mm = int(fields[STTIME][2:4])
+			ss = int(fields[STTIME][4:6])
 			tt = hh*3600+mm*60+ss
+			dsg=0
+			trklen=999
+			reject=False
+			if (not(CGGTTS_RAW == ver)): # DSG not defined for RAW
+				dsg = int(fields[DSG])/10
+				trklen = int(fields[TRKL])
+			elv = int(fields[ELV])/10.0
+			if (elv < elevationMask):
+				nLowElevation +=1
+				reject=True
+			if (dsg > DSG_MAX):
+				nHighDSG += 1
+				reject = True
+			if (trklen < minTrackLength):
+				nShortTracks +=1
+				reject = True
+			if (reject):
+				continue
 			if ((tt < 86399 and theMJD == mjd) or args.keepall):
-				d.append([fields[0],int(fields[1]),tt,int(fields[3]),int(fields[4]),int(fields[5]),int(fields[6]),int(fields[7]),int(fields[8]),int(fields[9]),int(fields[10]),fields[11]])
+				d.append([fields[PRN],int(fields[MJD]),tt,trklen,elv,int(fields[AZTH]),int(fields[REFSV]),int(fields[REFSYS]),dsg,int(fields[IOE]),int(fields[MDIO]),int(fields[MSIO]),fields[FRC]])
 			else:
 				nextday += 1
 		else:
 			break
 		
 	fin.close()
+	stats.append([nLowElevation,nHighDSG,nShortTracks])
 	
 	Debug(str(nextday) + ' tracks after end of the day removed')
-	
-	return d
+	Debug('low elevation = ' + str(nLowElevation))
+	Debug('high DSG = ' + str(nHighDSG))
+	Debug('short tracks = ' + str(nShortTracks))
+	return (d,stats)
 	
 # ------------------------------------------
 def CheckSum(l):
@@ -121,6 +216,11 @@ parser.add_argument('refDir',help='reference CGGTTS directory')
 parser.add_argument('calDir',help='calibration CGGTTS directory')
 parser.add_argument('firstMJD',help='first mjd')
 parser.add_argument('lastMJD',help='last mjd');
+
+parser.add_argument('--elevationmask',help='elevation mask (in degrees, default 0)')
+parser.add_argument('--mintracklength',help='minimum track length (in s, default 750')
+parser.add_argument('--maxdsg',help='maximum DSG (in ns, default ')
+
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
 parser.add_argument('--refext',help='file extension for reference receiver (default = cctf)')
@@ -138,25 +238,39 @@ if (args.version):
 
 refExt = 'cctf'
 calExt = 'cctf'
+elevationMask=ELV_MASK
+minTrackLength = MIN_TRACK_LENGTH
+maxDSG=DSG_MAX
 
 if (args.refext):
 	refExt = args.refext
 
 if (args.calext):
 	calExt = args.calext
+
+if (args.elevationmask):
+	elevationMask = float(args.elevationmask)
+
+if (args.maxdsg):
+	maxDSG = float(args.maxdsg)
+
+if (args.mintracklength):
+	minTrackLength = args.mintracklength
 	
 firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
 
 allref=[]
 allcal=[]
+
 for mjd in range(firstMJD,lastMJD+1):
 	fref = args.refDir + '/' + str(mjd) + '.' + refExt
-	d=ReadCGGTTS(fref,mjd)
+	(d,stats)=ReadCGGTTS(fref,mjd)
 	allref = allref + d
 
-	fref = args.calDir + '/' + str(mjd) + '.' + calExt
-	d=ReadCGGTTS(fref,mjd)
+for mjd in range(firstMJD,lastMJD+1):
+	fcal= args.calDir + '/' + str(mjd) + '.' + calExt
+	(d,stats)=ReadCGGTTS(fcal,mjd)
 	allcal = allcal + d
 	
 # Now match tracks
@@ -167,10 +281,15 @@ callen = len(allcal)
 iref=0
 jcal=0
 
+if (reflen==0 or callen == 0):
+	print('Insufficient data')
+	exit()
+	
+# can redefine the indices now
 PRN=0
 MJD=1
 STTIME=2
-REFSYS=6
+REFSYS=7
 
 #print reflen,callen
 
@@ -203,7 +322,7 @@ while iref < reflen:
 				jtmp += 1
 			if ((mjd1 == mjd2) and (st1 == st2) and (prn1 == prn2)):
 				# match!
-				# print mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]
+				#print mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]
 				matches.append(allref[iref]+allcal[jtmp])
 				jcal += 1
 				break
@@ -218,7 +337,7 @@ while iref < reflen:
 #print matches
 avmatches=[]
 
-ncols = 12
+ncols = 13
 lenmatch=len(matches)
 mjd1=matches[0][MJD]
 st1=matches[0][STTIME]
