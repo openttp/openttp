@@ -42,14 +42,13 @@ VERSION = "0.2"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
-
 CGGTTS_RAW = 0
 CGGTTS_V1  = 1
 CGGTTS_V2  = 2
 CGGTTS_V2E = 3
 CGGTTS_UNKNOWN = 999
 
-
+# cggtts data fields
 PRN=0
 CL=1 
 MJD=2
@@ -81,6 +80,11 @@ ELV_MASK=0
 
 USE_GPSCV = 1
 USE_AIV = 2
+
+# operating mode
+MODE_TT=1 # default
+MODE_DELAY_CAL=2
+
 # ------------------------------------------
 def ShowVersion():
 	print  os.path.basename(sys.argv[0]),' ',VERSION
@@ -117,6 +121,11 @@ def SetDataColumns(ver,isdf):
 		FRC=11
 	elif (CGGTTS_V1 == ver):
 		pass
+	elif (CGGTTS_V2 == ver):
+		if (isdf):
+			FRC=22
+		else:
+			FRC=20 
 	elif (CGGTTS_V2E == ver):
 		if (isdf):
 			FRC=21
@@ -124,8 +133,19 @@ def SetDataColumns(ver,isdf):
 			FRC=19
 			
 # ------------------------------------------
-def ReadCGGTTS(fname,mjd):
+def ReadCGGTTS(path,prefix,ext,mjd):
 	d=[]
+	
+	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
+	if (not os.path.isfile(fname)): # otherwise, BIPM style
+		mjdYY = int(mjd/1000)
+		mjdXXX = mjd % 1000
+		fBIPMname = path + '/' + prefix + '{:02d}.{:03d}'.format(mjdYY,mjdXXX)
+		if (not os.path.isfile(fBIPMname)): 
+			Warn('Unable to open ' + fBIPMname + ' or ' + fname)
+			return ([],[],[])
+		fname = fBIPMname
+		
 	Debug('--> Reading ' + fname)
 	try:
 		fin = open(fname,'r')
@@ -141,6 +161,9 @@ def ReadCGGTTS(fname,mjd):
 		ver=CGGTTS_RAW
 	elif (re.search('GGTTS GPS DATA FORMAT VERSION = 01',l)):	
 		Debug('V1')
+		ver=CGGTTS_V1
+	elif (re.search('GGTTS GPS DATA FORMAT VERSION = 02',l)):	
+		Debug('V2')
 		ver=CGGTTS_V1
 	elif (re.search('GENERIC DATA FORMAT VERSION = 2E',l)):
 		Debug('V2E')
@@ -233,6 +256,19 @@ def CheckSum(l):
 		cksum = cksum + ord(c)
 	return cksum % 256
 
+#------------------------------------------__
+
+refExt = 'cctf'
+calExt = 'cctf'
+refPrefix=''
+calPrefix=''
+
+elevationMask=ELV_MASK
+minTrackLength = MIN_TRACK_LENGTH
+maxDSG=DSG_MAX
+cmpMethod=USE_GPSCV
+mode = MODE_TT
+
 parser = argparse.ArgumentParser(description='Match and difference CGGTTS files')
 
 # required arguments
@@ -242,14 +278,19 @@ parser.add_argument('firstMJD',help='first mjd')
 parser.add_argument('lastMJD',help='last mjd');
 
 # filtering
-parser.add_argument('--elevationmask',help='elevation mask (in degrees, default 0)')
-parser.add_argument('--mintracklength',help='minimum track length (in s, default 750')
-parser.add_argument('--maxdsg',help='maximum DSG (in ns, default ')
+parser.add_argument('--elevationmask',help='elevation mask (in degrees, default'+str(elevationMask)+')')
+parser.add_argument('--mintracklength',help='minimum track length (in s, default '+str(minTrackLength)+')')
+parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
 
 # analysis mode
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
 parser.add_argument('--aiv',help='compare in all-in-view',action='store_true')
 
+parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
+parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
+
+parser.add_argument('--refprefix',help='file prefix for reference receiver (default = MJD)')
+parser.add_argument('--calprefix',help='file prefix for calibration receiver (default = MJD)')
 parser.add_argument('--refext',help='file extension for reference receiver (default = cctf)')
 parser.add_argument('--calext',help='file extension for calibration receiver (default = cctf)')
 
@@ -266,19 +307,18 @@ if (args.version):
 	ShowVersion()
 	exit()
 
-refExt = 'cctf'
-calExt = 'cctf'
-elevationMask=ELV_MASK
-minTrackLength = MIN_TRACK_LENGTH
-maxDSG=DSG_MAX
-cmpMethod=USE_GPSCV
-
 if (args.refext):
 	refExt = args.refext
 
 if (args.calext):
 	calExt = args.calext
 
+if (args.refprefix):
+	refPrefix = args.refprefix
+	
+if (args.calprefix):
+	calPrefix = args.calprefix
+	
 if (args.elevationmask):
 	elevationMask = float(args.elevationmask)
 
@@ -292,24 +332,32 @@ if (args.cv):
 	cmpMethod = USE_GPSCV
 
 if (args.aiv):
-	cmpMethod = USE_AIVparser.add_argument('--aiv',help='compare in all-in-view',action='store_true')
-	
+	cmpMethod = USE_AIV
+
+if (args.delaycal):
+	mode = MODE_DELAY_CAL
+
+if (args.timetransfer):
+	mode = MODE_TT
+
 firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
 
+# Print the settings
+print 'Elevation mask =',elevationMask,'deg'
+print 'Minimum track length =',minTrackLength,'s'
+print 'Maximum DSG =', maxDSG,'ns'
+print 
 allref=[]
 allcal=[]
 
 for mjd in range(firstMJD,lastMJD+1):
-	fref = args.refDir + '/' + str(mjd) + '.' + refExt
-	(d,stats,delays)=ReadCGGTTS(fref,mjd)
+	(d,stats,delays)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd)
 	allref = allref + d
 
 for mjd in range(firstMJD,lastMJD+1):
-	fcal= args.calDir + '/' + str(mjd) + '.' + calExt
-	(d,stats,delays)=ReadCGGTTS(fcal,mjd)
+	(d,stats,delays)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd)
 	allcal = allcal + d
-
 
 reflen = len(allref)
 callen = len(allcal)
@@ -323,7 +371,9 @@ MJD=1
 STTIME=2
 REFSYS=7
 
-avmatches=[]
+# Averaged deltas, in numpy friendly format,for analysis
+tMatch=[]
+deltaMatch=[]
 
 foutName = 'ref.cal.av.matches.txt'
 try:
@@ -338,12 +388,16 @@ try:
 except:
 	print('Unable to open ' + foutName)
 	exit()
-	
+
+Debug('Matching tracks ...')
+
 if (cmpMethod == USE_GPSCV):
 	matches = []
 	iref=0
 	jcal=0
 
+	# Rather than fitting to the average, fit to all matched tracks
+	# so that outliers are damped by the least squares fit
 	while iref < reflen:
 		
 		mjd1=allref[iref][MJD]
@@ -368,13 +422,15 @@ if (cmpMethod == USE_GPSCV):
 					mjd2=allcal[jtmp][MJD]
 					st2 =allcal[jtmp][STTIME]
 					prn2=allcal[jtmp][PRN]
-					print mjd1,mjd2,st1,st2,prn1,prn2,jtmp
+					# print mjd1,mjd2,st1,st2,prn1,prn2,jtmp
 					if (prn1 == prn2):
 						break
 					jtmp += 1
 				if ((mjd1 == mjd2) and (st1 == st2) and (prn1 == prn2)):
 					# match!
 					fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
+					tMatch.append(mjd1-firstMJD+st1/86400.0)
+					deltaMatch.append(allref[iref][REFSYS]-allcal[jtmp][REFSYS])
 					matches.append(allref[iref]+allcal[jtmp])
 					break
 				else:
@@ -383,7 +439,8 @@ if (cmpMethod == USE_GPSCV):
 				jcal += 1
 				
 		iref +=1
-		
+	print len(matches),'matched tracks'
+	
 	ncols = 13
 	lenmatch=len(matches)
 	mjd1=matches[0][MJD]
@@ -401,7 +458,7 @@ if (cmpMethod == USE_GPSCV):
 			avcal  += matches[imatch][ncols + REFSYS] 
 		else:
 			favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
-			avmatches.append([mjd1,st1,(avref-avcal)/nsv])
+			
 			mjd1 = mjd2
 			st1  = st2
 			nsv=1
@@ -410,8 +467,6 @@ if (cmpMethod == USE_GPSCV):
 		imatch += 1
 	# last one
 	favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
-	avmatches.append([mjd1,st1,(avref-avcal)/nsv])
-
 elif (cmpMethod == USE_AIV):
 	# Opposite order here
 	# First average at each time
@@ -421,5 +476,25 @@ elif (cmpMethod == USE_AIV):
 fmatches.close()
 favmatches.close()
 
-# Now for some statistics
-# 
+
+#
+# Analysis 
+
+if (len(tMatch) < 2):
+	print 'Insufficient data points left for analysis'
+	exit()
+	
+p,V = np.polyfit(tMatch,deltaMatch, 1, cov=True)
+slopeErr = np.sqrt(V[0][0])
+meanOffset = p[1] + p[0]*(tMatch[0]+tMatch[-1])/2.0
+
+if (MODE_DELAY_CAL==mode ):
+	rmsResidual=0.0
+	for t in range(0,len(tMatch)):
+		delta = p[1] + p[0]*tMatch[t] - deltaMatch[t]
+		rmsResidual = rmsResidual + delta*delta
+	rmsResidual = np.sqrt(rmsResidual/(len(tMatch)-1)) # FIXME is this correct ?
+
+	print 'mean offset (REF - CAL) {} ns [subtract from CAL \'INT DLY\' to correct]'.format(meanOffset)
+	print 'slope {} ps/day SD {} ps/day'.format(p[0]*1000,slopeErr*1000)
+	print 'RMS of residuals {} ns'.format(rmsResidual)
