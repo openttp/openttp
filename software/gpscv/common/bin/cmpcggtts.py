@@ -81,6 +81,9 @@ ELV_MASK=0
 USE_GPSCV = 1
 USE_AIV = 2
 
+MODELED_IONOSPHERE=1
+MEASURED_IONOSPHERE=2
+
 # operating mode
 MODE_TT=1 # default
 MODE_DELAY_CAL=2
@@ -133,7 +136,7 @@ def SetDataColumns(ver,isdf):
 			FRC=19
 
 # ------------------------------------------
-def ReadCGGTTSHeader(fin):
+def ReadCGGTTSHeader(fin,fname):
 	
 	intdly=''
 	cabdly=''
@@ -145,13 +148,15 @@ def ReadCGGTTSHeader(fin):
 	
 	l = fin.readline().rstrip()
 	lineCount = lineCount +1
-	match = re.match('(GGTTS GPS DATA FORMAT VERSION|CGGTTS     GENERIC DATA FORMAT VERSION)\s+=\s+(01|2E)',l)
+	match = re.search('DATA FORMAT VERSION\s+=\s+(01|02|2E)',l)
 	if (match):
-		header['version'] = match.group(2)
-		version = 1
+		header['version'] = match.group(1)
 	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
+		if (re.search('RAW CLOCK RESULTS',l)):
+			header['version'] = 'RAW'
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
 	
 	l = fin.readline().rstrip()
 	lineCount = lineCount +1
@@ -196,7 +201,7 @@ def ReadCGGTTSHeader(fin):
 	
 	l = fin.readline().rstrip()
 	lineCount = lineCount +1
-	match = re.match('^X\s+=\s+(.+)\s+m$',l)
+	match = re.match('X\s+=\s+(.+)\s+m',l)
 	if (match):
 		header['x'] = match.group(1)
 	else:
@@ -205,7 +210,7 @@ def ReadCGGTTSHeader(fin):
 	
 	l = fin.readline().rstrip()
 	lineCount = lineCount +1
-	match = re.match('^Y\s+=\s+(.+)\s+m$',l)
+	match = re.match('Y\s+=\s+(.+)\s+m',l)
 	if (match):
 		header['y'] = match.group(1)
 	else:
@@ -214,7 +219,7 @@ def ReadCGGTTSHeader(fin):
 		
 	l = fin.readline().rstrip()
 	lineCount = lineCount +1
-	match = re.match('^Z\s+=\s+(.+)\s+m$',l)
+	match = re.match('Z\s+=\s+(.+)\s+m',l)
 	if (match):
 		header['z'] = match.group(1)
 	else:
@@ -230,7 +235,6 @@ def ReadCGGTTSHeader(fin):
 		return {}
 	
 	comments = ''
-	
 	while True:
 		l = fin.readline().rstrip()
 		lineCount = lineCount +1
@@ -244,41 +248,43 @@ def ReadCGGTTSHeader(fin):
 	
 	header['comments'] = comments
 	
-	if (header['version'] == '01'):
+	if (header['version'] == '01' or header['version'] == '02'):
 		#l = fin.readline().rstrip()
 		#lineCount = lineCount +1
-		match = re.match('^INT\s+DLY\s+=\s+(.+)\s+ns$',l)
+		match = re.match('INT\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
 			header['int dly'] = match.group(1)
 		else:
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			print l
 			return {}
 		
 		l = fin.readline().rstrip()
 		lineCount = lineCount +1
-		match = re.match('^CAB\s+DLY\s+=\s+(.+)\s+ns$',l)
+		match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
 			header['cab dly'] = match.group(1)
 		else:
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			print l
 			return {}
 		
 		
 		l = fin.readline().rstrip()
 		lineCount = lineCount +1
-		match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
+		match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
 			header['ref dly'] = match.group(1)
 		else:
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return {}
 			
-	elif (header['version'] == '2E'):
+	elif (header['version'] == '2E' or header['version'] == 'RAW'):
 		
 		#l = fin.readline().rstrip()
 		#lineCount = lineCount +1
 		
-		match = re.match('^(TOT DLY|SYS DLY|INT DLY)',l)
+		match = re.match('(TOT DLY|SYS DLY|INT DLY)',l)
 		if (match.group(1) == 'TOT DLY'): # if TOT DLY is provided, then finito
 			(dlyname,dly) = l.split('=',1)
 			header['tot dly'] = dly.strip()
@@ -290,7 +296,7 @@ def ReadCGGTTSHeader(fin):
 			
 			l = fin.readline().rstrip()
 			lineCount = lineCount +1
-			match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
+			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
 				header['ref dly'] = match.group(1)
 			else:
@@ -304,7 +310,7 @@ def ReadCGGTTSHeader(fin):
 			
 			l = fin.readline().rstrip()
 			lineCount = lineCount +1
-			match = re.match('^CAB\s+DLY\s+=\s+(.+)\s+ns$',l)
+			match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
 				header['cab dly'] = match.group(1)
 			else:
@@ -313,7 +319,7 @@ def ReadCGGTTSHeader(fin):
 			
 			l = fin.readline().rstrip()
 			lineCount = lineCount +1
-			match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
+			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
 				header['ref dly'] = match.group(1)
 			else:
@@ -342,7 +348,7 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 		fBIPMname = path + '/' + prefix + '{:02d}.{:03d}'.format(mjdYY,mjdXXX)
 		if (not os.path.isfile(fBIPMname)): 
 			Warn('Unable to open ' + fBIPMname + ' or ' + fname)
-			return ([],[],[])
+			return ([],[],{})
 		fname = fBIPMname
 		
 	Debug('--> Reading ' + fname)
@@ -351,37 +357,30 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 	except:
 		Warn('Unable to open ' + fname)
 		# not fatal
-		return ([],[],[])
+		return ([],[],{})
 	
 	ver = CGGTTS_UNKNOWN
-	header = ReadCGGTTSHeader(fin)
+	header = ReadCGGTTSHeader(fin,fname)
 	
 	if (header['version'] == 'RAW'):
 		Debug('Raw clock results')
 		ver=CGGTTS_RAW
+		header['version']='raw'
 	elif (header['version'] == '01'):	
-		Debug('V1')
+		Debug('V01')
 		ver=CGGTTS_V1
+		header['version']='V1'
 	elif (header['version'] == '02'):	
-		Debug('V2')
+		Debug('V02')
 		ver=CGGTTS_V1
+		header['version']='V02'
 	elif (header['version'] == '2E'):
 		Debug('V2E')
 		ver=CGGTTS_V2E
+		header['version']='V2E'
 	else:
 		Warn('Unknown format - the header is incorrectly formatted')
-		return ([],[],[])
-	
-	delays={}
-	if ('int dly' in header):
-		delays['int dly']=header['int dly']
-		Debug('INT DLY = '+ header['int dly'])
-	if ('cab dly' in header):
-		delays['cab dly']=header['cab dly']
-		Debug('CAB DLY = '+ header['cab dly'])
-	if ('ref dly' in header):
-		delays['ref dly']=header['ref dly']
-		Debug('REF DLY = '+ header['ref dly'])
+		return ([],[],{})
 	
 	dualFrequency = False
 	# Eat the header
@@ -389,7 +388,7 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 		l = fin.readline()
 		if not l:
 			Warn('Bad format')
-			return ([],[],[])
+			return ([],[],{})
 		if (re.search('STTIME TRKL ELV AZTH',l)):
 			if (re.search('MSIO',l)):
 				dualFrequency=True
@@ -400,7 +399,11 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 			break
 		
 	SetDataColumns(ver,dualFrequency)
-	
+	if (dualFrequency):
+		header['dual frequency'] = 'yes' # A convenient bodge. Sorry Mum.
+	else:
+		header['dual frequency'] = 'no'
+		
 	nextday =0
 	stats=[]
 	
@@ -455,7 +458,7 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 	Debug('low elevation = ' + str(nLowElevation))
 	Debug('high DSG = ' + str(nHighDSG))
 	Debug('short tracks = ' + str(nShortTracks))
-	return (d,stats,delays)
+	return (d,stats,header)
 	
 # ------------------------------------------
 def CheckSum(l):
@@ -464,7 +467,14 @@ def CheckSum(l):
 		cksum = cksum + ord(c)
 	return cksum % 256
 
-#------------------------------------------__
+# ------------------------------------------
+def GetDelay(mjd,delayName,delays):
+	dly = str(mjd)+':'+delayName
+	if (dly in delays):
+		return float(delays[dly])
+	return None
+
+# ------------------------------------------
 
 refExt = 'cctf'
 calExt = 'cctf'
@@ -476,7 +486,13 @@ minTrackLength = MIN_TRACK_LENGTH
 maxDSG=DSG_MAX
 cmpMethod=USE_GPSCV
 mode = MODE_TT
+ionosphere=True
 acceptDelays=False
+matchEphemeris=False
+refIonosphere=MODELED_IONOSPHERE
+calIonosphere=MODELED_IONOSPHERE
+# Switches for the ionosphere correction
+IONO_OFF = 0
 
 parser = argparse.ArgumentParser(description='Match and difference CGGTTS files')
 
@@ -490,6 +506,7 @@ parser.add_argument('lastMJD',help='last mjd');
 parser.add_argument('--elevationmask',help='elevation mask (in degrees, default'+str(elevationMask)+')')
 parser.add_argument('--mintracklength',help='minimum track length (in s, default '+str(minTrackLength)+')')
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
+parser.add_argument('--matchephemeris',help='match on ephemeris (default no)',action='store_true')
 
 # analysis mode
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
@@ -498,6 +515,7 @@ parser.add_argument('--aiv',help='compare in all-in-view',action='store_true')
 parser.add_argument('--acceptdelays',help='accept the delays (no prompts in calibration mode)',action='store_true')
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
+parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
 
 parser.add_argument('--refprefix',help='file prefix for reference receiver (default = MJD)')
 parser.add_argument('--calprefix',help='file prefix for calibration receiver (default = MJD)')
@@ -535,6 +553,9 @@ if (args.elevationmask):
 if (args.maxdsg):
 	maxDSG = float(args.maxdsg)
 
+if (args.matchephemeris):
+	matchEphemeris=True
+	
 if (args.mintracklength):
 	minTrackLength = args.mintracklength
 
@@ -549,7 +570,12 @@ if (args.acceptdelays):
 	
 if (args.delaycal):
 	mode = MODE_DELAY_CAL
-
+	ionosphere = False
+	IONO_OFF=1
+	if (args.ionosphere): # only use this option in delay calibration
+		ionosphere=True
+		IONO_OFF=0
+		
 if (args.timetransfer):
 	mode = MODE_TT
 
@@ -561,21 +587,21 @@ print 'Elevation mask =',elevationMask,'deg'
 print 'Minimum track length =',minTrackLength,'s'
 print 'Maximum DSG =', maxDSG,'ns'
 print 
-allref=[]
+allref=[] 
 allcal=[]
 
+refHeaders=[]
 for mjd in range(firstMJD,lastMJD+1):
-	(d,stats,delays)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd)
+	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd)
 	allref = allref + d
-
-CheckDelays()
-
+	refHeaders.append(header)
+	
+calHeaders=[]
 for mjd in range(firstMJD,lastMJD+1):
-	(d,stats,delays)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd)
+	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd)
 	allcal = allcal + d
-
-CheckDelays()
-
+	calHeaders.append(header)
+	
 reflen = len(allref)
 callen = len(allcal)
 if (reflen==0 or callen == 0):
@@ -583,13 +609,16 @@ if (reflen==0 or callen == 0):
 	exit()
 
 if (mode == MODE_DELAY_CAL and not(acceptDelays)):
-	print 'New delays'
+	pass
 
 # Can redefine the indices now
-PRN=0
-MJD=1
-STTIME=2
-REFSYS=7
+PRN = 0
+MJD = 1
+STTIME = 2
+REFSYS = 7
+IOE = 9
+CAL_IONO = 10
+REF_IONO = 10
 
 # Averaged deltas, in numpy friendly format,for analysis
 tMatch=[]
@@ -610,12 +639,13 @@ except:
 	exit()
 
 Debug('Matching tracks ...')
-
+Debug('Ionosphere '+('removed' if (IONO_OFF==1) else 'included'))
+			
 if (cmpMethod == USE_GPSCV):
 	matches = []
 	iref=0
 	jcal=0
-
+	nEphemerisMisMatches=0
 	# Rather than fitting to the average, fit to all matched tracks
 	# so that outliers are damped by the least squares fit
 	while iref < reflen:
@@ -623,7 +653,7 @@ if (cmpMethod == USE_GPSCV):
 		mjd1=allref[iref][MJD]
 		prn1=allref[iref][PRN]
 		st1 =allref[iref][STTIME]
-		
+		ioe1 = allref[iref][IOE]
 		while (jcal < callen):
 			mjd2=allcal[jcal][MJD]
 			st2 =allcal[jcal][STTIME]
@@ -642,15 +672,18 @@ if (cmpMethod == USE_GPSCV):
 					mjd2=allcal[jtmp][MJD]
 					st2 =allcal[jtmp][STTIME]
 					prn2=allcal[jtmp][PRN]
-					# print mjd1,mjd2,st1,st2,prn1,prn2,jtmp
+					ioe2=allcal[jtmp][IOE]
 					if (prn1 == prn2):
 						break
 					jtmp += 1
 				if ((mjd1 == mjd2) and (st1 == st2) and (prn1 == prn2)):
-					# match!
+					if (matchEphemeris and not(ioe1 == ioe2)):
+						nEphemerisMisMatches += 1
+						break
 					fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
 					tMatch.append(mjd1-firstMJD+st1/86400.0)
-					deltaMatch.append(allref[iref][REFSYS]-allcal[jtmp][REFSYS])
+					delta = allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO] - (allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO])
+					deltaMatch.append(delta)
 					matches.append(allref[iref]+allcal[jtmp])
 					break
 				else:
@@ -659,8 +692,11 @@ if (cmpMethod == USE_GPSCV):
 				jcal += 1
 				
 		iref +=1
+		
 	print len(matches),'matched tracks'
-	
+	if (matchEphemeris):
+		print str(nEphemerisMisMatches) + ' mismatched ephemerides'
+		
 	ncols = 13
 	lenmatch=len(matches)
 	mjd1=matches[0][MJD]
