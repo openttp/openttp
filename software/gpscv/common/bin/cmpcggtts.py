@@ -131,7 +131,206 @@ def SetDataColumns(ver,isdf):
 			FRC=21
 		else:
 			FRC=19
+
+# ------------------------------------------
+def ReadCGGTTSHeader(fin):
+	
+	intdly=''
+	cabdly=''
+	antdly=''
+	
+	# Read the header
+	header={}
+	lineCount=0
+	
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	match = re.match('(GGTTS GPS DATA FORMAT VERSION|CGGTTS     GENERIC DATA FORMAT VERSION)\s+=\s+(01|2E)',l)
+	if (match):
+		header['version'] = match.group(2)
+		version = 1
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+	
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('REV DATE') >= 0):
+		(tag,val) = l.split('=')
+		header['rev date'] = val.strip()
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+	
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('RCVR') >= 0):
+		header['rcvr'] = l
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+		
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('CH') >= 0):
+		header['ch'] = l
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+		
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('IMS') >= 0):
+		header['ims'] = l
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+		
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('LAB') == 0):
+		header['lab'] = l
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}	
+	
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	match = re.match('^X\s+=\s+(.+)\s+m$',l)
+	if (match):
+		header['x'] = match.group(1)
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+	
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	match = re.match('^Y\s+=\s+(.+)\s+m$',l)
+	if (match):
+		header['y'] = match.group(1)
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+		
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	match = re.match('^Z\s+=\s+(.+)\s+m$',l)
+	if (match):
+		header['z'] = match.group(1)
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+		
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('FRAME') == 0):
+		header['frame'] = l
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+	
+	comments = ''
+	
+	while True:
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if not l:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
+		if (l.find('COMMENTS') == 0):
+			comments = comments + l +'\n'
+		else:
+			break
+	
+	header['comments'] = comments
+	
+	if (header['version'] == '01'):
+		#l = fin.readline().rstrip()
+		#lineCount = lineCount +1
+		match = re.match('^INT\s+DLY\s+=\s+(.+)\s+ns$',l)
+		if (match):
+			header['int dly'] = match.group(1)
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
+		
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		match = re.match('^CAB\s+DLY\s+=\s+(.+)\s+ns$',l)
+		if (match):
+			header['cab dly'] = match.group(1)
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
+		
+		
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
+		if (match):
+			header['ref dly'] = match.group(1)
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
 			
+	elif (header['version'] == '2E'):
+		
+		#l = fin.readline().rstrip()
+		#lineCount = lineCount +1
+		
+		match = re.match('^(TOT DLY|SYS DLY|INT DLY)',l)
+		if (match.group(1) == 'TOT DLY'): # if TOT DLY is provided, then finito
+			(dlyname,dly) = l.split('=',1)
+			header['tot dly'] = dly.strip()
+		
+		elif (match.group(1) == 'SYS DLY'): # if SYS DLY is provided, then read REF DLY
+		
+			(dlyname,dly) = l.split('=',1)
+			header['sys dly'] = dly.strip()
+			
+			l = fin.readline().rstrip()
+			lineCount = lineCount +1
+			match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
+			if (match):
+				header['ref dly'] = match.group(1)
+			else:
+				Warn('Invalid format in {} line {}'.format(fname,lineCount))
+				return {}
+				
+		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
+		
+			(dlyname,dly) = l.split('=',1)
+			header['int dly'] = dly.strip()
+			
+			l = fin.readline().rstrip()
+			lineCount = lineCount +1
+			match = re.match('^CAB\s+DLY\s+=\s+(.+)\s+ns$',l)
+			if (match):
+				header['cab dly'] = match.group(1)
+			else:
+				Warn('Invalid format in {} line {}'.format(fname,lineCount))
+				return {}
+			
+			l = fin.readline().rstrip()
+			lineCount = lineCount +1
+			match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
+			if (match):
+				header['ref dly'] = match.group(1)
+			else:
+				Warn('Invalid format in {} line {}'.format(fname,lineCount))
+				return {}
+	
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('REF') == 0):
+		(tag,val) = l.split('=')
+		header['ref'] = val.strip()
+	else:
+		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+		return {}
+	
+	return header;
+
 # ------------------------------------------
 def ReadCGGTTS(path,prefix,ext,mjd):
 	d=[]
@@ -155,22 +354,34 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 		return ([],[],[])
 	
 	ver = CGGTTS_UNKNOWN
-	l = fin.readline().rstrip()
-	if (re.match('\s+RAW CLOCK RESULTS',l)):
+	header = ReadCGGTTSHeader(fin)
+	
+	if (header['version'] == 'RAW'):
 		Debug('Raw clock results')
 		ver=CGGTTS_RAW
-	elif (re.search('GGTTS GPS DATA FORMAT VERSION = 01',l)):	
+	elif (header['version'] == '01'):	
 		Debug('V1')
 		ver=CGGTTS_V1
-	elif (re.search('GGTTS GPS DATA FORMAT VERSION = 02',l)):	
+	elif (header['version'] == '02'):	
 		Debug('V2')
 		ver=CGGTTS_V1
-	elif (re.search('GENERIC DATA FORMAT VERSION = 2E',l)):
+	elif (header['version'] == '2E'):
 		Debug('V2E')
 		ver=CGGTTS_V2E
 	else:
 		Warn('Unknown format - the header is incorrectly formatted')
 		return ([],[],[])
+	
+	delays={}
+	if ('int dly' in header):
+		delays['int dly']=header['int dly']
+		Debug('INT DLY = '+ header['int dly'])
+	if ('cab dly' in header):
+		delays['cab dly']=header['cab dly']
+		Debug('CAB DLY = '+ header['cab dly'])
+	if ('ref dly' in header):
+		delays['ref dly']=header['ref dly']
+		Debug('REF DLY = '+ header['ref dly'])
 	
 	dualFrequency = False
 	# Eat the header
@@ -179,8 +390,6 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 		if not l:
 			Warn('Bad format')
 			return ([],[],[])
-		if (re.search('^INT DLY',l)):
-			pass
 		if (re.search('STTIME TRKL ELV AZTH',l)):
 			if (re.search('MSIO',l)):
 				dualFrequency=True
@@ -194,7 +403,7 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 	
 	nextday =0
 	stats=[]
-	delays=[]
+	
 	nLowElevation=0
 	nHighDSG=0
 	nShortTracks=0
@@ -241,8 +450,7 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 		
 	fin.close()
 	stats.append([nLowElevation,nHighDSG,nShortTracks])
-	delays.append([])
-	
+
 	Debug(str(nextday) + ' tracks after end of the day removed')
 	Debug('low elevation = ' + str(nLowElevation))
 	Debug('high DSG = ' + str(nHighDSG))
@@ -268,6 +476,7 @@ minTrackLength = MIN_TRACK_LENGTH
 maxDSG=DSG_MAX
 cmpMethod=USE_GPSCV
 mode = MODE_TT
+acceptDelays=False
 
 parser = argparse.ArgumentParser(description='Match and difference CGGTTS files')
 
@@ -286,6 +495,7 @@ parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+'
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
 parser.add_argument('--aiv',help='compare in all-in-view',action='store_true')
 
+parser.add_argument('--acceptdelays',help='accept the delays (no prompts in calibration mode)',action='store_true')
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 
@@ -334,6 +544,9 @@ if (args.cv):
 if (args.aiv):
 	cmpMethod = USE_AIV
 
+if (args.acceptdelays):
+	acceptDelays=True
+	
 if (args.delaycal):
 	mode = MODE_DELAY_CAL
 
@@ -355,15 +568,22 @@ for mjd in range(firstMJD,lastMJD+1):
 	(d,stats,delays)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd)
 	allref = allref + d
 
+CheckDelays()
+
 for mjd in range(firstMJD,lastMJD+1):
 	(d,stats,delays)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd)
 	allcal = allcal + d
+
+CheckDelays()
 
 reflen = len(allref)
 callen = len(allcal)
 if (reflen==0 or callen == 0):
 	print('Insufficient data')
 	exit()
+
+if (mode == MODE_DELAY_CAL and not(acceptDelays)):
+	print 'New delays'
 
 # Can redefine the indices now
 PRN=0
@@ -471,13 +691,12 @@ elif (cmpMethod == USE_AIV):
 	# Opposite order here
 	# First average at each time
 	# and then match times
-	pass
+	print 'Not supported yet!'
+	exit()
 
 fmatches.close()
 favmatches.close()
 
-
-#
 # Analysis 
 
 if (len(tMatch) < 2):
