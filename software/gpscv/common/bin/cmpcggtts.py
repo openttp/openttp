@@ -107,6 +107,12 @@ def Warn(msg):
 	return
 
 # ------------------------------------------
+def Info(msg):
+	if (not args.quiet):
+		sys.stdout.write(msg+'\n')
+	return
+
+# ------------------------------------------
 def SetDataColumns(ver,isdf):
 	global PRN,MJD,STTIME,ELV,AZTH,REFSV,REFSYS,IOE,MDTR,MDIO,MSIO,FRC
 	if (CGGTTS_RAW == ver): # CL field is empty
@@ -468,11 +474,26 @@ def CheckSum(l):
 	return cksum % 256
 
 # ------------------------------------------
-def GetDelay(mjd,delayName,delays):
-	dly = str(mjd)+':'+delayName
-	if (dly in delays):
-		return float(delays[dly])
-	return None
+def GetDelay(headers,delayName):
+	for h in headers:
+		if (delayName in h):
+			return True,float(h[delayName])
+	return False,0.0
+
+# ------------------------------------------
+def GetFloat(msg,defaultValue):
+	ok = False
+	while (not ok):
+		val = raw_input(msg)
+		val=val.strip()
+		if (len(val) == 0):
+			return defaultValue
+		try:
+			fval = float(val)
+			ok = True
+		except:
+			ok = False
+	return fval
 
 # ------------------------------------------
 
@@ -494,7 +515,14 @@ calIonosphere=MODELED_IONOSPHERE
 # Switches for the ionosphere correction
 IONO_OFF = 0
 
-parser = argparse.ArgumentParser(description='Match and difference CGGTTS files')
+examples =  'Usage examples\n'
+examples += '1. Common-view time and frequency transfer\n'
+examples += '    cmpcggtts.py ref cal 58418 58419\n'
+examples += '2. Delay calibration with no prompts for delays\n'
+examples += '    cmpcggtts.py --delaycal --acceptdelays ref cal 58418 58419\n'
+
+parser = argparse.ArgumentParser(description='Match and difference CGGTTS files',
+	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
 
 # required arguments
 parser.add_argument('refDir',help='reference CGGTTS directory')
@@ -524,6 +552,7 @@ parser.add_argument('--calext',help='file extension for calibration receiver (de
 
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
+parser.add_argument('--quiet',help='suppress all ouput to the terminal',action='store_true')
 parser.add_argument('--keepall',help='keep all tracks ,including those after the end of the GPS day',action='store_true')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
 
@@ -583,10 +612,12 @@ firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
 
 # Print the settings
-print 'Elevation mask =',elevationMask,'deg'
-print 'Minimum track length =',minTrackLength,'s'
-print 'Maximum DSG =', maxDSG,'ns'
-print 
+if (not args.quiet):
+	print
+	print 'Elevation mask = ',elevationMask,'deg'
+	print 'Minimum track length =',minTrackLength,'s'
+	print 'Maximum DSG =', maxDSG,'ns'
+	print 
 allref=[] 
 allcal=[]
 
@@ -605,12 +636,83 @@ for mjd in range(firstMJD,lastMJD+1):
 reflen = len(allref)
 callen = len(allcal)
 if (reflen==0 or callen == 0):
-	print('Insufficient data')
+	sys.stderr.write('Insufficient data\n')
 	exit()
 
+refCorrection = 0 # sign convention: add to REFSYS
+calCorrection = 0 # ditto
+	
 if (mode == MODE_DELAY_CAL and not(acceptDelays)):
-	pass
+	# Possible delay combinations are
+	# TOT DLY
+	# SYS + REF
+	# INT DLY + CAB DLY + REF DLY
+	# Warning! Delays are assumed not to change
+	
+	print 'REF/HOST receiver'
+	ok,totDelay = GetDelay(refHeaders,'tot dly')
+	if ok:
+		newTotDelay = GetFloat('New TOT DLY [{} ns]: '.format(totDelay),totDelay)
+		refCorrection = totDly - newTotDelay
+		Info('Reported TOT DLY = {}'.format(newTotDelay))
+	else:
+		ok,sysDelay = GetDelay(refHeaders,'sys dly')
+		if ok:
+			newSysDelay = GetFloat('New SYS DLY [{} ns]: '.format(sysDelay),sysDelay)
 
+			ok,refDelay = GetDelay(refHeaders,'ref dly')
+			newRefDelay = GetFloat('New REF DLY [{} ns]: '.format(refDelay),refDelay)
+			refCorrection = (sysDelay-refDelay) - (newSysDelay - newRefDelay)
+			Info('Reported SYS DLY={} REF DLY={}'.format(newSysDelay,newRefDelay))
+		else:
+			# header tested so need to check further
+			ok,intDelay = GetDelay(refHeaders,'int dly') 
+			newIntDelay = GetFloat('New INT DLY [{} ns]: '.format(intDelay),intDelay)
+			
+			ok,cabDelay = GetDelay(refHeaders,'cab dly') 
+			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
+			
+			ok,refDelay = GetDelay(refHeaders,'ref dly') 
+			newRefDelay = GetFloat('New REF DLY [{} ns]: '.format(refDelay),refDelay)
+			
+			refCorrection = (intDelay + cabDelay - refDelay) - (newIntDelay + newCabDelay - newRefDelay)
+			
+			Info('Reported INT DLY={} CAB DLY={} INT DLY={}'.format(newIntDelay,newCabDelay,newRefDelay))
+			
+	Info('Delay delta = {}'.format(refCorrection))	
+	
+	print 'CAL/TRAV receiver'
+	ok,totDelay = GetDelay(calHeaders,'tot dly')
+	if ok:
+		newTotDelay = GetFloat('New TOT DLY [{} ns]: '.format(totDelay),totDelay)
+		calCorrection = totDly - newTotDelay
+		Info('Reported TOT DLY = {}'.format(newTotDelay))
+	else:
+		ok,sysDelay = GetDelay(calHeaders,'sys dly')
+		if ok:
+			newSysDelay = GetFloat('New SYS DLY [{} ns]: '.format(sysDelay),sysDelay)
+
+			ok,refDelay = GetDelay(calHeaders,'ref dly')
+			newRefDelay = GetFloat('New REF DLY [{} ns]: '.format(refDelay),refDelay)
+			calCorrection = (sysDelay-refDelay) - (newSysDelay - newRefDelay)
+			Info('Reported SYS DLY={} REF DLY={}'.format(newSysDelay,newRefDelay))
+		else:
+			# header tested so need to check further
+			ok,intDelay = GetDelay(calHeaders,'int dly') 
+			newIntDelay = GetFloat('New INT DLY [{} ns]: '.format(intDelay),intDelay)
+			
+			ok,cabDelay = GetDelay(calHeaders,'cab dly') 
+			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
+			
+			ok,refDelay = GetDelay(calHeaders,'ref dly') 
+			newRefDelay = GetFloat('New REF DLY [{} ns]: '.format(refDelay),refDelay)
+			
+			calCorrection = (intDelay + cabDelay - refDelay) - (newIntDelay + newCabDelay - newRefDelay)
+			
+			Info('Reported INT DLY={} CAB DLY={} INT DLY={}'.format(newIntDelay,newCabDelay,newRefDelay))
+			
+	Info('Delay delta = {}'.format(refCorrection))	
+	
 # Can redefine the indices now
 PRN = 0
 MJD = 1
@@ -628,14 +730,14 @@ foutName = 'ref.cal.av.matches.txt'
 try:
 	favmatches = open(foutName,'w')
 except:
-	print('Unable to open ' + foutName)
+	sys.stderr.write('Unable to open ' + foutName +'\n')
 	exit()
 
 foutName = 'ref.cal.matches.txt'
 try:
 	fmatches = open(foutName,'w')
 except:
-	print('Unable to open ' + foutName)
+	sys.stderr.write('Unable to open ' + foutName +'\n')
 	exit()
 
 Debug('Matching tracks ...')
@@ -682,7 +784,8 @@ if (cmpMethod == USE_GPSCV):
 						break
 					fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
 					tMatch.append(mjd1-firstMJD+st1/86400.0)
-					delta = allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO] - (allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO])
+					delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
+						allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
 					deltaMatch.append(delta)
 					matches.append(allref[iref]+allcal[jtmp])
 					break
@@ -693,9 +796,9 @@ if (cmpMethod == USE_GPSCV):
 				
 		iref +=1
 		
-	print len(matches),'matched tracks'
+	Info(str(len(matches))+' matched tracks')
 	if (matchEphemeris):
-		print str(nEphemerisMisMatches) + ' mismatched ephemerides'
+		Info(str(nEphemerisMisMatches) + ' mismatched ephemerides')
 		
 	ncols = 13
 	lenmatch=len(matches)
@@ -727,7 +830,7 @@ elif (cmpMethod == USE_AIV):
 	# Opposite order here
 	# First average at each time
 	# and then match times
-	print 'Not supported yet!'
+	sys.stderr.write('Not supported yet!\n')
 	exit()
 
 fmatches.close()
@@ -736,7 +839,7 @@ favmatches.close()
 # Analysis 
 
 if (len(tMatch) < 2):
-	print 'Insufficient data points left for analysis'
+	sys.stderr.write('Insufficient data points left for analysis\n')
 	exit()
 	
 p,V = np.polyfit(tMatch,deltaMatch, 1, cov=True)
@@ -749,7 +852,15 @@ if (MODE_DELAY_CAL==mode ):
 		delta = p[1] + p[0]*tMatch[t] - deltaMatch[t]
 		rmsResidual = rmsResidual + delta*delta
 	rmsResidual = np.sqrt(rmsResidual/(len(tMatch)-1)) # FIXME is this correct ?
-
-	print 'mean offset (REF - CAL) {} ns [subtract from CAL \'INT DLY\' to correct]'.format(meanOffset)
-	print 'slope {} ps/day SD {} ps/day'.format(p[0]*1000,slopeErr*1000)
-	print 'RMS of residuals {} ns'.format(rmsResidual)
+	if (not args.quiet):
+		print
+		print 'Offsets (REF - CAL)  [subtract from CAL \'INT DLY\' to correct]'
+		print '  at midpoint {} ns'.format(meanOffset)
+		print '  median  {} ns'.format(np.median(deltaMatch))
+		print '  mean {} ns'.format(np.mean(deltaMatch))
+		print 'slope {} ps/day SD {} ps/day'.format(p[0]*1000,slopeErr*1000)
+		print 'RMS of residuals {} ns'.format(rmsResidual)
+elif (MODE_TT == mode):
+	if (not args.quiet):
+		print
+		print 'ffe = {:.3e} +/- {:.3e}'.format(p[0]*1.0E-9/86400.0,slopeErr*1.0E-9/86400.0)
