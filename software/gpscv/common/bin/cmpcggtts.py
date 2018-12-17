@@ -151,7 +151,6 @@ def ReadCGGTTSHeader(fin,fname):
 	# Read the header
 	header={}
 	lineCount=0
-	
 	l = fin.readline().rstrip()
 	lineCount = lineCount +1
 	match = re.search('DATA FORMAT VERSION\s+=\s+(01|02|2E)',l)
@@ -164,38 +163,39 @@ def ReadCGGTTSHeader(fin,fname):
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return {}
 	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('REV DATE') >= 0):
-		(tag,val) = l.split('=')
-		header['rev date'] = val.strip()
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('RCVR') >= 0):
-		header['rcvr'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
+	if not(header['version'] == 'RAW'):
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if (l.find('REV DATE') >= 0):
+			(tag,val) = l.split('=')
+			header['rev date'] = val.strip()
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
 		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('CH') >= 0):
-		header['ch'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
-		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('IMS') >= 0):
-		header['ims'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if (l.find('RCVR') >= 0):
+			header['rcvr'] = l
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
+			
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if (l.find('CH') >= 0):
+			header['ch'] = l
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
+			
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if (l.find('IMS') >= 0):
+			header['ims'] = l
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
 		
 	l = fin.readline().rstrip()
 	lineCount = lineCount +1
@@ -331,15 +331,15 @@ def ReadCGGTTSHeader(fin,fname):
 			else:
 				Warn('Invalid format in {} line {}'.format(fname,lineCount))
 				return {}
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('REF') == 0):
-		(tag,val) = l.split('=')
-		header['ref'] = val.strip()
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
+	if not (header['version'] == 'RAW'):
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if (l.find('REF') == 0):
+			(tag,val) = l.split('=')
+			header['ref'] = val.strip()
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
 	
 	return header;
 
