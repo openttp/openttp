@@ -372,9 +372,9 @@ if (args.version):
 	ShowVersion()
 	exit()
 
-minElevation = args.elevation * 10 # in units of 0.1 ns
-minTrackLength = args.tracklength
-maxDSG = args.dsg * 10 # in units of 0.1 ns
+minElevation = int(args.elevation) * 10 # in units of 0.1 ns
+minTrackLength = int(args.tracklength)
+maxDSG = int(args.dsg) * 10 # in units of 0.1 ns
 
 if (args.sequence):
 	if (2==len(args.infile)):
