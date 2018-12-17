@@ -101,7 +101,12 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 	modelName=m;
 	manufacturer="NVS";
 	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1|GNSSSystem::L1;
+	//codes=GNSSSystem::C1|GNSSSystem::L1;
+	codes=GNSSSystem::C1;                 // Limit to C1 only:
+	                                      // It cuts RINEX processing times significantly
+	                                      // and removes negative value "L1" results from
+	                                      // the output RINEX files.
+	                                      // Note: need to make change at line ~ 368 too.
 	channels=32;
 	if (modelName == "NV08C-CSM"){
 		// For the future
@@ -293,10 +298,8 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					int nGPS=0;
 					int nGLONASS=0;
 					int nBeiDou=0;
-					
 					for (int s=0;s<nsats;s++){
 						HexToBin((char *) msg.substr((27+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&signal);
-						
 						HexToBin((char *) msg.substr((28+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&svn);
 						HexToBin((char *) msg.substr((31+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf); // carrier phase
 						HexToBin((char *) msg.substr((39+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf2); // pseudo-range
@@ -338,7 +341,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 									gps.L1lastunlock[svn]=tgps;
 								}
 							}
-							else if ((constellations & GNSSSystem::BEIDOU) && (signal & 0x02)){ // BeiDou FIXME signal flags TBD
+							else if ((constellations & GNSSSystem::BEIDOU) && (signal & 0x09)){ // BeiDou
 								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
 								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::C1,svmeas,NULL);
 								svm->dbuf3=svmeas;
@@ -361,7 +364,9 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						
 					}
 					
-					if (gnssmeas.size() >= MAX_CHANNELS*numConstellations*numCodes){ // too much data - something is wrong
+					//if (gnssmeas.size() >= MAX_CHANNELS*numConstellations*numCodes){ // too much data - something is wrong
+					// Fix for having only one code: Multiplied MAX_CHANNELS by 2 because codes reduced by 1/2 - see line ~ 105
+					if (gnssmeas.size() >= MAX_CHANNELS*numConstellations*numCodes*2){ // too much data - something is wrong
 						DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gnssmeas.size() << ")");
 						deleteMeasurements(gnssmeas);
 						continue;
