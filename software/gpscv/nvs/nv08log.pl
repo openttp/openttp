@@ -565,7 +565,11 @@ sub ConfigureReceiver
 			}
 		}
 		elsif ($observations =~ /beidou/){ # Maybe add option for GPS+SBAS+Beidou later.
-			sendCmd("\x0D\x02\x15"); # GPS+Beidou
+			if ($observations =~ /sbas/){
+				sendCmd("\x0D\x02\x1f"); # GPS+Beidou+SBAS - not tested yet
+			} else {
+				sendCmd("\x0D\x02\x15"); # GPS+Beidou
+			}
 		}
 		else{
 			if ($observations =~ /sbas/){ 
@@ -584,8 +588,15 @@ sub ConfigureReceiver
 			sendCmd("\x0D\x02\x02"); # GLONASS
 		}
   }
-  elsif ($observations =~ /galileo/){
+  elsif ($observations =~ /galileo/){ # Not supported yet (as of 2018-12, HW 5.1, FW 5.5)
 		sendCmd("\x0D\x02\x03");
+  }
+  elsif ($observations =~ /beidou/){ # Beidou / Beidou+SBAS not tested yet
+		if ($observations =~ /sbas/){ 
+			sendCmd("\x0D\x02\x20"); # Beidou+SBAS
+		} else {
+			sendCmd("\x0D\x02\x16"); # Beidou
+		}
   }
   
   #sendCmd("\x0D\x02\x01");
