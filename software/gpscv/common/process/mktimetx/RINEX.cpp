@@ -179,7 +179,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 			nobs=0;
 			obsTypes="";
 			if (rx->constellations & GNSSSystem::BEIDOU) {
-				obsTypes=" C2X"; // B1 signal FIXME this may need to be made receiver-dependent
+				obsTypes=" C2I"; // B1 signal
 				nobs=1;
 				fprintf(fout,"%1s  %3d%-54s%-20s\n","C",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES");
 			}
@@ -191,7 +191,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				fprintf(fout,"%1s  %3d%-54s%-20s\n","R",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES");
 			}
 			if (rx->constellations & GNSSSystem::GALILEO) {
-				obsTypes=" C1Z";  //FIXME no idea what it should be
+				obsTypes=" C1C";  // same as GPS
 				nobs=1;
 				fprintf(fout,"%1s  %3d%-54s%-20s\n","E",nobs,obsTypes.c_str(),"SYS / # / OBS TYPES");
 			}
