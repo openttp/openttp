@@ -33,6 +33,8 @@
 #
 
 import argparse
+from datetime import datetime
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import re
@@ -74,9 +76,9 @@ ISG=19 # only for dual frequency
 FRC=21 
 
 MIN_TRACK_LENGTH=750
-DSG_MAX=200
+DSG_MAX=20.0
 IONO_CORR=1 # this means the ionospheric correction is removed!
-ELV_MASK=0
+ELV_MASK=0.0
 
 USE_GPSCV = 1
 USE_AIV = 2
@@ -416,6 +418,8 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 	nLowElevation=0
 	nHighDSG=0
 	nShortTracks=0
+	nBadSRSV=0
+	nBadMSIO =0
 	while True:
 		l = fin.readline().rstrip()
 		if l:
@@ -425,11 +429,11 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 			mm = int(fields[STTIME][2:4])
 			ss = int(fields[STTIME][4:6])
 			tt = hh*3600+mm*60+ss
-			dsg=0
+			dsg=0.0
 			trklen=999
 			reject=False
 			if (not(CGGTTS_RAW == ver)): # DSG not defined for RAW
-				dsg = int(fields[DSG])/10
+				dsg = int(fields[DSG])/10.0
 				trklen = int(fields[TRKL])
 			elv = int(fields[ELV])/10.0
 			if (elv < elevationMask):
@@ -441,6 +445,14 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 			if (trklen < minTrackLength):
 				nShortTracks +=1
 				reject = True
+			if (not(CGGTTS_RAW == ver)):
+				if (int(fields[SRSV]) == 99999):
+					nBadSRSV +=1
+					reject=True
+				if (dualFrequency):
+					if (int(fields[MSIO]) == 9999):
+						nBadMSIO +=1
+						reject=True
 			if (reject):
 				continue
 			frc = 0
@@ -458,12 +470,14 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 			break
 		
 	fin.close()
-	stats.append([nLowElevation,nHighDSG,nShortTracks])
+	stats.append([nLowElevation,nHighDSG,nShortTracks,nBadSRSV,nBadMSIO])
 
 	Debug(str(nextday) + ' tracks after end of the day removed')
 	Debug('low elevation = ' + str(nLowElevation))
 	Debug('high DSG = ' + str(nHighDSG))
 	Debug('short tracks = ' + str(nShortTracks))
+	Debug('bad SRSV = ' + str(nBadSRSV))
+	Debug('bad MSIO = ' + str(nBadMSIO))
 	return (d,stats,header)
 	
 # ------------------------------------------
@@ -477,6 +491,8 @@ def CheckSum(l):
 def GetDelay(headers,delayName):
 	for h in headers:
 		if (delayName in h):
+			if (delayName == 'tot dly'):
+				return True,0.0
 			return True,float(h[delayName])
 	return False,0.0
 
@@ -552,7 +568,7 @@ parser.add_argument('--calext',help='file extension for calibration receiver (de
 
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
-parser.add_argument('--quiet',help='suppress all ouput to the terminal',action='store_true')
+parser.add_argument('--quiet',help='suppress all output to the terminal',action='store_true')
 parser.add_argument('--keepall',help='keep all tracks ,including those after the end of the GPS day',action='store_true')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
 
@@ -618,6 +634,7 @@ if (not args.quiet):
 	print 'Minimum track length =',minTrackLength,'s'
 	print 'Maximum DSG =', maxDSG,'ns'
 	print 
+	
 allref=[] 
 allcal=[]
 
@@ -626,7 +643,9 @@ for mjd in range(firstMJD,lastMJD+1):
 	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd)
 	allref = allref + d
 	refHeaders.append(header)
-	
+
+Debug('REF total tracks= {}'.format(len(allref)))
+			
 calHeaders=[]
 for mjd in range(firstMJD,lastMJD+1):
 	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd)
@@ -639,6 +658,8 @@ if (reflen==0 or callen == 0):
 	sys.stderr.write('Insufficient data\n')
 	exit()
 
+Debug('CAL total tracks= {}'.format(len(allcal)))
+			
 refCorrection = 0 # sign convention: add to REFSYS
 calCorrection = 0 # ditto
 	
@@ -653,7 +674,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 	ok,totDelay = GetDelay(refHeaders,'tot dly')
 	if ok:
 		newTotDelay = GetFloat('New TOT DLY [{} ns]: '.format(totDelay),totDelay)
-		refCorrection = totDly - newTotDelay
+		refCorrection = totDelay - newTotDelay
 		Info('Reported TOT DLY = {}'.format(newTotDelay))
 	else:
 		ok,sysDelay = GetDelay(refHeaders,'sys dly')
@@ -685,7 +706,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 	ok,totDelay = GetDelay(calHeaders,'tot dly')
 	if ok:
 		newTotDelay = GetFloat('New TOT DLY [{} ns]: '.format(totDelay),totDelay)
-		calCorrection = totDly - newTotDelay
+		calCorrection = totDelay - newTotDelay
 		Info('Reported TOT DLY = {}'.format(newTotDelay))
 	else:
 		ok,sysDelay = GetDelay(calHeaders,'sys dly')
@@ -725,6 +746,10 @@ REF_IONO = 10
 # Averaged deltas, in numpy friendly format,for analysis
 tMatch=[]
 deltaMatch=[]
+refMatch=[]
+calMatch=[]
+tAvMatches=[]
+avMatches=[]
 
 foutName = 'ref.cal.av.matches.txt'
 try:
@@ -786,6 +811,8 @@ if (cmpMethod == USE_GPSCV):
 					tMatch.append(mjd1-firstMJD+st1/86400.0)
 					delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
 						allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
+					refMatch.append(allref[iref][REFSYS])
+					calMatch.append(allcal[jtmp][REFSYS])
 					deltaMatch.append(delta)
 					matches.append(allref[iref]+allcal[jtmp])
 					break
@@ -813,19 +840,22 @@ if (cmpMethod == USE_GPSCV):
 		st2  = matches[imatch][STTIME]
 		if (mjd1==mjd2 and st1==st2):
 			nsv += 1
-			avref  += matches[imatch][REFSYS] 
-			avcal  += matches[imatch][ncols + REFSYS] 
+			avref  += matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
+			avcal  += matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
 		else:
 			favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
-			
+			tAvMatches.append(mjd1-firstMJD+st1/86400.0)
+			avMatches.append((avref-avcal)/nsv)
 			mjd1 = mjd2
 			st1  = st2
 			nsv=1
-			avref = matches[imatch][REFSYS]
-			avcal = matches[imatch][ncols + REFSYS]
+			avref = matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
+			avcal = matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
 		imatch += 1
 	# last one
 	favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
+	tAvMatches.append(mjd1-firstMJD+st1/86400.0)
+	avMatches.append((avref-avcal)/nsv)
 elif (cmpMethod == USE_AIV):
 	# Opposite order here
 	# First average at each time
@@ -853,6 +883,7 @@ if (MODE_DELAY_CAL==mode ):
 		rmsResidual = rmsResidual + delta*delta
 	rmsResidual = np.sqrt(rmsResidual/(len(tMatch)-1)) # FIXME is this correct ?
 	if (not args.quiet):
+		
 		print
 		print 'Offsets (REF - CAL)  [subtract from CAL \'INT DLY\' to correct]'
 		print '  at midpoint {} ns'.format(meanOffset)
@@ -860,7 +891,32 @@ if (MODE_DELAY_CAL==mode ):
 		print '  mean {} ns'.format(np.mean(deltaMatch))
 		print 'slope {} ps/day SD {} ps/day'.format(p[0]*1000,slopeErr*1000)
 		print 'RMS of residuals {} ns'.format(rmsResidual)
+		
+	f,(ax1,ax2,ax3)= plt.subplots(3,sharex=True,figsize=(8,11))
+	f.suptitle('Delay calibration ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
+	ax1.plot(tMatch,deltaMatch,ls=':')
+	ax1.plot(tAvMatches,avMatches)
+	ax1.set_title('REF-CAL (filtered)')
+	ax1.set_ylabel('REF-CAL (ns)')
+	ax1.set_xlabel('MJD - '+str(firstMJD))
+	
+	ax2.plot(tMatch,calMatch,ls=':')
+	ax2.set_title('CAL (filtered)')
+	ax2.set_ylabel('REFSYS (ns)')
+	ax2.set_xlabel('MJD - '+str(firstMJD))
+	
+	ax3.plot(tMatch,refMatch,ls=':')
+	ax3.set_title('REF (filtered)')
+	ax3.set_ylabel('REFSYS (ns)')
+	ax3.set_xlabel('MJD - '+str(firstMJD))
+	
+	plt.savefig('ref.cal.ps',papertype='a4')
+	
+	if (not args.quiet):
+		plt.show()
+
 elif (MODE_TT == mode):
 	if (not args.quiet):
 		print
 		print 'ffe = {:.3e} +/- {:.3e}'.format(p[0]*1.0E-9/86400.0,slopeErr*1.0E-9/86400.0)
+		
