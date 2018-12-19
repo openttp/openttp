@@ -346,7 +346,7 @@ def ReadCGGTTSHeader(fin,fname):
 	return header;
 
 # ------------------------------------------
-def ReadCGGTTS(path,prefix,ext,mjd):
+def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 	d=[]
 	
 	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
@@ -461,7 +461,7 @@ def ReadCGGTTS(path,prefix,ext,mjd):
 			msio = 0
 			if (dualFrequency):
 				msio = float(fields[MSIO])/10.0
-			if ((tt < 86399 and theMJD == mjd) or args.keepall):
+			if ((tt >= startTime and tt < stopTime and theMJD == mjd) or args.keepall):
 				d.append([fields[PRN],int(fields[MJD]),tt,trklen,elv,float(fields[AZTH])/10.0,float(fields[REFSV])/10.0,float(fields[REFSYS])/10.0,
 					dsg,int(fields[IOE]),float(fields[MDIO])/10.0,msio,frc])
 			else:
@@ -528,6 +528,10 @@ acceptDelays=False
 matchEphemeris=False
 refIonosphere=MODELED_IONOSPHERE
 calIonosphere=MODELED_IONOSPHERE
+
+startTime=0 # in seconds
+stopTime=86399
+
 # Switches for the ionosphere correction
 IONO_OFF = 0
 
@@ -546,8 +550,12 @@ parser.add_argument('calDir',help='calibration CGGTTS directory')
 parser.add_argument('firstMJD',help='first mjd')
 parser.add_argument('lastMJD',help='last mjd');
 
+#
+parser.add_argument('--starttime',help='start time of day HH:MM:SS for first MJD (default 0)')
+parser.add_argument('--stoptime',help='stop time of day HH:MM:SS for last MJD (default 23:59:00)')
+
 # filtering
-parser.add_argument('--elevationmask',help='elevation mask (in degrees, default'+str(elevationMask)+')')
+parser.add_argument('--elevationmask',help='elevation mask (in degrees, default '+str(elevationMask)+')')
 parser.add_argument('--mintracklength',help='minimum track length (in s, default '+str(minTrackLength)+')')
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
 parser.add_argument('--matchephemeris',help='match on ephemeris (default no)',action='store_true')
@@ -556,7 +564,7 @@ parser.add_argument('--matchephemeris',help='match on ephemeris (default no)',ac
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
 parser.add_argument('--aiv',help='compare in all-in-view',action='store_true')
 
-parser.add_argument('--acceptdelays',help='accept the delays (no prompts in calibration mode)',action='store_true')
+parser.add_argument('--acceptdelays',help='accept the delays (no prompts in delay calibration mode)',action='store_true')
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
@@ -569,7 +577,7 @@ parser.add_argument('--calext',help='file extension for calibration receiver (de
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
 parser.add_argument('--quiet',help='suppress all output to the terminal',action='store_true')
-parser.add_argument('--keepall',help='keep all tracks ,including those after the end of the GPS day',action='store_true')
+parser.add_argument('--keepall',help='keep tracks after the end of the day',action='store_true')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
 
 args = parser.parse_args()
@@ -580,6 +588,22 @@ if (args.version):
 	ShowVersion()
 	exit()
 
+if (args.starttime):
+	match = re.search('(\d+):(\d+):(\d+)',args.starttime)
+	if match:
+		hh = int(match.group(1))
+		mm = int(match.group(2))
+		ss = int(match.group(3))
+		startTime=hh*3600+mm*60+ss
+	
+if (args.stoptime):
+	match = re.search('(\d+):(\d+):(\d+)',args.stoptime)
+	if match:
+		hh = int(match.group(1))
+		mm = int(match.group(2))
+		ss = int(match.group(3))
+		stopTime=hh*3600+mm*60+ss
+		
 if (args.refext):
 	refExt = args.refext
 
@@ -640,7 +664,15 @@ allcal=[]
 
 refHeaders=[]
 for mjd in range(firstMJD,lastMJD+1):
-	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd)
+	if (mjd == firstMJD):
+			 startT = startTime
+	else:
+			startT=0
+	if (mjd == lastMJD):
+			 stopT = stopTime
+	else:
+			stopT=86399
+	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT)
 	allref = allref + d
 	refHeaders.append(header)
 
@@ -648,7 +680,16 @@ Debug('REF total tracks= {}'.format(len(allref)))
 			
 calHeaders=[]
 for mjd in range(firstMJD,lastMJD+1):
-	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd)
+	if (mjd == firstMJD):
+			 startT = startTime
+	else:
+			startT=0
+	if (mjd == lastMJD):
+			 stopT = stopTime
+	else:
+			stopT=86399
+			
+	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT)
 	allcal = allcal + d
 	calHeaders.append(header)
 	
@@ -894,18 +935,18 @@ if (MODE_DELAY_CAL==mode ):
 		
 	f,(ax1,ax2,ax3)= plt.subplots(3,sharex=True,figsize=(8,11))
 	f.suptitle('Delay calibration ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
-	ax1.plot(tMatch,deltaMatch,ls=':')
+	ax1.plot(tMatch,deltaMatch,ls='None',marker='.')
 	ax1.plot(tAvMatches,avMatches)
 	ax1.set_title('REF-CAL (filtered)')
 	ax1.set_ylabel('REF-CAL (ns)')
 	ax1.set_xlabel('MJD - '+str(firstMJD))
 	
-	ax2.plot(tMatch,calMatch,ls=':')
+	ax2.plot(tMatch,calMatch,ls='None',marker='.')
 	ax2.set_title('CAL (filtered)')
 	ax2.set_ylabel('REFSYS (ns)')
 	ax2.set_xlabel('MJD - '+str(firstMJD))
 	
-	ax3.plot(tMatch,refMatch,ls=':')
+	ax3.plot(tMatch,refMatch,ls='None',marker='.')
 	ax3.set_title('REF (filtered)')
 	ax3.set_ylabel('REFSYS (ns)')
 	ax3.set_xlabel('MJD - '+str(firstMJD))
