@@ -512,6 +512,35 @@ def GetFloat(msg,defaultValue):
 	return fval
 
 # ------------------------------------------
+def AverageTracks(trks):
+	avs=[]
+	iref = 0
+	mjd1 = trks[iref][MJD]
+	st1  = trks[iref][STTIME]
+	av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+	iref +=1
+	svcnt=1
+	trklen = len(trks)
+	while iref < trklen:
+		mjd2 = trks[iref][MJD]
+		st2 = trks[iref][STTIME]
+		if (mjd2 == mjd1 and st2 == st1):
+			av += trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+			#print trks[iref][REFSYS] + IONO_OFF*trksf[iref][REF_IONO] 
+			svcnt += 1
+		else:
+			avs.append([mjd1,st1, av/svcnt + refCorrection])
+			#print mjd1-firstMJD+st1/86400.0, av/svcnt + refCorrection,svcnt
+			svcnt=1
+			mjd1=mjd2
+			st1 = st2
+			av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+		iref += 1
+	avs.append([mjd1,st1, av/svcnt]) # last one
+	#print mjd1-firstMJD+st1/86400.0, av/svcnt,svcnt
+	return avs
+	
+# ------------------------------------------
 
 refExt = 'cctf'
 calExt = 'cctf'
@@ -901,8 +930,44 @@ elif (cmpMethod == USE_AIV):
 	# Opposite order here
 	# First average at each time
 	# and then match times
-	sys.stderr.write('Not supported yet!\n')
-	exit()
+	refavs = AverageTracks(allref)
+	calavs = AverageTracks(allcal)
+	
+	matches = []
+	iref=0
+	jcal=0
+	refavlen = len(refavs)
+	calavlen = len(calavs)
+	
+	while iref < refavlen:
+		mjd1 = refavs[iref][0]
+		st1  = refavs[iref][1]
+		
+		while (jcal < calavlen):
+			mjd2=calavs[jcal][0]
+			st2 =calavs[jcal][1]
+			
+			if (mjd2 > mjd1):
+				break # stop searching - move pointer 1
+			elif (mjd2 < mjd1):
+				jcal += 1 # need to move pointer 2 forward
+			elif (st2 > st1):
+				break # stop searching - need to move pointer 1
+			elif ((mjd1==mjd2) and (st1 == st2)):
+				fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,999,refavs[iref][2],calavs[jcal][2]))
+				tMatch.append(mjd1-firstMJD+st1/86400.0)
+				refMatch.append(refavs[iref][2])
+				calMatch.append(calavs[jcal][2])
+				deltaMatch.append(refavs[iref][2] + refCorrection - (calavs[jcal][2] + calCorrection))
+				#matches.append(allref[iref]+allcal[jtmp])
+				# print mjd1,st1,refavs[iref][2],calavs[jcal][2]
+				break
+			else:
+				jcal += 1
+		iref += 1	
+				
+	sys.stderr.write('WARNING Not fully tested yet!\n')
+	#exit()
 
 fmatches.close()
 favmatches.close()
