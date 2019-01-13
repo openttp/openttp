@@ -39,8 +39,14 @@ import urllib2
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "0.1"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
+
+BEIDOU='C'
+GALILEO='E'
+GLONASS='R'
+GPS='G'
+MIXED='M'
 
 # ---------------------------------------------
 def ShowVersion():
@@ -147,6 +153,10 @@ group.add_argument('--final',help='fetch final products',action='store_true')
 parser.add_argument('--centre',help='set data centres',default='cddis')
 parser.add_argument('--listcentres','-l',help='list available data centres',action='store_true')
 
+parser.add_argument('--observations',help='get station observations',action='store_true')
+parser.add_argument('--statid',help='station identifier (eg V3 SYDN00AUS, V2 sydn)')
+parser.add_argument('--rinexversion',help='rinex version of station observation')
+parser.add_argument('--system',help='gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED')
 #parser.add_argument('--proxy','-p',help='proxy server (address:port)',default='')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
 
@@ -199,21 +209,51 @@ outputdir = args.outputdir
 
 Debug('start = {},stop = {} '.format(start,stop))
 
+rnxVersion = 2
+
+if (args.rinexversion):
+	rnxVersion = int(args.rinexversion)
+
+if (args.statid):
+	stationID = args.statid
+		
+if (args.observations): # station observations
+	pass
+
+if (rnxVersion == 2):
+	gnss = GPS
+elif (rnxVersion == 3):
+	gnss = MIXED
+	
+if (args.system):
+	gnss = args.system.lower()
+	if (gnss =='beidou'):
+		gnss =BEIDOU
+	elif (gnss == 'galileo'):
+		gnss = GALILEO
+	elif (gnss == 'glonass'):
+		gnss = GLONASS
+	elif (gnss == 'gps'):
+		gnss = GPS
+	elif (gnss == 'mixed'):
+		gnss = MIXED
+	else:
+		print('Unknown GNSS system')
+		exit()
+		
 # Daily data
 baseURL = cfg[dataCentre + ':base url']
 brdcPath = cfg[dataCentre + ':broadcast ephemeris']
+stationDataPath = cfg[dataCentre + ':station data']
 
 # Products
 prodPath = cfg[dataCentre + ':products']
 
 for m in range(start,stop+1):
+	
 	Debug('fetching files for MJD ' + str(m))
 	(yyyy,doy) = MJDtoYYYYDOY(m)
-	if (args.ephemeris):
-		yy = yyyy-100*int(yyyy/100)
-		fname = 'brdc{:03d}0.{:02d}n.Z'.format(doy,yy)
-		url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
-		FetchFile(url,'{}/{}'.format(outputdir,fname))
+	
 	if (args.clocks):
 		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
 		if (args.rapid):
@@ -222,6 +262,7 @@ for m in range(start,stop+1):
 			fname = 'igs{:04d}{:1d}.clk.Z'.format(GPSWn,GPSday)
 		url = '{}/{}/{:04d}/{}'.format(baseURL,prodPath,GPSWn,fname)
 		FetchFile(url,'{}/{}'.format(outputdir,fname))
+		
 	if (args.orbits):
 		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
 		if (args.rapid):
@@ -230,3 +271,23 @@ for m in range(start,stop+1):
 			fname = 'igs{:04d}{:1d}.sp3.Z'.format(GPSWn,GPSday)
 		url = '{}/{}/{:04d}/{}'.format(baseURL,prodPath,GPSWn,fname)
 		FetchFile(url,'{}/{}'.format(outputdir,fname))
+	
+	if (args.ephemeris):
+		if (rnxVersion == 2):
+			yy = yyyy-100*int(yyyy/100)
+			fname = 'brdc{:03d}0.{:02d}n.Z'.format(doy,yy)
+			url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
+			FetchFile(url,'{}/{}'.format(outputdir,fname))
+		elif (rnxVersion == 3):
+			fname = '{}_R_{:04d}{:03d}0000_01D_{}N.rnx.gz'.format(stationID,yyyy,doy,gnss)
+			url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+			FetchFile(url,'{}/{}'.format(outputdir,fname))
+			
+	if (args.observations):
+		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
+		if (rnxVersion == 2):
+			pass
+		elif (rnxVersion == 3):
+			fname = '{}_R_{:04d}{:03d}0000_01D_30S_{}O.crx.gz'.format(stationID,yyyy,doy,gnss)
+			url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+			FetchFile(url,'{}/{}'.format(outputdir,fname))

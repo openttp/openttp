@@ -145,7 +145,7 @@ if (args.system):
 	if (gnss =='beidou'):
 		gnss =BEIDOU
 	elif (gnss == 'galileo'):
-		gnss = ALILEO
+		gnss = GALILEO
 	elif (gnss == 'glonass'):
 		gnss = GLONASS
 	elif (gnss == 'gps'):
