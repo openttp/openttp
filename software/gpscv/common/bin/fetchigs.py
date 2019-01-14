@@ -130,6 +130,7 @@ def FetchFile(url,destination):
 # ---------------------------------------------
 # Main
 
+
 home =os.environ['HOME'] + '/';
 configFile = os.path.join(home,'etc/fetchigs.conf');
 
@@ -157,8 +158,9 @@ parser.add_argument('--observations',help='get station observations',action='sto
 parser.add_argument('--statid',help='station identifier (eg V3 SYDN00AUS, V2 sydn)')
 parser.add_argument('--rinexversion',help='rinex version of station observation')
 parser.add_argument('--system',help='gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED')
-#parser.add_argument('--proxy','-p',help='proxy server (address:port)',default='')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--noproxy',help='disable use of proxy server',action='store_true')
+parser.add_argument('--proxy',help='set the proxy server (server:port)',type=str)
+parser.add_argument('--version','-v',help='show version and exit',)
 
 args = parser.parse_args()
 
@@ -182,6 +184,18 @@ if (args.listcentres):
 	for c in centres:
 		print c, cfg[c.lower() + ':base url']
 	sys.exit(0)
+
+# This is possibly a fudge
+if (args.noproxy):
+	proxy_handler = urllib2.ProxyHandler({})
+	opener = urllib2.build_opener(proxy_handler)
+	urllib2.install_opener(opener)
+elif (args.proxy):
+	urllib2.install_opener(
+		urllib2.build_opener(
+			urllib2.ProxyHandler({'http': args.proxy})
+		)
+)
 
 dataCentre = args.centre.lower()
 # Check that we've got this
