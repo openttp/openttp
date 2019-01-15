@@ -29,7 +29,8 @@
 #   fix ms ambiguities given a reference file
 #
 # Output is written to stdout
-#
+# Example:
+# editrnxobs.py -o MNAM3180.18O.fixed --fixms --obstype C2I --refrinex ../../septentrio2/rinex/SEP23180.18O --system beidou -d MNAM3180.18O
 
 import argparse
 import datetime
@@ -78,22 +79,26 @@ def ParseDataRecord(l,f):
 		return(time.mktime(tod.timetuple()),meas)
 
 # ------------------------------------------
-def FixAmbiguity(meas,refmeas,gnss):
-	measCol = obs[gnss+':'+'C2X']
-	refMeasCol = refobs[gnss+':'+'C2I']
+def FixAmbiguity(meas,refmeas,gnss,obsType):
+	measCol = obs[gnss+':'+obsType]
+	refMeasCol = refobs[gnss+':'+obsType]
 	try:
-		pr = float(meas[3+(measCol-1)*16:(measCol-1)*16+17])
+		prstr = meas[3+(measCol-1)*16:(measCol-1)*16+17]
+		pr = float(prstr)
 	except:
-		return False
+		return (False,meas)
 	try:
 		refPr = float(refmeas[3+(refMeasCol-1)*16:(refMeasCol-1)*16+17])
 	except:
-		return False
-	#print pr,refPr,1000*(refPr-pr)/CLIGHT
-	return True
+		return (False,meas)
+	#print '   ',pr,refPr,1000*(refPr-pr)/CLIGHT
+	pr = pr + int(round(1000*(refPr-pr)/CLIGHT))*CLIGHT/1000.0
+	newprstr = '{:14.3f}'.format(pr)
+	return (True,meas.replace(prstr,newprstr,1))
 	
 # ------------------------------------------
 # Main
+
 
 parser = argparse.ArgumentParser(description='Edit a RINEX observation file')
 parser.add_argument('infile',help='input file',type=str)
@@ -145,7 +150,7 @@ if (args.system):
 	if (gnss =='beidou'):
 		gnss =BEIDOU
 	elif (gnss == 'galileo'):
-		gnss = GALILEO
+		gnss = ALILEO
 	elif (gnss == 'glonass'):
 		gnss = GLONASS
 	elif (gnss == 'gps'):
@@ -166,7 +171,10 @@ if (args.fixms):
 		except:
 			print('Unable to open '+args.refrinex)
 			exit()
-	
+	if not(args.obstype):
+		print(' You need to supply the observation to correct')
+		exit()
+		
 # Read the header
 obs={} # satsys/observation code stored in dict
 while True:
@@ -203,6 +211,14 @@ while True:
 						lastLine=currLine
 					indx = 6+1+(i -currLine*13)*4
 					obscode = l[indx:indx+3]
+					# Fixup BeiDou for v3.02 vs v3.03 - add extra lookups
+					if (gnss == BEIDOU):
+						if (obscode[1] == '1'):
+							newcode = obscode.replace('1','2')
+							obs[gnss+':'+newcode]=i+1
+						if (obscode[1] == '2'):
+							newcode = obscode.replace('2','1')
+							obs[gnss+':'+newcode]=i+1
 					obs[gnss+':'+obscode]=i+1
 	if (l.find('END OF HEADER',60)>0):
 		Debug("Read header")
@@ -241,17 +257,25 @@ if fixms:
 							lastLine=currLine
 						indx = 6+1+(i -currLine*13)*4
 						obscode = l[indx:indx+3]
+						if (gnss == BEIDOU):
+							if (obscode[1] == '1'):
+								newcode = obscode.replace('1','2')
+								refobs[gnss+':'+newcode]=i+1
+							if (obscode[1] == '2'):
+								newcode = obscode.replace('2','1')
+								refobs[gnss+':'+newcode]=i+1
 						refobs[gnss+':'+obscode]=i+1
 		if (l.find('END OF HEADER',60)>0):
 			Debug("Read REF header")
 			break
+	
 	meas={}
 	refmeas={}
 	while True:
 		
 		l=fin.readline()
 		if l:
-			print l.rstrip()
+			fout.write(l)
 			(tod,meas) = ParseDataRecord(l,fin)
 		else: # end of file
 			break
@@ -271,12 +295,14 @@ if fixms:
 					mgnss = meas[m][0]
 					if (mgnss == gnss):
 						if m in refmeas:
-							if FixAmbiguity(meas[m],refmeas[m],gnss):
-								print meas[m].rstrip()
+							(ok,corrMeas) = FixAmbiguity(meas[m],refmeas[m],gnss,args.obstype)
+							if ok :
+								meas[m]=corrMeas
+								fout.write(meas[m])
 							else:
 								pass # no REF to fix it so not output
 					else:
-						print meas[m].rstrip() # echo other GNSS
+						fout.write(meas[m]) # echo other GNSS
 				break
 			
 		
