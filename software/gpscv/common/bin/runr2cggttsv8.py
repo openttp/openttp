@@ -263,6 +263,18 @@ for f in files:
 if (args.rename):
 	if (os.path.exists('CGGTTS_GPS_C1')):
 		os.rename('CGGTTS_GPS_C1',args.cggttsout+'/'+str(mjd)+'.cctf')
-
-if (os.path.exists('CTTS_GPS_30s_C1')):
-	os.rename('CTTS_GPS_30s_C1',str(mjd)+'.gps.C1.30s.dat')
+	if (os.path.exists('CGGTTS_BDS_B1')):
+		os.rename('CGGTTS_BDS_B1',args.cggttsout+'/'+str(mjd)+'.BD.B1.cctf')
+	if (os.path.exists('CGGTTS_GLO_C1')):
+		os.rename('CGGTTS_GLO_C1',args.cggttsout+'/'+str(mjd)+'.GLO.C1.cctf')
+	if (os.path.exists('CGGTTS_GAL_E1')):
+		os.rename('CGGTTS_GAL_E1',args.cggttsout+'/'+str(mjd)+'.GAL.E1.cctf')
+		
+	if (os.path.exists('CTTS_GPS_30s_C1')):
+		os.rename('CTTS_GPS_30s_C1',args.cggttsout+'/'+str(mjd)+'.gps.C1.30s.dat')
+	if (os.path.exists('CTTS_BDS_30s_B1')):
+		os.rename('CTTS_BDS_30s_B1',args.cggttsout+'/'+str(mjd)+'.bds.B1.30s.dat')
+	if (os.path.exists('CTTS_GLO_30s_C1')):
+		os.rename('CTTS_GLO_30s_C1',args.cggttsout+'/'+str(mjd)+'.glo.C1.30s.dat')
+	if (os.path.exists('CTTS_GAL_30s_E1')):
+		os.rename('CTTS_GAL_30s_E1',args.cggttsout+'/'+str(mjd)+'.gal.E1.30s.dat')
