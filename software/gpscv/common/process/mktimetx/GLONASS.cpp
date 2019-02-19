@@ -44,4 +44,7 @@ GLONASS::~GLONASS()
 void GLONASS::deleteEphemeris()
 {
 }
-	
+
+bool GLONASS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *,SVMeasurement *,double *){
+	return true;
+}

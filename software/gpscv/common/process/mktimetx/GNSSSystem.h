@@ -49,7 +49,7 @@ class GNSSSystem
 		
 		std::string name(){return n;}
 		
-		virtual bool resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *,SVMeasurement *,double *){return false;}
+		virtual bool resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *,SVMeasurement *,double *){return true;}
 		
 	protected:
 		std::string n; // system name

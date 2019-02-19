@@ -66,6 +66,7 @@ class GLONASS: public GNSSSystem
 	
 	virtual int nsats(){return NSATS;}
 	virtual void deleteEphemeris();
+	virtual bool resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *,SVMeasurement *,double *);
 	
 	IonosphereData ionoData;
 	UTCData UTCdata;

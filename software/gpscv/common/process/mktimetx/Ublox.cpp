@@ -271,7 +271,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int trkStat=u1buf;
 								// When PR is reported, trkStat is always 1 but .
-								if (trkStat > 0 && r8buf/CLIGHT < 1.0){
+								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID != 255){ // svid=255 is unknown GLONASS 
 									SVMeasurement *svm = new SVMeasurement(svID,gnssSys,GNSSSystem::C1,r8buf/CLIGHT,NULL);
 									svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
 									svmeas.push_back(svm);
@@ -472,10 +472,13 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	// Do this initially and then every time a step is detected
 	
 	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
-	int nDroppedGPS;
-	int nDroppedBeidou;
+	int nDropped[GNSSSystem::GALILEO+1];
+	for (int i=0;i<=GNSSSystem::GALILEO;i++)
+		nDropped[i]=0;
+	
 	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
 		if (!(g & constellations)) continue;
+		DBGMSG(debugStream,INFO,"Fixing ms ambiguities for " << g);
 		GNSSSystem *gnss;
 		switch (g){
 			case GNSSSystem::BEIDOU:gnss=&beidou;break;
@@ -493,8 +496,8 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 			for (unsigned int i=0;i<measurements.size();i++){
 				unsigned int m=0;
 				while (m < measurements[i]->meas.size()){
-					// This solves the issue of the software confuding GNSS systems
-					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1) && (measurements[i]->meas[m]->constellation == GNSSSystem::GPS)){
+					// This solves the issue of the software confuding GNSS systems (What does this mean? I am a bit confuded)
+					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1) && (measurements[i]->meas[m]->constellation ==g )){
 						lasttow=currtow;
 						lastmeas=currmeas;
 						currmeas=measurements[i]->meas[m]->meas;
@@ -522,7 +525,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 							m++;
 						}
 						else{ // ambiguity correction failed, so drop the measurement
-							nDroppedGPS++;
+							nDropped[g] += 1;
 							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
 						}
 						break;
@@ -539,8 +542,18 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
-	DBGMSG(debugStream,INFO,"dropped " << nDroppedGPS << " GPS SV measurements (ms ambiguity failure)"); 
-	
+	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
+		if (!(g & constellations)) continue;
+		GNSSSystem *gnss;
+		switch (g){
+			case GNSSSystem::BEIDOU:gnss=&beidou;break;
+			case GNSSSystem::GALILEO:gnss=&galileo;break;
+			case GNSSSystem::GLONASS:gnss=&glonass;break;
+			case GNSSSystem::GPS:gnss=&gps;break;
+			default:break;
+		}
+		DBGMSG(debugStream,INFO,"dropped " << nDropped[g] << " " << gnss->name() << " SV measurements (ms ambiguity failure)"); 
+	}
 	return true;
 	
 }
