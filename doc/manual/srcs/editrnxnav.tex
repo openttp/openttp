@@ -1,0 +1,19 @@
+\subsection{editrnxnav.py}
+
+\cc{editrnxnav.py} is used to edit RINEX navigation files. Curerntly, it doesn`t do much.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+cggttsqc.py [OPTION] $\ldots$ file 
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-{}-help,-h]	print the help information and exit
+	\item[-{}-debug,-d]	print debugging information to stderr
+	\item[-{}-output OUTPUT, -o OUTPUT] output to file/directory
+  \item[-{}-replace, -r]         replace edited file
+  \item[-{}-ura URA, -u URA]     remove entries with URA greater than this
+	\item[--version,-v] show the version information and exit
+\end{description*}
+
