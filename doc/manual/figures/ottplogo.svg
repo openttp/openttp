@@ -14,8 +14,8 @@
    height="297mm"
    id="svg3109"
    version="1.1"
-   inkscape:version="0.48.4 r9939"
-   sodipodi:docname="New document 4">
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="ottplogo.svg">
   <defs
      id="defs3">
     <linearGradient
@@ -51,16 +51,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.35"
+     inkscape:zoom="1.979899"
      inkscape:cx="350"
-     inkscape:cy="520"
+     inkscape:cy="843.93835"
      inkscape:current-layer="layer1"
      showgrid="false"
-     inkscape:window-width="569"
-     inkscape:window-height="749"
-     inkscape:window-x="452"
+     inkscape:window-width="3775"
+     inkscape:window-height="2136"
+     inkscape:window-x="65"
      inkscape:window-y="24"
-     inkscape:window-maximized="0" />
+     inkscape:window-maximized="1" />
   <metadata
      id="metadata4">
     <rdf:RDF>
@@ -69,7 +69,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -79,23 +79,21 @@
      id="layer1">
     <g
        id="g4710"
-       transform="translate(117.37395,-387.83)"
+       transform="translate(96.160747,-529.75643)"
        inkscape:export-filename="/home/michael/Desktop/large_ottplogo.jpg.png"
        inkscape:export-xdpi="160.2316"
        inkscape:export-ydpi="160.2316">
-      <path
+      <ellipse
          inkscape:export-ydpi="14.306836"
          inkscape:export-xdpi="14.306836"
          inkscape:export-filename="/home/michael/Desktop/ottplfavicon.png"
          transform="matrix(0.84296109,0,0,0.86303158,79.688976,470.50209)"
-         d="m 189,428.36218 c 0,23.19596 -19.25176,42 -43,42 -23.74824,0 -43,-18.80404 -43,-42 0,-23.19596 19.25176,-42 43,-42 23.74824,0 43,18.80404 43,42 z"
-         sodipodi:ry="42"
-         sodipodi:rx="43"
-         sodipodi:cy="428.36218"
-         sodipodi:cx="146"
          id="path2985-1-6"
-         style="fill:url(#linearGradient4716);fill-opacity:1;stroke:#174316;stroke-width:8.79941177;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
-         sodipodi:type="arc" />
+         style="fill:url(#linearGradient4716);fill-opacity:1;stroke:#174316;stroke-width:8.79941177;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         cx="146"
+         cy="428.36218"
+         rx="43"
+         ry="42" />
       <rect
          inkscape:export-ydpi="14.306836"
          inkscape:export-xdpi="14.306836"
@@ -105,7 +103,7 @@
          height="35.724049"
          width="2.4936774"
          id="rect3816-7-0"
-         style="fill:#005700;fill-opacity:1;stroke:#1c571c;stroke-width:3.01513362;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
+         style="fill:#005700;fill-opacity:1;stroke:#1c571c;stroke-width:3.01513362;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
       <rect
          inkscape:export-ydpi="14.306836"
          inkscape:export-xdpi="14.306836"
@@ -116,36 +114,75 @@
          height="33.317757"
          width="2.3268723"
          id="rect3816-8-9-4"
-         style="fill:#005700;fill-opacity:1;stroke:#1c571c;stroke-width:2.81274414;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />
-      <path
+         style="fill:#005700;fill-opacity:1;stroke:#1c571c;stroke-width:2.81274414;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <ellipse
          inkscape:export-ydpi="14.306836"
          inkscape:export-xdpi="14.306836"
          inkscape:export-filename="/home/michael/Desktop/ottplfavicon.png"
          transform="matrix(0.28145048,0,0,0.3042708,111.28988,696.31403)"
-         d="m 345,472.86218 c 0,10.21727 -8.95431,18.5 -20,18.5 -11.04569,0 -20,-8.28273 -20,-18.5 0,-10.21727 8.95431,-18.5 20,-18.5 11.04569,0 20,8.28273 20,18.5 z"
-         sodipodi:ry="18.5"
-         sodipodi:rx="20"
-         sodipodi:cy="472.86218"
-         sodipodi:cx="325"
          id="path3795-1-9"
          style="fill:#174216;fill-opacity:1;fill-rule:evenodd;stroke:none"
-         sodipodi:type="arc" />
+         cx="325"
+         cy="472.86218"
+         rx="20"
+         ry="18.5" />
     </g>
     <text
        xml:space="preserve"
-       style="font-size:72px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#005700;fill-opacity:1;stroke:none;font-family:Impact;-inkscape-font-specification:Impact Bold"
-       x="358.50705"
-       y="480.82117"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:65.92443848px;line-height:125%;font-family:'Noto Sans CJK TC';-inkscape-font-specification:'Noto Sans CJK TC Heavy';letter-spacing:0px;word-spacing:0px;fill:#005700;fill-opacity:1;stroke:none"
+       x="384.60767"
+       y="297.68387"
        id="text4056-8-7"
        sodipodi:linespacing="125%"
        inkscape:export-filename="/home/michael/Desktop/large_ottplogo.jpg.png"
        inkscape:export-xdpi="160.2316"
-       inkscape:export-ydpi="160.2316"><tspan
+       inkscape:export-ydpi="160.2316"
+       transform="scale(0.87319064,1.1452253)"><tspan
          sodipodi:role="line"
          id="tspan4058-6-2"
-         x="358.50705"
-         y="480.82117"
-         style="font-size:72px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;letter-spacing:0px;fill:#005700;fill-opacity:1;font-family:Impact;-inkscape-font-specification:Impact Bold"
-         dx="0 3">TTP</tspan></text>
-  </g>
+         x="384.60767"
+         y="297.68387"
+         style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:65.92443848px;font-family:Balboa;-inkscape-font-specification:'Balboa Heavy';letter-spacing:0px;fill:#005700;fill-opacity:1"
+         dx="0 2.6195719">TTP</tspan></text>
+    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3489"
+       style="fill:black;stroke:none;stroke-opacity:1;stroke-width:1px;stroke-linejoin:miter;stroke-linecap:butt;fill-opacity:1;font-family:sans-serif;font-style:normal;font-weight:normal;font-size:10px;line-height:125%;letter-spacing:0px;word-spacing:0px"><flowRegion
+         id="flowRegion3491"><rect
+           id="rect3493"
+           width="2.0203052"
+           height="36.870567"
+           x="554.57373"
+           y="385.15643" /></flowRegion><flowPara
+         id="flowPara3495" /></flowRoot>    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3497"
+       style="fill:black;stroke:none;stroke-opacity:1;stroke-width:1px;stroke-linejoin:miter;stroke-linecap:butt;fill-opacity:1;font-family:sans-serif;font-style:normal;font-weight:normal;font-size:10px;line-height:125%;letter-spacing:0px;word-spacing:0px"><flowRegion
+         id="flowRegion3499"><rect
+           id="rect3501"
+           width="377.79706"
+           height="228.79955"
+           x="182.33253"
+           y="348.79095" /></flowRegion><flowPara
+         id="flowPara3503" /></flowRoot>    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3505"
+       style="fill:black;stroke:none;stroke-opacity:1;stroke-width:1px;stroke-linejoin:miter;stroke-linecap:butt;fill-opacity:1;font-family:sans-serif;font-style:normal;font-weight:normal;font-size:10px;line-height:125%;letter-spacing:0px;word-spacing:0px"><flowRegion
+         id="flowRegion3507"><rect
+           id="rect3509"
+           width="263.14474"
+           height="152.02795"
+           x="414.16254"
+           y="386.1666" /></flowRegion><flowPara
+         id="flowPara3511" /></flowRoot>    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3540"
+       style="fill:black;stroke:none;stroke-opacity:1;stroke-width:1px;stroke-linejoin:miter;stroke-linecap:butt;fill-opacity:1;font-family:sans-serif;font-style:normal;font-weight:normal;font-size:10px;line-height:125%;letter-spacing:0px;word-spacing:0px"><flowRegion
+         id="flowRegion3542"><rect
+           id="rect3544"
+           width="3.5355339"
+           height="30.809652"
+           x="386.38336"
+           y="451.32144" /></flowRegion><flowPara
+         id="flowPara3546" /></flowRoot>  </g>
 </svg>
