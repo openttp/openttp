@@ -68,6 +68,8 @@ $SYSTEMD="systemd";
 	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib",
 	"okcounterd","okbitloader","udevrules","gpscvperllibs");
 
+@minimaltargets = ("libconfigurator","tflibrary","kickstart","gziplogs","misc","ottplib");
+	
 $hints="";
 
 if (!getopts('hi:lmtv') || $opt_h){
@@ -87,6 +89,14 @@ if ($opt_l){
 if ($opt_v){
 	print "$0 $VERSION\n";
 	exit;
+}
+
+if ($opt_m){
+	@targets = @minimaltargets;
+	print "Minimal install:\n";
+	foreach $target (@targets){
+		print "\t$target\n";
+	}
 }
 
 if ($opt_i){
