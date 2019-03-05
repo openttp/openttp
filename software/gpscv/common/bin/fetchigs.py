@@ -294,7 +294,11 @@ for m in range(start,stop+1):
 			FetchFile(url,'{}/{}'.format(outputdir,fname))
 		elif (rnxVersion == 3):
 			fname = '{}_R_{:04d}{:03d}0000_01D_{}N.rnx.gz'.format(stationID,yyyy,doy,gnss)
-			url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+			if (dataCentre == 'cddis'):		
+				yy = yyyy-100*int(yyyy/100)
+				url = '{}/{}/{:04d}/{:03d}/{:02d}p/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,fname)
+			else:
+				url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
 			FetchFile(url,'{}/{}'.format(outputdir,fname))
 			
 	if (args.observations):
