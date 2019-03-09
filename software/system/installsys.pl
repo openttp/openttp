@@ -41,7 +41,7 @@ use vars qw($opt_h $opt_i $opt_l $opt_m $opt_t $opt_v);
 
 $0=~s#.*/##;	# strip path
 
-$VERSION = "version 0.1.1";
+$VERSION = "version 0.1.2";
 $ECHO=1;
 
 $UPSTART="upstart";
@@ -60,6 +60,8 @@ $SYSTEMD="systemd";
 	["BeagleBoard.org Debian","bbdebian8",$SYSTEMD,"/usr/local/lib/site_perl",
 		"/usr/local/lib/python2.7/site-packages"],
 	['Debian GNU/Linux 9 (stretch)',"bbdebian9",$SYSTEMD,"/usr/local/lib/site_perl",
+		"/usr/local/lib/python2.7/site-packages"],
+	['Raspbian GNU/Linux 9 (stretch)',"rpidebian9",$SYSTEMD,"/usr/local/lib/site_perl",
 		"/usr/local/lib/python2.7/site-packages"],
 
 	);
