@@ -1,5 +1,5 @@
 *.o
-junk
+*.pyc
 *.kdev4
 *.txt
 *.ps
@@ -10,3 +10,4 @@ junk
 *.out
 crap*
 junk*
+installsys.log
