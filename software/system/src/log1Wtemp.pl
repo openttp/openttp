@@ -168,7 +168,7 @@ $SIG{INT} = sub {$killed=1};
 
 # Get a list of sensors registered on the system
 opendir(DIR,"/sys/devices/w1_bus_master1/");
-@dirs = grep(/^28-00000/,readdir(DIR));
+@dirs = grep(/^28-0/,readdir(DIR));
 closedir(DIR);
 
 while (!$killed)
@@ -178,7 +178,7 @@ while (!$killed)
   foreach $dir(@dirs)
   {
     $sn = "";
-    if ($dir =~ /^28-00000(.......)/) { $sn = $1; }
+    if ($dir =~ /^28-(............)/) { $sn = $1; }
     $temp = `cat /sys/devices/w1_bus_master1/$dir/w1_slave`;
     if ($temp =~ /crc=.. YES/)
     {
