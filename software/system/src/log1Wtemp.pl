@@ -182,7 +182,7 @@ while (!$killed)
     $temp = `cat /sys/devices/w1_bus_master1/$dir/w1_slave`;
     if ($temp =~ /crc=.. YES/)
     {
-      if ($temp =~ /t=(\d\d\d\d\d)/) { $temp = $1/1000; }
+      if ($temp =~ /t=(\d*)/) { $temp = $1/1000; }
     } else { $temp = -99.999; }
 
     if ($sn eq $GPSDO) 
