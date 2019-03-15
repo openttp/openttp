@@ -11,3 +11,5 @@ I (Tim Lister) am making local modifications to broaden the range of systems tha
 1) Support for Raspberry Pis (DONE)
 2) Support for ublox 6 chipsets such as the LEA-6T (IN PROGRESS, partly working)
 3) Support for other time interval counters (TICs) such as the HP 5334A/B (IN PROGRESS, partly working) and the HP 5370 (PLANNED)
+
+Progress on these and general info on installing and getting OpenTTP running is on my blog at: https://adventuresinprecision.space/tag/openttp/
