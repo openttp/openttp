@@ -82,14 +82,14 @@ Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 	constellations=GNSSSystem::GPS;
 	codes=GNSSSystem::C1;
 	channels=32;
-	if (modelName == "LEA8MT"){
+	if (modelName == "LEAM8T"){
 		// For the future
 	}
-	else if (modelName == "NEO8MT"){
+	else if (modelName == "NEOM8T"){
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
-		app->logMessage("Assuming NEO8MT");
+		app->logMessage("Assuming NEOM8T");
 	}
 }
 
