@@ -81,11 +81,11 @@ Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
 	codes=GNSSSystem::C1;
-	channels=32;
-	if (modelName == "LEAM8T"){
+	channels=72;
+	if (modelName == "LEA-M8T"){
 		// For the future
 	}
-	else if (modelName == "NEOM8T"){
+	else if (modelName == "NEO-M8T"){
 	}
 	else if (modelName == "ZED-F9P" or modelName == "ZED-F9T"){
 	  channels=184;
@@ -93,7 +93,7 @@ Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
-		app->logMessage("Assuming NEOM8T");
+		app->logMessage("Assuming NEO-M8T");
 	}
 }
 
