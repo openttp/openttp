@@ -52,10 +52,11 @@ extern Application *app;
 #define CLIGHT 299792458.0
 #define ICD_PI 3.1415926535898
 
-#define MAX_CHANNELS 16 // max channels per constellation
+#define MAX_CHANNELS 16 // max channels per signal
 #define SLOPPINESS 0.1
 #define CLOCKSTEP  0.001
 #define MAX_GAP    3   // maximum permissible gap in observation sequence before ambiguity resolution is triggered
+
 // types used by ublox receivers     
 typedef signed char    I1;
 typedef unsigned char  U1;
@@ -73,6 +74,7 @@ typedef double         R8;
 #define MSG0215 0x04
 #define MSG0D01 0x08
 
+#define GPSL1C 0
 
 Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 {
@@ -81,19 +83,18 @@ Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
 	codes=GNSSSystem::C1;
-	channels=32;
-	if (modelName == "LEAM8T"){
+	channels=72;
+	if (modelName == "LEA8MT"){
 		// For the future
 	}
-	else if (modelName == "NEOM8T"){
+	else if (modelName == "NEO8MT"){
 	}
 	else if (modelName == "ZED-F9P" or modelName == "ZED-F9T"){
 	  channels=184;
-		constellations=GNSSSystem::GPS | GNSSSystem::GLONASS | GNSSSystem::GALILEO | GNSSSystem::BEIDOU;
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
-		app->logMessage("Assuming NEOM8T");
+		app->logMessage("Assuming NEO8MT");
 	}
 }
 
@@ -214,8 +215,8 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 								// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
 								// resolution. We could only keep the ms part, but for now only do this for
 								// GPS because we do get the necessary data for GPS from the ublox.
-								if(svmeas.at(sv)->constellation == GNSSSystem::GPS && (modelName != "ZED-F9P")){
-									svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
+								if(svmeas.at(sv)->constellation == GNSSSystem::GPS){
+									//svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3); // FIXME temporary
 								}
 								svmeas.at(sv)->rm=rmeas;
 							}
@@ -250,7 +251,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 						HexToBin((char *) msg.substr(0*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &measTOW); //measurement TOW (s)
 						HexToBin((char *) msg.substr(8*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &measGPSWN); // full WN
 						HexToBin((char *) msg.substr(10*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &measLeapSecs);
-						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << setprecision(12) << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
+						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << setprecision(12) << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs << " nmeas= " << (int)nmeas);
 						//DBGMSG(debugStream,TRACE,nmeas);
 						for (unsigned int m=0;m<nmeas;m++){
 							HexToBin((char *) msg.substr((36+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //GNSS id
@@ -264,29 +265,25 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 								default: break;
 							}
 							//DBGMSG(debugStream,TRACE,gnssSys);
-							int sigID=0;
 							if (gnssSys & constellations ){
 								// Since we get all the measurements in one message (which starts each second) there's no need to check for multiple measurement messages
 								// like with eg the Resolution T
 								HexToBin((char *) msg.substr((16+32*m)*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &r8buf); //pseudorange (m)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
-								if (modelName == "ZED-F9P"){
-									HexToBin((char *) msg.substr((38+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //signal id
-									sigID=u1buf;
-									//DBGMSG(debugStream,INFO,gnssSys << " " << svID << " " << sigID);
-								}
+								HexToBin((char *) msg.substr((38+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
+								int sigID=u1buf;
 								HexToBin((char *) msg.substr((43+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int prStdDev= u1buf & 0x0f;
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int trkStat=u1buf;
 								// When PR is reported, trkStat is always 1 but .
-								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID != 255 && sigID==0){ // svid=255 is unknown GLONASS, FIXME only handle L1C or whatever
+								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && sigID == GPSL1C){
 									SVMeasurement *svm = new SVMeasurement(svID,gnssSys,GNSSSystem::C1,r8buf/CLIGHT,NULL);
 									svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
 									svmeas.push_back(svm);
 								}
-								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) trkStat);
+								DBGMSG(debugStream,TRACE,"sys=" <<gnssSys << " sv=" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) trkStat << " sig=" << (int) sigID);
 							}
 						}
 						currentMsgs |= MSG0215;
@@ -440,9 +437,9 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	infile.close();
 
 	
-	if ((modelName != "ZED-F9P") && !gotUTCdata){ // FIXME temporary until ephemeris polling and decoding is implemented
+	if (!gotUTCdata){
 		app->logMessage("failed to find ionosphere/UTC parameters - no 0b02 messages");
-		return false; 
+		//return false; // FIXME temporary
 	}
 	
 	if (measurements.size() == 0){
@@ -481,91 +478,76 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	// Fix 1 ms ambiguities/steps in the pseudorange
 	// Do this initially and then every time a step is detected
 	
-	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
-	int nDropped[GNSSSystem::GALILEO+1];
-	for (int i=0;i<=GNSSSystem::GALILEO;i++)
-		nDropped[i]=0;
-	
-	if ((modelName != "ZED-F9P")){ // FIXME can't do this until we've got an epehmeris ...
-		for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
-			if (!(g & constellations)) continue;
-			DBGMSG(debugStream,INFO,"Fixing ms ambiguities for " << g);
-			GNSSSystem *gnss;
-			switch (g){
-				case GNSSSystem::BEIDOU:gnss=&beidou;break;
-				case GNSSSystem::GALILEO:gnss=&galileo;break;
-				case GNSSSystem::GLONASS:gnss=&glonass;break;
-				case GNSSSystem::GPS:gnss=&gps;break;
-				default:break;
-			}
-			for (int svn=1;svn<=gnss->nsats();svn++){
-				unsigned int lasttow=99999999,currtow=99999999;
-				double lastmeas=0,currmeas;
-				double corr=0.0;
-				bool first=true;
-				bool ok=false;
-				for (unsigned int i=0;i<measurements.size();i++){
-					unsigned int m=0;
-					while (m < measurements[i]->meas.size()){
-						// This solves the issue of the software confuding GNSS systems (What does this mean? I am a bit confuded)
-						if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1) && (measurements[i]->meas[m]->constellation ==g )){
-							lasttow=currtow;
-							lastmeas=currmeas;
-							currmeas=measurements[i]->meas[m]->meas;
-							currtow=measurements[i]->gpstow;
-							
-							DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
-							if (first){
-								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-								if (ok){
-									first=false;
-								}
-							}
-							else if (currtow - lasttow > MAX_GAP){
-								DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-							}
-							else if (currtow > lasttow){
-								if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
-									DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-									ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-								}
-							}
-							if (ok){ 
-								measurements[i]->meas[m]->meas += corr;
-								m++;
-							}
-							else{ // ambiguity correction failed, so drop the measurement
-								nDropped[g] += 1;
-								measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
-							}
-							break;
-						}
-						else
-							m++; // skip over other GNSS systems (for now)
-						
-					} // 
-				} // for (unsigned int i=0;i<measurements.size();i++){
-			}
-		}
-	}
-	
+// 	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
+// 	int nDroppedGPS;
+// 	int nDroppedBeidou;
+// 	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
+// 		if (!(g & constellations)) continue;
+// 		GNSSSystem *gnss;
+// 		switch (g){
+// 			case GNSSSystem::BEIDOU:gnss=&beidou;break;
+// 			case GNSSSystem::GALILEO:gnss=&galileo;break;
+// 			case GNSSSystem::GLONASS:gnss=&glonass;break;
+// 			case GNSSSystem::GPS:gnss=&gps;break;
+// 			default:break;
+// 		}
+// 		for (int svn=1;svn<=gnss->nsats();svn++){
+// 			unsigned int lasttow=99999999,currtow=99999999;
+// 			double lastmeas=0,currmeas;
+// 			double corr=0.0;
+// 			bool first=true;
+// 			bool ok=false;
+// 			for (unsigned int i=0;i<measurements.size();i++){
+// 				unsigned int m=0;
+// 				while (m < measurements[i]->meas.size()){
+// 					// This solves the issue of the software confuding GNSS systems
+// 					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1) && (measurements[i]->meas[m]->constellation == GNSSSystem::GPS)){
+// 						lasttow=currtow;
+// 						lastmeas=currmeas;
+// 						currmeas=measurements[i]->meas[m]->meas;
+// 						currtow=measurements[i]->gpstow;
+// 						
+// 						DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
+// 						if (first){
+// 							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+// 							if (ok){
+// 								first=false;
+// 							}
+// 						}
+// 						else if (currtow - lasttow > MAX_GAP){
+// 							DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+// 							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+// 						}
+// 						else if (currtow > lasttow){
+// 							if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
+// 								DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+// 								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+// 							}
+// 						}
+// 						if (ok){ 
+// 							measurements[i]->meas[m]->meas += corr;
+// 							m++;
+// 						}
+// 						else{ // ambiguity correction failed, so drop the measurement
+// 							nDroppedGPS++;
+// 							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
+// 						}
+// 						break;
+// 					}
+// 					else
+// 						m++; // skip over other GNSS systems (for now)
+// 					
+// 				} // 
+// 			} // for (unsigned int i=0;i<measurements.size();i++){
+// 		}
+// 	}
+// 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
-	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
-		if (!(g & constellations)) continue;
-		GNSSSystem *gnss;
-		switch (g){
-			case GNSSSystem::BEIDOU:gnss=&beidou;break;
-			case GNSSSystem::GALILEO:gnss=&galileo;break;
-			case GNSSSystem::GLONASS:gnss=&glonass;break;
-			case GNSSSystem::GPS:gnss=&gps;break;
-			default:break;
-		}
-		DBGMSG(debugStream,INFO,"dropped " << nDropped[g] << " " << gnss->name() << " SV measurements (ms ambiguity failure)"); 
-	}
+// DBGMSG(debugStream,INFO,"dropped " << nDroppedGPS << " GPS SV measurements (ms ambiguity failure)"); 
+	
 	return true;
 	
 }

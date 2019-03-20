@@ -75,8 +75,10 @@ def MakeRINEXObservationName(dirname,staname,yyyy,doy,rnxver,reqd):
 			exit()
 	elif (rnxver==3):
 		# Try a V3 name first
-		fname = '{}/{}_R_{:04d}{:03d}0000_01D_30S_MO.crx'.format(dirname,staname,yyyy,doy)
+		fname = '{}/{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(dirname,staname,yyyy,doy)
 		Debug('Trying '+fname)
+		if (os.path.exists(fname)):
+			return fname
 		
 		yy = yyyy - int(yyyy/100)*100
 		fname = '{}/{}{:03d}0.{:02d}o'.format(dirname,staname,doy,yy)
@@ -134,7 +136,7 @@ parser.add_argument('cggttsout',help='CGGTTS output path',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--rename','-r',help='rename cggtts output',action='store_true')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
-parser.add_argument('--rinexversion',help='show version and exit')
+parser.add_argument('--rinexversion',help='set RINEX version for constructing file names')
 
 
 rnxVersion = 2
@@ -202,8 +204,9 @@ nLeap = 0;
 # Try the RINEX navigation file.
 # Use the number of leap seconds in nav1
 fin = open(nav1,'r')
+Debug('Opening '+nav1);
 for l in fin:
-	m = re.search('\s+(\d+)\s+LEAP\s+SECONDS',l)
+	m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
 	if (m):
 		nLeap = int(m.group(1))
 		Debug('Leap seconds = '+str(nLeap))

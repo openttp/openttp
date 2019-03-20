@@ -141,6 +141,9 @@ class Application
 		// RINEX generation
 		string observer;
 		string agency;
+		string v3name;
+		bool forceV2name;
+		
 		bool   allObservations;
 		
 		double antCableDelay,refCableDelay;

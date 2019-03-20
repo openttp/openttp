@@ -1,0 +1,34 @@
+\subsection{cmpcggtts.py}
+
+\cc{cmpcggtts.py} matches tracks in paired CGGTTS files, and outputs 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py [OPTION] $\ldots$ refDir calDir firstMJD lastMJD
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+ \item[-{}-help]            show this help message and exit
+ \item[-{}-starttime STARTTIME] start time of day HH:MM:SS for first MJD (default 0)
+ \item[-{}-stoptime STOPTIME]   stop time of day HH:MM:SS for last MJD (default 23:59:00)
+ \item[-{}-elevationmask ELEVATIONMASK] elevation mask (in degrees, default 0.0)
+ \item[-{}-mintracklength MINTRACKLENGTH] minimum track length (in s, default 750)
+ \item[-{}-maxdsg MAXDSG]       maximum DSG (in ns, default 20.0)
+ \item[-{}-matchephemeris ]     match on ephemeris (default no)
+  \item[-{}-cv]                  compare in common view (default)
+  \item[-{}-aiv]                 compare in all-in-view
+  \item[-{}-acceptdelays]        accept the delays (no prompts in delay calibration mode)
+  \item[-{}-delaycal]            delay calibration mode
+  \item[-{}-timetransfer]        time-transfer mode (default)
+  \item[-{}-ionosphere]          use the ionosphere in delay calibration mode (default = not used)
+  \item[-{}-refprefix REFPREFIX] file prefix for reference receiver (default = MJD)
+  \item[-{}-calprefix CALPREFIX] file prefix for calibration receiver (default = MJD)
+  \item[-{}-refext REFEXT]       file extension for reference receiver (default = cctf)
+  \item[-{}-calext CALEXT]       file extension for calibration receiver (default = cctf)
+  \item[-{}-debug, -d]           debug (to stderr)
+  \item[-{}-nowarn]              suppress warnings
+  \item[-{}-quiet]               suppress all output to the terminal
+  \item[-{}-keepall]             keep tracks after the end of the day
+  \item[-{}-version, -v]         show version and exit
+\end{description*}

@@ -429,6 +429,8 @@ void Application::init()
 	
 	observer="Time and Frequency";
 	agency="NMIx";
+	v3name="TEST00AUS";
+	forceV2name=false;
 	allObservations=false;
 	
 	refCableDelay=0.0;
@@ -507,17 +509,28 @@ void  Application::makeFilenames()
 	Utility::MJDtoDate(MJD,&year,&mon,&mday,&yday);
 	int yy = year - (year/100)*100;
 	
-	ostringstream ss5;
+	
 	// this is ugly but C++ stream manipulators are even uglier
-	char fname[16];
-	snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
+	
+	char fname[64];
+	ostringstream ss5;
+	if (RINEX::V2 == RINEXversion || forceV2name)
+		snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
+	else if (RINEXversion == RINEX::V3)
+		snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
+	
 	ss5 << RINEXPath << "/" << fname; // at least no problem with length of RINEXPath
 	RINEXnavFile=ss5.str();
 	
 	ostringstream ss6;
-	snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
+	if (RINEX::V2 == RINEXversion  || forceV2name)
+		snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
+	else if (RINEXversion == RINEX::V3)
+		snprintf(fname,63,"%s_R_%d%03d0000_01D_30S_MO.rnx",v3name.c_str(),year,yday);
+	
 	ss6 << RINEXPath << "/" << fname;
 	RINEXobsFile=ss6.str();
+	
 	
 	logFile = processingLogPath + "/" + "mktimetx.log";
 	
@@ -832,6 +845,16 @@ bool Application::loadConfig()
 			}
 		}
 		
+		if (setConfig(last,"rinex","v3 name",v3name,&configOK,false)){
+			boost::to_upper(v3name);	
+		}
+	
+		if (setConfig(last,"rinex","force v2 name",stmp,&configOK,false)){
+			boost::to_upper(stmp);
+			if (stmp=="YES")
+				forceV2name=true;
+		}
+	
 		setConfig(last,"rinex","agency",agency,&configOK);
 	
 	}
