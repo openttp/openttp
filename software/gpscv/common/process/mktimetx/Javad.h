@@ -30,16 +30,15 @@
 
 #include "Receiver.h"
 
-using namespace std;
 
 class Javad:public Receiver
 {
 	public:
 		
-		Javad(Antenna *,string);
+		Javad(Antenna *,std::string);
 		virtual ~Javad();
 	
-		virtual bool readLog(string,int,int,int,int);
+		virtual bool readLog(std::string,int,int,int,int);
 		
 	protected:
 	

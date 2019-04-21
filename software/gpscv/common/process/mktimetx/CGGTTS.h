@@ -33,8 +33,6 @@ class Counter;
 class MeasurementPair;
 class Receiver;
 
-using namespace std;
-
 class CGGTTS
 {
 	
@@ -44,12 +42,12 @@ class CGGTTS
 		enum DELAYS {INTDLY=0,SYSDLY=2,TOTDLY=3};
 		
 		CGGTTS(Antenna *,Counter *,Receiver *);
-		bool writeObservationFile(string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled);
+		bool writeObservationFile(std::string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled);
 	
-		string ref;
-		string lab;
-		string comment;
-		string calID; // for V2E only
+		std::string ref;
+		std::string lab;
+		std::string comment;
+		std::string calID; // for V2E only
 		
 		int ver;
 		int constellation; // V2E

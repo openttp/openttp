@@ -30,22 +30,21 @@
 
 #include "Receiver.h"
 
-using namespace std;
 
 class Ublox:public Receiver
 {
 	public:
 		
-		Ublox(Antenna *,string);
+		Ublox(Antenna *,std::string);
 		virtual ~Ublox();
 	
-		virtual bool readLog(string,int,int,int,int);
+		virtual bool readLog(std::string,int,int,int,int);
 		
 	protected:
 	
 	private:
 	
-		GPS::EphemerisData *decodeGPSEphemeris(string);
+		GPS::EphemerisData *decodeGPSEphemeris(std::string);
 		
 };
 

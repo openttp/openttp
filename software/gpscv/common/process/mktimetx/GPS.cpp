@@ -43,9 +43,9 @@
 #define MAX_ITERATIONS 10 // for solution of the Kepler equation
 
 extern Application *app;
-extern ostream *debugStream;
-extern string   debugFileName;
-extern ofstream debugLog;
+extern std::ostream *debugStream;
+extern std::string   debugFileName;
+extern std::ofstream debugLog;
 extern int verbosity;
 
 #define CLIGHT 299792458.0
@@ -413,10 +413,10 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 	// ICD 20.3.3.3.3.2
 	double freqCorr=1.0; 
 	switch (signal){
-		case GNSSSystem::C1: case GNSSSystem::P1:
+		case GNSSSystem::C1C: case GNSSSystem::C1P:
 			freqCorr=1.0;
 			break;
-		case GNSSSystem::P2:
+		case GNSSSystem::C2P:
 			freqCorr=77.0*77.0/(60.0*60.0);
 			break;
 		default:
@@ -526,7 +526,7 @@ void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLea
 {
 	
 	if (truncatedWN > 1023){
-		cerr << "GPS::GPStoUTC() truncated WN > 1023" << endl;
+		std::cerr << "GPS::GPStoUTC() truncated WN > 1023" << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	time_t tUTC = 315964800 + tow + truncatedWN*7*86400 - nLeapSeconds; 
@@ -544,7 +544,7 @@ void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLea
 	 
 	// See above ...
 	if (truncatedWN > 1023){
-		cerr << "GPS::GPStoUnix() truncated WN > 1023" << endl;
+		std::cerr << "GPS::GPStoUnix() truncated WN > 1023" << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	time_t tGPS = 315964800 + tow + truncatedWN*7*86400;

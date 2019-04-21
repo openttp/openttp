@@ -44,9 +44,9 @@
 #include "Debug.h"
 #include "Application.h"
 
-ostream *debugStream;
-string   debugFileName;
-ofstream debugLog;
+std::ostream *debugStream;
+std::string   debugFileName;
+std::ofstream debugLog;
 int verbosity=1;
 bool shortDebugMessage=false;
 

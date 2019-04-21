@@ -30,7 +30,6 @@
 
 #include "Receiver.h"
 
-using namespace std;
 
 class TrimbleResolution:public Receiver
 {
@@ -38,10 +37,10 @@ class TrimbleResolution:public Receiver
 		
 		enum Models {ResolutionT,ResolutionSMT,Resolution360};
 		
-		TrimbleResolution(Antenna *,string);
+		TrimbleResolution(Antenna *,std::string);
 		virtual ~TrimbleResolution();
 	
-		virtual bool readLog(string,int,int,int,int);
+		virtual bool readLog(std::string,int,int,int,int);
 		
 	protected:
 	

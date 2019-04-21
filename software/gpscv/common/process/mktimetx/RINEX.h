@@ -38,8 +38,6 @@ class EphemerisData;
 class MeasurementPair;
 class Receiver;
 
-using namespace std;
-
 class RINEX
 {
 	
@@ -48,29 +46,30 @@ class RINEX
 		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
 		
 		RINEX();
-		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
-		bool writeNavigationFile(Receiver *rx,int constellation,int ver,string fname,int mjd);
+		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,std::string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
+		bool writeNavigationFile(Receiver *rx,int constellation,int ver,std::string fname,int mjd);
 		
-		bool readNavigationFile(Receiver *rx,int constellation,string fname);
+		bool readNavigationFile(Receiver *rx,int constellation,std::string fname);
 		
-		string makeFileName(string pattern,int mjd);
+		std::string makeFileName(std::string pattern,int mjd);
 		
-		string observer;
-		string agency;
+		std::string observer;
+		std::string agency;
 	
 		bool allObservations;
+		std::string observationCode(int);
 		
 	private:
 		
 		void init();
-		bool readV2NavigationFile(Receiver* rx, int constellation,string fname);
-		bool readV3NavigationFile(Receiver *rx,int constellation,string fname);
+		bool readV2NavigationFile(Receiver* rx, int constellation,std::string fname);
+		bool readV3NavigationFile(Receiver *rx,int constellation,std::string fname);
 		
 		GPS::EphemerisData* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
 		BeiDou::EphemerisData* getBeiDouEphemeris(FILE *fin,unsigned int *lineCount);
 		
-		bool writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd);
-		bool writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd);
+		bool writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int mjd);
+		bool writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,int mjd);
 		
 		char * formatFlags(int,int);
 		

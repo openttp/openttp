@@ -37,7 +37,10 @@ class GNSSSystem
 	public:
 		
 		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08};
-		enum Code {C1=0x01,P1=0x02,P2=0x04,L1=0x08,L2=0x10};
+		enum Code {C1C=0x01,C1P=0x02,C2P=0x04,L1=0x08,L2=0x10,
+				C2C=0x20,C2L=0x40,C2M=0x80,
+				C2I=0x0100,C7I=0x0200,
+				L2I=0x4000,L7I=0x8000}; // FIXME signal names are a dog's breakfast: use RINEXV3.03 from now on
 		
 		GNSSSystem(){};
 		~GNSSSystem(){};

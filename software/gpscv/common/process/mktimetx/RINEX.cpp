@@ -25,7 +25,7 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
-
+#include <string>
 #include <cmath>
 #include <cstdio>
 
@@ -49,7 +49,7 @@
 #include "Utility.h"
 
 extern Application *app;
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 
 const char * RINEXVersionName[]= {"2.11","3.03"};
 char gsbuf[256];
@@ -65,7 +65,7 @@ RINEX::RINEX()
 	init();
 }
 
-bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
+bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,std::string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
 {
 	char buf[81];
 	FILE *fout;
@@ -122,17 +122,17 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 		case V2:
 		{
 			int nobs=0;
-			string obsTypes="";
+			std::string obsTypes="";
 			if (rx->constellations & GNSSSystem::GPS) {
-				if (rx->codes & GNSSSystem::C1){
+				if (rx->codes & GNSSSystem::C1C){
 					nobs++;
 					obsTypes += "    C1";
 				}
-				if (rx->codes & GNSSSystem::P1){
+				if (rx->codes & GNSSSystem::C1P){
 					nobs++;
 					obsTypes += "    P1";
 				}
-				if (rx->codes & GNSSSystem::P2){
+				if (rx->codes & GNSSSystem::C2P){
 					nobs++;
 					obsTypes += "    P2";
 				}
@@ -146,7 +146,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				}
 			}
 			if (rx->constellations & GNSSSystem::GLONASS) {
-				if ( (string::npos == obsTypes.find("C1") ) ){  // if C1 not there
+				if ( (std::string::npos == obsTypes.find("C1") ) ){  // if C1 not there
 					obsTypes = "    C1" + obsTypes;
 					nobs++;
 				}
@@ -159,17 +159,17 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 		case V3:
 		{
 			int nobs=0;
-			string obsTypes="";
+			std::string obsTypes="";
 			if (rx->constellations & GNSSSystem::GPS) {
-				if (rx->codes & GNSSSystem::C1){
+				if (rx->codes & GNSSSystem::C1C){
 					nobs++;
 					obsTypes += " C1C";
 				}
-				if (rx->codes & GNSSSystem::P1){
+				if (rx->codes & GNSSSystem::C1P){
 					nobs++;
 					obsTypes += " C1P";
 				}
-				if (rx->codes & GNSSSystem::P2){
+				if (rx->codes & GNSSSystem::C2P){
 					nobs++;
 					obsTypes += " C2P";
 				}
@@ -240,12 +240,12 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 			if (tMeas==obsTime){
 				
 				// determine all space vehicle identifiers, noting that we may not have all measurements for all observation types
-				vector<string> svids;
-				vector<int>    svns;
-				vector<int>    svsys;
+				std::vector<std::string> svids;
+				std::vector<int>    svns;
+				std::vector<int>    svsys;
 				char sbuf[4];
 				for (unsigned int i=0;i<rm->meas.size();i++){
-					string svconst;
+					std::string svconst;
 					switch (rm->meas.at(i)->constellation){
 						case GNSSSystem::GPS: svconst='G';break;
 						case GNSSSystem::GLONASS: svconst='R';break;
@@ -309,10 +309,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 					
 					// Order is C1,P1,P2,L1,L2
 					
-					if (rx->codes & GNSSSystem::C1){
+					if (rx->codes & GNSSSystem::C1C){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
-							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::C1){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::C1C){
 								//fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
 								fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 								foundit=true;
@@ -322,10 +322,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						if (!foundit) fprintf(fout,"%16s"," "); 
 					}
 					
-					if (rx->codes & GNSSSystem::P1){
+					if (rx->codes & GNSSSystem::C1P){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
-							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::P1){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::C1P){
 								fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 								foundit=true;
 								break;
@@ -334,10 +334,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						if (!foundit) fprintf(fout,"%16s"," ");
 					}
 					
-					if (rx->codes & GNSSSystem::P2){
+					if (rx->codes & GNSSSystem::C2P){
 						bool foundit=false;
 						for (unsigned int svc=0;svc<rm->meas.size();svc++){
-							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::P2){
+							if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == GNSSSystem::C2P){
 								fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 								foundit=true;
 								break;
@@ -380,7 +380,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	return true;
 }
 
-bool  RINEX::writeNavigationFile(Receiver *rx,int constellation,int ver,string fname,int mjd)
+bool  RINEX::writeNavigationFile(Receiver *rx,int constellation,int ver,std::string fname,int mjd)
 {
 	switch (constellation)
 	{
@@ -391,7 +391,7 @@ bool  RINEX::writeNavigationFile(Receiver *rx,int constellation,int ver,string f
 	return false;
 }
 
-bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
+bool RINEX::readNavigationFile(Receiver *rx,int constellation,std::string fname){
 	
 	unsigned int lineCount=0;
 	
@@ -454,9 +454,9 @@ bool RINEX::readNavigationFile(Receiver *rx,int constellation,string fname){
 	return true;
 }
 
-string RINEX::makeFileName(string pattern,int mjd)
+std::string RINEX::makeFileName(std::string pattern,int mjd)
 {
-	string ret="";
+	std::string ret="";
 	int year,mon,mday,yday;
 	Utility::MJDtoDate(mjd,&year,&mon,&mday,&yday);
 	int yy = year - (year/100)*100;
@@ -476,7 +476,7 @@ string RINEX::makeFileName(string pattern,int mjd)
 // Private members
 //
 
-bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd)
+bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,int mjd)
 {
 	if (ver != RINEX::V3) return false;
 	
@@ -538,7 +538,7 @@ bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd
 	return true;
 }
 
-bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd)
+bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int mjd)
 {
 	char buf[81];
 	FILE *fout;
@@ -701,7 +701,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd)
 	return true;
 }
 
-bool RINEX::readV2NavigationFile(Receiver *rx,int constellation,string fname)
+bool RINEX::readV2NavigationFile(Receiver *rx,int constellation,std::string fname)
 {
 	unsigned int lineCount=0;
 	
@@ -780,7 +780,7 @@ bool RINEX::readV2NavigationFile(Receiver *rx,int constellation,string fname)
 	return true;
 }
 
-bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,string fname)
+bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,std::string fname)
 {
 	unsigned int lineCount=0;
 	
@@ -813,7 +813,7 @@ bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,string fname)
 			}
 			if (gnss != 0){
 				if (gnss != constellation){
-					app->logMessage("No data for satellite system " + string(1,satSystem) + " in " + fname);
+					app->logMessage("No data for satellite system " + std::string(1,satSystem) + " in " + fname);
 					return false;
 				}
 			}

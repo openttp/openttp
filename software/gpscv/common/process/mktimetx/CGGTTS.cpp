@@ -44,7 +44,7 @@
 #include "Utility.h"
 
 extern Application *app;
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 
 #define NTRACKS 89
 #define MAXSV   32 // per constellation 
@@ -61,15 +61,15 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled)
+bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled)
 {
 	FILE *fout;
 	if (!(fout = fopen(fname.c_str(),"w"))){
-		cerr << "Unable to open " << fname << endl;
+		std::cerr << "Unable to open " << fname << std::endl;
 		return false;
 	}
 	
-	app->logMessage("generating CGGTTS file for " + boost::lexical_cast<string>(mjd));
+	app->logMessage("generating CGGTTS file for " + boost::lexical_cast<std::string>(mjd));
 	
 	double measDelay = rx->ppsOffset + intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
 	int useTIC = (TICenabled?1:0);
@@ -86,13 +86,13 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 	
 	// Constellation/code identifiers as per V2E
 	
-	string GNSSsys;
-	string GNSScode;
+	std::string GNSSsys;
+	std::string GNSScode;
 	
 	switch (code){
-		case GNSSSystem::C1:GNSScode="L1C";break;
-		case GNSSSystem::P1:GNSScode="L1P";break;
-		case GNSSSystem::P2:GNSScode="L2P";break;
+		case GNSSSystem::C1C:GNSScode="L1C";break;
+		case GNSSSystem::C1P:GNSScode="L1P";break;
+		case GNSSSystem::C2P:GNSScode="L2P";break;
 		default:break;
 	}
 			
@@ -113,7 +113,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 		FILE *foutdbg;
 		fname += ".dbg";
 		if (!(foutdbg = fopen(fname.c_str(),"w"))){
-			cerr << "Unable to open " << fname << endl;
+			std::cerr << "Unable to open " << fname << std::endl;
 			return false;
 		}
 		writeHeader(foutdbg);
@@ -171,12 +171,12 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 			} 
 		}
 		
-// 		app->logMessage("Ephemeris search misses: " + boost::lexical_cast<string>(ephemerisMisses));
-// 		app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<string>(pseudoRangeFailures-ephemerisMisses) );
-// 		app->logMessage("Bad measurements: " + boost::lexical_cast<string>(badMeasurementCnt) );
+// 		app->logMessage("Ephemeris search misses: " + boost::lexical_cast<std::string>(ephemerisMisses));
+// 		app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) );
+// 		app->logMessage("Bad measurements: " + boost::lexical_cast<std::string>(badMeasurementCnt) );
 // 		
-// 		app->logMessage(boost::lexical_cast<string>(goodTrackCnt) + " good measurements");
-// 		app->logMessage(boost::lexical_cast<string>(lowElevationCnt) + " low elevation measurements");
+// 		app->logMessage(boost::lexical_cast<std::string>(goodTrackCnt) + " good measurements");
+// 		app->logMessage(boost::lexical_cast<std::string>(lowElevationCnt) + " low elevation measurements");
 // 		
 		
 	}
@@ -212,7 +212,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 	}
 	
 	// Use a fixed array of vectors so that we can use the index as a hash for the SVN. Memory is cheap
-	vector<SVMeasurement *> svtrk[MAXSV+1];
+	std::vector<SVMeasurement *> svtrk[MAXSV+1];
 	
 	for (int i=0;i<ntracks;i++){
 		int trackStart = schedule[i]*60;
@@ -258,7 +258,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 					if (t==tmeas){
 						// FIXME MDIO needs to change for L2
 						if (nqfitpts > 14){ // shouldn't happen
-							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
+							std::cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << std::endl;
 							exit(EXIT_FAILURE);
 						}
 						// smooth the counter measurements - this helps clean up any residual sawtooth error
@@ -274,7 +274,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 						// don't increment isv - have to retest
 					}
 					else{ // t > tmeas - shouldn't happen
-						cerr << "Error in CGGTTS::writeObservationFile() - unexpected tmeas (t=" << t<< ",tmeas=" << tmeas<< endl;
+						std::cerr << "Error in CGGTTS::writeObservationFile() - unexpected tmeas (t=" << t<< ",tmeas=" << tmeas<< std::endl;
 						exit(EXIT_FAILURE);
 					}
 					
@@ -282,7 +282,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 						//DBGMSG(debugStream,1,sv << " " << trackStart << " " << nqfitpts << " " << nqfits);
 						// Sanity checks
 						if (nqfits > 51){// shouldn't happen
-							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
+							std::cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << std::endl;
 							exit(EXIT_FAILURE);
 						}
 						
@@ -460,14 +460,14 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 			svtrk[sv].clear();
 	} // for (int i=0;i<ntracks;i++){
 	
-	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<string>(ephemerisMisses));
-	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<string>(pseudoRangeFailures-ephemerisMisses) );
-	app->logMessage("Bad measurements: " + boost::lexical_cast<string>(badMeasurementCnt) );
+	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<std::string>(ephemerisMisses));
+	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) );
+	app->logMessage("Bad measurements: " + boost::lexical_cast<std::string>(badMeasurementCnt) );
 	
-	app->logMessage(boost::lexical_cast<string>(goodTrackCnt) + " good tracks");
-	app->logMessage(boost::lexical_cast<string>(lowElevationCnt) + " low elevation tracks");
-	app->logMessage(boost::lexical_cast<string>(highDSGCnt) + " high DSG tracks");
-	app->logMessage(boost::lexical_cast<string>(shortTrackCnt) + " short tracks");
+	app->logMessage(boost::lexical_cast<std::string>(goodTrackCnt) + " good tracks");
+	app->logMessage(boost::lexical_cast<std::string>(lowElevationCnt) + " low elevation tracks");
+	app->logMessage(boost::lexical_cast<std::string>(highDSGCnt) + " high DSG tracks");
+	app->logMessage(boost::lexical_cast<std::string>(shortTrackCnt) + " short tracks");
 	
 	fclose(fout);
 	
@@ -567,21 +567,21 @@ void CGGTTS::writeHeader(FILE *fout)
 		}
 		case V2E:
 		{
-			string cons;
+			std::string cons;
 			switch (constellation){
 				case GNSSSystem::BEIDOU:cons="BDS";break;
 				case GNSSSystem::GALILEO:cons="GAL";break;
 				case GNSSSystem::GLONASS:cons="GLO";break;
 				case GNSSSystem::GPS:cons="GPS";break;
 			}
-			string code1;
+			std::string code1;
 			switch (code){
 				// FIXME check if BeiDou etc need a different name for code1
-				case GNSSSystem::C1:code1="C1";break;
-				case GNSSSystem::P1:code1="P1";break;
-				case GNSSSystem::P2:code1="P2";break;
+				case GNSSSystem::C1C:code1="C1";break;
+				case GNSSSystem::C1P:code1="P1";break;
+				case GNSSSystem::C2P:code1="P2";break;
 			}
-			string dly;
+			std::string dly;
 			switch (delayKind){
 				case INTDLY:dly="INT";break;
 				case SYSDLY:dly="SYS";break;

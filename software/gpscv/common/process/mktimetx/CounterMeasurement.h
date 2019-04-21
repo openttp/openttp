@@ -28,8 +28,6 @@
 #include <cstdio>
 #include <string>
 
-using namespace std;
-
 class CounterMeasurement
 {
 	public:
@@ -38,11 +36,11 @@ class CounterMeasurement
 			hh=(unsigned char)h;mm=(unsigned char)m;ss=(unsigned char)s;
 			rdg=r;
 		}
-		string timestamp()
+		std::string timestamp()
 		{
 			char sbuf[9];
 			sprintf(sbuf,"%02d:%02d:%02d",(int) hh, int (mm), int (ss));
-			return string(sbuf);
+			return std::string(sbuf);
 		}
 		
 		unsigned char hh,mm,ss;

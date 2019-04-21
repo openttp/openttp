@@ -35,9 +35,9 @@
 #include "SVMeasurement.h"
 
 extern Application *app;
-extern ostream *debugStream;
-extern string   debugFileName;
-extern ofstream debugLog;
+extern std::ostream *debugStream;
+extern std::string   debugFileName;
+extern std::ofstream debugLog;
 extern int verbosity;
 
 BeiDou::BeiDou():GNSSSystem()

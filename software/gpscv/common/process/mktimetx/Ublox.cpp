@@ -46,7 +46,7 @@
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 extern Application *app;
 
 #define CLIGHT 299792458.0
@@ -74,13 +74,13 @@ typedef double         R8;
 #define MSG0D01 0x08
 
 
-Ublox::Ublox(Antenna *ant,string m):Receiver(ant)
+Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 {
 	modelName=m;
 	manufacturer="ublox";
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1;
+	codes=GNSSSystem::C1C;
 	channels=72;
 	if (modelName == "LEA-M8T"){
 		// For the future
@@ -101,15 +101,15 @@ Ublox::~Ublox()
 {
 }
 
-bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
+bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
-	ifstream infile (fname.c_str());
-	string line;
+	std::ifstream infile (fname.c_str());
+	std::string line;
 	int linecount=0;
 	
-	string msgid,currpctime,pctime,msg,gpstime;
+	std::string msgid,currpctime,pctime,msg,gpstime;
 	
 	I4 sawtooth;
 	I4 clockBias;
@@ -129,7 +129,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	
 	float rxTimeOffset; // single
 	
-	vector<SVMeasurement *> svmeas;
+	std::vector<SVMeasurement *> svmeas;
 	
 	gotUTCdata=false;
 	gotIonoData=false;
@@ -138,7 +138,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	unsigned int reqdMsgs =  MSG0121 | MSG0122 | MSG0215 | MSG0D01 ;
 
   if (infile.is_open()){
-    while ( getline (infile,line) ){
+    while (std::getline (infile,line) ){
 			linecount++;
 			
 			if (line.size()==0) continue; // skip empty line
@@ -146,7 +146,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 			if ('%' == line.at(0)) continue;
 			if ('@' == line.at(0)) continue;
 			
-			stringstream sstr(line);
+			std::stringstream sstr(line);
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){
 				DBGMSG(debugStream,WARNING," bad data at line " << linecount);
@@ -250,7 +250,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 						HexToBin((char *) msg.substr(0*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &measTOW); //measurement TOW (s)
 						HexToBin((char *) msg.substr(8*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &measGPSWN); // full WN
 						HexToBin((char *) msg.substr(10*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &measLeapSecs);
-						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << setprecision(12) << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
+						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << std::setprecision(12) << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
 						//DBGMSG(debugStream,TRACE,nmeas);
 						for (unsigned int m=0;m<nmeas;m++){
 							HexToBin((char *) msg.substr((36+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //GNSS id
@@ -281,12 +281,12 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int trkStat=u1buf;
 								// When PR is reported, trkStat is always 1 but .
-								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID != 255 && sigID==0){ // svid=255 is unknown GLONASS, FIXME only handle L1C or whatever
-									SVMeasurement *svm = new SVMeasurement(svID,gnssSys,GNSSSystem::C1,r8buf/CLIGHT,NULL);
+								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID != 255 && sigID==0){ // svid=255 is unknown GLONASS, FIXME only handle C1C or whatever
+									SVMeasurement *svm = new SVMeasurement(svID,gnssSys,GNSSSystem::C1C,r8buf/CLIGHT,NULL);
 									svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
 									svmeas.push_back(svm);
 								}
-								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << setprecision(8) << " trkStat= " << (int) trkStat);
+								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << std::setprecision(8) << " trkStat= " << (int) trkStat);
 							}
 						}
 						currentMsgs |= MSG0215;
@@ -508,7 +508,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					unsigned int m=0;
 					while (m < measurements[i]->meas.size()){
 						// This solves the issue of the software confuding GNSS systems (What does this mean? I am a bit confuded)
-						if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1) && (measurements[i]->meas[m]->constellation ==g )){
+						if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1C) && (measurements[i]->meas[m]->constellation ==g )){
 							lasttow=currtow;
 							lastmeas=currmeas;
 							currmeas=measurements[i]->meas[m]->meas;
@@ -570,7 +570,7 @@ bool Ublox::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	
 }
 
-GPS::EphemerisData* Ublox::decodeGPSEphemeris(string msg)
+GPS::EphemerisData* Ublox::decodeGPSEphemeris(std::string msg)
 {
 	U4 u4buf;
 	HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);

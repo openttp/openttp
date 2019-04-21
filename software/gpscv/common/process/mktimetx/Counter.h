@@ -30,8 +30,6 @@
 #include <vector>
 #include <boost/concept_check.hpp>
 
-using namespace std;
-
 class CounterMeasurement;
 
 class Counter
@@ -41,10 +39,10 @@ class Counter
 		Counter();
 		~Counter();
 	
-		bool readLog(string,int startTime=0,int stopTime=86399);
+		bool readLog(std::string,int startTime=0,int stopTime=86399);
 		bool flipSign;
 		
-		vector<CounterMeasurement *> measurements;
+		std::vector<CounterMeasurement *> measurements;
 	
 		unsigned int memoryUsage();
 		

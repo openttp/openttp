@@ -32,7 +32,7 @@
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 
 static double LagrangeInterpolation(double x,double x1, double y1,double x2,double y2,double x3,double y3){
 	return y1*(x-x2)*(x-x3)/((x1-x2)*(x1-x3)) + 
@@ -58,7 +58,7 @@ Receiver::Receiver(Antenna *ant)
 	ppsOffset=0;
 	commissionYYYY=1999;
 	dualFrequency=false;
-	codes=GNSSSystem::C1;
+	codes=GNSSSystem::C1C;
 	sawtoothPhase=CurrentSecond;
 	sawtooth=0.0;
 }
@@ -78,12 +78,12 @@ unsigned int Receiver::memoryUsage()
 	return mem;
 }
 
-void Receiver::setVersion(string v)
+void Receiver::setVersion(std::string v)
 {
 	version_=v;
 }
 
-string Receiver::version()
+std::string Receiver::version()
 {
 	return version_;
 }
@@ -118,7 +118,7 @@ void Receiver::interpolateMeasurements()
 	
 	DBGMSG(debugStream,1,"starting " << constellations );
 	
-	vector<SVMeasurement *> track;
+	std::vector<SVMeasurement *> track;
 	
 	// For each SV, build up a list of all measurements for the day
 	// Loop over all constellation+signal combinations
@@ -138,7 +138,7 @@ void Receiver::interpolateMeasurements()
 		}
 		DBGMSG(debugStream,1,"processing " << gnss->name());
 		
-		for (int code = GNSSSystem::C1;code <=GNSSSystem::L2; (code <<= 1)){
+		for (int code = GNSSSystem::C1C;code <=GNSSSystem::L7I; (code <<= 1)){
 			
 			if (!(codes & code)) continue;
 			

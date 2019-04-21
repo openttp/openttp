@@ -35,6 +35,7 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <string>
 #include <vector>
 #include <boost/concept_check.hpp>
 
@@ -47,7 +48,7 @@
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 extern Application *app;
 
 #define MAX_CHANNELS 16 // max channels per constellation
@@ -96,13 +97,13 @@ double FP80toFP64(uint8_t *buf)
 	return sign * pow(2,(int) exponent - 16383) * (normalizeCorrection + (double) mantissa/((uint64_t)1 << 63));
 }
 
-NVS::NVS(Antenna *ant,string m):Receiver(ant)
+NVS::NVS(Antenna *ant,std::string m):Receiver(ant)
 {
 	modelName=m;
 	manufacturer="NVS";
 	constellations=GNSSSystem::GPS;
 	//codes=GNSSSystem::C1|GNSSSystem::L1;
-	codes=GNSSSystem::C1;                 // Limit to C1 only:
+	codes=GNSSSystem::C1C;                 // Limit to C1 only:
 	                                      // It cuts RINEX processing times significantly
 	                                      // and removes negative value "L1" results from
 	                                      // the output RINEX files.
@@ -123,15 +124,15 @@ NVS::~NVS()
 {
 }
 
-bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
+bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
-	ifstream infile (fname.c_str());
-	string line;
+	std::ifstream infile (fname.c_str());
+	std::string line;
 	int linecount=0;
 	
-	string msgid,currpctime,pctime="",msg,gpstime;
+	std::string msgid,currpctime,pctime="",msg,gpstime;
 	
 	float rxTimeOffset; // single
 	FP64 sawtooth;     // units are ns
@@ -141,7 +142,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	INT8S int8sbuf;
 	INT8U int8ubuf;
 	
-	vector<SVMeasurement *> gnssmeas;
+	std::vector<SVMeasurement *> gnssmeas;
 	gotIonoData = false;
 	gotUTCdata=false;
 	
@@ -169,7 +170,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	if (constellations & GNSSSystem::BEIDOU)
 		numConstellations++;
 	int numCodes=0;
-	if (codes & GNSSSystem::C1)
+	if (codes & GNSSSystem::C1C)
 		numCodes++;
 	if (codes & GNSSSystem::L1)
 		numCodes++;
@@ -183,7 +184,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 			if ('%' == line.at(0)) continue;
 			if ('@' == line.at(0)) continue;
 			
-			stringstream sstr(line);
+			std::stringstream sstr(line);
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){ // throw away whatever we have, invalidating the rest of the second's data too
 				DBGMSG(debugStream,WARNING," bad data at line " << linecount);
@@ -309,7 +310,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
 							if ((constellations & GNSSSystem::GLONASS) && (signal & 0x01)){ // GLONASS
 								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
-								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GLONASS,GNSSSystem::C1,svmeas,NULL);
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GLONASS,GNSSSystem::C1C,svmeas,NULL);
 								svm->dbuf3=svmeas;
 								gnssmeas.push_back(svm);
 								nGLONASS++;
@@ -326,7 +327,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 							}
 							else if ((constellations & GNSSSystem::GPS) && (signal & 0x02)){ // GPS
 								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
-								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::C1,svmeas,NULL);
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::C1C,svmeas,NULL);
 								svm->dbuf3=svmeas;
 								gnssmeas.push_back(svm);
 								nGPS++;
@@ -343,7 +344,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 							}
 							else if ((constellations & GNSSSystem::BEIDOU) && (signal & 0x09)){ // BeiDou
 								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
-								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::C1,svmeas,NULL);
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::C1C,svmeas,NULL);
 								svm->dbuf3=svmeas;
 								gnssmeas.push_back(svm);
 								nBeiDou++;
@@ -472,7 +473,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					INT8U validity;
 					HexToBin((char *) msg.substr(50*2,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &validity);
 					currentMsgs |= MSG74;
-					DBGMSG(debugStream,TRACE,"0x74 GPS-Rx = " << setprecision(16) << gpsRxOffset << " GPS-UTC = " <<  gpsUTCOffset);
+					DBGMSG(debugStream,TRACE,"0x74 GPS-Rx = " << std::setprecision(16) << gpsRxOffset << " GPS-UTC = " <<  gpsUTCOffset);
 				}
 				else{
 					DBGMSG(debugStream,WARNING,"0x74 msg wrong size at line "<<linecount);
@@ -663,7 +664,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	
 }
 
-void NVS::setVersion(string v)
+void NVS::setVersion(std::string v)
 {
 	Receiver::setVersion(v);
 	char ch = v.at(0);
