@@ -355,7 +355,23 @@ void Application::run()
 
 void Application::showHelp()
 {
-	
+	std::cout << std::endl << APP_NAME << " version " << APP_VERSION << std::endl;
+	std::cout << "Usage: " << APP_NAME << " [options]" << std::endl;
+	std::cout << "Available options are" << std::endl;
+	std::cout << "--configuration <file> full path to the configuration file" << std::endl;
+	std::cout << "--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << std::endl;
+	std::cout << "--disable-tic          disables use of sawtooth-corrected TIC measurements" << std::endl;
+	std::cout << "-h,--help              print this help message" << std::endl;
+	std::cout << "-m <n>                 set the mjd" << std::endl;
+	std::cout << "--start HH:MM:SS/HHMMSS  set start time" << std::endl;
+	std::cout << "--stop  HH:MM:SS/HHMMSS  set stop time" << std::endl;
+	std::cout << "--short-debug-message  shorter debugging messages" << std::endl;
+	std::cout << "--sv-diagnostics       write SV diagnostics files" << std::endl;
+	std::cout << "--timing-diagnostics   write receiver timing diagnostics file" << std::endl;
+	std::cout << "--verbosity <n>        set debugging verbosity" << std::endl;
+	std::cout << "--version              print version" << std::endl;
+
+
 }
 
 void Application::showVersion()
