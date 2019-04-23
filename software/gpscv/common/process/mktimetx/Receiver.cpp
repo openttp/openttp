@@ -138,7 +138,7 @@ void Receiver::interpolateMeasurements()
 		}
 		DBGMSG(debugStream,1,"processing " << gnss->name());
 		
-		for (int code = GNSSSystem::C1C;code <=GNSSSystem::L7I; (code <<= 1)){
+		for (unsigned int code = GNSSSystem::C1C;code <=GNSSSystem::L7I; (code <<= 1)){
 			
 			if (!(codes & code)) continue;
 			

@@ -152,11 +152,11 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	unsigned char CAlockFlags[MAX_CHANNELS*2];
 	
 	F8 P1pr[MAX_CHANNELS];
-	F8 relP1pr[MAX_CHANNELS];
+	//F8 relP1pr[MAX_CHANNELS];
 	unsigned char P1lockFlags[MAX_CHANNELS*2];
 	
 	F8 P2pr[MAX_CHANNELS];
-	F8 relP2pr[MAX_CHANNELS];
+	//F8 relP2pr[MAX_CHANNELS];
 	unsigned char P2lockFlags[MAX_CHANNELS*2];
 	
 	I2 i2bufarray[MAX_CHANNELS];
@@ -633,8 +633,8 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F4));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(F4),(unsigned char *) (f4bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP1pr[i] = (double) f4bufarray[i];
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP1pr[i] = (double) f4bufarray[i];
 						currMsgs |= R1_r1_1R_1r_MSG;
 						m1RCnt++;
 					}
@@ -650,8 +650,8 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I2));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(I2),(unsigned char *) (i2bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP1pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP1pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
 						currMsgs |= R1_r1_1R_1r_MSG;
 						m1rCnt++;
 					}
@@ -699,8 +699,8 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F4));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(F4),(unsigned char *) (f4bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP2pr[i] = (double) f4bufarray[i];
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP2pr[i] = (double) f4bufarray[i];
 						currMsgs |= R2_r2_2R_2r_MSG;
 						m2RCnt++;
 					}
@@ -716,8 +716,8 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I2));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(I2),(unsigned char *) (i2bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP2pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP2pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
 						currMsgs |= R2_r2_2R_2r_MSG;
 						m2rCnt++;
 					}

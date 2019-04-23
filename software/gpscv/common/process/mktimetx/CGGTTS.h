@@ -51,7 +51,7 @@ class CGGTTS
 		
 		int ver;
 		int constellation; // V2E
-		int code;          // V2E
+		unsigned int code;          // V2E
 		int delayKind;         // V2E
 		
 		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated

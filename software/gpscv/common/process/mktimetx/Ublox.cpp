@@ -80,16 +80,18 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	manufacturer="ublox";
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1C;
+	codes=GNSSSystem::C1C | GNSSSystem::C2I | GNSSSystem::C7I;
 	channels=72;
 	if (modelName == "LEA-M8T"){
 		// For the future
 	}
 	else if (modelName == "NEO-M8T"){
+		// Defaults
 	}
 	else if (modelName == "ZED-F9P" or modelName == "ZED-F9T"){
 	  channels=184;
 		constellations=GNSSSystem::GPS | GNSSSystem::GLONASS | GNSSSystem::GALILEO | GNSSSystem::BEIDOU;
+		codes=GNSSSystem::C1C | GNSSSystem::C2L | GNSSSystem::C2I;
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
@@ -281,12 +283,52 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int trkStat=u1buf;
 								// When PR is reported, trkStat is always 1 but .
-								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID != 255 && sigID==0){ // svid=255 is unknown GLONASS, FIXME only handle C1C or whatever
-									SVMeasurement *svm = new SVMeasurement(svID,gnssSys,GNSSSystem::C1C,r8buf/CLIGHT,NULL);
-									svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
-									svmeas.push_back(svm);
+								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID != 255){ // svid=255 is unknown GLONASS
+									int sig=-1;
+									switch (gnssSys){
+										case GNSSSystem::BEIDOU:
+											switch (sigID){
+												case 0:sig=GNSSSystem::C2I;break; // D1
+												case 1:sig=GNSSSystem::C2I;break; // D2
+												case 2:sig=GNSSSystem::C7I;break; // D1
+												case 3:sig=GNSSSystem::C7I;break; // D2
+												default: break;
+											}
+											break;
+										case GNSSSystem::GALILEO:
+											switch (sigID){
+												case 0:sig=GNSSSystem::C1C;break;   //E1C
+												//case 1:sig=GNSSSystem::C1B;break; //E1B
+												//case 5:sig=GNSSSystem::C7I;break; //E5Bi
+												//case 6:sig=GNSSSystem::C7Q;break; //E5bQ
+												default: break;
+											}
+											break;
+										case GNSSSystem::GLONASS:
+											switch (sigID){
+												case 0:sig=GNSSSystem::C1C;break;
+												//case 2:sig=GNSSSystem::C2C;break;
+												default: break;
+											}
+											break;
+										case GNSSSystem::GPS:
+											switch (sigID){
+												case 0:sig=GNSSSystem::C1C;break;
+												case 3:sig=GNSSSystem::C2L;break;
+												//case 4:sig=GNSSSystem::C2M;break;
+												default: break;
+											}
+											break;
+									}
+									if (sig > 0){
+										SVMeasurement *svm = new SVMeasurement(svID,gnssSys,sig,r8buf/CLIGHT,NULL);
+										svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
+										svmeas.push_back(svm);
+									}
+									else{
+									}
 								}
-								DBGMSG(debugStream,TRACE,"SYS " <<gnssSys << " SV" << svID << " pr=" << r8buf/CLIGHT << std::setprecision(8) << " trkStat= " << (int) trkStat);
+								DBGMSG(debugStream,TRACE,"SYS " << gnssSys << " sig=" << sigID << " SV" << svID << " pr=" << r8buf/CLIGHT << std::setprecision(8) << " trkStat= " << (int) trkStat);
 							}
 						}
 						currentMsgs |= MSG0215;

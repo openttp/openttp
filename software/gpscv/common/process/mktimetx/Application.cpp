@@ -127,7 +127,7 @@ Application::Application(int argc,char **argv)
 								}
 								else{
 									debugFileName = dbgout;
-									debugLog.open(debugFileName.c_str(),std::ios_base::app);
+									debugLog.open(debugFileName.c_str(),std::ios_base::out);
 									if (!debugLog.is_open()){
 										std::cerr << "Error! Unable to open " << dbgout << std::endl;
 										exit(EXIT_FAILURE);
@@ -1239,7 +1239,7 @@ void Application::writeSVDiagnostics(Receiver *rx,std::string path)
 			case GNSSSystem::GPS:gnss = &(rx->gps) ;
 		}
 		
-		for (int code = GNSSSystem::C1C;code <=GNSSSystem::L7I; (code <<= 1)){
+		for (unsigned int code = GNSSSystem::C1C;code <=GNSSSystem::L7I; (code <<= 1)){
 			
 			if (!(rx->codes & code)) continue;
 			

@@ -172,7 +172,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 	int numCodes=0;
 	if (codes & GNSSSystem::C1C)
 		numCodes++;
-	if (codes & GNSSSystem::L1)
+	if (codes & GNSSSystem::L1C)
 		numCodes++;
 	
   if (infile.is_open()){
@@ -316,7 +316,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 								nGLONASS++;
 								if (flags & 0x08){ // carrier phase present
 									svmeas = fp64buf;
-									svm = new SVMeasurement(svn,GNSSSystem::GLONASS,GNSSSystem::L1,svmeas,NULL);
+									svm = new SVMeasurement(svn,GNSSSystem::GLONASS,GNSSSystem::L1C,svmeas,NULL);
 									if (tgps - glonass.L1lastunlock[svn] <= rinexObsInterval)
 										svm->lli=0x01;
 									gnssmeas.push_back(svm);
@@ -333,7 +333,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 								nGPS++;
 								if (flags & 0x08){ // carrier phase present
 									svmeas = fp64buf;
-									svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1,svmeas,NULL);
+									svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1C,svmeas,NULL);
 									if (tgps - gps.L1lastunlock[svn] <= rinexObsInterval)
 										svm->lli=0x01;
 									gnssmeas.push_back(svm);
@@ -350,7 +350,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 								nBeiDou++;
 								if (flags & 0x08){ // carrier phase present
 									svmeas = fp64buf;
-									svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::L1,svmeas,NULL);
+									svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::L2I,svmeas,NULL);
 									if (tgps - beidou.L1lastunlock[svn] <= rinexObsInterval)
 										svm->lli=0x01;
 									gnssmeas.push_back(svm);
@@ -367,7 +367,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 					
 					//if (gnssmeas.size() >= MAX_CHANNELS*numConstellations*numCodes){ // too much data - something is wrong
 					// Fix for having only one code: Multiplied MAX_CHANNELS by 2 because codes reduced by 1/2 - see line ~ 105
-					if (gnssmeas.size() >= MAX_CHANNELS*numConstellations*numCodes*2){ // too much data - something is wrong
+					if (gnssmeas.size() >= (unsigned) (MAX_CHANNELS*numConstellations*numCodes*2)){ // too much data - something is wrong
 						DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gnssmeas.size() << ")");
 						deleteMeasurements(gnssmeas);
 						continue;

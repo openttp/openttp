@@ -52,12 +52,12 @@ class RINEX
 		bool readNavigationFile(Receiver *rx,int constellation,std::string fname);
 		
 		std::string makeFileName(std::string pattern,int mjd);
+		std::string codeToString(int ver,int code);
 		
 		std::string observer;
 		std::string agency;
 	
 		bool allObservations;
-		std::string observationCode(int);
 		
 	private:
 		
