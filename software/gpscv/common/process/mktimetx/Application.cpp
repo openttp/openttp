@@ -385,7 +385,7 @@ std::string Application::timeStamp(){
 	time_t tt = time(NULL);
 	struct tm *gmt = gmtime(&tt);
 	char ts[32];
-	sprintf(ts,"%4d-%02d-%02d %02d:%02d:%02d ",gmt->tm_year+1900,gmt->tm_mon+1,gmt->tm_mday,
+	std::sprintf(ts,"%4d-%02d-%02d %02d:%02d:%02d ",gmt->tm_year+1900,gmt->tm_mon+1,gmt->tm_mday,
 		gmt->tm_hour,gmt->tm_min,gmt->tm_sec);
 	return std::string(ts);
 }
@@ -575,14 +575,13 @@ void Application::compress(std::string f){
 	}
 }
 
-		
 std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 	std::ostringstream ss;
 	char fname[16];
 	if (CGGTTSnamingConvention == Plain)
 		ss << cggtts.path << "/" << MJD << ".cctf";
 	else if (CGGTTSnamingConvention == BIPM){
-		snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
+		std::snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
 		std::string constellation;
 		switch (cggtts.constellation){
 			case GNSSSystem::GPS:constellation="G";break;
@@ -1060,44 +1059,44 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 bool Application::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, std::string fname)
 {
 	FILE *fout;
-	if (!(fout = fopen(fname.c_str(),"w"))){
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
 		std::cerr << "Unable to open " << fname << std::endl;
 		return false;
 	}
 	
-	fprintf(fout,"REV DATE\n");
+	std::fprintf(fout,"REV DATE\n");
 	
-	fprintf(fout,"RCVR\n");
-	fprintf(fout,"%s\n",rx->manufacturer.c_str());
-	fprintf(fout,"CH\n");
+	std::fprintf(fout,"RCVR\n");
+	std::fprintf(fout,"%s\n",rx->manufacturer.c_str());
+	std::fprintf(fout,"CH\n");
 	
-	fprintf(fout,"LAB NAME\n");
+	std::fprintf(fout,"LAB NAME\n");
 	
-	fprintf(fout,"X COORDINATE\n");
-	fprintf(fout,"%14.4lf\n",ant->x);
-	fprintf(fout,"Y COORDINATE\n");
-	fprintf(fout,"%14.4lf\n",ant->y);
-	fprintf(fout,"Z COORDINATE\n");
-	fprintf(fout,"%14.4lf\n",ant->z);
-	fprintf(fout,"COMMENTS\n");
+	std::fprintf(fout,"X COORDINATE\n");
+	std::fprintf(fout,"%14.4lf\n",ant->x);
+	std::fprintf(fout,"Y COORDINATE\n");
+	std::fprintf(fout,"%14.4lf\n",ant->y);
+	std::fprintf(fout,"Z COORDINATE\n");
+	std::fprintf(fout,"%14.4lf\n",ant->z);
+	std::fprintf(fout,"COMMENTS\n");
 	
-	fprintf(fout,"REF\n");
+	std::fprintf(fout,"REF\n");
 	
-	fprintf(fout,"INT DELAY P1 XR+XS (in ns)\n");  // FIXME multiple problems here
-	fprintf(fout,"0.0\n");
-	fprintf(fout,"INT DELAY P2 XR+XS (in ns)\n");
-	fprintf(fout,"0.0\n");
-	fprintf(fout,"INT DELAY C1 XR+XS (in ns)\n");
-	fprintf(fout,"%11.1lf\n",0.0);
-	fprintf(fout,"ANT CAB DELAY (in ns)\n");
-	fprintf(fout,"%11.1lf",antCableDelay);
-	fprintf(fout,"CLOCK CAB DELAY XP+XO (in ns)\n");
-	fprintf(fout,"%11.1lf",refCableDelay);
+	std::fprintf(fout,"INT DELAY P1 XR+XS (in ns)\n");  // FIXME multiple problems here
+	std::fprintf(fout,"0.0\n");
+	std::fprintf(fout,"INT DELAY P2 XR+XS (in ns)\n");
+	std::fprintf(fout,"0.0\n");
+	std::fprintf(fout,"INT DELAY C1 XR+XS (in ns)\n");
+	std::fprintf(fout,"%11.1lf\n",0.0);
+	std::fprintf(fout,"ANT CAB DELAY (in ns)\n");
+	std::fprintf(fout,"%11.1lf",antCableDelay);
+	std::fprintf(fout,"CLOCK CAB DELAY XP+XO (in ns)\n");
+	std::fprintf(fout,"%11.1lf",refCableDelay);
 	
-	fprintf(fout,"LEAP SECOND\n");
-	fprintf(fout,"%d\n",rx->leapsecs);
+	std::fprintf(fout,"LEAP SECOND\n");
+	std::fprintf(fout,"%d\n",rx->leapsecs);
 	
-	fclose(fout);
+	std::fclose(fout);
 	
 	return true;
 }

@@ -112,7 +112,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		
 		FILE *foutdbg;
 		fname += ".dbg";
-		if (!(foutdbg = fopen(fname.c_str(),"w"))){
+		if (!(foutdbg = std::fopen(fname.c_str(),"w"))){
 			std::cerr << "Unable to open " << fname << std::endl;
 			return false;
 		}

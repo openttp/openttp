@@ -69,7 +69,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 {
 	char buf[81];
 	FILE *fout;
-	if (!(fout = fopen(fname.c_str(),"w"))){
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
 		return false;
 	}
 	
@@ -519,7 +519,7 @@ bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,in
 	
 	char buf[81];
 	FILE *fout;
-	if (!(fout = fopen(fname.c_str(),"w"))){
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
 		return false;
 	}
 	
@@ -570,7 +570,7 @@ bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,in
 		
 	}
 	
-	fclose(fout);
+	std::fclose(fout);
 	
 	return true;
 }
@@ -579,7 +579,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 {
 	char buf[81];
 	FILE *fout;
-	if (!(fout = fopen(fname.c_str(),"w"))){
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
 		return false;
 	}
 	
@@ -617,7 +617,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 		}
 		case V3:
 		{
-			snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
+			std::snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
 					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
 			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			std::fprintf(fout,"GPSA %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
@@ -695,7 +695,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 					yy,tmGPS->tm_mon+1,tmGPS->tm_mday,hour,minute,(float) second,
 					rx->gps.ephemeris[i]->a_f0,rx->gps.ephemeris[i]->a_f1,rx->gps.ephemeris[i]->a_f2);
 				
-				snprintf(buf,80,"%%3s%%19.12e%%19.12e%%19.12e%%19.12e\n");
+				std::snprintf(buf,80,"%%3s%%19.12e%%19.12e%%19.12e%%19.12e\n");
 			
 				break;
 			}
@@ -705,7 +705,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 					tmGPS->tm_year+1900,tmGPS->tm_mon+1,tmGPS->tm_mday,hour,minute,second,
 					rx->gps.ephemeris[i]->a_f0,rx->gps.ephemeris[i]->a_f1,rx->gps.ephemeris[i]->a_f2);
 				
-				snprintf(buf,80,"%%4s%%19.12e%%19.12e%%19.12e%%19.12e\n");
+				std::snprintf(buf,80,"%%4s%%19.12e%%19.12e%%19.12e%%19.12e\n");
 				
 				break;
 			}
@@ -733,7 +733,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 			rx->gps.ephemeris[i]->t_ephem,4.0,0.0,0.0);
 	}
 	
-	fclose(fout);
+	std::fclose(fout);
 	
 	return true;
 }
@@ -745,14 +745,14 @@ bool RINEX::readV2NavigationFile(Receiver *rx,int constellation,std::string fnam
 	FILE *fin;
 	char line[SBUFSIZE];
 				 
-	if (NULL == (fin=fopen(fname.c_str(),"r"))){
+	if (NULL == (fin= std::fopen(fname.c_str(),"r"))){
 		app->logMessage("Unable to open the navigation file " + fname);
 		return false;
 	}
 	
-	while (!feof(fin)){
+	while (!std::feof(fin)){
 		
-		fgets(line,SBUFSIZE,fin);
+		std::fgets(line,SBUFSIZE,fin);
 		lineCount++;
 		
 		if (constellation == GNSSSystem::GPS){
@@ -824,7 +824,7 @@ bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,std::string fnam
 	FILE *fin;
 	char line[SBUFSIZE];
 				 
-	if (NULL == (fin=fopen(fname.c_str(),"r"))){
+	if (NULL == (fin= std::fopen(fname.c_str(),"r"))){
 		app->logMessage("Unable to open the navigation file " + fname);
 		return false;
 	}
@@ -834,7 +834,7 @@ bool RINEX::readV3NavigationFile(Receiver *rx,int constellation,std::string fnam
 	
 	while (!feof(fin)){
 		
-		fgets(line,SBUFSIZE,fin);
+		std::fgets(line,SBUFSIZE,fin);
 		lineCount++;
 		
 		if (NULL != strstr(line,"RINEX VERSION/TYPE")){
@@ -976,7 +976,7 @@ GPS::EphemerisData* RINEX::getGPSEphemeris(int ver,FILE *fin,unsigned int *lineC
 	
 	(*lineCount)++;
 	if (!feof(fin)){ 
-		fgets(line,SBUFSIZE,fin);
+		std::fgets(line,SBUFSIZE,fin);
 	}
 	
 	// skip blank lines
@@ -1032,22 +1032,22 @@ GPS::EphemerisData* RINEX::getGPSEphemeris(int ver,FILE *fin,unsigned int *lineC
 				parseParam(line,62,19,&dbuf);ed->a_f2=dbuf;
 				break;
 			case 'E':
-				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
+				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
 				break;
 			case 'R':
-				{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 3;return NULL;}
+				{ for (int i=0;i<3;i++){ std::fgets(line,SBUFSIZE,fin);}   (*lineCount) += 3;return NULL;}
 				break;
 			case 'C': // BDS
-				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
+				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
 				break;
 			case 'J': // QZSS
-				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
+				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
 				break;
 			case 'S': // SBAS
-				{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 3; return NULL;}
+				{ for (int i=0;i<3;i++){ std::fgets(line,SBUFSIZE,fin);}  (*lineCount) += 3; return NULL;}
 				break;
 			case 'I': // IRNS
-				{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 7; return NULL;}
+				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);}  (*lineCount) += 7; return NULL;}
 				break;
 			default:break;
 		}
@@ -1126,7 +1126,7 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 	
 	(*lineCount)++;
 	if (!feof(fin)){ 
-		fgets(line,SBUFSIZE,fin);
+		std::fgets(line,SBUFSIZE,fin);
 	}
 	
 	// skip blank lines
@@ -1152,13 +1152,13 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 	char satSys = line[0];
 	switch (satSys){
 		case 'G':
-			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
+			{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
 			break;
 		case 'E':
-			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
+			{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} (*lineCount) += 7; return NULL;}
 			break;
 		case 'R':
-			{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 3;return NULL;}
+			{ for (int i=0;i<3;i++){ std::fgets(line,SBUFSIZE,fin);}   (*lineCount) += 3;return NULL;}
 			break;
 		case 'C': // BDS
 			parseParam(line,2,2,&ibuf); ed->SVN = ibuf;	
@@ -1173,13 +1173,13 @@ BeiDou::EphemerisData*  RINEX::getBeiDouEphemeris(FILE *fin,unsigned int *lineCo
 			parseParam(line,62,19,&dbuf);ed->a_2=dbuf;
 			break;
 		case 'J': // QZSS
-			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
+			{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);}   (*lineCount) += 7; return NULL;}
 			break;
 		case 'S': // SBAS
-			{ for (int i=0;i<3;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 3; return NULL;}
+			{ for (int i=0;i<3;i++){ std::fgets(line,SBUFSIZE,fin);}  (*lineCount) += 3; return NULL;}
 			break;
 		case 'I': // IRNS
-			{ for (int i=0;i<7;i++){ fgets(line,SBUFSIZE,fin);}  (*lineCount) += 7; return NULL;}
+			{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);}  (*lineCount) += 7; return NULL;}
 			break;
 		default:break;
 	}
@@ -1225,13 +1225,13 @@ void RINEX::init()
 char * RINEX::formatFlags(int lli,int sn)
 {
 	if (lli != 0 && sn!=0)
-		sprintf(gsbuf,"%1i%1i",lli,sn);
+		std::sprintf(gsbuf,"%1i%1i",lli,sn);
 	else if (lli != 0 && sn == 0)
-		sprintf(gsbuf,"%1i ",lli);
+		std::sprintf(gsbuf,"%1i ",lli);
 	else if (lli ==0 && sn !=0)
-		sprintf(gsbuf," %1i",sn);
+		std::sprintf(gsbuf," %1i",sn);
 	else
-		sprintf(gsbuf,"  ");
+		std::sprintf(gsbuf,"  ");
 	return gsbuf;
 }
 
@@ -1280,8 +1280,8 @@ bool RINEX::get4DParams(FILE *fin,int startCol,
 	char sbuf[SBUFSIZE];
 	
 	(*lineCount)++;
-	if (!feof(fin)) 
-		fgets(sbuf,SBUFSIZE,fin);
+	if (!std::feof(fin)) 
+		std::fgets(sbuf,SBUFSIZE,fin);
 	else
 		return false;
 
