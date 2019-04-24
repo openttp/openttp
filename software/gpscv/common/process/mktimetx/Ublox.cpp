@@ -79,19 +79,28 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	modelName=m;
 	manufacturer="ublox";
 	swversion="0.1";
-	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1C | GNSSSystem::C2I | GNSSSystem::C7I;
+	// defaults are for NEO-M8T
+	constellations=GNSSSystem::GPS | GNSSSystem::GLONASS | GNSSSystem::GALILEO | GNSSSystem::BEIDOU;
+	gps.codes = GNSSSystem::C1C;
+	galileo.codes = GNSSSystem::C1C;
+	beidou.codes = GNSSSystem::C2I;
+	glonass.codes = GNSSSystem::C2C;
+	codes = beidou.codes | galileo.codes | glonass.codes | gps.codes;
 	channels=72;
 	if (modelName == "LEA-M8T"){
 		// For the future
 	}
 	else if (modelName == "NEO-M8T"){
-		// Defaults
+		// defaults
 	}
 	else if (modelName == "ZED-F9P" or modelName == "ZED-F9T"){
 	  channels=184;
 		constellations=GNSSSystem::GPS | GNSSSystem::GLONASS | GNSSSystem::GALILEO | GNSSSystem::BEIDOU;
-		codes=GNSSSystem::C1C | GNSSSystem::C2L | GNSSSystem::C2I;
+		gps.codes = GNSSSystem::C1C | GNSSSystem::C2L;
+		galileo.codes = GNSSSystem::C1C| GNSSSystem::C1B | GNSSSystem::C7I | GNSSSystem::C7Q;
+		beidou.codes = GNSSSystem::C2I | GNSSSystem::C7I;
+		glonass.codes = GNSSSystem::C1C| GNSSSystem::C2C;
+		codes = beidou.codes | galileo.codes | glonass.codes | gps.codes;
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
@@ -101,6 +110,50 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 
 Ublox::~Ublox()
 {
+}
+
+void Ublox::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::BEIDOU:
+			if (modelName == "LEA-M8T")
+				beidou.codes = GNSSSystem::C2I;
+			else if (modelName == "NEO-M8T")
+				beidou.codes = GNSSSystem::C2I;
+			else if (modelName == "ZED-F9P" or modelName == "ZED-F9T")
+				beidou.codes =GNSSSystem::C2I | GNSSSystem::C7I;
+			codes |= beidou.codes;
+			break;
+		case GNSSSystem::GALILEO:
+			if (modelName == "LEA-M8T")
+				galileo.codes = GNSSSystem::C1C;
+			else if (modelName == "NEO-M8T")
+				galileo.codes = GNSSSystem::C1C;
+			else if (modelName == "ZED-F9P" or modelName == "ZED-F9T")
+				galileo.codes = GNSSSystem::C1C | GNSSSystem::C1B | GNSSSystem::C7I | GNSSSystem::C7Q;
+			codes |= galileo.codes;
+			break;
+		case GNSSSystem::GLONASS:
+			if (modelName == "LEA-M8T")
+				glonass.codes = GNSSSystem::C1C;
+			else if (modelName == "NEO-M8T")
+				glonass.codes = GNSSSystem::C1C;
+			else if (modelName == "ZED-F9P" or modelName == "ZED-F9T")
+				glonass.codes = GNSSSystem::C1C | GNSSSystem::C2C;
+			codes |= glonass.codes;
+			break;
+		case GNSSSystem::GPS:
+			if (modelName == "LEA-M8T")
+				gps.codes = GNSSSystem::C1C;
+			else if (modelName == "NEO-M8T")
+				gps.codes = GNSSSystem::C1C;
+			else if (modelName == "ZED-F9P" or modelName == "ZED-F9T")
+				gps.codes = GNSSSystem::C1C | GNSSSystem::C2L;
+			codes |= gps.codes;
+			break;
+	}
 }
 
 bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
@@ -172,7 +225,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						rmeas->timeOffset=clockBias*1.0E-9; // units are ns WARNING no sign convention defined yet ...
 						
 						int pchh,pcmm,pcss;
-						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
+						if ((3==std::sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
 							rmeas->pchh=pchh;
 							rmeas->pcmm=pcmm;
 							rmeas->pcss=pcss;
@@ -297,17 +350,17 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 											break;
 										case GNSSSystem::GALILEO:
 											switch (sigID){
-												case 0:sig=GNSSSystem::C1C;break;   //E1C
-												//case 1:sig=GNSSSystem::C1B;break; //E1B
-												//case 5:sig=GNSSSystem::C7I;break; //E5Bi
-												//case 6:sig=GNSSSystem::C7Q;break; //E5bQ
+												case 0:sig=GNSSSystem::C1C;break; //E1C
+												case 1:sig=GNSSSystem::C1B;break; //E1B
+												case 5:sig=GNSSSystem::C7I;break; //E5Bi
+												case 6:sig=GNSSSystem::C7Q;break; //E5bQ
 												default: break;
 											}
 											break;
 										case GNSSSystem::GLONASS:
 											switch (sigID){
 												case 0:sig=GNSSSystem::C1C;break;
-												//case 2:sig=GNSSSystem::C2C;break;
+												case 2:sig=GNSSSystem::C2C;break;
 												default: break;
 											}
 											break;

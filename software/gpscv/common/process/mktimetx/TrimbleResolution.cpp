@@ -102,7 +102,8 @@ TrimbleResolution::TrimbleResolution(Antenna *ant,std::string m):Receiver(ant)
 	manufacturer="Trimble";
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1C;
+	gps.codes = GNSSSystem::C1C;
+	codes=gps.codes;
 	// Since we only have 2 systems with old firmware which report the sawtooth
 	// correction in units of seconds
 	// we'll make new firmware the default
@@ -111,6 +112,18 @@ TrimbleResolution::TrimbleResolution(Antenna *ant,std::string m):Receiver(ant)
 
 TrimbleResolution::~TrimbleResolution()
 {
+}
+
+void TrimbleResolution::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::GPS:
+			gps.codes = GNSSSystem::C1C;
+			codes |= gps.codes;
+			break;
+	}
 }
 
 bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)

@@ -66,6 +66,7 @@ class Receiver
 		std::string swversion;
 		
 		bool dualFrequency;
+		virtual void addConstellation(int){}; // needs to be implemented by each erceiver so that signals can be added
 		int constellations;
 		int codes;
 		int channels;

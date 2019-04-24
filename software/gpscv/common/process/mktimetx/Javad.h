@@ -37,7 +37,7 @@ class Javad:public Receiver
 		
 		Javad(Antenna *,std::string);
 		virtual ~Javad();
-	
+		virtual void addConstellation(int);
 		virtual bool readLog(std::string,int,int,int,int);
 		
 	protected:

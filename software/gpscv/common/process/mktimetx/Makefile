@@ -6,7 +6,7 @@ LIBS= -lconfigurator -lboost_regex -lgsl -lgslcblas
 CXXFLAGS= -Wall -Wno-unused-variable -DDEBUG -g
 CFGFLAGS= 
 OBJECTS = Application.o Antenna.o Counter.o HexBin.o Main.o Receiver.o RIN2CGGTTS.o  ReceiverMeasurement.o \
-	BeiDou.o Galileo.o GLONASS.o GPS.o \
+	GNSSSystem.o BeiDou.o Galileo.o GLONASS.o GPS.o \
 	CGGTTS.o RINEX.o \
 	Javad.o NVS.o TrimbleResolution.o Ublox.o\
 	Timer.o Troposphere.o Utility.o
@@ -36,6 +36,9 @@ Galileo.o: Galileo.cpp  Antenna.h Debug.h Galileo.h Application.h GNSSSystem.h  
 
 GLONASS.o: GLONASS.cpp  Antenna.h Debug.h GLONASS.h Application.h GNSSSystem.h  Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GLONASS.cpp
+
+GNSSSystem.o: GNSSSystem.cpp GNSSSystem.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GNSSSystem.cpp
 	
 GPS.o: GPS.cpp  Antenna.h Debug.h GPS.h Application.h GNSSSystem.h  ReceiverMeasurement.h SVMeasurement.h Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GPS.cpp

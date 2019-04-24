@@ -64,7 +64,7 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled)
 {
 	FILE *fout;
-	if (!(fout = fopen(fname.c_str(),"w"))){
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
 		std::cerr << "Unable to open " << fname << std::endl;
 		return false;
 	}
@@ -153,9 +153,9 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 							if (el >= minElevation*10 ){
 								goodTrackCnt++;
 								
-								snprintf(sout,154,"%s%02i %2s %5i %02i%02i%02i %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",
+								std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i%02i %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",
 									GNSSsys.c_str(),svm->svn,"FF",mjd,hh,mm,ss,1,(int) el,(int) az,(int) refsv,0, (int) refsys, 0, 0, ioe, (int) tropo, 0, (int) iono, 0,0,0,GNSScode.c_str());
-								fprintf(foutdbg,"%s%02X\n",sout,checkSum(sout) % 256);
+								std::fprintf(foutdbg,"%s%02X\n",sout,checkSum(sout) % 256);
 							}
 							else{
 								if (el < minElevation*10) lowElevationCnt++;
@@ -433,16 +433,16 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 					goodTrackCnt++;
 					switch (ver){
 						case V1:
-							snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
+							std::snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc ,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
 											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
-							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
+							std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
 							break;
 						case V2E:
-							snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
+							std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
 											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,GNSScode.c_str());
-							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
+							std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
 							break;
 					} // switch
 				} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
@@ -469,7 +469,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 	app->logMessage(boost::lexical_cast<std::string>(highDSGCnt) + " high DSG tracks");
 	app->logMessage(boost::lexical_cast<std::string>(shortTrackCnt) + " short tracks");
 	
-	fclose(fout);
+	std::fclose(fout);
 	
 	return true;
 }
@@ -513,56 +513,56 @@ void CGGTTS::writeHeader(FILE *fout)
 	}
 	
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"REV DATE = %4d-%02d-%02d",revDateYYYY,revDateMM,revDateDD); 
+	std::snprintf(buf,MAXCHARS,"REV DATE = %4d-%02d-%02d",revDateYYYY,revDateMM,revDateDD); 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"RCVR = %s %s %s %4d %s,v%s",rx->manufacturer.c_str(),rx->modelName.c_str(),rx->serialNumber.c_str(),
+	std::snprintf(buf,MAXCHARS,"RCVR = %s %s %s %4d %s,v%s",rx->manufacturer.c_str(),rx->modelName.c_str(),rx->serialNumber.c_str(),
 		rx->commissionYYYY,APP_NAME, APP_VERSION);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"CH = %02d",rx->channels); 
+	std::snprintf(buf,MAXCHARS,"CH = %02d",rx->channels); 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"IMS = 99999"); // FIXME dual frequency 
+	std::snprintf(buf,MAXCHARS,"IMS = 99999"); // FIXME dual frequency 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"LAB = %s",lab.c_str()); 
+	std::snprintf(buf,MAXCHARS,"LAB = %s",lab.c_str()); 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"X = %+.3f m",ant->x);
+	std::snprintf(buf,MAXCHARS,"X = %+.3f m",ant->x);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"Y = %+.3f m",ant->y);
+	std::snprintf(buf,MAXCHARS,"Y = %+.3f m",ant->y);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"Z = %+.3f m",ant->z);
+	std::snprintf(buf,MAXCHARS,"Z = %+.3f m",ant->z);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"FRAME = %s",ant->frame.c_str());
+	std::snprintf(buf,MAXCHARS,"FRAME = %s",ant->frame.c_str());
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
 	if (comment == "") 
 		comment="NO COMMENT";
 	
-	snprintf(buf,MAXCHARS,"COMMENTS = %s",comment.c_str());
+	std::snprintf(buf,MAXCHARS,"COMMENTS = %s",comment.c_str());
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
 	switch (ver){
 		case V1:
 		{
-			snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly);
+			std::snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly);
 			break;
 		}
 		case V2E:
@@ -587,46 +587,46 @@ void CGGTTS::writeHeader(FILE *fout)
 				case SYSDLY:dly="SYS";break;
 				case TOTDLY:dly="TOT";break;
 			}
-			snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1.c_str(),calID.c_str());
+			std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1.c_str(),calID.c_str());
 			break;
 		}
 	}
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
 	if (delayKind == INTDLY){
-		snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
+		std::snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
 		cksum += checkSum(buf);
-		fprintf(fout,"%s\n",buf);
+		std::fprintf(fout,"%s\n",buf);
 	}
 	
 	if (delayKind != TOTDLY){
-		snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
+		std::snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
 		cksum += checkSum(buf);
-		fprintf(fout,"%s\n",buf);
+		std::fprintf(fout,"%s\n",buf);
 	}
 	
-	snprintf(buf,MAXCHARS,"REF = %s",ref.c_str());
+	std::snprintf(buf,MAXCHARS,"REF = %s",ref.c_str());
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"CKSUM = ");
+	std::snprintf(buf,MAXCHARS,"CKSUM = ");
 	cksum += checkSum(buf);
-	fprintf(fout,"%s%02X\n",buf,cksum % 256);
+	std::fprintf(fout,"%s%02X\n",buf,cksum % 256);
 	
-	fprintf(fout,"\n");
+	std::fprintf(fout,"\n");
 	switch (ver){
 		case V1:
-			fprintf(fout,"PRN CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFGPS    SRGPS  DSG IOE MDTR SMDT MDIO SMDI CK\n");
-			fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s  \n");
+			std::fprintf(fout,"PRN CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFGPS    SRGPS  DSG IOE MDTR SMDT MDIO SMDI CK\n");
+			std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s  \n");
 			break;
 		case V2E:
-			fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI FR HC FRC CK\n");
-			fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s            \n");
+			std::fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI FR HC FRC CK\n");
+			std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s            \n");
 			break;
 	}
 	
-	fflush(fout);
+	std::fflush(fout);
 	
 #undef MAXCHARS	
 }

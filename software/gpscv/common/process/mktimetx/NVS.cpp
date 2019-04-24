@@ -101,13 +101,9 @@ NVS::NVS(Antenna *ant,std::string m):Receiver(ant)
 {
 	modelName=m;
 	manufacturer="NVS";
-	constellations=GNSSSystem::GPS;
-	//codes=GNSSSystem::C1|GNSSSystem::L1;
-	codes=GNSSSystem::C1C;                 // Limit to C1 only:
-	                                      // It cuts RINEX processing times significantly
-	                                      // and removes negative value "L1" results from
-	                                      // the output RINEX files.
-	                                      // Note: need to make change at line ~ 368 too.
+	constellations=GNSSSystem::GPS; 
+	gps.codes=GNSSSystem::C1C;
+	codes=gps.codes;                 
 	channels=32;
 	if (modelName == "NV08C-CSM"){
 		// For the future
@@ -122,6 +118,28 @@ NVS::NVS(Antenna *ant,std::string m):Receiver(ant)
 
 NVS::~NVS()
 {
+}
+
+void NVS::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::BEIDOU:
+			beidou.codes =GNSSSystem::C2I;
+			codes |= beidou.codes;
+			break;
+		case GNSSSystem::GALILEO:
+			break;
+		case GNSSSystem::GLONASS:
+			glonass.codes = GNSSSystem::C1C;
+			codes |= glonass.codes;
+			break;
+		case GNSSSystem::GPS:
+			gps.codes = GNSSSystem::C1C;
+			codes |= gps.codes;
+			break;
+	}
 }
 
 bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
@@ -176,7 +194,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 		numCodes++;
 	
   if (infile.is_open()){
-    while ( getline (infile,line) ){
+    while ( std::getline (infile,line) ){
 			linecount++;
 			
 			if (line.size()==0) continue; // skip empty line

@@ -36,7 +36,7 @@ class NVS:public Receiver
 		
 		NVS(Antenna *,std::string);
 		virtual ~NVS();
-	
+		virtual void addConstellation(int);
 		virtual bool readLog(std::string,int,int,int,int);
 		
 		virtual void setVersion(std::string);

@@ -39,7 +39,7 @@ class TrimbleResolution:public Receiver
 		
 		TrimbleResolution(Antenna *,std::string);
 		virtual ~TrimbleResolution();
-	
+		virtual void addConstellation(int);
 		virtual bool readLog(std::string,int,int,int,int);
 		
 	protected:

@@ -161,7 +161,7 @@ Application::Application(int argc,char **argv)
 							break;
 						case 6:
 							{
-								if (1!=sscanf(optarg,"%i",&verbosity)){
+								if (1!=std::sscanf(optarg,"%i",&verbosity)){
 									std::cerr << "Error! Bad value for option --verbosity" << std::endl;
 									showHelp();
 									exit(EXIT_FAILURE);
@@ -191,7 +191,7 @@ Application::Application(int argc,char **argv)
 				break;
 			case 'm':
 				{
-					if (1!=sscanf(optarg,"%i",&MJD)){
+					if (1!=std::sscanf(optarg,"%i",&MJD)){
 						std::cerr << "Error! Bad value for option --mjd" << std::endl;
 						showHelp();
 						exit(EXIT_FAILURE);
@@ -517,18 +517,18 @@ void  Application::makeFilenames()
 	char fname[64];
 	std::ostringstream ss5;
 	if (RINEX::V2 == RINEXversion || forceV2name)
-		snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
+		std::snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
 	else if (RINEXversion == RINEX::V3)
-		snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
+		std::snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
 	
 	ss5 << RINEXPath << "/" << fname; // at least no problem with length of RINEXPath
 	RINEXnavFile=ss5.str();
 	
 	std::ostringstream ss6;
 	if (RINEX::V2 == RINEXversion  || forceV2name)
-		snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
+		std::snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
 	else if (RINEXversion == RINEX::V3)
-		snprintf(fname,63,"%s_R_%d%03d0000_01D_30S_MO.rnx",v3name.c_str(),year,yday);
+		std::snprintf(fname,63,"%s_R_%d%03d0000_01D_30S_MO.rnx",v3name.c_str(),year,yday);
 	
 	ss6 << RINEXPath << "/" << fname;
 	RINEXobsFile=ss6.str();
@@ -909,13 +909,13 @@ bool Application::loadConfig()
 		boost::to_upper(stmp);
 		receiver->constellations = 0; // overrride the default
 		if (stmp.find("GPS") != std::string::npos)
-			receiver->constellations |=GNSSSystem::GPS;
+			receiver->addConstellation(GNSSSystem::GPS); // this takes care of setting available signals too
 		if (stmp.find("GLONASS") != std::string::npos)
-			receiver->constellations |=GNSSSystem::GLONASS;
+			receiver->addConstellation(GNSSSystem::GLONASS);
 		if (stmp.find("BEIDOU") != std::string::npos)
-			receiver->constellations |=GNSSSystem::BEIDOU;
+			receiver->addConstellation(GNSSSystem::BEIDOU);
 		if (stmp.find("GALILEO") != std::string::npos)
-			receiver->constellations |=GNSSSystem::GALILEO;
+			receiver->addConstellation(GNSSSystem::GALILEO);
 	}
 	
 	if (setConfig(last,"receiver","version",stmp,&configOK,false))
@@ -1203,7 +1203,7 @@ void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,std:
 {
 	FILE *fout;
 	
-	if (!(fout = fopen(fname.c_str(),"w"))){
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
 		std::cerr << "Unable to open " << fname << std::endl;
 		return;
 	}
@@ -1215,10 +1215,10 @@ void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,std:
 			CounterMeasurement *cm= mpairs[i]->cm;
 			ReceiverMeasurement *rxm = mpairs[i]->rm;
 			int tmatch=((int) cm->hh)*3600 +  ((int) cm->mm)*60 + ((int) cm->ss);
-			fprintf(fout,"%i %g %g %.16e\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset);
+			std::fprintf(fout,"%i %g %g %.16e\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset);
 		}
 	}
-	fclose(fout);
+	std::fclose(fout);
 }
 
 void Application::writeSVDiagnostics(Receiver *rx,std::string path)
@@ -1246,7 +1246,7 @@ void Application::writeSVDiagnostics(Receiver *rx,std::string path)
 			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
 				std::ostringstream sstr;
 				sstr << path << "/" << gnss->oneLetterCode() << svn << ".dat";
-				if (!(fout = fopen(sstr.str().c_str(),"w"))){
+				if (!(fout = std::fopen(sstr.str().c_str(),"w"))){
 					std::cerr << "Unable to open " << sstr.str().c_str() << std::endl;
 					return;
 				}
@@ -1257,12 +1257,12 @@ void Application::writeSVDiagnostics(Receiver *rx,std::string path)
 							int tod = rx->measurements[m]->tmUTC.tm_hour*3600+ rx->measurements[m]->tmUTC.tm_min*60 + rx->measurements[m]->tmUTC.tm_sec;
 							// The default here is that df1 contains the raw (non-interpolated) pseudo range and df2 contains 
 							// corrected pseudoranges when CGGTTS output has been generated (which can be useful to look at) 
-							fprintf(fout,"%d %.16e %.16e %.16e %.16e\n",tod,sv->meas,sv->dbuf1,sv->dbuf2,sv->dbuf3);
+							std::fprintf(fout,"%d %.16e %.16e %.16e %.16e\n",tod,sv->meas,sv->dbuf1,sv->dbuf2,sv->dbuf3);
 							break;
 						}
 					}
 				}
-				fclose(fout);
+				std::fclose(fout);
 			} //for (int svn= ...
 		}// for (int code = ...
 	} // for (int g =

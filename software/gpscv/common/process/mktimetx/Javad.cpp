@@ -93,11 +93,13 @@ Javad::Javad(Antenna *ant,std::string m):Receiver(ant)
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
 	dualFrequency=false;
-	codes=GNSSSystem::C1C;
+	gps.codes = GNSSSystem::C1C; 
+	codes=gps.codes;
 	channels=32;
 	if (modelName=="HE_GD"){
 		dualFrequency=true;
-		codes = GNSSSystem::C1C | GNSSSystem::C1P | GNSSSystem::C2P;
+		gps.codes = GNSSSystem::C1C | GNSSSystem::C1P | GNSSSystem::C2P;
+		codes = gps.codes;
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
@@ -108,6 +110,25 @@ Javad::Javad(Antenna *ant,std::string m):Receiver(ant)
 
 Javad::~Javad()
 {
+}
+
+void Javad::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::GPS:
+			if (modelName=="HE_GD"){	
+				gps.codes = GNSSSystem::C1C | GNSSSystem::C1P | GNSSSystem::C2P;
+				codes |= gps.codes;
+				break;
+			}
+			else{
+				gps.codes = GNSSSystem::C1C;
+				codes |= gps.codes;
+			}
+			break;
+	}
 }
 
 bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)

@@ -40,6 +40,8 @@ class Ublox:public Receiver
 	
 		virtual bool readLog(std::string,int,int,int,int);
 		
+		virtual void addConstellation(int);
+		
 	protected:
 	
 	private:
