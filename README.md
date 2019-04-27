@@ -5,7 +5,7 @@ traceable to national standards. It achieves traceability using the GPS common-v
 which allows distant clocks to be compared with an accuracy of a few ns. 
 The reference platform is based on readily available, low-cost OEM modules and provides a full software and hardware solution.
 
-Documentation can be built for LaTex source in the doc/manual directory by running 'make'.
+Documentation can be built from the LaTex source in the doc/manual directory by running 'make'.
 The documentation contains instructions for a minimal setup.
-A PDF of the documentation is also available at www.openttp.org/scripts/docs.php
+A PDF of the documentation is also available from the project website www.openttp.org/scripts/docs.php
 	
