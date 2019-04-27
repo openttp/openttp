@@ -290,11 +290,25 @@ BIPM cal id=none
 \end{lstlisting}
 
 {\bfseries code}\\
-This defines the observation code. For most of the receivers supported by OpenTTP, this is `C1'.
-`P1' and `P2' are supported for Javad receivers.
+
+CGGTTS codes can be specified using either the two letter code, for example `C1' as described in the CGGTTS V2E 
+specification, or three letter RINEX v3.03 observation codes.
+\begin{table}
+\begin{tabular}{ll}
+	CGGTTS name	 & RINEX name \\ \hline
+	C1 & C1C \\
+	P1 & C1P \\
+	E1 & C1C \\
+	B1 & C2I \\
+	C2 & C2C \\
+	P2 & C2P \\
+	B2 & C7I 
+\end{tabular}
+\caption{Correspondence of CGGTTS and RINEX signal names.}
+\end{table}
 \textit{Example:}
 \begin{lstlisting}
-code=P1
+code=P1+P3
 \end{lstlisting}
 
 {\bfseries constellation}\\
