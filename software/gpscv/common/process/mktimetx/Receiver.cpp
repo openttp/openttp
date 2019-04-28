@@ -144,7 +144,7 @@ void Receiver::interpolateMeasurements()
 			
 			DBGMSG(debugStream,1,"GNSS code " << code);
 			
-			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
+			for (int svn=1;svn<=gnss->maxSVN();svn++){ // loop over all svn for constellation+code combination
 				
 				track.clear();
 				for (unsigned int m=0;m<measurements.size();m++){

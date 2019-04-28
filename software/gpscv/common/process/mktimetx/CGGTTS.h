@@ -44,6 +44,8 @@ class CGGTTS
 		CGGTTS(Antenna *,Counter *,Receiver *);
 		bool writeObservationFile(std::string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled);
 	
+		static unsigned int strToCode(std::string );
+		
 		std::string ref;
 		std::string lab;
 		std::string comment;

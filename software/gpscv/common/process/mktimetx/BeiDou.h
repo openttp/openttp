@@ -47,7 +47,7 @@ typedef unsigned int UINT32;
 class BeiDou: public GNSSSystem
 {
 	private:
-		static const int NSATS=35;
+		static const int NSATS=37;
 		
 	public:
 	
@@ -109,7 +109,7 @@ class BeiDou: public GNSSSystem
 	
 	
 	
-	virtual int nsats(){return NSATS;}
+	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();
 	
 	virtual bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);

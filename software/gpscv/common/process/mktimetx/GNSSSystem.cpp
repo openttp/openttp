@@ -25,7 +25,7 @@
 #include "GNSSSystem.h"
 #include "RINEX.h"
 
-std::string GNSSSystem::observationCode(int c,int RINEXversion){
+std::string GNSSSystem::observationCodeToStr(int c,int RINEXversion){
 	switch (c)
 	{
 		case C1C:
@@ -58,7 +58,6 @@ std::string GNSSSystem::observationCode(int c,int RINEXversion){
 				case RINEX::V3:return "C2L";break;
 			}
 			break;
-			return "C2L";break;
 		case C2M:return "C2M";break;
 		case C2I:return "C2I";break;
 		case C7I:return "C7I";break;
@@ -91,3 +90,45 @@ std::string GNSSSystem::observationCode(int c,int RINEXversion){
 	}
 	return "";
 }
+
+unsigned int GNSSSystem::strToObservationCode(std::string s, int RINEXversion)
+{
+	unsigned int c=0;
+	switch (RINEXversion)
+	{
+		case RINEX::V2:
+			{
+				if (s=="C1"){c=C1C;}
+				else if (s=="P1"){c=C1P;}
+				else if (s=="P2"){c=C2P;}
+				else if (s=="C2"){c=C2L;}
+				//else if (s=="L1"){c=L1C;} // FIXME ambiguity
+				else if (s=="L1"){c=L1P;}   // this is the more common case 
+				else if (s=="L2"){c=L2P;}
+			}
+			break;
+		case RINEX::V3:
+			{
+				if (s=="C1C"){c=C1C;}
+				else if (s=="C1P"){c=C1P;}
+				else if (s=="C2P"){c=C2P;}
+				else if (s=="C2L"){c=C2L;}
+				else if (s=="C1B"){c=C1B;}
+				else if (s=="C2C"){c=C2C;}
+				else if (s=="C2M"){c=C2M;}
+				else if (s=="C2I"){c=C2I;}
+				else if (s=="C7I"){c=C7I;}
+				else if (s=="C7Q"){c=C7Q;}
+				else if (s=="L1C"){c=L1C;}
+				else if (s=="L1P"){c=L1P;}
+				else if (s=="L2P"){c=L2P;}
+				else if (s=="L2C"){c=L2C;}
+				else if (s=="L2I"){c=L2I;}
+				else if (s=="L7I"){c=L7I;}
+			}
+			break;
+	}
+	
+	return c;
+}
+

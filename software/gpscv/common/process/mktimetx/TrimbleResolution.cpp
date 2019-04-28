@@ -481,7 +481,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 	
 	gps.fixWeekRollovers();
 	
-	for (int svn=1;svn<=gps.nsats();svn++){
+	for (int svn=1;svn<=gps.maxSVN();svn++){
 		//cout << "SVN" << svn << endl;
 		for (unsigned int e=0;e<gps.sortedEphemeris[svn].size();e++){
 			GPS::EphemerisData *ed = gps.sortedEphemeris[svn].at(e);
@@ -517,7 +517,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 			case GNSSSystem::GPS:gnss=&gps;break;
 			default:break;
 		}
-		for (int svn=1;svn<=gnss->nsats();svn++){
+		for (int svn=1;svn<=gnss->maxSVN();svn++){
 			unsigned int lasttow=99999999,currtow=99999999;
 			double lastmeas=0,currmeas;
 			double corr=0.0;

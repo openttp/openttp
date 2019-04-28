@@ -127,7 +127,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->gps.codes & c){
 						nobs++;
-						obsTypes += "    " + rx->gps.observationCode(c,RINEX::V2);
+						obsTypes += "    " + rx->gps.observationCodeToStr(c,RINEX::V2);
 					}
 				}
 			}
@@ -150,7 +150,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->gps.codes & c){
 						nobs++;
-						obsTypes += " " + rx->gps.observationCode(c,RINEX::V3);
+						obsTypes += " " + rx->gps.observationCodeToStr(c,RINEX::V3);
 					}
 				}
 				// Less than 13 observations so no linewrap
@@ -164,7 +164,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->beidou.codes & c){
 						nobs++;
-						obsTypes += " " + rx->beidou.observationCode(c,RINEX::V3);
+						obsTypes += " " + rx->beidou.observationCodeToStr(c,RINEX::V3);
 					}
 				}
 				if (nobs > 0)
@@ -177,7 +177,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->glonass.codes & c){
 						nobs++;
-						obsTypes += " " + rx->glonass.observationCode(c,RINEX::V3);
+						obsTypes += " " + rx->glonass.observationCodeToStr(c,RINEX::V3);
 					}
 				}
 				if ((nobs) > 0)
@@ -190,7 +190,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->galileo.codes & c){
 						nobs++;
-						obsTypes += " " + rx->galileo.observationCode(c,RINEX::V3);
+						obsTypes += " " + rx->galileo.observationCodeToStr(c,RINEX::V3);
 					}
 				}
 				if ((nobs) > 0)

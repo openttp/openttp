@@ -61,9 +61,10 @@ class GNSSSystem
 		~GNSSSystem(){};
 		
 		int codes; // observation codes
-		std::string observationCode(int c,int RINEXversion);
+		static std::string observationCodeToStr(int c,int RINEXversion);
+		static unsigned int strToObservationCode(std::string, int RINEXversion);
 		
-		virtual int nsats(){return -1;}
+		virtual int maxSVN(){return -1;}
 		std::string oneLetterCode(){return olc;}
 	
 		virtual void deleteEphemeris(){};

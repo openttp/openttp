@@ -64,7 +64,7 @@ class GLONASS: public GNSSSystem
 	GLONASS();
 	~GLONASS();
 	
-	virtual int nsats(){return NSATS;}
+	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();
 	virtual bool resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *,SVMeasurement *,double *);
 	

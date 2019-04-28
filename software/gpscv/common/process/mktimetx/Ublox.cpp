@@ -310,12 +310,13 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						for (unsigned int m=0;m<nmeas;m++){
 							HexToBin((char *) msg.substr((36+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //GNSS id
 							int gnssSys = 0;
+							int maxSVN=32;
 							switch (u1buf){
-								case 0: gnssSys=GNSSSystem::GPS; break;
+								case 0: gnssSys=GNSSSystem::GPS; maxSVN=gps.maxSVN();break;
 								case 1:case 4: case 5: break;
-								case 2: gnssSys=GNSSSystem::GALILEO; break;
-								case 3: gnssSys=GNSSSystem::BEIDOU; break;
-								case 6: gnssSys=GNSSSystem::GLONASS; break;
+								case 2: gnssSys=GNSSSystem::GALILEO;  maxSVN=galileo.maxSVN();break;
+								case 3: gnssSys=GNSSSystem::BEIDOU;   maxSVN=beidou.maxSVN();break;
+								case 6: gnssSys=GNSSSystem::GLONASS;  maxSVN=glonass.maxSVN();break;
 								default: break;
 							}
 							//DBGMSG(debugStream,TRACE,gnssSys);
@@ -336,7 +337,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								HexToBin((char *) msg.substr((46+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf);
 								int trkStat=u1buf;
 								// When PR is reported, trkStat is always 1 but .
-								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID != 255){ // svid=255 is unknown GLONASS
+								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID <= maxSVN){ // also filters out svid=255 'unknown GLONASS'
 									int sig=-1;
 									switch (gnssSys){
 										case GNSSSystem::BEIDOU:
@@ -593,7 +594,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				case GNSSSystem::GPS:gnss=&gps;break;
 				default:break;
 			}
-			for (int svn=1;svn<=gnss->nsats();svn++){
+			for (int svn=1;svn<=gnss->maxSVN();svn++){
 				unsigned int lasttow=99999999,currtow=99999999;
 				double lastmeas=0,currmeas;
 				double corr=0.0;

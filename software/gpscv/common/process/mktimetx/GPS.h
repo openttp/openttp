@@ -117,7 +117,7 @@ class GPS: public GNSSSystem
 	GPS();
 	~GPS();
 	
-	virtual int nsats(){return NSATS;}
+	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();
 		
 	IonosphereData ionoData;

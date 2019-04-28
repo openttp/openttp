@@ -37,17 +37,41 @@
 #include "Counter.h"
 #include "CounterMeasurement.h"
 #include "Debug.h"
+#include "GNSSSystem.h"
 #include "GPS.h"
 #include "MeasurementPair.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
+#include "RINEX.h"
 #include "Utility.h"
 
 extern Application *app;
 extern std::ostream *debugStream;
 
 #define NTRACKS 89
-#define MAXSV   32 // per constellation 
+#define MAXSV   37 // BDS 1-37, GALILEO 1-36 
+
+static unsigned int str2ToCode(std::string s)
+{
+	int c=0;
+	if (s== "C1")
+		c=GNSSSystem::C1C;
+	else if (s == "P1")
+		c=GNSSSystem::C1P;
+	else if (s == "E1")
+		c=GNSSSystem::C1C; // FIXME what about C1B?
+	else if (s == "B1")
+		c=GNSSSystem::C2I;
+	else if (s == "C2") // C2L ?? C2M
+		c=GNSSSystem::C2C;
+	else if (s == "P2")
+		c=GNSSSystem::C2P;
+	//else if (c1 == "E5")
+	//	c=E5a;
+	else if (s== "B2")
+		c=GNSSSystem::C7I;
+	return c;
+}
 
 //
 //	Public members
@@ -61,6 +85,39 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
+unsigned int CGGTTS::strToCode(std::string str)
+{
+	// Convert CGGTTS code string (usually from the configuration file) to RINEX observation code(s)
+	// Dual frequency combinations are of the form 'code1+code2'
+	// Valid formats are 
+	// (1) CGGTTS 2 letter codes
+	// (2) RINEX  3 letter codes
+	// but not mixed!
+	// so valid string lengths are 2 and 5 (CGGTTS)  or 3 and 7 (RINEX)
+	unsigned int c=0;
+	if (str.length()==2){
+		c = str2ToCode(str);
+	}
+	else if (str.length()==5){ // dual frequency
+		unsigned int c1=str2ToCode(str.substr(0,2));
+		unsigned int c2=str2ToCode(str.substr(3,2));
+		c = c1 | c2;
+	}
+	else if (str.length()==3){
+		c=GNSSSystem::strToObservationCode(str,RINEX::V3);
+	}
+	else if (str.length()==7){ // dual frequency
+		unsigned int c1=GNSSSystem::strToObservationCode(str.substr(0,3),RINEX::V3);
+		unsigned int c2=GNSSSystem::strToObservationCode(str.substr(4,3),RINEX::V3);
+		c = c1 | c2;
+	}
+	else{
+		c= 0;
+	}
+	
+	return c;
+}
+
 bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled)
 {
 	FILE *fout;
@@ -69,7 +126,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		return false;
 	}
 	
-	app->logMessage("generating CGGTTS file for " + boost::lexical_cast<std::string>(mjd));
+	app->logMessage("generating CGGTTS file " + fname);
 	
 	double measDelay = rx->ppsOffset + intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
 	int useTIC = (TICenabled?1:0);
@@ -87,12 +144,27 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 	// Constellation/code identifiers as per V2E
 	
 	std::string GNSSsys;
-	std::string GNSScode;
+	std::string FRCcode="";
 	
-	switch (code){
-		case GNSSSystem::C1C:GNSScode="L1C";break;
-		case GNSSSystem::C1P:GNSScode="L1P";break;
-		case GNSSSystem::C2P:GNSScode="L2P";break;
+	switch (code){ 
+		case GNSSSystem::C1C:
+			if (constellation == GNSSSystem::GALILEO)
+				FRCcode=" E1";
+			else
+				FRCcode="L1C";
+			break;
+		case GNSSSystem::C1B:
+			FRCcode=" E1";break;
+		case GNSSSystem::C1P:
+			FRCcode="L1P";break;
+		case GNSSSystem::C2P:
+			FRCcode="L2P";break;
+		case GNSSSystem::C2I:
+			FRCcode="B1i";break; // RINEX 3.02
+		// dual frequency combinations
+		case GNSSSystem::C1P | GNSSSystem::C2P:
+		case GNSSSystem::C1C | GNSSSystem::C2C:	
+			FRCcode="L3P";break;
 		default:break;
 	}
 			
@@ -104,7 +176,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		case GNSSSystem::GLONASS:
 			GNSSsys="R"; break;
 		case GNSSSystem::GPS:
-			GNSSsys="G";
+			GNSSsys="G"; break;
 		default:break;
 	}
 	
@@ -154,7 +226,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 								goodTrackCnt++;
 								
 								std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i%02i %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",
-									GNSSsys.c_str(),svm->svn,"FF",mjd,hh,mm,ss,1,(int) el,(int) az,(int) refsv,0, (int) refsys, 0, 0, ioe, (int) tropo, 0, (int) iono, 0,0,0,GNSScode.c_str());
+									GNSSsys.c_str(),svm->svn,"FF",mjd,hh,mm,ss,1,(int) el,(int) az,(int) refsv,0, (int) refsys, 0, 0, ioe, (int) tropo, 0, (int) iono, 0,0,0,FRCcode.c_str());
 								std::fprintf(foutdbg,"%s%02X\n",sout,checkSum(sout) % 256);
 							}
 							else{
@@ -215,6 +287,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 	std::vector<SVMeasurement *> svtrk[MAXSV+1];
 	
 	for (int i=0;i<ntracks;i++){
+		
 		int trackStart = schedule[i]*60;
 		int trackStop =  schedule[i]*60+780-1;
 		if (trackStop >= 86400) trackStop=86400-1;
@@ -222,7 +295,6 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		if (trackStart < startTime || trackStart > stopTime) continue;
 		// Matched measurement pairs can be looked up without a search since the index is TOD
 		for (int m=trackStart;m<=trackStop;m++){
-			
 			if ((mpairs[m]->flags==0x03)){
 				ReceiverMeasurement *rm = mpairs[m]->rm;
 				for (unsigned int sv=0;sv<rm->meas.size();sv++){
@@ -241,6 +313,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		
 		int linFitInterval=30; // length of fitting interval 
 		if (quadFits) linFitInterval=15;
+		
 		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
 			if (svtrk[sv].size() == 0 ) continue;
@@ -441,7 +514,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 						case V2E:
 							std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
-											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,GNSScode.c_str());
+											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRCcode.c_str());
 							std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
 							break;
 					} // switch
@@ -495,7 +568,9 @@ void CGGTTS::init()
 	maxDSG=100.0;
 	maxURA=3.0; // as reported by receivers, typically 2.0 m, with a few at 2.8 m
 }
-		
+
+
+
 void CGGTTS::writeHeader(FILE *fout)
 {
 #define MAXCHARS 128

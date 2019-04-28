@@ -695,13 +695,7 @@ bool Application::loadConfig()
 				}
 				if (setConfig(last,configs.at(i).c_str(),"code",stmp,&configOK)){
 					boost::to_upper(stmp);
-					if (stmp=="C1")
-						code=GNSSSystem::C1C;
-					else if (stmp=="P1")
-						code=GNSSSystem::C1P;
-					else if (stmp=="P2")
-						code=GNSSSystem::C2P;
-					else{
+					if (0== (code = CGGTTS::strToCode(stmp))){
 						std::cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << std::endl;
 						configOK=false;
 						continue;
@@ -1242,7 +1236,7 @@ void Application::writeSVDiagnostics(Receiver *rx,std::string path)
 			
 			if (!(rx->codes & code)) continue;
 			
-			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
+			for (int svn=1;svn<=gnss->maxSVN();svn++){ // loop over all svn for constellation+code combination
 				std::ostringstream sstr;
 				sstr << path << "/" << gnss->oneLetterCode() << svn << ".dat";
 				if (!(fout = std::fopen(sstr.str().c_str(),"w"))){
