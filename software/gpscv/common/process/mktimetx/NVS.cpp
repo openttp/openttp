@@ -332,7 +332,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 								svm->dbuf3=svmeas;
 								gnssmeas.push_back(svm);
 								nGLONASS++;
-								if (flags & 0x08){ // carrier phase present
+								if ((flags & 0x08) && (codes & GNSSSystem::L1C)){ // carrier phase present
 									svmeas = fp64buf;
 									svm = new SVMeasurement(svn,GNSSSystem::GLONASS,GNSSSystem::L1C,svmeas,NULL);
 									if (tgps - glonass.L1lastunlock[svn] <= rinexObsInterval)
@@ -349,7 +349,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 								svm->dbuf3=svmeas;
 								gnssmeas.push_back(svm);
 								nGPS++;
-								if (flags & 0x08){ // carrier phase present
+								if ((flags & 0x08) && (codes & GNSSSystem::L1C)){ // carrier phase present
 									svmeas = fp64buf;
 									svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1C,svmeas,NULL);
 									if (tgps - gps.L1lastunlock[svn] <= rinexObsInterval)
@@ -366,7 +366,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 								svm->dbuf3=svmeas;
 								gnssmeas.push_back(svm);
 								nBeiDou++;
-								if (flags & 0x08){ // carrier phase present
+								if ((flags & 0x08) && (codes & GNSSSystem::L2I)){ // carrier phase present
 									svmeas = fp64buf;
 									svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::L2I,svmeas,NULL);
 									if (tgps - beidou.L1lastunlock[svn] <= rinexObsInterval)
