@@ -231,8 +231,8 @@ void Application::run()
 	timer.start();
 	
 	// Set the reference time for resolving GPS week number ambiguity
-	// from the MJD that we are processing for. But make it  8 days less to be sure.
-	refTime = (MJD - 40587 - 8 )*86400;
+	// from the MJD that we are processing for
+	refTime = (MJD - 40587)*86400;
 	makeFilenames();
 	
 	// Create the log file, erasing any existing file
