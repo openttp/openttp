@@ -534,9 +534,12 @@ void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLea
 	
 	// Now fix the truncated week number.
 	// tUTC - ref time must be greater than zero
-	// If not, add another rollover
-	if (tUTC - refTime < 0)
-		tUTC += 1024*7*86400;
+	// If not, add  rollovers
+	int nRollovers = 0;
+	while (tUTC - refTime < 0){
+	  tUTC += 1024*7*86400;
+	  nRollovers++;
+	}
 	
 	gmtime_r(&tUTC,tmUTC);
 }
@@ -549,8 +552,9 @@ void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLea
 		exit(EXIT_FAILURE);
 	}
 	time_t tGPS = 315964800 + tow + truncatedWN*7*86400;
-	if (tGPS - refTime < 0)
-		tGPS += 1024*7*86400;
+	while (tGPS - refTime < 0){
+	  tGPS += 1024*7*86400;
+	}
 	return tGPS;
 }
 
