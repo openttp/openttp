@@ -63,6 +63,8 @@ use strict;
 #                                     offset. This feature was missing from the program
 # 2017-12-11         Michael Wouters  Configurable path for UUCP lock files
 # 2018-01-06         Michael Wouters  BINR output for use with 3rd party software
+# 2019-04-04         Louis Marais     Bug fix: logging process does not exit on
+#                                     insufficient satellites
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
@@ -198,8 +200,17 @@ while (!$killed){
   # see if there is text waiting (every 100 ms)
   $nfound=select $tmask=$rxmask,undef,undef,0.1; # ... ,0.1;
   
-  # The $lastMsg variable is updated when msg52h show that there are GPS / GLONASS 
-  # satellites available.
+  # Original comment: The $lastMsg variable is updated when msg52h show that there are
+  # GPS / GLONASS satellites available.
+  # Update (2019-04-02, Louis):
+  # OK, this is not true - the $lastMsg variable was updated when ANY message arrived. It
+  # means that the software will never exit on insufficient satellites because some messages
+  # appear once a second whether the receiver is tracking satellites or not.
+  # The fix (line ~295) was to only update $lastMsg when a 'F5' (raw data) message is
+  # received. The raw data messages only arrive when the receiver is tracking satellites.
+  # Lesson: Test your software properly - I never ran a receiver, removed the antenna (to
+  # simulate a loss of signal) and checked that it actually timed out. I'm doing that now.
+  # OK, all good, it's does exit now.
   if (time()-$lastMsg > $receiverTimeout){
 		@_=gmtime();
 		$msg=sprintf("%04d-%02d-%02d %02d:%02d:%02d no satellites visible - exiting\n",
@@ -280,8 +291,12 @@ while (!$killed){
         $data =~ s/\x10\x10/\x10/g;
         # Check message ID and call appropriate subroutine
         $msgID = substr $data,0,1;
-        $msg = substr $data,1;      
-        $lastMsg=$now;
+        $msg = substr $data,1;
+        # Use F5 message to reset $lastMsg variable - used to check for insufficient
+        # satellites (i.e. none) tracked.
+        if($msgID eq chr(0xF5)){
+          $lastMsg=$now;
+        }
         if ($fileFormat == $OPENTTP){
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$msg);
 				}
@@ -788,16 +803,18 @@ sub writeStatus # $nv08id,$sats,$glosats,$hdop,$vdop,$tdop
 {
   my($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop,$tdop) = (@_);
   #my($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop) = (@_);
- 
-  open  STA, ">$rxStatus";
-  print STA $nv08id,"\n";
-  # Does it still make sense to report GLONASS satellites?
-  print STA "Number of visible GLONASS sats: ",$glosats,"\n";
-  print STA "Number of visible GPS sats: ",$gpssats,"\n";
-  print STA "prns=",$sats,"\n";
-  print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f TDOP: %0.2f\n",$hdop,$vdop,$tdop);
-  #print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f\n",$hdop,$vdop);
-  close STA;
+
+  if(defined $nv08id){
+    open  STA, ">$rxStatus";
+    print STA $nv08id,"\n";
+    # Does it still make sense to report GLONASS satellites?
+    print STA "Number of visible GLONASS sats: ",$glosats,"\n";
+    print STA "Number of visible GPS sats: ",$gpssats,"\n";
+    print STA "prns=",$sats,"\n";
+    print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f TDOP: %0.2f\n",$hdop,$vdop,$tdop);
+    #print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f\n",$hdop,$vdop);
+    close STA;
+  }
 } # writeStatus
 
 #----------------------------------------------------------------------------

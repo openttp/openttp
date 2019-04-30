@@ -28,7 +28,6 @@
 
 #include <string>
 
-using namespace std;
 
 class Antenna
 {
@@ -36,14 +35,14 @@ class Antenna
 	
 		Antenna();
 		
-		string markerName;
-		string markerNumber;
-		string markerType;
-		string antennaNumber;
-		string antennaType;
+		std::string markerName;
+		std::string markerNumber;
+		std::string markerType;
+		std::string antennaNumber;
+		std::string antennaType;
 		double x,y,z;
 		double deltaH,deltaE,deltaN;
-		string frame;
+		std::string frame;
 		
 		double latitude,longitude,height; // these are calculated from (x,y,z)
 		

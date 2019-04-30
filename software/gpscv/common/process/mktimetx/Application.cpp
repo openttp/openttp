@@ -65,9 +65,9 @@
 #include "Utility.h"
 
 extern Application *app;
-extern ostream *debugStream;
-extern string   debugFileName;
-extern ofstream debugLog;
+extern std::ostream *debugStream;
+extern std::string   debugFileName;
+extern std::ofstream debugLog;
 extern int verbosity;
 extern bool shortDebugMessage;
 
@@ -106,7 +106,7 @@ Application::Application(int argc,char **argv)
 	int longIndex;
 	int c,hh,mm,ss;
 	
-	string RINEXHeaderFile("");
+	std::string RINEXHeaderFile("");
 	
 	while ((c=getopt_long(argc,argv,"hm:",longOptions,&longIndex)) != -1)
 	{
@@ -121,15 +121,15 @@ Application::Application(int argc,char **argv)
 							break;
 						case 1:
 							{
-								string dbgout = optarg;
-								if ((string::npos != dbgout.find("stderr"))){
+								std::string dbgout = optarg;
+								if ((std::string::npos != dbgout.find("stderr"))){
 									debugStream = & std::cerr;
 								}
 								else{
 									debugFileName = dbgout;
-									debugLog.open(debugFileName.c_str(),ios_base::app);
+									debugLog.open(debugFileName.c_str(),std::ios_base::out);
 									if (!debugLog.is_open()){
-										cerr << "Error! Unable to open " << dbgout << endl;
+										std::cerr << "Error! Unable to open " << dbgout << std::endl;
 										exit(EXIT_FAILURE);
 									}
 									debugStream = & debugLog;
@@ -145,7 +145,7 @@ Application::Application(int argc,char **argv)
 							break;
 						case 4:
 							if (!Utility::TODStrtoTOD(optarg,&hh,&mm,&ss)){
-								cerr << "Error! Bad value for option --start" << endl;
+								std::cerr << "Error! Bad value for option --start" << std::endl;
 								showHelp();
 								exit(EXIT_FAILURE);
 							}
@@ -153,7 +153,7 @@ Application::Application(int argc,char **argv)
 							break;
 						case 5:
 							if (!Utility::TODStrtoTOD(optarg,&hh,&mm,&ss)){
-								cerr << "Error! Bad value for option --stop" << endl;
+								std::cerr << "Error! Bad value for option --stop" << std::endl;
 								showHelp();
 								exit(EXIT_FAILURE);
 							}
@@ -161,8 +161,8 @@ Application::Application(int argc,char **argv)
 							break;
 						case 6:
 							{
-								if (1!=sscanf(optarg,"%i",&verbosity)){
-									cerr << "Error! Bad value for option --verbosity" << endl;
+								if (1!=std::sscanf(optarg,"%i",&verbosity)){
+									std::cerr << "Error! Bad value for option --verbosity" << std::endl;
 									showHelp();
 									exit(EXIT_FAILURE);
 								}
@@ -191,8 +191,8 @@ Application::Application(int argc,char **argv)
 				break;
 			case 'm':
 				{
-					if (1!=sscanf(optarg,"%i",&MJD)){
-						cerr << "Error! Bad value for option --mjd" << endl;
+					if (1!=std::sscanf(optarg,"%i",&MJD)){
+						std::cerr << "Error! Bad value for option --mjd" << std::endl;
 						showHelp();
 						exit(EXIT_FAILURE);
 					}
@@ -205,12 +205,12 @@ Application::Application(int argc,char **argv)
 	}
 
 	if (startTime > stopTime){
-		cerr  << "Error! The start time is after the stop time" << endl;
+		std::cerr  << "Error! The start time is after the stop time" << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	
 	if (!loadConfig()){
-		cerr << "Error! Configuration failed" << endl;
+		std::cerr << "Error! Configuration failed" << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	
@@ -236,7 +236,7 @@ void Application::run()
 	makeFilenames();
 	
 	// Create the log file, erasing any existing file
-	ofstream ofs;
+	std::ofstream ofs;
 	ofs.open(logFile.c_str());
 	ofs.close();
 	
@@ -252,14 +252,14 @@ void Application::run()
 			
 	bool recompress = decompress(receiverFile);
 	if (!receiver->readLog(receiverFile,MJD,sloppyStartTime,sloppyStopTime,interval)){
-		cerr << "Exiting" << endl;
+		std::cerr << "Exiting" << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	if (recompress) compress(receiverFile);
 	
 	recompress = decompress(counterFile);
 	if (!counter->readLog(counterFile,startTime,sloppyStopTime)){
-		cerr << "Exiting" << endl;
+		std::cerr << "Exiting" << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	if (recompress) compress(counterFile);
@@ -279,12 +279,12 @@ void Application::run()
 				if (CGGTTSoutputs.at(i).constellation == GNSSSystem::GPS){
 					receiver->gps.deleteEphemeris();
 					RINEX rnx;
-					string fname=rnx.makeFileName(CGGTTSoutputs.at(i).ephemerisFile,MJD);
+					std::string fname=rnx.makeFileName(CGGTTSoutputs.at(i).ephemerisFile,MJD);
 					if (fname.empty()){
-						cerr << "Unable to make a RINEX navigation file name from the specified pattern: " << CGGTTSoutputs.at(i).ephemerisFile << endl;
+						std::cerr << "Unable to make a RINEX navigation file name from the specified pattern: " << CGGTTSoutputs.at(i).ephemerisFile << std::endl;
 						exit(EXIT_FAILURE);
 					}
-					string navFile=CGGTTSoutputs.at(i).ephemerisPath+"/"+fname;
+					std::string navFile=CGGTTSoutputs.at(i).ephemerisPath+"/"+fname;
 					DBGMSG(debugStream,INFO,"using nav file " << navFile);
 					if (!rnx.readNavigationFile(receiver,GNSSSystem::GPS,navFile)){
 						exit(EXIT_FAILURE);
@@ -311,7 +311,7 @@ void Application::run()
 			cggtts.code=CGGTTSoutputs.at(i).code;
 			cggtts.calID=CGGTTSoutputs.at(i).calID;
 		
-			string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
+			std::string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
 			cggtts.writeObservationFile(CGGTTSfile,MJD,startTime,stopTime,mpairs,TICenabled);
 	
 		}
@@ -355,44 +355,46 @@ void Application::run()
 
 void Application::showHelp()
 {
-	cout << endl << APP_NAME << " version " << APP_VERSION << endl;
-	cout << "Usage: " << APP_NAME << " [options]" << endl;
-	cout << "Available options are" << endl;
-	cout << "--configuration <file> full path to the configuration file" << endl;
-	cout << "--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << endl;
-	cout << "--disable-tic          disables use of sawtooth-corrected TIC measurements" << endl;
-	cout << "-h,--help              print this help message" << endl;
-	cout << "-m <n>                 set the mjd" << endl;
-	cout << "--start HH:MM:SS/HHMMSS  set start time" << endl;
-	cout << "--stop  HH:MM:SS/HHMMSS  set stop time" << endl;
-	cout << "--short-debug-message  shorter debugging messages" << endl;
-	cout << "--sv-diagnostics       write SV diagnostics files" << endl;
-	cout << "--timing-diagnostics   write receiver timing diagnostics file" << endl;
-	cout << "--verbosity <n>        set debugging verbosity" << endl;
-	cout << "--version              print version" << endl;
+	std::cout << std::endl << APP_NAME << " version " << APP_VERSION << std::endl;
+	std::cout << "Usage: " << APP_NAME << " [options]" << std::endl;
+	std::cout << "Available options are" << std::endl;
+	std::cout << "--configuration <file> full path to the configuration file" << std::endl;
+	std::cout << "--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << std::endl;
+	std::cout << "--disable-tic          disables use of sawtooth-corrected TIC measurements" << std::endl;
+	std::cout << "-h,--help              print this help message" << std::endl;
+	std::cout << "-m <n>                 set the mjd" << std::endl;
+	std::cout << "--start HH:MM:SS/HHMMSS  set start time" << std::endl;
+	std::cout << "--stop  HH:MM:SS/HHMMSS  set stop time" << std::endl;
+	std::cout << "--short-debug-message  shorter debugging messages" << std::endl;
+	std::cout << "--sv-diagnostics       write SV diagnostics files" << std::endl;
+	std::cout << "--timing-diagnostics   write receiver timing diagnostics file" << std::endl;
+	std::cout << "--verbosity <n>        set debugging verbosity" << std::endl;
+	std::cout << "--version              print version" << std::endl;
+
+
 }
 
 void Application::showVersion()
 {
-	cout << APP_NAME <<  " version " << APP_VERSION << endl;
-	cout << "Written by " << APP_AUTHORS << endl;
-	cout << "This ain't no stinkin' Perl script!" << endl;
+	std::cout << APP_NAME <<  " version " << APP_VERSION << std::endl;
+	std::cout << "Written by " << APP_AUTHORS << std::endl;
+	std::cout << "This ain't no stinkin' Perl script!" << std::endl;
 }
 
-string Application::timeStamp(){
+std::string Application::timeStamp(){
 	time_t tt = time(NULL);
 	struct tm *gmt = gmtime(&tt);
 	char ts[32];
-	sprintf(ts,"%4d-%02d-%02d %02d:%02d:%02d ",gmt->tm_year+1900,gmt->tm_mon+1,gmt->tm_mday,
+	std::sprintf(ts,"%4d-%02d-%02d %02d:%02d:%02d ",gmt->tm_year+1900,gmt->tm_mon+1,gmt->tm_mday,
 		gmt->tm_hour,gmt->tm_min,gmt->tm_sec);
-	return string(ts);
+	return std::string(ts);
 }
 
-void Application::logMessage(string msg)
+void Application::logMessage(std::string msg)
 {
-	ofstream ofs;
-	ofs.open(logFile.c_str(),ios::app);
-	ofs << msg << endl;
+	std::ofstream ofs;
+	ofs.open(logFile.c_str(),std::ios::app);
+	ofs << msg << std::endl;
 	ofs.close();
 	
 	DBGMSG(debugStream,INFO,msg);
@@ -475,9 +477,9 @@ void Application::init()
 
 }
 
-string Application::relativeToAbsolutePath(string path)
+std::string Application::relativeToAbsolutePath(std::string path)
 {
-	string absPath=path;
+	std::string absPath=path;
 	if (path.size() > 0){ 
 		if (path.at(0) == '/')
 			absPath = path;
@@ -489,19 +491,19 @@ string Application::relativeToAbsolutePath(string path)
 
 void  Application::makeFilenames()
 {
-	ostringstream ss;
+	std::ostringstream ss;
 	ss << "./" << "timing." << pid << "." << MJD << ".dat";  
 	timingDiagnosticsFile=ss.str();
 	
-	ostringstream ss2;
+	std::ostringstream ss2;
 	ss2 << counterPath << "/" << MJD << "." << counterExtension;
 	counterFile=ss2.str();
 	
-	ostringstream ss3;
+	std::ostringstream ss3;
 	ss3 << receiverPath << "/" << MJD << "." << receiverExtension;
 	receiverFile = ss3.str();
 	
-	ostringstream ss4;
+	std::ostringstream ss4;
 	ss4 << "./" << "processing." << pid << "." << MJD << ".log";
 	processingLog=ss4.str();
 	
@@ -513,20 +515,20 @@ void  Application::makeFilenames()
 	// this is ugly but C++ stream manipulators are even uglier
 	
 	char fname[64];
-	ostringstream ss5;
+	std::ostringstream ss5;
 	if (RINEX::V2 == RINEXversion || forceV2name)
-		snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
+		std::snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
 	else if (RINEXversion == RINEX::V3)
-		snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
+		std::snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
 	
 	ss5 << RINEXPath << "/" << fname; // at least no problem with length of RINEXPath
 	RINEXnavFile=ss5.str();
 	
-	ostringstream ss6;
+	std::ostringstream ss6;
 	if (RINEX::V2 == RINEXversion  || forceV2name)
-		snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
+		std::snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
 	else if (RINEXversion == RINEX::V3)
-		snprintf(fname,63,"%s_R_%d%03d0000_01D_30S_MO.rnx",v3name.c_str(),year,yday);
+		std::snprintf(fname,63,"%s_R_%d%03d0000_01D_30S_MO.rnx",v3name.c_str(),year,yday);
 	
 	ss6 << RINEXPath << "/" << fname;
 	RINEXobsFile=ss6.str();
@@ -536,52 +538,51 @@ void  Application::makeFilenames()
 	
 }
 
-bool Application::decompress(string f)
+bool Application::decompress(std::string f)
 {
 	struct stat statBuf;
 	int ret = stat(f.c_str(),&statBuf);
 	if (ret !=0 ){ // decompressed file is not there
-		string fgz = f + ".gz";
+		std::string fgz = f + ".gz";
 		if ((ret = stat(fgz.c_str(),&statBuf))==0){ // gzipped file is there
 			DBGMSG(debugStream,INFO,"decompressing " << fgz);
-			string cmd = gzip + " -d " + fgz;
+			std::string cmd = gzip + " -d " + fgz;
 			if ((ret=system(cmd.c_str()))!=0){
-				cerr << "\"" << cmd << "\"" << " failed (return value = " << ret << ")" << endl;
+				std::cerr << "\"" << cmd << "\"" << " failed (return value = " << ret << ")" << std::endl;
 				exit(EXIT_FAILURE);
 			}
 			return true;
 		}
 		else{ // file is missing/wrong permissions on path 
-			cerr << " can't open " << f << endl;
+			std::cerr << " can't open " << f << std::endl;
 			exit(EXIT_FAILURE);
 		}
 	}
 	return false;
 }
 
-void Application::compress(string f){
+void Application::compress(std::string f){
 	struct stat statBuf;
 	int ret = stat(f.c_str(),&statBuf);
 	if (ret ==0 ){ // file exists
 		DBGMSG(debugStream,INFO,"compressing " << f);
-		string cmd = gzip + " " + f;
+		std::string cmd = gzip + " " + f;
 		system(cmd.c_str());
 	}
 	else{ // file is missing/wrong permissions on path
-		cerr << " can't open " << f << " (gzip failed)" << endl;
+		std::cerr << " can't open " << f << " (gzip failed)" << std::endl;
 		// not fatal
 	}
 }
 
-		
-string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
-	ostringstream ss;
+std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
+	std::ostringstream ss;
 	char fname[16];
 	if (CGGTTSnamingConvention == Plain)
 		ss << cggtts.path << "/" << MJD << ".cctf";
 	else if (CGGTTSnamingConvention == BIPM){
-		snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
-		string constellation;
+		std::snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
+		std::string constellation;
 		switch (cggtts.constellation){
 			case GNSSSystem::GPS:constellation="G";break;
 			case GNSSSystem::GLONASS:constellation="R";break;
@@ -600,19 +601,19 @@ bool Application::loadConfig()
 	// Our conventional config file format is used to maintain compatibility with existing scripts
 	ListEntry *last;
 	if (!configfile_parse_as_list(&last,configurationFile.c_str())){
-		cerr << "Unable to open the configuration file " << configurationFile << " - exiting" << endl;
+		std::cerr << "Unable to open the configuration file " << configurationFile << " - exiting" << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	
 	bool configOK=true;
 	int itmp=2;
-	string stmp;
+	std::string stmp;
 	
 	// Paths
 	// Parse first so that other paths can be constructed correctly
 	//
 	
-	string path="";	
+	std::string path="";	
 	
 	if (setConfig(last,"paths","root",path,&configOK,false)){
 		rootDir=path;
@@ -662,7 +663,7 @@ bool Application::loadConfig()
 			else if (stmp=="V2E")
 				CGGTTSversion=CGGTTS::V2E;
 			else{
-				cerr << "unknown CGGTTS version " << stmp << endl;
+				std::cerr << "unknown CGGTTS version " << stmp << std::endl;
 				configOK=false;
 			}
 		}
@@ -672,10 +673,10 @@ bool Application::loadConfig()
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
 			int ephemerisSource=CGGTTSOutput::GNSSReceiver;
-			string ephemerisFile,ephemerisPath;
+			std::string ephemerisFile,ephemerisPath;
 			
 			for (unsigned int i=0;i<configs.size();i++){
-				string calID="";
+				std::string calID="";
 				if (setConfig(last,configs.at(i).c_str(),"constellation",stmp,&configOK)){
 					boost::to_upper(stmp);
 					if (stmp == "GPS")
@@ -687,21 +688,15 @@ bool Application::loadConfig()
 					else if (stmp=="GALILEO")
 						constellation = GNSSSystem::GALILEO;
 					else{
-						cerr << "unknown constellation " << stmp << " in [" << configs.at(i) << "]" << endl;
+						std::cerr << "unknown constellation " << stmp << " in [" << configs.at(i) << "]" << std::endl;
 						configOK=false;
 						continue;
 					}
 				}
 				if (setConfig(last,configs.at(i).c_str(),"code",stmp,&configOK)){
 					boost::to_upper(stmp);
-					if (stmp=="C1")
-						code=GNSSSystem::C1;
-					else if (stmp=="P1")
-						code=GNSSSystem::P1;
-					else if (stmp=="P2")
-						code=GNSSSystem::P2;
-					else{
-						cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << endl;
+					if (0== (code = CGGTTS::strToCode(stmp))){
+						std::cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << std::endl;
 						configOK=false;
 						continue;
 					}
@@ -750,7 +745,7 @@ bool Application::loadConfig()
 						}
 					}
 					else{
-						cerr << "Syntax error in [CGGTTS] ephemeris - " << stmp << " should be receiver/user " << endl;
+						std::cerr << "Syntax error in [CGGTTS] ephemeris - " << stmp << " should be receiver/user " << std::endl;
 						configOK = false;
 						continue;
 					}
@@ -782,7 +777,7 @@ bool Application::loadConfig()
 			else if (stmp=="PLAIN")
 				CGGTTSnamingConvention = Plain;
 			else{
-				cerr << "unknown value for cggtts::naming convention " << endl;
+				std::cerr << "unknown value for cggtts::naming convention " << std::endl;
 				configOK=false;
 			}
 			if (CGGTTSnamingConvention == BIPM){
@@ -801,12 +796,12 @@ bool Application::loadConfig()
 					CGGTTSRevDateDD=lexical_cast<short>(vals.at(2));
 				}
 				catch(const bad_lexical_cast &){
-					cerr << "Couldn't parse cggtts::revision date = " << stmp << endl;
+					std::cerr << "Couldn't parse cggtts::revision date = " << stmp << std::endl;
 					configOK=false;
 				}
 			}
 			else{
-				cerr << "Syntax error in [CGGTTS] revision date - " << stmp << " should be YYYY-MM-DD " << endl;
+				std::cerr << "Syntax error in [CGGTTS] revision date - " << stmp << " should be YYYY-MM-DD " << std::endl;
 				configOK=false;
 			}
 		}
@@ -881,24 +876,24 @@ bool Application::loadConfig()
 	DBGMSG(debugStream,TRACE,"parsed Antenna config");
 	
 	// Receiver
-	string rxModel,rxManufacturer;
+	std::string rxModel,rxManufacturer;
 	setConfig(last,"receiver","model",rxModel,&configOK);
 	
 	if (setConfig(last,"receiver","manufacturer",rxManufacturer,&configOK)){
-		if (rxManufacturer.find("Trimble") != string::npos){
+		if (rxManufacturer.find("Trimble") != std::string::npos){
 			receiver = new TrimbleResolution(antenna,rxModel); 
 		}
-		else if (rxManufacturer.find("Javad") != string::npos){
+		else if (rxManufacturer.find("Javad") != std::string::npos){
 			receiver = new Javad(antenna,rxModel); 
 		}
-		else if (rxManufacturer.find("NVS") != string::npos){
+		else if (rxManufacturer.find("NVS") != std::string::npos){
 			receiver = new NVS(antenna,rxModel); 
 		}
-		else if (rxManufacturer.find("ublox") != string::npos){
+		else if (rxManufacturer.find("ublox") != std::string::npos){
 			receiver = new Ublox(antenna,rxModel); 
 		}
 		else{
-			cerr << "A valid receiver model/manufacturer has not been configured - exiting" << endl;
+			std::cerr << "A valid receiver model/manufacturer has not been configured - exiting" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -906,14 +901,14 @@ bool Application::loadConfig()
 	if (setConfig(last,"receiver","observations",stmp,&configOK,false)){
 		boost::to_upper(stmp);
 		receiver->constellations = 0; // overrride the default
-		if (stmp.find("GPS") != string::npos)
-			receiver->constellations |=GNSSSystem::GPS;
-		if (stmp.find("GLONASS") != string::npos)
-			receiver->constellations |=GNSSSystem::GLONASS;
-		if (stmp.find("BEIDOU") != string::npos)
-			receiver->constellations |=GNSSSystem::BEIDOU;
-		if (stmp.find("GALILEO") != string::npos)
-			receiver->constellations |=GNSSSystem::GALILEO;
+		if (stmp.find("GPS") != std::string::npos)
+			receiver->addConstellation(GNSSSystem::GPS); // this takes care of setting available signals too
+		if (stmp.find("GLONASS") != std::string::npos)
+			receiver->addConstellation(GNSSSystem::GLONASS);
+		if (stmp.find("BEIDOU") != std::string::npos)
+			receiver->addConstellation(GNSSSystem::BEIDOU);
+		if (stmp.find("GALILEO") != std::string::npos)
+			receiver->addConstellation(GNSSSystem::GALILEO);
 	}
 	
 	if (setConfig(last,"receiver","version",stmp,&configOK,false))
@@ -931,7 +926,7 @@ bool Application::loadConfig()
 		else if (stmp == "receiver specified")
 			receiver->sawtoothPhase=Receiver::ReceiverSpecified;
 		else{
-			cerr << "Unrecognized option for sawtooth phase: " << stmp << endl;
+			std::cerr << "Unrecognized option for sawtooth phase: " << stmp << std::endl;
 			configOK=false;
 		}
 	}
@@ -973,7 +968,7 @@ bool Application::loadConfig()
 	return configOK;
 }
 
-bool Application::setConfig(ListEntry *last,const char *section,const char *token,string &val,bool *ok,bool required)
+bool Application::setConfig(ListEntry *last,const char *section,const char *token,std::string &val,bool *ok,bool required)
 {
 	char *stmp;
 	if (list_get_string(last,section,token,&stmp)){
@@ -983,7 +978,7 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 	else{
 		int err = config_file_get_last_error(NULL,0);
 		if (err==TokenNotFound && required){
-			cerr << "Missing entry for " << section << "::" << token << endl;
+			std::cerr << "Missing entry for " << section << "::" << token << std::endl;
 			*ok = false;
 			return false;
 		}
@@ -992,7 +987,7 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 			return false;
 		}
 		else if (err==ParseFailed){
-			cerr << "Syntax error in " << section << "::" << token << endl;
+			std::cerr << "Syntax error in " << section << "::" << token << std::endl;
 			*ok = false;
 			return false;
 		}
@@ -1011,7 +1006,7 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 	else{
 		int err = config_file_get_last_error(NULL,0);
 		if (err==TokenNotFound && required){
-			cerr << "Missing entry for " << section << "::" << token << endl;
+			std::cerr << "Missing entry for " << section << "::" << token << std::endl;
 			*ok = false;
 			return false;
 		}
@@ -1020,7 +1015,7 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 			return false;
 		}
 		else if (err==ParseFailed){
-			cerr << "Syntax error in " << section << "::" << token << endl;
+			std::cerr << "Syntax error in " << section << "::" << token << std::endl;
 			*ok=false;
 			return false;
 		}
@@ -1038,7 +1033,7 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 	else{
 		int err = config_file_get_last_error(NULL,0);
 		if (err==TokenNotFound && required){
-			cerr << "Missing entry for " << section << "::" << token << endl;
+			std::cerr << "Missing entry for " << section << "::" << token << std::endl;
 			*ok = false;
 			return false;
 		}
@@ -1047,7 +1042,7 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 			return false;
 		}
 		else if (err==ParseFailed){
-			cerr << "Syntax error in " << section << "::" << token << endl;
+			std::cerr << "Syntax error in " << section << "::" << token << std::endl;
 			*ok = false;
 			return false;
 		}
@@ -1055,47 +1050,47 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 	return true;
 }
 
-bool Application::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, string fname)
+bool Application::writeRIN2CGGTTSParamFile(Receiver *rx, Antenna *ant, std::string fname)
 {
 	FILE *fout;
-	if (!(fout = fopen(fname.c_str(),"w"))){
-		cerr << "Unable to open " << fname << endl;
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
+		std::cerr << "Unable to open " << fname << std::endl;
 		return false;
 	}
 	
-	fprintf(fout,"REV DATE\n");
+	std::fprintf(fout,"REV DATE\n");
 	
-	fprintf(fout,"RCVR\n");
-	fprintf(fout,"%s\n",rx->manufacturer.c_str());
-	fprintf(fout,"CH\n");
+	std::fprintf(fout,"RCVR\n");
+	std::fprintf(fout,"%s\n",rx->manufacturer.c_str());
+	std::fprintf(fout,"CH\n");
 	
-	fprintf(fout,"LAB NAME\n");
+	std::fprintf(fout,"LAB NAME\n");
 	
-	fprintf(fout,"X COORDINATE\n");
-	fprintf(fout,"%14.4lf\n",ant->x);
-	fprintf(fout,"Y COORDINATE\n");
-	fprintf(fout,"%14.4lf\n",ant->y);
-	fprintf(fout,"Z COORDINATE\n");
-	fprintf(fout,"%14.4lf\n",ant->z);
-	fprintf(fout,"COMMENTS\n");
+	std::fprintf(fout,"X COORDINATE\n");
+	std::fprintf(fout,"%14.4lf\n",ant->x);
+	std::fprintf(fout,"Y COORDINATE\n");
+	std::fprintf(fout,"%14.4lf\n",ant->y);
+	std::fprintf(fout,"Z COORDINATE\n");
+	std::fprintf(fout,"%14.4lf\n",ant->z);
+	std::fprintf(fout,"COMMENTS\n");
 	
-	fprintf(fout,"REF\n");
+	std::fprintf(fout,"REF\n");
 	
-	fprintf(fout,"INT DELAY P1 XR+XS (in ns)\n");  // FIXME multiple problems here
-	fprintf(fout,"0.0\n");
-	fprintf(fout,"INT DELAY P2 XR+XS (in ns)\n");
-	fprintf(fout,"0.0\n");
-	fprintf(fout,"INT DELAY C1 XR+XS (in ns)\n");
-	fprintf(fout,"%11.1lf\n",0.0);
-	fprintf(fout,"ANT CAB DELAY (in ns)\n");
-	fprintf(fout,"%11.1lf",antCableDelay);
-	fprintf(fout,"CLOCK CAB DELAY XP+XO (in ns)\n");
-	fprintf(fout,"%11.1lf",refCableDelay);
+	std::fprintf(fout,"INT DELAY P1 XR+XS (in ns)\n");  // FIXME multiple problems here
+	std::fprintf(fout,"0.0\n");
+	std::fprintf(fout,"INT DELAY P2 XR+XS (in ns)\n");
+	std::fprintf(fout,"0.0\n");
+	std::fprintf(fout,"INT DELAY C1 XR+XS (in ns)\n");
+	std::fprintf(fout,"%11.1lf\n",0.0);
+	std::fprintf(fout,"ANT CAB DELAY (in ns)\n");
+	std::fprintf(fout,"%11.1lf",antCableDelay);
+	std::fprintf(fout,"CLOCK CAB DELAY XP+XO (in ns)\n");
+	std::fprintf(fout,"%11.1lf",refCableDelay);
 	
-	fprintf(fout,"LEAP SECOND\n");
-	fprintf(fout,"%d\n",rx->leapsecs);
+	std::fprintf(fout,"LEAP SECOND\n");
+	std::fprintf(fout,"%d\n",rx->leapsecs);
 	
-	fclose(fout);
+	std::fclose(fout);
 	
 	return true;
 }
@@ -1161,7 +1156,7 @@ void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 		}
 	}
 	
-	logMessage(boost::lexical_cast<string>(matchcnt) + " matched measurements");
+	logMessage(boost::lexical_cast<std::string>(matchcnt) + " matched measurements");
 	
 	// Paranoia
 	// Some downstream algorithms require that the data be time-ordered
@@ -1173,7 +1168,7 @@ void Application::matchMeasurements(Receiver *rx,Counter *cntr)
 			rxm = mpairs[i]->rm;
 			int trx1=((int) rxm->pchh)*3600 +  ((int) rxm->pcmm)*60 + ((int) rxm->pcss);
 			if (trx1 < trx0){ // duplicates are already filtered
-				cerr << "Application::matchMeasurements() not monotonically ordered!" << endl;
+				std::cerr << "Application::matchMeasurements() not monotonically ordered!" << std::endl;
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -1197,12 +1192,12 @@ void Application::fixBadSawtoothCorrection(Receiver *rx,Counter *)
 	}
 }
 
-void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,string fname)
+void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,std::string fname)
 {
 	FILE *fout;
 	
-	if (!(fout = fopen(fname.c_str(),"w"))){
-		cerr << "Unable to open " << fname << endl;
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
+		std::cerr << "Unable to open " << fname << std::endl;
 		return;
 	}
 	
@@ -1213,13 +1208,13 @@ void Application::writeReceiverTimingDiagnostics(Receiver *rx,Counter *cntr,stri
 			CounterMeasurement *cm= mpairs[i]->cm;
 			ReceiverMeasurement *rxm = mpairs[i]->rm;
 			int tmatch=((int) cm->hh)*3600 +  ((int) cm->mm)*60 + ((int) cm->ss);
-			fprintf(fout,"%i %g %g %.16e\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset);
+			std::fprintf(fout,"%i %g %g %.16e\n",tmatch,cm->rdg,rxm->sawtooth,rxm->timeOffset);
 		}
 	}
-	fclose(fout);
+	std::fclose(fout);
 }
 
-void Application::writeSVDiagnostics(Receiver *rx,string path)
+void Application::writeSVDiagnostics(Receiver *rx,std::string path)
 {
 	FILE *fout;
 	
@@ -1237,15 +1232,15 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 			case GNSSSystem::GPS:gnss = &(rx->gps) ;
 		}
 		
-		for (int code = GNSSSystem::C1;code <=GNSSSystem::L2; (code <<= 1)){
+		for (unsigned int code = GNSSSystem::C1C;code <=GNSSSystem::L7I; (code <<= 1)){
 			
 			if (!(rx->codes & code)) continue;
 			
-			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
-				ostringstream sstr;
+			for (int svn=1;svn<=gnss->maxSVN();svn++){ // loop over all svn for constellation+code combination
+				std::ostringstream sstr;
 				sstr << path << "/" << gnss->oneLetterCode() << svn << ".dat";
-				if (!(fout = fopen(sstr.str().c_str(),"w"))){
-					cerr << "Unable to open " << sstr.str().c_str() << endl;
+				if (!(fout = std::fopen(sstr.str().c_str(),"w"))){
+					std::cerr << "Unable to open " << sstr.str().c_str() << std::endl;
 					return;
 				}
 				for (unsigned int m=0;m<rx->measurements.size();m++){
@@ -1255,12 +1250,12 @@ void Application::writeSVDiagnostics(Receiver *rx,string path)
 							int tod = rx->measurements[m]->tmUTC.tm_hour*3600+ rx->measurements[m]->tmUTC.tm_min*60 + rx->measurements[m]->tmUTC.tm_sec;
 							// The default here is that df1 contains the raw (non-interpolated) pseudo range and df2 contains 
 							// corrected pseudoranges when CGGTTS output has been generated (which can be useful to look at) 
-							fprintf(fout,"%d %.16e %.16e %.16e %.16e\n",tod,sv->meas,sv->dbuf1,sv->dbuf2,sv->dbuf3);
+							std::fprintf(fout,"%d %.16e %.16e %.16e %.16e\n",tod,sv->meas,sv->dbuf1,sv->dbuf2,sv->dbuf3);
 							break;
 						}
 					}
 				}
-				fclose(fout);
+				std::fclose(fout);
 			} //for (int svn= ...
 		}// for (int code = ...
 	} // for (int g =

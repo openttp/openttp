@@ -36,12 +36,10 @@
 
 #define APP_NAME "mktimetx"
 #define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Louis Marais,Malcolm Lawn"
-#define APP_VERSION "0.1.3"
+#define APP_VERSION "0.1.4"
 #define APP_CONFIG "gpscv.conf"
 
 #define CVACUUM 299792458
-
-using namespace std;
 
 class Antenna;
 class Counter;
@@ -56,9 +54,9 @@ class CGGTTSOutput{
 		enum EphemerisSource{ GNSSReceiver, UserSupplied};
 		
 		CGGTTSOutput();
-		CGGTTSOutput(int constellation,int code,string path,string calID,
+		CGGTTSOutput(int constellation,int code,std::string path,std::string calID,
 			double internalDelay,int delayKind,
-			int ephemerisSource,string ephemerisPath,string ephemerisFile
+			int ephemerisSource,std::string ephemerisPath,std::string ephemerisFile
 			):
 			constellation(constellation),code(code),path(path),
 			calID(calID),internalDelay(internalDelay),delayKind(delayKind),
@@ -66,13 +64,13 @@ class CGGTTSOutput{
 		
 		int constellation;
 		int code;
-		string path;
-		string calID;
+		std::string path;
+		std::string calID;
 		double internalDelay;
 		int delayKind;
 		int ephemerisSource;
-		string ephemerisPath;
-		string ephemerisFile;
+		std::string ephemerisPath;
+		std::string ephemerisFile;
 		
 };
 
@@ -89,8 +87,8 @@ class Application
 		void showHelp();
 		void showVersion();
 		
-		string timeStamp();
-		void logMessage(string msg);
+		std::string timeStamp();
+		void logMessage(std::string msg);
 		
 		long referenceTime(){return refTime;}
 		
@@ -99,39 +97,39 @@ class Application
 		enum CGGTTSNamingConvention {Plain,BIPM};
 		
 		void init();
-		string relativeToAbsolutePath(string);
+		std::string relativeToAbsolutePath(std::string);
 		void   makeFilenames();
-		bool decompress(string);
-		void compress(string);
-		string makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD);
+		bool decompress(std::string);
+		void compress(std::string);
+		std::string makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD);
 		
 		
 		bool loadConfig();
-		bool setConfig(ListEntry *,const char *,const char *,string &,bool *ok,bool required=true);
+		bool setConfig(ListEntry *,const char *,const char *,std::string &,bool *ok,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,double *,bool *ok,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,int *,bool *ok, bool required=true);
 		
-		bool writeRIN2CGGTTSParamFile(Receiver *,Antenna *,string);
+		bool writeRIN2CGGTTSParamFile(Receiver *,Antenna *,std::string);
 		
 		void matchMeasurements(Receiver *,Counter *);
 		void fixBadSawtoothCorrection(Receiver *,Counter *);
-		void writeReceiverTimingDiagnostics(Receiver *,Counter *,string);
-		void writeSVDiagnostics(Receiver *,string);
+		void writeReceiverTimingDiagnostics(Receiver *,Counter *,std::string);
+		void writeSVDiagnostics(Receiver *,std::string);
 		
-		string appName;
+		std::string appName;
 		
 		Antenna *antenna;
 		Receiver *receiver;
 		Counter *counter;
 		
 		bool createCGGTTS,createRINEX;
-		vector<CGGTTSOutput> CGGTTSoutputs;
+		std::vector<CGGTTSOutput> CGGTTSoutputs;
 		
-		string CGGTTSref;
-		string CGGTTScomment;
-		string CGGTTSlab;
-		string CGGTTSreceiverID; // two letter code
-		string CGGTTSlabCode;    // two letter code
+		std::string CGGTTSref;
+		std::string CGGTTScomment;
+		std::string CGGTTSlab;
+		std::string CGGTTSreceiverID; // two letter code
+		std::string CGGTTSlabCode;    // two letter code
 		
 		int CGGTTSversion;
 		int CGGTTSRevDateYYYY,CGGTTSRevDateMM,CGGTTSRevDateDD;
@@ -139,34 +137,34 @@ class Application
 		double CGGTTSminElevation, CGGTTSmaxDSG,CGGTTSmaxURA;
 		
 		// RINEX generation
-		string observer;
-		string agency;
-		string v3name;
+		std::string observer;
+		std::string agency;
+		std::string v3name;
 		bool forceV2name;
 		
 		bool   allObservations;
 		
 		double antCableDelay,refCableDelay;
 		
-		string logFile;
+		std::string logFile;
 		
 		int MJD,startTime,stopTime;
 		long refTime;
 		int interval;
 		int RINEXversion;
-		string homeDir;
-		string rootDir;
-		string configurationFile;
-		string counterPath,counterExtension,counterFile;
-		string receiverPath,receiverExtension,receiverFile;
-		string RINEXPath,RINEXnavFile,RINEXobsFile;
-		string CGGTTSPath;
+		std::string homeDir;
+		std::string rootDir;
+		std::string configurationFile;
+		std::string counterPath,counterExtension,counterFile;
+		std::string receiverPath,receiverExtension,receiverFile;
+		std::string RINEXPath,RINEXnavFile,RINEXobsFile;
+		std::string CGGTTSPath;
 		int CGGTTSnamingConvention;
-		string timingDiagnosticsFile;
-		string processingLogPath,processingLog;
-		string tmpPath;
+		std::string timingDiagnosticsFile;
+		std::string processingLogPath,processingLog;
+		std::string tmpPath;
 		
-		string gzip;
+		std::string gzip;
 		
 		MeasurementPair **mpairs;
 		

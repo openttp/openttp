@@ -117,7 +117,7 @@ class GPS: public GNSSSystem
 	GPS();
 	~GPS();
 	
-	virtual int nsats(){return NSATS;}
+	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();
 		
 	IonosphereData ionoData;
@@ -125,7 +125,7 @@ class GPS: public GNSSSystem
 	std::vector<EphemerisData *> ephemeris;
 			
 	void addEphemeris(EphemerisData *);
-	vector<EphemerisData *> sortedEphemeris[NSATS+1];
+	std::vector<EphemerisData *> sortedEphemeris[NSATS+1];
 	EphemerisData *nearestEphemeris(int,int,double);
 	bool fixWeekRollovers();
 	

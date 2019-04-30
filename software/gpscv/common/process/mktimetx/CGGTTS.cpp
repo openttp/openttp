@@ -37,17 +37,41 @@
 #include "Counter.h"
 #include "CounterMeasurement.h"
 #include "Debug.h"
+#include "GNSSSystem.h"
 #include "GPS.h"
 #include "MeasurementPair.h"
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
+#include "RINEX.h"
 #include "Utility.h"
 
 extern Application *app;
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 
 #define NTRACKS 89
-#define MAXSV   32 // per constellation 
+#define MAXSV   37 // BDS 1-37, GALILEO 1-36 
+
+static unsigned int str2ToCode(std::string s)
+{
+	int c=0;
+	if (s== "C1")
+		c=GNSSSystem::C1C;
+	else if (s == "P1")
+		c=GNSSSystem::C1P;
+	else if (s == "E1")
+		c=GNSSSystem::C1C; // FIXME what about C1B?
+	else if (s == "B1")
+		c=GNSSSystem::C2I;
+	else if (s == "C2") // C2L ?? C2M
+		c=GNSSSystem::C2C;
+	else if (s == "P2")
+		c=GNSSSystem::C2P;
+	//else if (c1 == "E5")
+	//	c=E5a;
+	else if (s== "B2")
+		c=GNSSSystem::C7I;
+	return c;
+}
 
 //
 //	Public members
@@ -61,15 +85,48 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled)
+unsigned int CGGTTS::strToCode(std::string str)
+{
+	// Convert CGGTTS code string (usually from the configuration file) to RINEX observation code(s)
+	// Dual frequency combinations are of the form 'code1+code2'
+	// Valid formats are 
+	// (1) CGGTTS 2 letter codes
+	// (2) RINEX  3 letter codes
+	// but not mixed!
+	// so valid string lengths are 2 and 5 (CGGTTS)  or 3 and 7 (RINEX)
+	unsigned int c=0;
+	if (str.length()==2){
+		c = str2ToCode(str);
+	}
+	else if (str.length()==5){ // dual frequency
+		unsigned int c1=str2ToCode(str.substr(0,2));
+		unsigned int c2=str2ToCode(str.substr(3,2));
+		c = c1 | c2;
+	}
+	else if (str.length()==3){
+		c=GNSSSystem::strToObservationCode(str,RINEX::V3);
+	}
+	else if (str.length()==7){ // dual frequency
+		unsigned int c1=GNSSSystem::strToObservationCode(str.substr(0,3),RINEX::V3);
+		unsigned int c2=GNSSSystem::strToObservationCode(str.substr(4,3),RINEX::V3);
+		c = c1 | c2;
+	}
+	else{
+		c= 0;
+	}
+	
+	return c;
+}
+
+bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled)
 {
 	FILE *fout;
-	if (!(fout = fopen(fname.c_str(),"w"))){
-		cerr << "Unable to open " << fname << endl;
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
+		std::cerr << "Unable to open " << fname << std::endl;
 		return false;
 	}
 	
-	app->logMessage("generating CGGTTS file for " + boost::lexical_cast<string>(mjd));
+	app->logMessage("generating CGGTTS file " + fname);
 	
 	double measDelay = rx->ppsOffset + intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
 	int useTIC = (TICenabled?1:0);
@@ -86,13 +143,28 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 	
 	// Constellation/code identifiers as per V2E
 	
-	string GNSSsys;
-	string GNSScode;
+	std::string GNSSsys;
+	std::string FRCcode="";
 	
-	switch (code){
-		case GNSSSystem::C1:GNSScode="L1C";break;
-		case GNSSSystem::P1:GNSScode="L1P";break;
-		case GNSSSystem::P2:GNSScode="L2P";break;
+	switch (code){ 
+		case GNSSSystem::C1C:
+			if (constellation == GNSSSystem::GALILEO)
+				FRCcode=" E1";
+			else
+				FRCcode="L1C";
+			break;
+		case GNSSSystem::C1B:
+			FRCcode=" E1";break;
+		case GNSSSystem::C1P:
+			FRCcode="L1P";break;
+		case GNSSSystem::C2P:
+			FRCcode="L2P";break;
+		case GNSSSystem::C2I:
+			FRCcode="B1i";break; // RINEX 3.02
+		// dual frequency combinations
+		case GNSSSystem::C1P | GNSSSystem::C2P:
+		case GNSSSystem::C1C | GNSSSystem::C2C:	
+			FRCcode="L3P";break;
 		default:break;
 	}
 			
@@ -104,7 +176,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 		case GNSSSystem::GLONASS:
 			GNSSsys="R"; break;
 		case GNSSSystem::GPS:
-			GNSSsys="G";
+			GNSSsys="G"; break;
 		default:break;
 	}
 	
@@ -112,8 +184,8 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 		
 		FILE *foutdbg;
 		fname += ".dbg";
-		if (!(foutdbg = fopen(fname.c_str(),"w"))){
-			cerr << "Unable to open " << fname << endl;
+		if (!(foutdbg = std::fopen(fname.c_str(),"w"))){
+			std::cerr << "Unable to open " << fname << std::endl;
 			return false;
 		}
 		writeHeader(foutdbg);
@@ -153,9 +225,9 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 							if (el >= minElevation*10 ){
 								goodTrackCnt++;
 								
-								snprintf(sout,154,"%s%02i %2s %5i %02i%02i%02i %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",
-									GNSSsys.c_str(),svm->svn,"FF",mjd,hh,mm,ss,1,(int) el,(int) az,(int) refsv,0, (int) refsys, 0, 0, ioe, (int) tropo, 0, (int) iono, 0,0,0,GNSScode.c_str());
-								fprintf(foutdbg,"%s%02X\n",sout,checkSum(sout) % 256);
+								std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i%02i %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",
+									GNSSsys.c_str(),svm->svn,"FF",mjd,hh,mm,ss,1,(int) el,(int) az,(int) refsv,0, (int) refsys, 0, 0, ioe, (int) tropo, 0, (int) iono, 0,0,0,FRCcode.c_str());
+								std::fprintf(foutdbg,"%s%02X\n",sout,checkSum(sout) % 256);
 							}
 							else{
 								if (el < minElevation*10) lowElevationCnt++;
@@ -171,12 +243,12 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 			} 
 		}
 		
-// 		app->logMessage("Ephemeris search misses: " + boost::lexical_cast<string>(ephemerisMisses));
-// 		app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<string>(pseudoRangeFailures-ephemerisMisses) );
-// 		app->logMessage("Bad measurements: " + boost::lexical_cast<string>(badMeasurementCnt) );
+// 		app->logMessage("Ephemeris search misses: " + boost::lexical_cast<std::string>(ephemerisMisses));
+// 		app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) );
+// 		app->logMessage("Bad measurements: " + boost::lexical_cast<std::string>(badMeasurementCnt) );
 // 		
-// 		app->logMessage(boost::lexical_cast<string>(goodTrackCnt) + " good measurements");
-// 		app->logMessage(boost::lexical_cast<string>(lowElevationCnt) + " low elevation measurements");
+// 		app->logMessage(boost::lexical_cast<std::string>(goodTrackCnt) + " good measurements");
+// 		app->logMessage(boost::lexical_cast<std::string>(lowElevationCnt) + " low elevation measurements");
 // 		
 		
 	}
@@ -212,9 +284,10 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 	}
 	
 	// Use a fixed array of vectors so that we can use the index as a hash for the SVN. Memory is cheap
-	vector<SVMeasurement *> svtrk[MAXSV+1];
+	std::vector<SVMeasurement *> svtrk[MAXSV+1];
 	
 	for (int i=0;i<ntracks;i++){
+		
 		int trackStart = schedule[i]*60;
 		int trackStop =  schedule[i]*60+780-1;
 		if (trackStop >= 86400) trackStop=86400-1;
@@ -222,7 +295,6 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 		if (trackStart < startTime || trackStart > stopTime) continue;
 		// Matched measurement pairs can be looked up without a search since the index is TOD
 		for (int m=trackStart;m<=trackStop;m++){
-			
 			if ((mpairs[m]->flags==0x03)){
 				ReceiverMeasurement *rm = mpairs[m]->rm;
 				for (unsigned int sv=0;sv<rm->meas.size();sv++){
@@ -242,6 +314,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 		int linFitInterval=30; // length of fitting interval 
 		if (quadFits) linFitInterval=15;
 		
+		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
 			if (svtrk[sv].size() == 0 ) continue;
 			
@@ -258,7 +331,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 					if (t==tmeas){
 						// FIXME MDIO needs to change for L2
 						if (nqfitpts > 14){ // shouldn't happen
-							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
+							std::cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << std::endl;
 							exit(EXIT_FAILURE);
 						}
 						// smooth the counter measurements - this helps clean up any residual sawtooth error
@@ -274,7 +347,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 						// don't increment isv - have to retest
 					}
 					else{ // t > tmeas - shouldn't happen
-						cerr << "Error in CGGTTS::writeObservationFile() - unexpected tmeas (t=" << t<< ",tmeas=" << tmeas<< endl;
+						std::cerr << "Error in CGGTTS::writeObservationFile() - unexpected tmeas (t=" << t<< ",tmeas=" << tmeas<< std::endl;
 						exit(EXIT_FAILURE);
 					}
 					
@@ -282,7 +355,7 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 						//DBGMSG(debugStream,1,sv << " " << trackStart << " " << nqfitpts << " " << nqfits);
 						// Sanity checks
 						if (nqfits > 51){// shouldn't happen
-							cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << endl;
+							std::cerr << "Error in CGGTTS::writeObservationFile() - nqfits too big" << std::endl;
 							exit(EXIT_FAILURE);
 						}
 						
@@ -433,16 +506,16 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 					goodTrackCnt++;
 					switch (ver){
 						case V1:
-							snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
+							std::snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc ,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
 											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
-							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
+							std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
 							break;
 						case V2E:
-							snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
+							std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11i %6i %11i %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (int) refsvtc,(int) refsvm,(int)refsystc,(int) refsysm,(int) refsysresid,
-											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,GNSScode.c_str());
-							fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
+											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRCcode.c_str());
+							std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
 							break;
 					} // switch
 				} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
@@ -460,16 +533,16 @@ bool CGGTTS::writeObservationFile(string fname,int mjd,int startTime,int stopTim
 			svtrk[sv].clear();
 	} // for (int i=0;i<ntracks;i++){
 	
-	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<string>(ephemerisMisses));
-	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<string>(pseudoRangeFailures-ephemerisMisses) );
-	app->logMessage("Bad measurements: " + boost::lexical_cast<string>(badMeasurementCnt) );
+	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<std::string>(ephemerisMisses));
+	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) );
+	app->logMessage("Bad measurements: " + boost::lexical_cast<std::string>(badMeasurementCnt) );
 	
-	app->logMessage(boost::lexical_cast<string>(goodTrackCnt) + " good tracks");
-	app->logMessage(boost::lexical_cast<string>(lowElevationCnt) + " low elevation tracks");
-	app->logMessage(boost::lexical_cast<string>(highDSGCnt) + " high DSG tracks");
-	app->logMessage(boost::lexical_cast<string>(shortTrackCnt) + " short tracks");
+	app->logMessage(boost::lexical_cast<std::string>(goodTrackCnt) + " good tracks");
+	app->logMessage(boost::lexical_cast<std::string>(lowElevationCnt) + " low elevation tracks");
+	app->logMessage(boost::lexical_cast<std::string>(highDSGCnt) + " high DSG tracks");
+	app->logMessage(boost::lexical_cast<std::string>(shortTrackCnt) + " short tracks");
 	
-	fclose(fout);
+	std::fclose(fout);
 	
 	return true;
 }
@@ -495,7 +568,9 @@ void CGGTTS::init()
 	maxDSG=100.0;
 	maxURA=3.0; // as reported by receivers, typically 2.0 m, with a few at 2.8 m
 }
-		
+
+
+
 void CGGTTS::writeHeader(FILE *fout)
 {
 #define MAXCHARS 128
@@ -513,120 +588,120 @@ void CGGTTS::writeHeader(FILE *fout)
 	}
 	
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"REV DATE = %4d-%02d-%02d",revDateYYYY,revDateMM,revDateDD); 
+	std::snprintf(buf,MAXCHARS,"REV DATE = %4d-%02d-%02d",revDateYYYY,revDateMM,revDateDD); 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"RCVR = %s %s %s %4d %s,v%s",rx->manufacturer.c_str(),rx->modelName.c_str(),rx->serialNumber.c_str(),
+	std::snprintf(buf,MAXCHARS,"RCVR = %s %s %s %4d %s,v%s",rx->manufacturer.c_str(),rx->modelName.c_str(),rx->serialNumber.c_str(),
 		rx->commissionYYYY,APP_NAME, APP_VERSION);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"CH = %02d",rx->channels); 
+	std::snprintf(buf,MAXCHARS,"CH = %02d",rx->channels); 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"IMS = 99999"); // FIXME dual frequency 
+	std::snprintf(buf,MAXCHARS,"IMS = 99999"); // FIXME dual frequency 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"LAB = %s",lab.c_str()); 
+	std::snprintf(buf,MAXCHARS,"LAB = %s",lab.c_str()); 
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"X = %+.3f m",ant->x);
+	std::snprintf(buf,MAXCHARS,"X = %+.3f m",ant->x);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"Y = %+.3f m",ant->y);
+	std::snprintf(buf,MAXCHARS,"Y = %+.3f m",ant->y);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"Z = %+.3f m",ant->z);
+	std::snprintf(buf,MAXCHARS,"Z = %+.3f m",ant->z);
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"FRAME = %s",ant->frame.c_str());
+	std::snprintf(buf,MAXCHARS,"FRAME = %s",ant->frame.c_str());
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
 	if (comment == "") 
 		comment="NO COMMENT";
 	
-	snprintf(buf,MAXCHARS,"COMMENTS = %s",comment.c_str());
+	std::snprintf(buf,MAXCHARS,"COMMENTS = %s",comment.c_str());
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
 	switch (ver){
 		case V1:
 		{
-			snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly);
+			std::snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly);
 			break;
 		}
 		case V2E:
 		{
-			string cons;
+			std::string cons;
 			switch (constellation){
 				case GNSSSystem::BEIDOU:cons="BDS";break;
 				case GNSSSystem::GALILEO:cons="GAL";break;
 				case GNSSSystem::GLONASS:cons="GLO";break;
 				case GNSSSystem::GPS:cons="GPS";break;
 			}
-			string code1;
+			std::string code1;
 			switch (code){
 				// FIXME check if BeiDou etc need a different name for code1
-				case GNSSSystem::C1:code1="C1";break;
-				case GNSSSystem::P1:code1="P1";break;
-				case GNSSSystem::P2:code1="P2";break;
+				case GNSSSystem::C1C:code1="C1";break;
+				case GNSSSystem::C1P:code1="P1";break;
+				case GNSSSystem::C2P:code1="P2";break;
 			}
-			string dly;
+			std::string dly;
 			switch (delayKind){
 				case INTDLY:dly="INT";break;
 				case SYSDLY:dly="SYS";break;
 				case TOTDLY:dly="TOT";break;
 			}
-			snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1.c_str(),calID.c_str());
+			std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1.c_str(),calID.c_str());
 			break;
 		}
 	}
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
 	if (delayKind == INTDLY){
-		snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
+		std::snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
 		cksum += checkSum(buf);
-		fprintf(fout,"%s\n",buf);
+		std::fprintf(fout,"%s\n",buf);
 	}
 	
 	if (delayKind != TOTDLY){
-		snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
+		std::snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
 		cksum += checkSum(buf);
-		fprintf(fout,"%s\n",buf);
+		std::fprintf(fout,"%s\n",buf);
 	}
 	
-	snprintf(buf,MAXCHARS,"REF = %s",ref.c_str());
+	std::snprintf(buf,MAXCHARS,"REF = %s",ref.c_str());
 	cksum += checkSum(buf);
-	fprintf(fout,"%s\n",buf);
+	std::fprintf(fout,"%s\n",buf);
 	
-	snprintf(buf,MAXCHARS,"CKSUM = ");
+	std::snprintf(buf,MAXCHARS,"CKSUM = ");
 	cksum += checkSum(buf);
-	fprintf(fout,"%s%02X\n",buf,cksum % 256);
+	std::fprintf(fout,"%s%02X\n",buf,cksum % 256);
 	
-	fprintf(fout,"\n");
+	std::fprintf(fout,"\n");
 	switch (ver){
 		case V1:
-			fprintf(fout,"PRN CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFGPS    SRGPS  DSG IOE MDTR SMDT MDIO SMDI CK\n");
-			fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s  \n");
+			std::fprintf(fout,"PRN CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFGPS    SRGPS  DSG IOE MDTR SMDT MDIO SMDI CK\n");
+			std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s  \n");
 			break;
 		case V2E:
-			fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI FR HC FRC CK\n");
-			fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s            \n");
+			std::fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI FR HC FRC CK\n");
+			std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s            \n");
 			break;
 	}
 	
-	fflush(fout);
+	std::fflush(fout);
 	
 #undef MAXCHARS	
 }

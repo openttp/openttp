@@ -37,14 +37,36 @@ class GNSSSystem
 	public:
 		
 		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08};
-		enum Code {C1=0x01,P1=0x02,P2=0x04,L1=0x08,L2=0x10};
+		enum Code { // use RINEX V3 designations for the observation names
+				C1C=0x01, // Galileo E1C, GLONASS, GPS
+				C1P=0x02, // GLONASS,GPS
+				C1B=0x04, // Galileo E1B
+				C2C=0x08, // GLONASS,GPS
+				C2P=0x10, // GLONASS,GPS   
+				C2L=0x20, // GPS
+				C2M=0x40, // GPS
+				C2I=0x80, // BeiDou
+				C7I=0x0100, // Galileo E5bI,BeiDou
+				C7Q=0x0200, // Galileo E5bQ
+				L1C=0x0400,
+				L1P=0x0800,
+				L2P=0x1000,
+				L2C=0x2000,
+				L2I=0x4000,
+				L7I=0x8000,
+				NONE=0x800000
+		}; 
 		
 		GNSSSystem(){};
 		~GNSSSystem(){};
 		
-		virtual int nsats(){return -1;}
-		std::string oneLetterCode(){return olc;}
+		int codes; // observation codes
+		static std::string observationCodeToStr(int c,int RINEXversion);
+		static unsigned int strToObservationCode(std::string, int RINEXversion);
 		
+		virtual int maxSVN(){return -1;}
+		std::string oneLetterCode(){return olc;}
+	
 		virtual void deleteEphemeris(){};
 		
 		std::string name(){return n;}
@@ -54,6 +76,7 @@ class GNSSSystem
 	protected:
 		std::string n; // system name
 		std::string olc; // one letter code for the system
+		
 };
 
 #endif

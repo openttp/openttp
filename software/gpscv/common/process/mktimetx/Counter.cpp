@@ -39,7 +39,7 @@
 
 #define MAXSIZE 90000
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 extern Application *app;
 
 //
@@ -55,7 +55,7 @@ Counter::~Counter()
 {
 }
 	
-bool Counter::readLog(string fname,int startTime,int stopTime)
+bool Counter::readLog(std::string fname,int startTime,int stopTime)
 {
 	// Expected format is
 	// (optional) comments prefaced with
@@ -70,8 +70,8 @@ bool Counter::readLog(string fname,int startTime,int stopTime)
 	
 	DBGMSG(debugStream,INFO,"reading " << fname);
 	
-	ifstream infile (fname.c_str());
-	string line;
+	std::ifstream infile (fname.c_str());
+	std::string line;
   if (infile.is_open()){
     while ( getline (infile,line) ){
 			int hh,mm,ss,t;
@@ -83,19 +83,19 @@ bool Counter::readLog(string fname,int startTime,int stopTime)
 			}
 			// check how much data there is - shouldn't be more than 86400 readings
 			if (measurements.size() > MAXSIZE){ //something is really wrong
-				cerr << " data file is too large" << endl;
+				std::cerr << " data file is too large" << std::endl;
 				return false;
 			}
 		}
 	}
 	else{
-		cerr << " unable to open " << fname << endl;
+		std::cerr << " unable to open " << fname << std::endl;
 		return false;
 	}
 	infile.close();
 	timer.stop();
 	
-	app->logMessage("read " + boost::lexical_cast<string>(measurements.size()) + " counter measurements");
+	app->logMessage("read " + boost::lexical_cast<std::string>(measurements.size()) + " counter measurements");
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
 	return true;
 }

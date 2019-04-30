@@ -62,7 +62,7 @@ class Galileo: public GNSSSystem
 	Galileo();
 	~Galileo();
 	
-	virtual int nsats(){return NSATS;}
+	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();
 	
 	virtual bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
@@ -75,7 +75,7 @@ class Galileo: public GNSSSystem
 	
 	private:
 		
-		static const int NSATS=32;
+		static const int NSATS=36;
 		
 };
 

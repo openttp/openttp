@@ -49,7 +49,7 @@
 #include "SVMeasurement.h"
 #include "TrimbleResolution.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 extern Application *app;
 
 #define SLOPPINESS 0.99
@@ -60,11 +60,11 @@ extern Application *app;
 
 
 // reverse string by twos
-string 
+std::string 
 reversestr (
-	string instring)
+	std::string instring)
 {
-	string outstr;
+	std::string outstr;
 	int len=instring.size();
 
 	for (int i=0;i<len;i+=2){
@@ -79,7 +79,7 @@ reversestr (
 //	public
 //		
 
-TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
+TrimbleResolution::TrimbleResolution(Antenna *ant,std::string m):Receiver(ant)
 {
 	modelName = m;
 	if (modelName=="Resolution T"){
@@ -95,14 +95,15 @@ TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
 		channels=32;
 	}
 	else{
-		cerr << "Unknown receiver model: " << modelName << endl;
-		cerr << "Assuming Resolution SMT 360 " << endl;
+		std::cerr << "Unknown receiver model: " << modelName << std::endl;
+		std::cerr << "Assuming Resolution SMT 360 " << std::endl;
 		model=Resolution360;
 	}
 	manufacturer="Trimble";
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1;
+	gps.codes = GNSSSystem::C1C;
+	codes=gps.codes;
 	// Since we only have 2 systems with old firmware which report the sawtooth
 	// correction in units of seconds
 	// we'll make new firmware the default
@@ -113,7 +114,19 @@ TrimbleResolution::~TrimbleResolution()
 {
 }
 
-bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
+void TrimbleResolution::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::GPS:
+			gps.codes = GNSSSystem::C1C;
+			codes |= gps.codes;
+			break;
+	}
+}
+
+bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	DBGMSG(debugStream,1,"reading " << fname);	
 	struct stat statbuf;
@@ -123,15 +136,15 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 		return false;
 	}
 	
-	ifstream infile (fname.c_str());
-	string line;
+	std::ifstream infile (fname.c_str());
+	std::string line;
 	int linecount=0;
 	bool useData=true;
 	bool got8FAC=false;
 	bool gotrxid=false;
 	bool gotSWVersion=false;
 	
-	string msgid,currpctime,pctime,msg,gpstime;
+	std::string msgid,currpctime,pctime,msg,gpstime;
 	
 	unsigned int gpstow;
 	UINT16 gpswn;
@@ -139,7 +152,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	float sawtooth;     // single
 	unsigned char cbuf;
 	
-	vector<SVMeasurement *> gpsmeas;
+	std::vector<SVMeasurement *> gpsmeas;
 	gotIonoData = false;
 	gotUTCdata=false;
 	UINT8 fabss,fabmm,fabhh,fabmday,fabmon;
@@ -172,7 +185,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 			// Format is 
 			// message_id time_stamp message
 			
-			stringstream sstr(line);
+			std::stringstream sstr(line);
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){
 				DBGMSG(debugStream,1," bad data at line " << linecount);
@@ -269,7 +282,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 					if (ichan == gpsmeas.size()){
 						float fbuf;
 						HexToBin((char *) reversestr(msg.substr(18+2,4*2)).c_str(),4,(unsigned char *) &fbuf);
-						gpsmeas.push_back(new SVMeasurement(cbuf,GNSSSystem::GPS,GNSSSystem::C1,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
+						gpsmeas.push_back(new SVMeasurement(cbuf,GNSSSystem::GPS,GNSSSystem::C1C,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
 					}
 					else{
 						useData=false; 
@@ -304,7 +317,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 						HexToBin((char *) reversestr(msg.substr(1*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &snprefix);
 						HexToBin((char *) reversestr(msg.substr(3*2+2,2*sizeof(unsigned int))).c_str(),sizeof(unsigned int),(unsigned char *) &sn);
 						gotrxid=true;
-						stringstream ss;
+						std::stringstream ss;
 						ss << snprefix << "-" << sn;
 						serialNumber = ss.str();
 						DBGMSG(debugStream,1,"serial number " << serialNumber);
@@ -383,7 +396,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 					coreday=cbuf;
 					HexToBin((char *) msg.substr(18+2,2).c_str(),1,&cbuf);
 					coreyear=cbuf+yearOffset;
-					stringstream ss;
+					std::stringstream ss;
 					ss << appvermajor << "." << appverminor;
 					ss << " " << appyear << "-" << appmonth << "-" << appday;
 					version2=ss.str();
@@ -468,7 +481,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	
 	gps.fixWeekRollovers();
 	
-	for (int svn=1;svn<=gps.nsats();svn++){
+	for (int svn=1;svn<=gps.maxSVN();svn++){
 		//cout << "SVN" << svn << endl;
 		for (unsigned int e=0;e<gps.sortedEphemeris[svn].size();e++){
 			GPS::EphemerisData *ed = gps.sortedEphemeris[svn].at(e);
@@ -504,7 +517,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 			case GNSSSystem::GPS:gnss=&gps;break;
 			default:break;
 		}
-		for (int svn=1;svn<=gnss->nsats();svn++){
+		for (int svn=1;svn<=gnss->maxSVN();svn++){
 			unsigned int lasttow=99999999,currtow=99999999;
 			double lastmeas=0,currmeas;
 			double corr=0.0;
@@ -513,7 +526,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 			for (unsigned int i=0;i<measurements.size();i++){
 				unsigned int m=0;
 				while (m < measurements[i]->meas.size()){
-					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1)){
+					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1C)){
 						lasttow=currtow;
 						lastmeas=currmeas;
 						currmeas=measurements[i]->meas[m]->meas;
