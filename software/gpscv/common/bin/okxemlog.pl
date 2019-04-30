@@ -201,11 +201,13 @@ while (1)
 			$data = $dfields[3];
 			if ($data > 5.0E8) {$data-=1.0E9;}
 			if (open OUT,">>$file_out"){
-				print OUT $time,"  ",$data*1.0E-9," ",$oktvus,"\n";
+				print OUT $time,"  ",$data*1.0E-9,"\n";
+				# print OUT $time,"  ",$data*1.0E-9," ",$oktvus,"\n";
 				close OUT;
 			}
 			if (open $statusFile,">$statusFileName"){
-				print $statusFile $time,"  ",$data*1.0E-9," ",$oktvus,"\n";
+				print $statusFile $time,"  ",$data*1.0E-9,"\n";
+				# print $statusFile $time,"  ",$data*1.0E-9," ",$oktvus,"\n";
 				close $statusFile;
 			}
 		}
