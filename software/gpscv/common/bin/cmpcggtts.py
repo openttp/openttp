@@ -31,6 +31,7 @@
 # 
 # cmpcggtts.py --debug --refext gps.C1.30s.dat --calext gps.C1.30s.dat  ./ ../ottp1 58418 58419
 #
+# 
 
 import argparse
 from datetime import datetime
@@ -40,7 +41,7 @@ import os
 import re
 import sys
 
-VERSION = "0.2"
+VERSION = "0.2.1"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -69,16 +70,21 @@ MDTR=13
 SMDT=14
 MDIO=15
 SMDI=16
-#CK=17 # for V1, single frequency
+# CK=17 # for V1, single frequency
 MSIO=17
 SMSI=18 
 ISG=19 # only for dual frequency
+# CK=20  # V1, dual freqeuncy
+# CK=20  # V2E, single frequency
 FRC=21 
+# CK=23  #V2E, ionospheric measurements available
 
 MIN_TRACK_LENGTH=750
 DSG_MAX=20.0
-IONO_CORR=1 # this means the ionospheric correction is removed!
 ELV_MASK=0.0
+
+NO_WEIGHT = 1
+ELV_WEIGHT = 2
 
 USE_GPSCV = 1
 USE_AIV = 2
@@ -105,7 +111,7 @@ def Debug(msg):
 # ------------------------------------------
 def Warn(msg):
 	if (not args.nowarn):
-		sys.stderr.write(msg+'\n')
+		sys.stderr.write('WARNING! '+ msg+'\n')
 	return
 
 # ------------------------------------------
@@ -116,7 +122,7 @@ def Info(msg):
 
 # ------------------------------------------
 def SetDataColumns(ver,isdf):
-	global PRN,MJD,STTIME,ELV,AZTH,REFSV,REFSYS,IOE,MDTR,MDIO,MSIO,FRC
+	global PRN,MJD,STTIME,ELV,AZTH,REFSV,REFSYS,IOE,MDTR,MDIO,MSIO,FRC,CK
 	if (CGGTTS_RAW == ver): # CL field is empty
 		PRN=0
 		MJD=1
@@ -131,17 +137,24 @@ def SetDataColumns(ver,isdf):
 		MSIO=10
 		FRC=11
 	elif (CGGTTS_V1 == ver):
-		pass
+		if (isdf):
+			CK = 20
+		else:
+			CK = 17
 	elif (CGGTTS_V2 == ver):
 		if (isdf):
 			FRC=22
-		else:
-			FRC=20 
-	elif (CGGTTS_V2E == ver):
-		if (isdf):
-			FRC=21
+			CK =23
 		else:
 			FRC=19
+			CK =20
+	elif (CGGTTS_V2E == ver):
+		if (isdf):
+			FRC = 22
+			CK  = 23
+		else:
+			FRC= 19
+			CK = 20
 
 # ------------------------------------------
 def ReadCGGTTSHeader(fin,fname):
@@ -149,11 +162,14 @@ def ReadCGGTTSHeader(fin,fname):
 	intdly=''
 	cabdly=''
 	antdly=''
+	checksumStart=0 # workaround for R2CGGTTS output
 	
 	# Read the header
 	header={}
+	hdr=''; # accumulate header for checksumming
 	lineCount=0
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.search('DATA FORMAT VERSION\s+=\s+(01|02|2E)',l)
 	if (match):
@@ -167,6 +183,7 @@ def ReadCGGTTSHeader(fin,fname):
 	
 	if not(header['version'] == 'RAW'):
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('REV DATE') >= 0):
 			(tag,val) = l.split('=')
@@ -176,14 +193,20 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 		
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('RCVR') >= 0):
 			header['rcvr'] = l
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-			
+			print l
+			match = re.search('R2CGGTTS\s+v(\d+)\.(\d+)',l)
+			if (match):
+				majorVer=int(match.group(1))
+				minorVer=int(match.group(2))
+				if ( (majorVer == 8 and minorVer <=1) ):
+					checksumStart = 1
+					Debug('Fixing checksum for R2CGGTTS v'+str(majorVer)+'.'+str(minorVer))
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('CH') >= 0):
 			header['ch'] = l
@@ -192,6 +215,7 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 			
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('IMS') >= 0):
 			header['ims'] = l
@@ -200,6 +224,7 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 		
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	if (l.find('LAB') == 0):
 		header['lab'] = l
@@ -208,6 +233,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}	
 	
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.match('X\s+=\s+(.+)\s+m',l)
 	if (match):
@@ -217,6 +243,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}
 	
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.match('Y\s+=\s+(.+)\s+m',l)
 	if (match):
@@ -226,6 +253,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}
 		
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.match('Z\s+=\s+(.+)\s+m',l)
 	if (match):
@@ -235,6 +263,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}
 		
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	if (l.find('FRAME') == 0):
 		header['frame'] = l
@@ -245,6 +274,7 @@ def ReadCGGTTSHeader(fin,fname):
 	comments = ''
 	while True:
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if not l:
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
@@ -268,6 +298,7 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 		
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
@@ -279,6 +310,7 @@ def ReadCGGTTSHeader(fin,fname):
 		
 		
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
@@ -303,6 +335,7 @@ def ReadCGGTTSHeader(fin,fname):
 			header['sys dly'] = dly.strip()
 			
 			l = fin.readline().rstrip()
+			hdr += l
 			lineCount = lineCount +1
 			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
@@ -317,6 +350,7 @@ def ReadCGGTTSHeader(fin,fname):
 			header['int dly'] = dly.strip()
 			
 			l = fin.readline().rstrip()
+			hdr += l
 			lineCount = lineCount +1
 			match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
@@ -326,6 +360,7 @@ def ReadCGGTTSHeader(fin,fname):
 				return {}
 			
 			l = fin.readline().rstrip()
+			hdr += l
 			lineCount = lineCount +1
 			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
@@ -335,10 +370,27 @@ def ReadCGGTTSHeader(fin,fname):
 				return {}
 	if not (header['version'] == 'RAW'):
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('REF') == 0):
 			(tag,val) = l.split('=')
 			header['ref'] = val.strip()
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
+		
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if (l.find('CKSUM') == 0):
+			hdr += 'CKSUM = '
+			(tag,val) = l.split('=')
+			cksum = int(val,16)
+			if (not(CheckSum(hdr[checksumStart:]) == cksum)):
+				if (enforceChecksum):
+					sys.stderr.write('Bad checksum in header of ' + fname + '\n')
+					exit()
+				else:
+					Warn('Bad checksum in header of ' + fname)
 		else:
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return {}
@@ -380,7 +432,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		header['version']='V1'
 	elif (header['version'] == '02'):	
 		Debug('V02')
-		ver=CGGTTS_V1
+		ver=CGGTTS_V2
 		header['version']='V02'
 	elif (header['version'] == '2E'):
 		Debug('V2E')
@@ -411,7 +463,23 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		header['dual frequency'] = 'yes' # A convenient bodge. Sorry Mum.
 	else:
 		header['dual frequency'] = 'no'
-		
+	
+	if (ver == CGGTTS_V1):
+		if (dualFrequency):
+			cksumend=115
+		else:
+			cksumend=101
+	elif (ver == CGGTTS_V2):
+		if (dualFrequency):
+			cksumend=125
+		else:
+			cksumend=111
+	elif (ver ==CGGTTS_V2E):
+		if (dualFrequency):
+			cksumend=125
+		else:
+			cksumend=111
+			
 	nextday =0
 	stats=[]
 	
@@ -420,10 +488,21 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 	nShortTracks=0
 	nBadSRSV=0
 	nBadMSIO =0
+	 
+	
+	
 	while True:
 		l = fin.readline().rstrip()
 		if l:
 			fields = l.split()
+			cksum = int(fields[CK],16)
+			#print CK,fields[CK],cksum,CheckSum(l[:cksumend])
+			if (not(cksum == (CheckSum(l[:cksumend])))):
+				if (enforceChecksum):
+					sys.stderr.write('Bad checksum in data of ' + fname + '\n')
+					exit()
+				else:
+					Warn('Bad checksum in data of ' + fname )
 			theMJD = int(fields[MJD])
 			hh = int(fields[STTIME][0:2])
 			mm = int(fields[STTIME][2:4])
@@ -485,7 +564,7 @@ def CheckSum(l):
 	cksum = 0
 	for c in l:
 		cksum = cksum + ord(c)
-	return cksum % 256
+	return int(cksum % 256)
 
 # ------------------------------------------
 def GetDelay(headers,delayName):
@@ -557,6 +636,8 @@ acceptDelays=False
 matchEphemeris=False
 refIonosphere=MODELED_IONOSPHERE
 calIonosphere=MODELED_IONOSPHERE
+weighting=NO_WEIGHT
+enforceChecksum=False
 
 startTime=0 # in seconds
 stopTime=86399
@@ -587,7 +668,9 @@ parser.add_argument('--stoptime',help='stop time of day HH:MM:SS for last MJD (d
 parser.add_argument('--elevationmask',help='elevation mask (in degrees, default '+str(elevationMask)+')')
 parser.add_argument('--mintracklength',help='minimum track length (in s, default '+str(minTrackLength)+')')
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
-parser.add_argument('--matchephemeris',help='match on ephemeris (default no)',action='store_true')
+parser.add_argument('--matchephemeris',help='match on ephemeris [CV only] (default no)',action='store_true')
+
+# parser.add_argument('--weighting', type=str,help='weighting of tracks (default=none)')
 
 # analysis mode
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
@@ -597,6 +680,8 @@ parser.add_argument('--acceptdelays',help='accept the delays (no prompts in dela
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
+
+parser.add_argument('--checksum',help='exit on bad checksum (default is to warn only)',action='store_true')
 
 parser.add_argument('--refprefix',help='file prefix for reference receiver (default = MJD)')
 parser.add_argument('--calprefix',help='file prefix for calibration receiver (default = MJD)')
@@ -657,6 +742,13 @@ if (args.matchephemeris):
 if (args.mintracklength):
 	minTrackLength = args.mintracklength
 
+#if (args.weighting):
+	#args.weighting = args.weighting.lower()
+	#if (args.weighting == 'none'):
+		#weighting = NO_WEIGHT
+	#elif (args.weighting == 'elevation'):
+	#	weighting = ELV_WEIGHT
+		
 if (args.cv):
 	cmpMethod = USE_GPSCV
 
@@ -677,6 +769,9 @@ if (args.delaycal):
 if (args.timetransfer):
 	mode = MODE_TT
 
+if (args.checksum):
+	enforceChecksum = True
+	
 firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
 
@@ -686,6 +781,10 @@ if (not args.quiet):
 	print 'Elevation mask = ',elevationMask,'deg'
 	print 'Minimum track length =',minTrackLength,'s'
 	print 'Maximum DSG =', maxDSG,'ns'
+	if (weighting == NO_WEIGHT):
+		print 'Weighting = none'
+	elif (weighting == ELV_WEIGHT):
+		print 'Weighting = elevation'
 	print 
 	
 allref=[] 
@@ -878,13 +977,13 @@ if (cmpMethod == USE_GPSCV):
 						nEphemerisMisMatches += 1
 						break
 					fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
-					tMatch.append(mjd1-firstMJD+st1/86400.0)
+					tMatch.append(mjd1-firstMJD+st1/86400.0)  #used in the linear fit
 					delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
 						allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
 					refMatch.append(allref[iref][REFSYS])
 					calMatch.append(allcal[jtmp][REFSYS])
-					deltaMatch.append(delta)
-					matches.append(allref[iref]+allcal[jtmp])
+					deltaMatch.append(delta) # used in the linear fit
+					matches.append(allref[iref]+allcal[jtmp]) # 'matches' contains the whole record
 					break
 				else:
 					break
@@ -896,7 +995,9 @@ if (cmpMethod == USE_GPSCV):
 	Info(str(len(matches))+' matched tracks')
 	if (matchEphemeris):
 		Info(str(nEphemerisMisMatches) + ' mismatched ephemerides')
-		
+	
+	# Calculate the average clock difference at each track time for plotting etc.
+	# These differences are not used for the linear fit	
 	ncols = 13
 	lenmatch=len(matches)
 	mjd1=matches[0][MJD]
