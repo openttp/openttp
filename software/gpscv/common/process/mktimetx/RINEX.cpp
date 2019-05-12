@@ -202,14 +202,24 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	}
 	
 	// Find the first observation
-	
+	// There is a problem here because we log in UTC time: GPS day starts N leapsceonds before UTC day
+	// so the nominal first observation of the GPS day is in the previous file.
 	int obsTime=0;
 	int currMeas=0;
+	int yday=-1; // to track day rollovers
+	int nDayRollovers=0;
 	while (currMeas < 86400 && obsTime <= 86400){
 		if (mpairs[currMeas]->flags==0x03){
 			ReceiverMeasurement *rm = mpairs[currMeas]->rm;
+			if (yday==-1){
+				yday=rm->tmGPS.tm_yday;
+			}
+			if (rm->tmGPS.tm_yday != yday){
+				nDayRollovers++;
+				yday = rm->tmGPS.tm_yday;
+			}
 			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
-			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
+			int tMeas= nDayRollovers*86400 + (int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
 			if (tMeas==obsTime){
 				std::fprintf(fout,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
 					rm->tmGPS.tm_year+1900,rm->tmGPS.tm_mon+1,rm->tmGPS.tm_mday,rm->tmGPS.tm_hour,rm->tmGPS.tm_min,
@@ -225,19 +235,28 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 		else
 			currMeas++;
 	}
+	
 	std::fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS");
 	std::fprintf(fout,"%60s%-20s\n","","END OF HEADER");
 	
 	obsTime=0;
 	currMeas=0;
+	yday=-1; 
+	nDayRollovers=0;
 	while (currMeas < 86400 && obsTime <= 86400){
 		if (mpairs[currMeas]->flags==0x03){
 			ReceiverMeasurement *rm = mpairs[currMeas]->rm;
-			
+			if (yday==-1){
+				yday=rm->tmGPS.tm_yday;
+			}
+			if (rm->tmGPS.tm_yday != yday){
+				nDayRollovers++;
+				yday = rm->tmGPS.tm_yday;
+			}
 			double ppsTime = useTIC*(rm->cm->rdg+rm->sawtooth - rx->ppsOffset*1.0E-9); // correction to the local clock
 			
 			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
-			int tMeas=(int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
+			int tMeas= nDayRollovers*86400 + (int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
 			if (tMeas==obsTime){
 				
 				// determine all space vehicle identifiers, noting that we may not have all measurements for all observation types
