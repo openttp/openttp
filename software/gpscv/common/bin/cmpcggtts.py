@@ -41,7 +41,7 @@ import os
 import re
 import sys
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -197,7 +197,6 @@ def ReadCGGTTSHeader(fin,fname):
 		lineCount = lineCount +1
 		if (l.find('RCVR') >= 0):
 			header['rcvr'] = l
-			print l
 			match = re.search('R2CGGTTS\s+v(\d+)\.(\d+)',l)
 			if (match):
 				majorVer=int(match.group(1))
@@ -308,7 +307,6 @@ def ReadCGGTTSHeader(fin,fname):
 			print l
 			return {}
 		
-		
 		l = fin.readline().rstrip()
 		hdr += l
 		lineCount = lineCount +1
@@ -347,8 +345,18 @@ def ReadCGGTTSHeader(fin,fname):
 		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
 		
 			(dlyname,dly) = l.split('=',1)
-			header['int dly'] = dly.strip()
 			
+			match = re.search('(\d+\.?\d?)\sns\s\(\w+\s(\w+)\)(,\s*(\d+\.?\d?)\sns\s\(\w+\s(\w+)\))?',dly)
+			if (match):
+				header['int dly'] = match.group(1)
+				header['int dly code'] = match.group(2) # non-standard but convenient
+				if (not(match.group(5) == None) and not (match.group(5) == None)):
+					header['int dly 2'] = match.group(4) 
+					header['int dly code 2'] = match.group(5) 
+			else:
+				Warn('Invalid format in {} line {}'.format(fname,lineCount))
+				return {}
+				
 			l = fin.readline().rstrip()
 			hdr += l
 			lineCount = lineCount +1
@@ -572,6 +580,7 @@ def GetDelay(headers,delayName):
 		if (delayName in h):
 			if (delayName == 'tot dly'):
 				return True,0.0
+			#print h[delayName]
 			return True,float(h[delayName])
 	return False,0.0
 
@@ -790,7 +799,7 @@ if (not args.quiet):
 allref=[] 
 allcal=[]
 
-refHeaders=[]
+refHeaders=[] # list of dictionaries
 for mjd in range(firstMJD,lastMJD+1):
 	if (mjd == firstMJD):
 			 startT = startTime
@@ -839,6 +848,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 	# INT DLY + CAB DLY + REF DLY
 	# Warning! Delays are assumed not to change
 	
+	print
 	print 'REF/HOST receiver'
 	ok,totDelay = GetDelay(refHeaders,'tot dly')
 	if ok:
@@ -856,8 +866,12 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			Info('Reported SYS DLY={} REF DLY={}'.format(newSysDelay,newRefDelay))
 		else:
 			# header tested so need to check further
-			ok,intDelay = GetDelay(refHeaders,'int dly') 
-			newIntDelay = GetFloat('New INT DLY [{} ns]: '.format(intDelay),intDelay)
+			
+			dlyCode = ''
+			if ('int dly code' in refHeaders[0]):
+				dlyCode=refHeaders[0]['int dly code']
+			ok,intDelay = GetDelay(refHeaders,'int dly')
+			newIntDelay = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode,intDelay),intDelay)
 			
 			ok,cabDelay = GetDelay(refHeaders,'cab dly') 
 			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
@@ -871,6 +885,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			
 	Info('Delay delta = {}'.format(refCorrection))	
 	
+	print
 	print 'CAL/TRAV receiver'
 	ok,totDelay = GetDelay(calHeaders,'tot dly')
 	if ok:
@@ -888,9 +903,23 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			Info('Reported SYS DLY={} REF DLY={}'.format(newSysDelay,newRefDelay))
 		else:
 			# header tested so need to check further
+			# Single frequency
+			dlyCode = ''
+			if ('int dly code' in calHeaders[0]):
+				dlyCode=calHeaders[0]['int dly code']
+				
 			ok,intDelay = GetDelay(calHeaders,'int dly') 
-			newIntDelay = GetFloat('New INT DLY [{} ns]: '.format(intDelay),intDelay)
+			newIntDelay = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode,intDelay),intDelay)
 			
+			# Dual frequency
+			if ('int dly 2' in calHeaders[0]):
+				dlyCode2 = ''
+				if ('int dly code 2' in calHeaders[0]):
+					dlyCode2=calHeaders[0]['int dly code 2']
+				ok,intDelay2 = GetDelay(calHeaders,'int dly 2') 
+				newIntDelay2 = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode2,intDelay2),intDelay2)
+				print 'WARNING! P3 delay changes will not be used!'
+				
 			ok,cabDelay = GetDelay(calHeaders,'cab dly') 
 			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
 			
