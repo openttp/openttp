@@ -41,7 +41,7 @@ import os
 import re
 import sys
 
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -96,11 +96,6 @@ MEASURED_IONOSPHERE=2
 MODE_TT=1 # default
 MODE_DELAY_CAL=2
 
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0]),' ',VERSION
-	print 'Written by',AUTHORS
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -345,8 +340,8 @@ def ReadCGGTTSHeader(fin,fname):
 		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
 		
 			(dlyname,dly) = l.split('=',1)
-			
-			match = re.search('(\d+\.?\d?)\sns\s\(\w+\s(\w+)\)(,\s*(\d+\.?\d?)\sns\s\(\w+\s(\w+)\))?',dly)
+			# extra spaces in constellation and code for r2cggtts
+			match = re.search('(\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*(\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
 			if (match):
 				header['int dly'] = match.group(1)
 				header['int dly code'] = match.group(2) # non-standard but convenient
@@ -533,11 +528,11 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 				nShortTracks +=1
 				reject = True
 			if (not(CGGTTS_RAW == ver)):
-				if (int(fields[SRSV]) == 99999):
+				if (fields[SRSV] == '99999' or fields[SRSV]=='*****'):
 					nBadSRSV +=1
 					reject=True
 				if (dualFrequency):
-					if (int(fields[MSIO]) == 9999):
+					if (fields[MSIO] == '9999' or fields[MSIO] == '****'):
 						nBadMSIO +=1
 						reject=True
 			if (reject):
@@ -701,15 +696,11 @@ parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
 parser.add_argument('--quiet',help='suppress all output to the terminal',action='store_true')
 parser.add_argument('--keepall',help='keep tracks after the end of the day',action='store_true')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS);
 
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 if (args.starttime):
 	match = re.search('(\d+):(\d+):(\d+)',args.starttime)
@@ -1125,7 +1116,8 @@ if (MODE_DELAY_CAL==mode ):
 		print '  at midpoint {} ns'.format(meanOffset)
 		print '  median  {} ns'.format(np.median(deltaMatch))
 		print '  mean {} ns'.format(np.mean(deltaMatch))
-		print 'slope {} ps/day SD {} ps/day'.format(p[0]*1000,slopeErr*1000)
+		print '  std. dev {} ns'.format(np.std(deltaMatch))
+		print 'slope {} ps/day +/- {} ps/day'.format(p[0]*1000,slopeErr*1000)
 		print 'RMS of residuals {} ns'.format(rmsResidual)
 		
 	f,(ax1,ax2,ax3)= plt.subplots(3,sharex=True,figsize=(8,11))
