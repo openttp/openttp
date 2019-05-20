@@ -39,7 +39,7 @@ import re
 import sys
 import time
 
-VERSION = "0.1"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
 
 BEIDOU='C'
@@ -50,17 +50,12 @@ GPS='G'
 CLIGHT = 299792458.0
 
 # ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
-	return
-
-# ------------------------------------------
 def Debug(msg):
 	if (debug):
 		sys.stderr.write(msg+'\n')
 	return
 
+# ------------------------------------------
 def ParseRINEXFileName(fname):
 	ver = 0
 	p = os.path.dirname(fname)
@@ -115,7 +110,9 @@ def FixAmbiguity(meas,refmeas,gnss,obsType):
 # Main
 
 
-parser = argparse.ArgumentParser(description='Edit a RINEX observation file')
+parser = argparse.ArgumentParser(description='Edit a RINEX observation file',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
+
 parser.add_argument('infile',nargs='+',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 group = parser.add_mutually_exclusive_group()
@@ -126,16 +123,11 @@ parser.add_argument('--obstype',help='observation type (C2I,L2I,...)')
 parser.add_argument('--fixms',help='fix ms ambiguities (ref RINEX file required)',action='store_true')
 parser.add_argument('--sequence','-s',help='interpret input files as a sequence',action='store_true')
 parser.add_argument('--refrinex',help='reference RINEX file for fixing ms ambiguities (name of first file if multiple input files are specified)')
-parser.add_argument('--version','-v',help='show version and exit',)
-
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 fixms = False
 if (args.fixms):

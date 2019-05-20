@@ -42,14 +42,8 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
-
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
-	return
 
 # ------------------------------------------
 def ErrorExit(msg):
@@ -77,14 +71,13 @@ home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
 logger = os.path.join(home,'bin','ticclog.py')
 
-parser = argparse.ArgumentParser(description='Output a header for a TIC log file')
-parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
-args = parser.parse_args()
+parser = argparse.ArgumentParser(description='Output a header for a TIC log file',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
 
-if (args.version):
-	ShowVersion()
-	exit()
+parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
+
+args = parser.parse_args()
 
 configFile = args.config;
 

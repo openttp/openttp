@@ -35,14 +35,9 @@ import argparse
 import os
 import sys
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 AUTHORS = "Michael Wouters"
 
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -53,7 +48,11 @@ def Debug(msg):
 # ------------------------------------------
 # Main
 
-parser = argparse.ArgumentParser(description='Edit a RINEX navigation file')
+parser = argparse.ArgumentParser(description='')
+
+parser = argparse.ArgumentParser(description='Edit a RINEX navigation file',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
+
 parser.add_argument('infile',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 group = parser.add_mutually_exclusive_group()
@@ -63,15 +62,11 @@ parser.add_argument('--ura','-u',help='remove entries with URA greater than this
 parser.add_argument('--leap','-l',help='add the leap second information from another navigation file',default='')
 parser.add_argument('--ionosphere','-i',help='add the ionosphere information from another navigation file',default='')
 parser.add_argument('--timesys','-t',help='add the time system information from another navigation file',default='')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 finName = args.infile
 foutName = finName + '.tmp'

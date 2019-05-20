@@ -46,7 +46,7 @@ import time
 
 import ottplib
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -68,11 +68,6 @@ def SignalHandler(signal,frame):
 	killed=True
 	return
 
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0]),'version',VERSION
-	print "Written by",AUTHORS
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -109,18 +104,18 @@ tic_mode = TIC_MODE_TS
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
 
-parser = argparse.ArgumentParser(description='Log a TAPR TICC in TI mode')
+parser = argparse.ArgumentParser(description='Log a TAPR TICC in TI mode',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
+
+
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
 parser.add_argument('--settings','-s',help='show settings',action='store_true')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
+
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 configFile = args.config;
 

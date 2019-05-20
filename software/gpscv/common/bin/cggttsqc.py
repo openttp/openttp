@@ -32,14 +32,8 @@ import os
 import re
 import sys
 
-VERSION = "0.1"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
-
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0]),' ',VERSION
-	print 'Written by',AUTHORS
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -353,7 +347,9 @@ def PrettyPrintStats(fname,stats):
 Plain = 0
 BIPM  = 1
 
-parser = argparse.ArgumentParser(description='Quality check CGGTTS files')
+parser = argparse.ArgumentParser(description='Quality check CGGTTS files',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
+
 parser.add_argument('infile',nargs='+',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
@@ -362,15 +358,11 @@ parser.add_argument('--elevation',help='lowerlimit for elevation, in degrees',de
 parser.add_argument('--tracklength',help='lower limit for track length, in s',default=780)
 parser.add_argument('--checkheader',help='check for header changes',action='store_true')
 parser.add_argument('--sequence','-s',help='interpret input files as a sequence',action='store_true')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS);
 
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 minElevation = int(args.elevation) * 10 # in units of 0.1 ns
 minTrackLength = int(args.tracklength)

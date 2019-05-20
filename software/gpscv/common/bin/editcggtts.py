@@ -38,14 +38,8 @@ import os
 import re
 import sys
 
-VERSION = "0.1"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
-
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0]),' ',VERSION
-	print 'Written by',AUTHORS
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -273,7 +267,9 @@ def Warn(msg):
 		sys.stderr.write(msg+'\n')
 	return
 
-parser = argparse.ArgumentParser(description='Edit CGGTTS files')
+parser = argparse.ArgumentParser(description='Edit CGGTTS files',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
+
 parser.add_argument('infile',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--cabdly',help='set cable delay')
@@ -281,15 +277,11 @@ parser.add_argument('--intdly',help='set internal delay')
 parser.add_argument('--refdly',help='set reference delay')
 parser.add_argument('--system',help='GNSS system')
 parser.add_argument('--code',help='observation code')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 	
 hdr = ReadHeader(args.infile)
 

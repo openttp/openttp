@@ -39,7 +39,7 @@ import urllib2
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 AUTHORS = "Michael Wouters"
 
 BEIDOU='C'
@@ -48,11 +48,6 @@ GLONASS='R'
 GPS='G'
 MIXED='M'
 
-# ---------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0]),' ',VERSION
-	print 'Written by',AUTHORS
-	return
 
 # ------------------------------------------
 def ErrorExit(msg):
@@ -134,7 +129,8 @@ def FetchFile(url,destination):
 home =os.environ['HOME'] + '/';
 configFile = os.path.join(home,'etc/fetchigs.conf');
 
-parser = argparse.ArgumentParser(description='Fetches IGS data products')
+parser = argparse.ArgumentParser(description='Fetch IGS products',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
 
 parser.add_argument('start',nargs='?',help='start (MJD/yyyy-doy/yyyy-mm-dd, default = today)',type=str)
 parser.add_argument('stop',nargs='?',help='stop (MJD/yyyy-doy/yyyy-mm-dd, default = start)',type=str)
@@ -160,13 +156,9 @@ parser.add_argument('--rinexversion',help='rinex version of station observation'
 parser.add_argument('--system',help='gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED')
 parser.add_argument('--noproxy',help='disable use of proxy server',action='store_true')
 parser.add_argument('--proxy',help='set the proxy server (server:port)',type=str)
-parser.add_argument('--version','-v',help='show version and exit',)
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
-
-if (args.version):
-	ShowVersion()
-	sys.exit(0)
 
 debug = args.debug
 
