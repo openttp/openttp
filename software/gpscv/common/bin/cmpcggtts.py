@@ -31,6 +31,7 @@
 # 
 # cmpcggtts.py --debug --refext gps.C1.30s.dat --calext gps.C1.30s.dat  ./ ../ottp1 58418 58419
 #
+# 
 
 import argparse
 from datetime import datetime
@@ -40,7 +41,7 @@ import os
 import re
 import sys
 
-VERSION = "0.2"
+VERSION = "0.2.3"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -69,16 +70,21 @@ MDTR=13
 SMDT=14
 MDIO=15
 SMDI=16
-#CK=17 # for V1, single frequency
+# CK=17 # for V1, single frequency
 MSIO=17
 SMSI=18 
 ISG=19 # only for dual frequency
+# CK=20  # V1, dual freqeuncy
+# CK=20  # V2E, single frequency
 FRC=21 
+# CK=23  #V2E, ionospheric measurements available
 
 MIN_TRACK_LENGTH=750
 DSG_MAX=20.0
-IONO_CORR=1 # this means the ionospheric correction is removed!
 ELV_MASK=0.0
+
+NO_WEIGHT = 1
+ELV_WEIGHT = 2
 
 USE_GPSCV = 1
 USE_AIV = 2
@@ -90,11 +96,6 @@ MEASURED_IONOSPHERE=2
 MODE_TT=1 # default
 MODE_DELAY_CAL=2
 
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0]),' ',VERSION
-	print 'Written by',AUTHORS
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -105,7 +106,7 @@ def Debug(msg):
 # ------------------------------------------
 def Warn(msg):
 	if (not args.nowarn):
-		sys.stderr.write(msg+'\n')
+		sys.stderr.write('WARNING! '+ msg+'\n')
 	return
 
 # ------------------------------------------
@@ -116,7 +117,7 @@ def Info(msg):
 
 # ------------------------------------------
 def SetDataColumns(ver,isdf):
-	global PRN,MJD,STTIME,ELV,AZTH,REFSV,REFSYS,IOE,MDTR,MDIO,MSIO,FRC
+	global PRN,MJD,STTIME,ELV,AZTH,REFSV,REFSYS,IOE,MDTR,MDIO,MSIO,FRC,CK
 	if (CGGTTS_RAW == ver): # CL field is empty
 		PRN=0
 		MJD=1
@@ -131,17 +132,24 @@ def SetDataColumns(ver,isdf):
 		MSIO=10
 		FRC=11
 	elif (CGGTTS_V1 == ver):
-		pass
+		if (isdf):
+			CK = 20
+		else:
+			CK = 17
 	elif (CGGTTS_V2 == ver):
 		if (isdf):
 			FRC=22
-		else:
-			FRC=20 
-	elif (CGGTTS_V2E == ver):
-		if (isdf):
-			FRC=21
+			CK =23
 		else:
 			FRC=19
+			CK =20
+	elif (CGGTTS_V2E == ver):
+		if (isdf):
+			FRC = 22
+			CK  = 23
+		else:
+			FRC= 19
+			CK = 20
 
 # ------------------------------------------
 def ReadCGGTTSHeader(fin,fname):
@@ -149,11 +157,14 @@ def ReadCGGTTSHeader(fin,fname):
 	intdly=''
 	cabdly=''
 	antdly=''
+	checksumStart=0 # workaround for R2CGGTTS output
 	
 	# Read the header
 	header={}
+	hdr=''; # accumulate header for checksumming
 	lineCount=0
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.search('DATA FORMAT VERSION\s+=\s+(01|02|2E)',l)
 	if (match):
@@ -167,6 +178,7 @@ def ReadCGGTTSHeader(fin,fname):
 	
 	if not(header['version'] == 'RAW'):
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('REV DATE') >= 0):
 			(tag,val) = l.split('=')
@@ -176,14 +188,19 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 		
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('RCVR') >= 0):
 			header['rcvr'] = l
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-			
+			match = re.search('R2CGGTTS\s+v(\d+)\.(\d+)',l)
+			if (match):
+				majorVer=int(match.group(1))
+				minorVer=int(match.group(2))
+				if ( (majorVer == 8 and minorVer <=1) ):
+					checksumStart = 1
+					Debug('Fixing checksum for R2CGGTTS v'+str(majorVer)+'.'+str(minorVer))
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('CH') >= 0):
 			header['ch'] = l
@@ -192,6 +209,7 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 			
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('IMS') >= 0):
 			header['ims'] = l
@@ -200,6 +218,7 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 		
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	if (l.find('LAB') == 0):
 		header['lab'] = l
@@ -208,6 +227,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}	
 	
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.match('X\s+=\s+(.+)\s+m',l)
 	if (match):
@@ -217,6 +237,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}
 	
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.match('Y\s+=\s+(.+)\s+m',l)
 	if (match):
@@ -226,6 +247,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}
 		
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	match = re.match('Z\s+=\s+(.+)\s+m',l)
 	if (match):
@@ -235,6 +257,7 @@ def ReadCGGTTSHeader(fin,fname):
 		return {}
 		
 	l = fin.readline().rstrip()
+	hdr += l
 	lineCount = lineCount +1
 	if (l.find('FRAME') == 0):
 		header['frame'] = l
@@ -245,6 +268,7 @@ def ReadCGGTTSHeader(fin,fname):
 	comments = ''
 	while True:
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if not l:
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
@@ -268,6 +292,7 @@ def ReadCGGTTSHeader(fin,fname):
 			return {}
 		
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
@@ -277,8 +302,8 @@ def ReadCGGTTSHeader(fin,fname):
 			print l
 			return {}
 		
-		
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
@@ -303,6 +328,7 @@ def ReadCGGTTSHeader(fin,fname):
 			header['sys dly'] = dly.strip()
 			
 			l = fin.readline().rstrip()
+			hdr += l
 			lineCount = lineCount +1
 			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
@@ -314,9 +340,20 @@ def ReadCGGTTSHeader(fin,fname):
 		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
 		
 			(dlyname,dly) = l.split('=',1)
-			header['int dly'] = dly.strip()
-			
+			# extra spaces in constellation and code for r2cggtts
+			match = re.search('(\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*(\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
+			if (match):
+				header['int dly'] = match.group(1)
+				header['int dly code'] = match.group(2) # non-standard but convenient
+				if (not(match.group(5) == None) and not (match.group(5) == None)):
+					header['int dly 2'] = match.group(4) 
+					header['int dly code 2'] = match.group(5) 
+			else:
+				Warn('Invalid format in {} line {}'.format(fname,lineCount))
+				return {}
+				
 			l = fin.readline().rstrip()
+			hdr += l
 			lineCount = lineCount +1
 			match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
@@ -326,6 +363,7 @@ def ReadCGGTTSHeader(fin,fname):
 				return {}
 			
 			l = fin.readline().rstrip()
+			hdr += l
 			lineCount = lineCount +1
 			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
@@ -335,10 +373,27 @@ def ReadCGGTTSHeader(fin,fname):
 				return {}
 	if not (header['version'] == 'RAW'):
 		l = fin.readline().rstrip()
+		hdr += l
 		lineCount = lineCount +1
 		if (l.find('REF') == 0):
 			(tag,val) = l.split('=')
 			header['ref'] = val.strip()
+		else:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return {}
+		
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if (l.find('CKSUM') == 0):
+			hdr += 'CKSUM = '
+			(tag,val) = l.split('=')
+			cksum = int(val,16)
+			if (not(CheckSum(hdr[checksumStart:]) == cksum)):
+				if (enforceChecksum):
+					sys.stderr.write('Bad checksum in header of ' + fname + '\n')
+					exit()
+				else:
+					Warn('Bad checksum in header of ' + fname)
 		else:
 			Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return {}
@@ -380,7 +435,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		header['version']='V1'
 	elif (header['version'] == '02'):	
 		Debug('V02')
-		ver=CGGTTS_V1
+		ver=CGGTTS_V2
 		header['version']='V02'
 	elif (header['version'] == '2E'):
 		Debug('V2E')
@@ -411,7 +466,23 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		header['dual frequency'] = 'yes' # A convenient bodge. Sorry Mum.
 	else:
 		header['dual frequency'] = 'no'
-		
+	
+	if (ver == CGGTTS_V1):
+		if (dualFrequency):
+			cksumend=115
+		else:
+			cksumend=101
+	elif (ver == CGGTTS_V2):
+		if (dualFrequency):
+			cksumend=125
+		else:
+			cksumend=111
+	elif (ver ==CGGTTS_V2E):
+		if (dualFrequency):
+			cksumend=125
+		else:
+			cksumend=111
+			
 	nextday =0
 	stats=[]
 	
@@ -420,10 +491,21 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 	nShortTracks=0
 	nBadSRSV=0
 	nBadMSIO =0
+	 
+	
+	
 	while True:
 		l = fin.readline().rstrip()
 		if l:
 			fields = l.split()
+			cksum = int(fields[CK],16)
+			#print CK,fields[CK],cksum,CheckSum(l[:cksumend])
+			if (not(cksum == (CheckSum(l[:cksumend])))):
+				if (enforceChecksum):
+					sys.stderr.write('Bad checksum in data of ' + fname + '\n')
+					exit()
+				else:
+					Warn('Bad checksum in data of ' + fname )
 			theMJD = int(fields[MJD])
 			hh = int(fields[STTIME][0:2])
 			mm = int(fields[STTIME][2:4])
@@ -446,11 +528,11 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 				nShortTracks +=1
 				reject = True
 			if (not(CGGTTS_RAW == ver)):
-				if (int(fields[SRSV]) == 99999):
+				if (fields[SRSV] == '99999' or fields[SRSV]=='*****'):
 					nBadSRSV +=1
 					reject=True
 				if (dualFrequency):
-					if (int(fields[MSIO]) == 9999):
+					if (fields[MSIO] == '9999' or fields[MSIO] == '****'):
 						nBadMSIO +=1
 						reject=True
 			if (reject):
@@ -485,7 +567,7 @@ def CheckSum(l):
 	cksum = 0
 	for c in l:
 		cksum = cksum + ord(c)
-	return cksum % 256
+	return int(cksum % 256)
 
 # ------------------------------------------
 def GetDelay(headers,delayName):
@@ -493,6 +575,7 @@ def GetDelay(headers,delayName):
 		if (delayName in h):
 			if (delayName == 'tot dly'):
 				return True,0.0
+			#print h[delayName]
 			return True,float(h[delayName])
 	return False,0.0
 
@@ -557,6 +640,8 @@ acceptDelays=False
 matchEphemeris=False
 refIonosphere=MODELED_IONOSPHERE
 calIonosphere=MODELED_IONOSPHERE
+weighting=NO_WEIGHT
+enforceChecksum=False
 
 startTime=0 # in seconds
 stopTime=86399
@@ -587,7 +672,9 @@ parser.add_argument('--stoptime',help='stop time of day HH:MM:SS for last MJD (d
 parser.add_argument('--elevationmask',help='elevation mask (in degrees, default '+str(elevationMask)+')')
 parser.add_argument('--mintracklength',help='minimum track length (in s, default '+str(minTrackLength)+')')
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
-parser.add_argument('--matchephemeris',help='match on ephemeris (default no)',action='store_true')
+parser.add_argument('--matchephemeris',help='match on ephemeris [CV only] (default no)',action='store_true')
+
+# parser.add_argument('--weighting', type=str,help='weighting of tracks (default=none)')
 
 # analysis mode
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
@@ -598,6 +685,8 @@ parser.add_argument('--delaycal',help='delay calibration mode',action='store_tru
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
 
+parser.add_argument('--checksum',help='exit on bad checksum (default is to warn only)',action='store_true')
+
 parser.add_argument('--refprefix',help='file prefix for reference receiver (default = MJD)')
 parser.add_argument('--calprefix',help='file prefix for calibration receiver (default = MJD)')
 parser.add_argument('--refext',help='file extension for reference receiver (default = cctf)')
@@ -607,15 +696,11 @@ parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
 parser.add_argument('--quiet',help='suppress all output to the terminal',action='store_true')
 parser.add_argument('--keepall',help='keep tracks after the end of the day',action='store_true')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS);
 
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 if (args.starttime):
 	match = re.search('(\d+):(\d+):(\d+)',args.starttime)
@@ -657,6 +742,13 @@ if (args.matchephemeris):
 if (args.mintracklength):
 	minTrackLength = args.mintracklength
 
+#if (args.weighting):
+	#args.weighting = args.weighting.lower()
+	#if (args.weighting == 'none'):
+		#weighting = NO_WEIGHT
+	#elif (args.weighting == 'elevation'):
+	#	weighting = ELV_WEIGHT
+		
 if (args.cv):
 	cmpMethod = USE_GPSCV
 
@@ -677,6 +769,9 @@ if (args.delaycal):
 if (args.timetransfer):
 	mode = MODE_TT
 
+if (args.checksum):
+	enforceChecksum = True
+	
 firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
 
@@ -686,12 +781,16 @@ if (not args.quiet):
 	print 'Elevation mask = ',elevationMask,'deg'
 	print 'Minimum track length =',minTrackLength,'s'
 	print 'Maximum DSG =', maxDSG,'ns'
+	if (weighting == NO_WEIGHT):
+		print 'Weighting = none'
+	elif (weighting == ELV_WEIGHT):
+		print 'Weighting = elevation'
 	print 
 	
 allref=[] 
 allcal=[]
 
-refHeaders=[]
+refHeaders=[] # list of dictionaries
 for mjd in range(firstMJD,lastMJD+1):
 	if (mjd == firstMJD):
 			 startT = startTime
@@ -740,6 +839,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 	# INT DLY + CAB DLY + REF DLY
 	# Warning! Delays are assumed not to change
 	
+	print
 	print 'REF/HOST receiver'
 	ok,totDelay = GetDelay(refHeaders,'tot dly')
 	if ok:
@@ -757,8 +857,12 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			Info('Reported SYS DLY={} REF DLY={}'.format(newSysDelay,newRefDelay))
 		else:
 			# header tested so need to check further
-			ok,intDelay = GetDelay(refHeaders,'int dly') 
-			newIntDelay = GetFloat('New INT DLY [{} ns]: '.format(intDelay),intDelay)
+			
+			dlyCode = ''
+			if ('int dly code' in refHeaders[0]):
+				dlyCode=refHeaders[0]['int dly code']
+			ok,intDelay = GetDelay(refHeaders,'int dly')
+			newIntDelay = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode,intDelay),intDelay)
 			
 			ok,cabDelay = GetDelay(refHeaders,'cab dly') 
 			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
@@ -772,6 +876,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			
 	Info('Delay delta = {}'.format(refCorrection))	
 	
+	print
 	print 'CAL/TRAV receiver'
 	ok,totDelay = GetDelay(calHeaders,'tot dly')
 	if ok:
@@ -789,9 +894,23 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			Info('Reported SYS DLY={} REF DLY={}'.format(newSysDelay,newRefDelay))
 		else:
 			# header tested so need to check further
+			# Single frequency
+			dlyCode = ''
+			if ('int dly code' in calHeaders[0]):
+				dlyCode=calHeaders[0]['int dly code']
+				
 			ok,intDelay = GetDelay(calHeaders,'int dly') 
-			newIntDelay = GetFloat('New INT DLY [{} ns]: '.format(intDelay),intDelay)
+			newIntDelay = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode,intDelay),intDelay)
 			
+			# Dual frequency
+			if ('int dly 2' in calHeaders[0]):
+				dlyCode2 = ''
+				if ('int dly code 2' in calHeaders[0]):
+					dlyCode2=calHeaders[0]['int dly code 2']
+				ok,intDelay2 = GetDelay(calHeaders,'int dly 2') 
+				newIntDelay2 = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode2,intDelay2),intDelay2)
+				print 'WARNING! P3 delay changes will not be used!'
+				
 			ok,cabDelay = GetDelay(calHeaders,'cab dly') 
 			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
 			
@@ -878,13 +997,13 @@ if (cmpMethod == USE_GPSCV):
 						nEphemerisMisMatches += 1
 						break
 					fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
-					tMatch.append(mjd1-firstMJD+st1/86400.0)
+					tMatch.append(mjd1-firstMJD+st1/86400.0)  #used in the linear fit
 					delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
 						allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
 					refMatch.append(allref[iref][REFSYS])
 					calMatch.append(allcal[jtmp][REFSYS])
-					deltaMatch.append(delta)
-					matches.append(allref[iref]+allcal[jtmp])
+					deltaMatch.append(delta) # used in the linear fit
+					matches.append(allref[iref]+allcal[jtmp]) # 'matches' contains the whole record
 					break
 				else:
 					break
@@ -896,7 +1015,9 @@ if (cmpMethod == USE_GPSCV):
 	Info(str(len(matches))+' matched tracks')
 	if (matchEphemeris):
 		Info(str(nEphemerisMisMatches) + ' mismatched ephemerides')
-		
+	
+	# Calculate the average clock difference at each track time for plotting etc.
+	# These differences are not used for the linear fit	
 	ncols = 13
 	lenmatch=len(matches)
 	mjd1=matches[0][MJD]
@@ -995,7 +1116,8 @@ if (MODE_DELAY_CAL==mode ):
 		print '  at midpoint {} ns'.format(meanOffset)
 		print '  median  {} ns'.format(np.median(deltaMatch))
 		print '  mean {} ns'.format(np.mean(deltaMatch))
-		print 'slope {} ps/day SD {} ps/day'.format(p[0]*1000,slopeErr*1000)
+		print '  std. dev {} ns'.format(np.std(deltaMatch))
+		print 'slope {} ps/day +/- {} ps/day'.format(p[0]*1000,slopeErr*1000)
 		print 'RMS of residuals {} ns'.format(rmsResidual)
 		
 	f,(ax1,ax2,ax3)= plt.subplots(3,sharex=True,figsize=(8,11))

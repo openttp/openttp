@@ -916,6 +916,7 @@ bool Application::loadConfig()
 	setConfig(last,"receiver","pps offset",&receiver->ppsOffset,&configOK);
 	setConfig(last,"receiver","file extension",receiverExtension,&configOK,false);
 	setConfig(last,"receiver","sawtooth size",&receiver->sawtooth,&configOK,false);
+	setConfig(last,"receiver","year commissioned",&receiver->commissionYYYY,&configOK,false);
 	
 	if (setConfig(last,"receiver","sawtooth phase",stmp,&configOK,false)){
 		boost::to_lower(stmp);
