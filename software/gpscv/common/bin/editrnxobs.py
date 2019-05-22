@@ -39,7 +39,7 @@ import re
 import sys
 import time
 
-VERSION = "0.1.1"
+VERSION = "0.1.3"
 AUTHORS = "Michael Wouters"
 
 BEIDOU='C'
@@ -59,16 +59,32 @@ def Debug(msg):
 def ParseRINEXFileName(fname):
 	ver = 0
 	p = os.path.dirname(fname)
-	print fname
-	match = re.search('(\w{4})(\d{3})0\.(\d{2})([oO])',fname)
+	match = re.search('(\w{4})(\d{3})0\.(\d{2})([oO])',fname) # version 2
 	if match:
 		st = match.group(1)
 		doy = int(match.group(2))
 		yy = int(match.group(3))
-		ft = match.group(4)
+		ext = match.group(4)
 		ver=2
-		#print ver,st,doy,yy
-	return (p,ver,st,doy,yy,ft)
+		return (p,ver,st,doy,yy,ext,'','','','','')
+	
+	match = re.search('(\w{9})_(\w)_(\d{4})(\d{3})(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(\w{3})',fname) # version 3
+	if match:
+		st = match.group(1)
+		dataSource = match.group(2)
+		yy = int(match.group(3))
+		doy = int(match.group(4))
+		hhmm = match.group(5)
+		filePeriod=match.group(6)
+		dataFrequency=match.group(7)
+		ft = match.group(8)
+		ext = match.group(9)
+		ver=3
+		return (p,ver,st,doy,yy,ext,dataSource,hhmm,filePeriod,dataFrequency,ft)
+	
+	print fname
+	
+	return (p,ver,'',0,0,'') 
 		
 # ------------------------------------------
 def ParseDataRecord(l,f):
@@ -121,6 +137,7 @@ group.add_argument('--replace','-r',help='replace edited file',action='store_tru
 parser.add_argument('--system',help='satellite system (BeiDou,Galileo,GPS,GLONASS)')
 parser.add_argument('--obstype',help='observation type (C2I,L2I,...)')
 parser.add_argument('--fixms',help='fix ms ambiguities (ref RINEX file required)',action='store_true')
+parser.add_argument('--addmissing',help='add observations missing at the beginning of the day',action='store_true')
 parser.add_argument('--sequence','-s',help='interpret input files as a sequence',action='store_true')
 parser.add_argument('--refrinex',help='reference RINEX file for fixing ms ambiguities (name of first file if multiple input files are specified)')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
@@ -141,52 +158,70 @@ reffiles = []
 
 if (args.sequence): # determine whether the file names form a valid sequence
 	if (2==len(args.infile)):
-		(path1,ver1,st1,doy1,yy1,ft1)=ParseRINEXFileName(args.infile[0])
-		(path2,ver2,st2,doy2,yy2,ft2)=ParseRINEXFileName(args.infile[1])
+		(path1,ver1,st1,doy1,yy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
+		(path2,ver2,st2,doy2,yy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
 		if not(path1 == path2):
-			sys.stderr.write('The files must be in the same directory --sequence option\n')
+			sys.stderr.write('The files must be in the same directory for the --sequence option\n')
 			exit()
-		if (yy1 > 80):
-			yy1 += 1900
-		else:
-			yy1 += 2000
-		if (yy2 > 80):
-			yy2 += 1900
-		else:
-			yy2 += 2000
-		if (st1 == st2):
-			if ((yy1 > yy2) or (yy1 == yy2 and doy1 > doy2)):
-				sys.stderr.write('The dates appear to be in the wrong order for the --sequence option\n')
-				exit()
-			else: # it appears we have a valid sequence so generate it
-				date1=datetime.datetime(yy1, 1, 1) + datetime.timedelta(doy1 - 1)
-				date2=datetime.datetime(yy2, 1, 1) + datetime.timedelta(doy2- 1)
-				td =  date2-date1
-				refver = 0 # lazy flag
-				if (args.refrinex):
-					(refpath,refver,refst,refdoy,refyy,refft)=ParseRINEXFileName(args.refrinex)
-				
-				for d in range(0,td.days+1):
-					ddate = date1 +  datetime.timedelta(d)
-					if (ver1 == 2):
-						yystr = ddate.strftime('%y')
-						doystr=ddate.strftime('%j')
-						fname = '{}{}0.{}{}'.format(st1,doystr,yystr,ft1) 
-						infiles.append(os.path.join(path1,fname))
-						
-					elif (ver1 == 3):
-						pass
-				
-					if (refver == 2):
-						yystr = ddate.strftime('%y')
-						doystr=ddate.strftime('%j')
-						fname = '{}{}0.{}{}'.format(refst,doystr,yystr,refft) 
-						reffiles.append(os.path.join(refpath,fname))
-					elif (refver ==3):
-						pass
-		else:
+		if not(ver1 == ver2):
+			sys.stderr.write('The RINEX files must have the same version for the --sequence option\n')
+			exit()
+		if not(st1==st2):
 			sys.stderr.write('The station names must match with the --sequence option\n')
 			exit()
+		if not(ft1==ft2):
+			sys.stderr.write('The file types must match with the --sequence option\n')
+			exit()
+
+		if (ver1 == 2):
+			if (yy1 > 80):
+				yy1 += 1900
+			else:
+				yy1 += 2000
+				
+		if (ver2 == 2):
+			if (yy2 > 80):
+				yy2 += 1900
+			else:
+				yy2 += 2000
+		
+		if ((yy1 > yy2) or (yy1 == yy2 and doy1 > doy2)):
+			sys.stderr.write('The dates appear to be in the wrong order for the --sequence option\n')
+			exit()
+			
+		# it appears we have a valid sequence so generate it
+		date1=datetime.datetime(yy1, 1, 1) + datetime.timedelta(doy1 - 1)
+		date2=datetime.datetime(yy2, 1, 1) + datetime.timedelta(doy2- 1)
+		td =  date2-date1
+		refver = 0 # lazy flag
+		if (args.refrinex):
+			(refpath,refver,refst,refdoy,refyy,refext,refdataSource,refhhmm,reffilePeriod,refdataFrequency,refft)=ParseRINEXFileName(args.refrinex)
+		
+		for d in range(0,td.days+1):
+			ddate = date1 +  datetime.timedelta(d)
+			if (ver1 == 2):
+				yystr = ddate.strftime('%y')
+				doystr=ddate.strftime('%j')
+				fname = '{}{}0.{}{}'.format(st1,doystr,yystr,ext1) 
+				infiles.append(os.path.join(path1,fname))
+				
+			elif (ver1 == 3):
+				yystr = ddate.strftime('%Y')
+				doystr=ddate.strftime('%j')
+				fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(st1,dataSource1,yystr,int(doystr),hhmm1,filePeriod1,dataFrequency1,ft1,ext1) 
+				infiles.append(os.path.join(path1,fname))
+				
+			if (refver == 2):
+				yystr = ddate.strftime('%y')
+				doystr=ddate.strftime('%j')
+				fname = '{}{}0.{}{}'.format(refst,doystr,yystr,refext) 
+				reffiles.append(os.path.join(refpath,fname))
+			elif (refver == 3):
+				yystr = ddate.strftime('%Y')
+				doystr=ddate.strftime('%j')
+				fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(refst,refdataSource,yystr,int(doystr),refhhmm,reffilePeriod,refdataFrequency,refft,refext) 
+				reffiles.append(os.path.join(refpath,fname))
+				
 	else:
 		sys.stderr.write('Only two file names are allowed with the --sequence option\n')
 		exit()
@@ -203,6 +238,30 @@ if (args.output and len(args.infile) >1):
 		sys.stderr.write('The --output option must specify a directory  when there is more than one input file\n')
 		exit()
 
+if (args.addmissing):
+	if (args.sequence):
+		pass  # already checked
+	else:
+		if (2==len(args.infile)):
+			# Check that these are sequential
+			(path1,ver1,st1,doy1,yy1,ext1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
+			(path2,ver2,st2,doy2,yy2,ext2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
+			if (ver1 == 2):
+				if (yy1 > 80): # no GNSS before 1981
+					yy1 += 1900  # good for another 80 years
+				else:
+					yy1 += 2000
+			if (ver2 == 2):
+				if (yy2 > 80):
+					yy2 += 1900
+				else:
+					yy2 += 2000
+			
+			sys.exit()
+		else:
+			sys.stderr.write('Two files are needed\n')
+			sys.exit()
+			
 fi=0
 
 for f in infiles:
