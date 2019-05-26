@@ -56,6 +56,11 @@ def Debug(msg):
 	return
 
 # ------------------------------------------
+def ErrorExit(msg):
+	print msg
+	sys.exit(0)
+
+# ------------------------------------------
 def ParseRINEXFileName(fname):
 	ver = 0
 	p = os.path.dirname(fname)
@@ -64,15 +69,21 @@ def ParseRINEXFileName(fname):
 		st = match.group(1)
 		doy = int(match.group(2))
 		yy = int(match.group(3))
+		yyyy = yy
+		if (yyyy > 80):
+			yyyy += 1900
+		else:
+			yyyy += 2000
 		ext = match.group(4)
 		ver=2
-		return (p,ver,st,doy,yy,ext,'','','','','')
+		return (p,ver,st,doy,yy,yyyy,ext,'','','','','')
 	
-	match = re.search('(\w{9})_(\w)_(\d{4})(\d{3})(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(\w{3})',fname) # version 3
+	match = re.search('(\w{9})_(\w)_(\d{4})(\d{3})(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(\w{2,3})',fname) # version 3
 	if match:
 		st = match.group(1)
 		dataSource = match.group(2)
 		yy = int(match.group(3))
+		yyyy=yy
 		doy = int(match.group(4))
 		hhmm = match.group(5)
 		filePeriod=match.group(6)
@@ -80,14 +91,116 @@ def ParseRINEXFileName(fname):
 		ft = match.group(8)
 		ext = match.group(9)
 		ver=3
-		return (p,ver,st,doy,yy,ext,dataSource,hhmm,filePeriod,dataFrequency,ft)
-	
-	print fname
+		return (p,ver,st,doy,yy,yyyy,ext,dataSource,hhmm,filePeriod,dataFrequency,ft)
 	
 	return (p,ver,'',0,0,'') 
+	
+# ------------------------------------------
+def ReadHeader(fin):
+	# The header is returned as a list of strings,with line terminators retained
+	hdr=[]
+	readingHeader = True
+	while readingHeader:
+		l = fin.readline()
+		hdr.append(l)
+		#if (l.find('TIME OF LAST OBS') > 0):
+		#	lastObs=l # extract time system
+		if (l.find('END OF HEADER') > 0):
+			readingHeader = False
+	return hdr
+
+# ------------------------------------------
+def WriteHeader(fout,hdr):
+	for l in hdr:
+		fout.write(l)
+
+# ------------------------------------------
+def GetHeaderField(hdr,key):
+	return [ l for l in hdr if (l.find(key) == 60)]
+
+# ------------------------------------------
+def EditHeader(hdr,key,newValue):
+	for li,l in enumerate(hdr):
+		if (l.find(key) == 60):
+			hdr[li]=newValue
+			break
 		
 # ------------------------------------------
-def ParseDataRecord(l,f):
+def AddHeaderComments(hdr,comments):
+	# hdr and comments are lists
+	# comments are inserted before any existing comments
+	for li,l in enumerate(hdr):
+		if (l.find('PGM / RUN BY / DATE') == 60):
+			for ci,c in enumerate(comments):
+				hdr.insert(li+1+ci,'{:60}{:20}\n'.format(c,'COMMENT'));
+			break
+
+# ------------------------------------------
+def WriteObservations(fout,obs):
+	for o in obs:
+		for l in o[2]:
+			fout.write(l)
+		for l in o[1]:
+			fout.write(l)
+
+# ------------------------------------------
+def ReadV2Observations(fin,nobs):
+	reading = True
+	obs=[]
+	while (reading):
+		r = ReadV2Record(fin,nobs)
+		if (not (r == None)):
+			obs.append(r)
+		else:
+			reading = False
+	Debug('Read ' + str(int(len(obs))) + ' observations')
+	return obs
+
+# ------------------------------------------
+def ReadV2Record(fin,nobs):
+	comments='';
+	while True:
+		l = fin.readline()
+		if (len(l) == 0): #EOF
+			return None
+		#                    YY      MM      DD      HH      MM       SS.SSSSSS         num sats
+		match = re.match('\s(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+\.\d+)\s+\d+\s+(\d+)',l)
+		if (match): # got a record header
+			# print match.group(4), match.group(5),match.group(6)
+			yy = int(match.group(1))
+			yyyy = yy
+			if (yyyy > 80):
+				yyyy += 1900
+			else:
+				yyyy += 2000
+			tod = datetime.datetime(yyyy,int(match.group(2)),int(match.group(3)),
+				int(match.group(4)),int(match.group(5)),int(float(match.group(6))))
+			nsv = int(match.group(7))
+			rec=[]
+			rec.append(l)
+			#  if nsv > 12, there are more SV identifiesr to read
+			ntodo = nsv - 12
+			while (ntodo > 0):
+				l=fin.readline()
+				rec.append(l)
+				ntodo -= 12
+			svcnt = 0
+			while (svcnt < nsv): # assuming here that there are no blanks lines
+				l = fin.readline()
+				rec.append(l)
+				ntodo = nobs - 5
+				while (ntodo > 0):
+					l = fin.readline()
+					ntodo -= 5
+				svcnt += 1
+			return (tod,rec,comments)
+		else:
+			comments += l
+	return (None)
+
+	
+# ------------------------------------------
+def ReadV3Record(l,f):
 	if (l[0]=='>'):
 		year = int(l[2:6])
 		mon = int(l[6:10])
@@ -95,7 +208,7 @@ def ParseDataRecord(l,f):
 		hours= int(l[12:16])
 		mins = int(l[15:19])
 		secs = float(l[19:30])
-		tod = datetime.datetime(year,mon,day,hours,mins,int(secs)) # FIXME whatabout non-nteger secs - use microseconds field ?
+		tod = datetime.datetime(year,mon,day,hours,mins,int(secs)) # FIXME whatabout non-integer secs - use microseconds field ?
 		nmeas = int(l[32:36]) # cols 32-35
 		meas={}
 		for m in range(0,nmeas):
@@ -121,10 +234,129 @@ def FixAmbiguity(meas,refmeas,gnss,obsType):
 	pr = pr + int(round(1000*(refPr-pr)/CLIGHT))*CLIGHT/1000.0
 	newprstr = '{:14.3f}'.format(pr)
 	return (True,meas.replace(prstr,newprstr,1))
+
+	fi=0
+
+# ------------------------------------------
+def FixMissing(infiles):
+
+	fi = 0
 	
+	for f in infiles:
+		
+		finName = f
+		finNextName = ''
+		try:
+			fin = open(finName,'r')
+		except:
+			ErrorExit('Unable to open ' + finName)
+			
+		if (f == infiles[-1]):
+			continue # we're done
+		else:
+			fi = fi+1
+			finNextName = infiles[fi]
+			try:
+				finNext = open(finNextName,'r')
+			except:
+				ErrorExit('Unable to open ' + finNextName)
+				
+			tmpFinNextName = finNextName + '.tmp'
+		
+			# Two good file names
+			(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(finName)
+			(path2,ver2,st2,doy2,yy2,yyyy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(finNextName)
+			
+			date1=datetime.datetime(yyyy1, 1, 1) + datetime.timedelta(doy1 - 1)
+			date2=datetime.datetime(yyyy2, 1, 1) + datetime.timedelta(doy2- 1)
+			
+			hdr1 = ReadHeader(fin)
+			nobs = 1
+			if (ver1 == 2):
+				hdrField = GetHeaderField(hdr1,'# / TYPES OF OBSERV')
+				nobs = int(str(hdrField[0][0:6]))
+				Debug('Number of observations ' + str(nobs))
+			else:
+				pass
+			
+			hdr2 = ReadHeader(finNext)
+			nobs2 = 2
+			if (ver1 == 2):
+				hdrField = GetHeaderField(hdr2,'# / TYPES OF OBSERV')
+				nobs2 = int(str(hdrField[0][0:6]))
+				Debug('Number of observations ' + str(nobs2))
+			else:
+				pass
+			
+			if (not nobs == nobs2):
+				ErrorExit('# of observations do not match')
+				
+			obs1 = ReadV2Observations(fin,nobs)
+			obsTmp = []
+			
+			# Find any records in the first file which are in the next day
+			# They have to be removed and added to the next file 
+			delRecs=[]
+			for o in obs1:
+				if (o[0].date() > date1.date()):
+					delRecs.append(o)
+				else:
+					obsTmp.append(o)
+			
+			fin.close()
+		
+			Debug(str(len(delRecs)) + ' record(s) to be removed from ' + finName)
+			if (len(delRecs) > 0):
+				tmpName = finName + '.tmp'
+				tmpFout = open(tmpName,'w')
+				AddHeaderComments(hdr1,['Edited by ' + progName]);
+				# Fixup time of the last observation, if the field is present
+				hdrField = GetHeaderField(hdr1,'TIME OF LAST OBS')
+				if hdrField:
+					tLast = obsTmp[-1][0]
+					timeRef = hdrField[0][48:51]
+					lastObs = '{:6d}{:6d}{:6d}{:6d}{:6d}{:13.7f}{:5}{:3}{:9}{:20}\n'.format(tLast.date().year,tLast.date().month,tLast.date().day,
+						tLast.time().hour,tLast.time().minute,tLast.time().second,' ',timeRef,' ',
+						'TIME OF LAST OBS')
+					EditHeader(hdr1,'TIME OF LAST OBS',lastObs)
+				WriteHeader(tmpFout,hdr1)
+				WriteObservations(tmpFout,obsTmp)
+				tmpFout.close()
+				
+				# Rename the old file
+				# TODO
+				
+				# Now examine the next file
+				# Already read the header to do some checks
+				obs2 = ReadV2Observations(finNext,nobs)
+				# Find the first observation time
+				# If we have any observations that can be inserted before this, print them
+				firstObs = obs2[0][0]
+				insRecs = [d for d in delRecs if (d[0] < firstObs)]
+				Debug(str(len(insRecs)) + ' record(s) to be inserted in ' + finNextName)
+				if (len(insRecs)>0): # something to do
+					tmpName = finNextName + '.tmp'
+					tmpFout = open(tmpName,'w')
+					AddHeaderComments(hdr2,['Edited by ' + progName])
+					hdrField = GetHeaderField(hdr1,'TIME OF FIRST OBS')
+					if not hdrField:
+						ErrorExit('Invalid RINEX - missing TIME OF FIRST OBS' + finNextName)
+					timeRef = hdrField[0][48:51]
+					tFirst = insRecs[0][0]
+					fObs = '{:6d}{:6d}{:6d}{:6d}{:6d}{:13.7f}{:5}{:3}{:9}{:20}\n'.format(tFirst.date().year,tFirst.date().month,tFirst.date().day,
+						tFirst.time().hour,tFirst.time().minute,tFirst.time().second,' ',timeRef,' ',
+						'TIME OF FIRST OBS')
+					EditHeader(hdr2,'TIME OF FIRST OBS',fObs)
+					WriteHeader(tmpFout,hdr2)
+					WriteObservations(tmpFout,insRecs)
+					WriteObservations(tmpFout,obs2)
+					tmpFout.close()
+					# Rename files
 # ------------------------------------------
 # Main
 
+
+progName = os.path.basename(sys.argv[0])+ ' ' + VERSION
 
 parser = argparse.ArgumentParser(description='Edit a RINEX observation file',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -137,10 +369,10 @@ group.add_argument('--replace','-r',help='replace edited file',action='store_tru
 parser.add_argument('--system',help='satellite system (BeiDou,Galileo,GPS,GLONASS)')
 parser.add_argument('--obstype',help='observation type (C2I,L2I,...)')
 parser.add_argument('--fixms',help='fix ms ambiguities (ref RINEX file required)',action='store_true')
-parser.add_argument('--addmissing',help='add observations missing at the beginning of the day',action='store_true')
+parser.add_argument('--fixmissing',help='add observations missing at the beginning of the day',action='store_true')
 parser.add_argument('--sequence','-s',help='interpret input files as a sequence',action='store_true')
 parser.add_argument('--refrinex',help='reference RINEX file for fixing ms ambiguities (name of first file if multiple input files are specified)')
-parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
+parser.add_argument('--version','-v',action='version',version =  progName + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
@@ -156,42 +388,30 @@ if (args.fixms):
 infiles = []
 reffiles = []
 
-if (args.sequence): # determine whether the file names form a valid sequence
+if (args.sequence or args.fixmissing): # determine whether the file names form a valid sequence
 	if (2==len(args.infile)):
-		(path1,ver1,st1,doy1,yy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
-		(path2,ver2,st2,doy2,yy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
+		(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
+		(path2,ver2,st2,doy2,yy2,yyyy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
 		if not(path1 == path2):
-			sys.stderr.write('The files must be in the same directory for the --sequence option\n')
+			sys.stderr.write('The files must be in the same directory for the --sequence/--fixmissing  option\n')
 			exit()
 		if not(ver1 == ver2):
-			sys.stderr.write('The RINEX files must have the same version for the --sequence option\n')
+			sys.stderr.write('The RINEX files must have the same version for the --sequence/--fixmissing option\n')
 			exit()
 		if not(st1==st2):
-			sys.stderr.write('The station names must match with the --sequence option\n')
+			sys.stderr.write('The station names must match with the --sequence/--fixmissing option\n')
 			exit()
 		if not(ft1==ft2):
-			sys.stderr.write('The file types must match with the --sequence option\n')
+			sys.stderr.write('The file types must match with the --sequence/--fixmissing option\n')
 			exit()
-
-		if (ver1 == 2):
-			if (yy1 > 80):
-				yy1 += 1900
-			else:
-				yy1 += 2000
-				
-		if (ver2 == 2):
-			if (yy2 > 80):
-				yy2 += 1900
-			else:
-				yy2 += 2000
-		
-		if ((yy1 > yy2) or (yy1 == yy2 and doy1 > doy2)):
-			sys.stderr.write('The dates appear to be in the wrong order for the --sequence option\n')
+			
+		if ((yyyy1 > yyyy2) or (yyyy1 == yyyy2 and doy1 > doy2)):
+			sys.stderr.write('The dates appear to be in the wrong order for the --sequence/--fixmissing option\n')
 			exit()
 			
 		# it appears we have a valid sequence so generate it
-		date1=datetime.datetime(yy1, 1, 1) + datetime.timedelta(doy1 - 1)
-		date2=datetime.datetime(yy2, 1, 1) + datetime.timedelta(doy2- 1)
+		date1=datetime.datetime(yyyy1, 1, 1) + datetime.timedelta(doy1 - 1)
+		date2=datetime.datetime(yyyy2, 1, 1) + datetime.timedelta(doy2 - 1)
 		td =  date2-date1
 		refver = 0 # lazy flag
 		if (args.refrinex):
@@ -203,22 +423,21 @@ if (args.sequence): # determine whether the file names form a valid sequence
 				yystr = ddate.strftime('%y')
 				doystr=ddate.strftime('%j')
 				fname = '{}{}0.{}{}'.format(st1,doystr,yystr,ext1) 
-				infiles.append(os.path.join(path1,fname))
-				
+				infiles.append(os.path.join(path1,fname))	
 			elif (ver1 == 3):
 				yystr = ddate.strftime('%Y')
-				doystr=ddate.strftime('%j')
+				doystr= ddate.strftime('%j')
 				fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(st1,dataSource1,yystr,int(doystr),hhmm1,filePeriod1,dataFrequency1,ft1,ext1) 
 				infiles.append(os.path.join(path1,fname))
 				
 			if (refver == 2):
 				yystr = ddate.strftime('%y')
-				doystr=ddate.strftime('%j')
+				doystr= ddate.strftime('%j')
 				fname = '{}{}0.{}{}'.format(refst,doystr,yystr,refext) 
 				reffiles.append(os.path.join(refpath,fname))
 			elif (refver == 3):
 				yystr = ddate.strftime('%Y')
-				doystr=ddate.strftime('%j')
+				doystr= ddate.strftime('%j')
 				fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(refst,refdataSource,yystr,int(doystr),refhhmm,reffilePeriod,refdataFrequency,refft,refext) 
 				reffiles.append(os.path.join(refpath,fname))
 				
@@ -238,35 +457,29 @@ if (args.output and len(args.infile) >1):
 		sys.stderr.write('The --output option must specify a directory  when there is more than one input file\n')
 		exit()
 
-if (args.addmissing):
-	if (args.sequence):
-		pass  # already checked
-	else:
-		if (2==len(args.infile)):
-			# Check that these are sequential
-			(path1,ver1,st1,doy1,yy1,ext1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
-			(path2,ver2,st2,doy2,yy2,ext2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
-			if (ver1 == 2):
-				if (yy1 > 80): # no GNSS before 1981
-					yy1 += 1900  # good for another 80 years
-				else:
-					yy1 += 2000
-			if (ver2 == 2):
-				if (yy2 > 80):
-					yy2 += 1900
-				else:
-					yy2 += 2000
-			
-			sys.exit()
-		else:
-			sys.stderr.write('Two files are needed\n')
-			sys.exit()
-			
+if not(args.fixmissing or args.fixms):
+	sys.stderr.write('Nothing to do!\n')
+	sys.exit()
+
+# Preliminary stuff done. 
+# Now do stuff!
+
+if (args.fixmissing):
+	FixMissing(infiles)
+	sys.exit(0)
+	
 fi=0
 
 for f in infiles:
 	
 	finName = f
+	
+	try:
+		fin = open(finName,'r')
+	except:
+		print('Unable to open '+finName)
+		exit()
+	
 	foutName = finName + '.tmp'
 	
 	if (args.output):
@@ -275,12 +488,6 @@ for f in infiles:
 		else:# otherwise, write to the specified file
 			foutName = args.output
 		
-	try:
-		fin = open(finName,'r')
-	except:
-		print('Unable to open '+finName)
-		exit()
-
 	if (args.replace or args.output):
 		try:
 			fout = open(foutName,'w')
@@ -289,7 +496,7 @@ for f in infiles:
 			exit()
 	else:
 		fout = sys.stdout
-
+			
 	if (args.system):
 		gnss = args.system.lower()
 		if (gnss =='beidou'):
@@ -417,14 +624,14 @@ for f in infiles:
 			l=fin.readline()
 			if l:
 				fout.write(l)
-				(tod,meas) = ParseDataRecord(l,fin)
+				(tod,meas) = ReadV3Record(l,fin)
 			else: # end of file
 				break
 			
 			while True:
 				lref=fref.readline()
 				if lref: # end of file
-					(reftod,refmeas) = ParseDataRecord(lref,fref)
+					(reftod,refmeas) = ReadV3Record(lref,fref)
 				else: # end of file
 					break
 				if (reftod < tod):
