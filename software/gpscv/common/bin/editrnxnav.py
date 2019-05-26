@@ -35,7 +35,7 @@ import argparse
 import os
 import sys
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 AUTHORS = "Michael Wouters"
 
 
@@ -45,6 +45,11 @@ def Debug(msg):
 		sys.stderr.write(msg+'\n')
 	return
 
+# ------------------------------------------
+def ErrorExit(msg):
+	print msg
+	sys.exit(0)
+	
 # ------------------------------------------
 # Main
 
@@ -82,15 +87,13 @@ uralim = float(args.ura)
 try:
 	fin = open(finName,'r')
 except:
-	print('Unable to open '+finName)
-	exit()
+	ErrorExit('Unable to open '+ finName)
 		
 if (args.replace or args.output):
 	try:
 		fout = open(foutName,'w')
 	except:
-		print('Unable to open ' + foutName)
-		exit()
+		ErrorExit('Unable to open ' + foutName)
 else:
 	fout = sys.stdout
 
@@ -100,8 +103,7 @@ if (args.leap):
 	try:
 		fref = open(args.leap,'r')
 	except:
-		print('Unable to open '+args.leap)
-		exit()
+		ErrorExit('Unable to open ' + args.leap)
 	for l in fref:
 		if (l.find('LEAP SECONDS')>0):
 			leapinfo=l
