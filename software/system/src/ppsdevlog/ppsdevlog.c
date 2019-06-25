@@ -45,8 +45,8 @@
 #define APP_VERSION "0.1.0"
 #define LAST_MODIFIED ""
 
-#define DEFAULT_CONFIG			"/home/ntpadmin/etc/ppsdevlog.conf" 
-#define DEFAULT_STATUS_FILE	"/home/ntpadmin/logs/ppsdevlogd.status"
+#define DEFAULT_CONFIG			"/usr/local/etc/ppsdevlog.conf" 
+#define DEFAULT_STATUS_FILE	"/home/ntpadmin/logs/ppsdevlog.status"
 #define DEFAULT_LOG_DIR			"/home/ntpadmin/logs/"
 #define DEFAULT_LOCK     		"/home/ntpadmin/logs/ppsdevlog.lock"
 #define DEFAULT_DEV 				"/dev/pps0"

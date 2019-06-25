@@ -1,4 +1,8 @@
 PROGRAM = ppsdevlog
+SHELL=/bin/bash
+INSTDIR=/usr/local
+BINDIR = $(INSTDIR)/bin
+ETCDIR = /home/ntpadmin/etc
 CC = gcc
 INCLUDE =
 LDFLAGS= 
@@ -20,4 +24,13 @@ clean:
 	rm -f *.o $(PROGRAM)
 
 install: $(PROGRAM)
-	cp $(PROGRAM) /usr/local/bin
+	@ install -o root -g root -m 0744 $(PROGRAM)  $(BINDIR)
+	@ install -o root -g root -m 0644 $(PROGRAM).conf $(ETCDIR)
+	@ if [[ `systemctl` =~ -\.mount ]]; then \
+		echo "systemd detected"; \
+		systemctl stop $(PROGRAM).service; \
+		cp $(PROGRAM).service /lib/systemd/system; \
+		systemctl enable $(PROGRAM).service; \
+	else\
+		echo "unsupported init system";\
+	fi
