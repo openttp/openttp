@@ -42,7 +42,7 @@
 #include <sys/timepps.h>
 
 #define APP_NAME "ppsdevlog"
-#define APP_VERSION "0.1.0"
+#define APP_VERSION "0.1.1"
 #define LAST_MODIFIED ""
 
 #define DEFAULT_CONFIG			"/usr/local/etc/ppsdevlog.conf" 
@@ -50,6 +50,9 @@
 #define DEFAULT_LOG_DIR			"/home/ntpadmin/logs/"
 #define DEFAULT_LOCK     		"/home/ntpadmin/logs/ppsdevlog.lock"
 #define DEFAULT_DEV 				"/dev/pps0"
+
+#define TSLEEP  300000       /* sleep to sleep between polls of the PPS device */
+
 #define BUFLEN 1024
 #define PRETTIFIER "*********************************************"
 
@@ -128,6 +131,7 @@ ppsdevlog_help()
 	
 	printf("\n%s version %s\n",APP_NAME,APP_VERSION);
 	printf("Usage: %s [-hvd]\n",APP_NAME);
+	printf("-c <file> use the configuration file <file>\n");
 	printf("-h print this help message\n");
 	printf("-v print version\n");
 	printf("-d enable debugging\n");
@@ -138,12 +142,6 @@ ppsdevlog_init(
 	ppsdevlog *pp
 )
 {
-	//char *hd;
-	
-	//if ((hd=getenv("HOME"))==NULL){ 
-	//	fprintf(stderr,"Couldn't get $HOME" );
-	//	exit(EXIT_FAILURE);
-	//}
 	
 	pp->reqCaps = PPS_CAPTURECLEAR;
 	pp->availCaps = 0;
@@ -155,7 +153,8 @@ ppsdevlog_init(
 	pp->logPath=strdup(DEFAULT_LOG_DIR);
 	pp->devName=strdup(DEFAULT_DEV);
 	pp->MJD=-1;
-	
+	pp->lastpps.tv_nsec=0;
+	pp->lastpps.tv_sec=0;
 }
 
 static int
@@ -250,17 +249,18 @@ ppsdevlog_make_lock(
 
 static int
 ppsdevlog_open_log(
-	ppsdevlog *pp)
+	ppsdevlog *pp,
+	int mjd
+									)
 {
 	char buf[BUFLEN],hn[BUFLEN];
 	time_t tt;
 	struct tm *gmt;
 	struct stat sbuf;
-	int mjd;
+	
 	
 	/* Open log file for recording time stamps */
 	if (NULL != pp->logFile) fclose(pp->logFile);
-	mjd = (int)(time(&tt)/86400 + 40587);
 	
 	gethostname(hn,BUFLEN);
 	sprintf(buf,"%s/%i.%s",pp->logPath,mjd,hn);
@@ -345,37 +345,52 @@ ppsdevlog_read(
 	ppsdevlog *pp)
 {
 	struct timespec timeout = { 3, 0 };
+	struct timespec ppsrdg;
+	
 	pps_info_t infobuf;
 	int ret;
 
-	if (pp->availCaps & PPS_CANWAIT) /* waits for the next event */
-		ret = time_pps_fetch(pp->devHandle, PPS_TSFMT_TSPEC, &infobuf,
-				   &timeout);
-	else {
-		sleep(1);
-		ret = time_pps_fetch(pp->devHandle, PPS_TSFMT_TSPEC, &infobuf,
-				   &timeout);
-	}
-	if (ret < 0 || quit) {
-		if (errno == EINTR || quit) {
+	while (!quit){ /* loop here until we get a new reading or we get a SIGxxx */
+		if (pp->availCaps & PPS_CANWAIT){ /* waits for the next event */
+			ret = time_pps_fetch(pp->devHandle, PPS_TSFMT_TSPEC, &infobuf,
+						&timeout);
+		}
+		else {
+			usleep(TSLEEP);
+			ret = time_pps_fetch(pp->devHandle, PPS_TSFMT_TSPEC, &infobuf,
+						&timeout);
+		}
+	
+		if (ret < 0 || quit) {
+			if (errno == EINTR || quit) {
+				if (debugOn)
+					fprintf(stderr, "time_pps_fetch() EINTR\n");
+				return -1;
+			}
+			if (debugOn)
+				fprintf(stderr, "time_pps_fetch() error %d\n", ret);
 			return -1;
 		}
-		if (debugOn)
-			fprintf(stderr, "time_pps_fetch() error %d (%m)\n", ret);
-		return -1;
+		
+		ppsrdg.tv_sec=0;
+		ppsrdg.tv_nsec=0;
+		pp->seq=0;
+		if (pp->reqCaps & PPS_CAPTUREASSERT) {
+			ppsrdg = infobuf.assert_timestamp;
+			pp->seq = infobuf.assert_sequence;
+		} else if (pp->reqCaps & PPS_CAPTURECLEAR) {
+			ppsrdg = infobuf.clear_timestamp;
+			pp->seq = infobuf.clear_sequence;
+		}
+	
+		if (ppsrdg.tv_sec != pp->lastpps.tv_sec || 
+			(ppsrdg.tv_sec == pp->lastpps.tv_sec && ppsrdg.tv_nsec != pp->lastpps.tv_nsec)
+		){
+			pp->lastpps = ppsrdg;
+			return 0;
+		}
 	}
 
-	pp->lastpps.tv_sec=0;
-	pp->lastpps.tv_nsec=0;
-	pp->seq=0;
-	if (pp->reqCaps & PPS_CAPTUREASSERT) {
-		pp->lastpps = infobuf.assert_timestamp;
-		pp->seq = infobuf.assert_sequence;
-	} else if (pp->reqCaps & PPS_CAPTURECLEAR) {
-		pp->lastpps = infobuf.clear_timestamp;
-		pp->seq = infobuf.clear_sequence;
-	}
-		
 	return 0;
 }
 
@@ -398,7 +413,6 @@ ppsdevlog_log(
 }
 
 
-
 /*
  * 
  */
@@ -415,8 +429,12 @@ int main(
 	
 	ppsdevlog_init(&pp);
 	
-	while ((opt=getopt(argc,argv,"dhp:v")) != EOF){
+	while ((opt=getopt(argc,argv,"c:dhv")) != EOF){
 		switch (opt){
+			case 'c': /* use alternate configuration file */
+				if (optarg)
+					pp.configurationFile = strdup(optarg);
+				break;
 			case 'd':/* enable debugging */
 				fprintf(stderr,"Debugging to stderr is ON\n");
 				debugOn=1;
@@ -424,8 +442,6 @@ int main(
 			case 'h': /* print help */
 				ppsdevlog_help();
 				return 0;
- 				break;
-			case 'p':
 				break;
 			case 'v': /* print version */
 				printf("\n%s version %s, last modified %s\n",
@@ -471,7 +487,7 @@ int main(
 			mjd = (int)(time(&tt)/86400 + 40587);
 		
 		if (mjd != pp.MJD){
-			if (TRUE==ppsdevlog_open_log(&pp))
+			if (TRUE==ppsdevlog_open_log(&pp,mjd))
 				pp.MJD=mjd;
 		}
 			
