@@ -321,7 +321,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							}
 							
 							// FIXME better sanity check
-							ok = ok && !isnan(P1pr[chan]);
+							ok = ok && !std::isnan(P1pr[chan]);
 							
 							if (ok){
 								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1P,P1pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
@@ -339,7 +339,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							}	
 							
 							// FIXME better sanity check
-							ok = ok && !isnan(P2pr[chan]);
+							ok = ok && !std::isnan(P2pr[chan]);
 							
 							if (ok){
 								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C2P,P2pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
