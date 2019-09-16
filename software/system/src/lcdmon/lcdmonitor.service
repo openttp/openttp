@@ -13,7 +13,7 @@ Restart=always
 StartLimitInterval=120
 StartLimitBurst=5
 RestartSec=20
-ExecStart=/usr/local/bin/lcdmonitor
+ExecStart=/usr/local/sbin/lcdmonitor
 
 [Install]
 WantedBy=multi-user.target
