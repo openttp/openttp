@@ -91,7 +91,7 @@ my($lockPath,$statusPath);
 my($fileFormat,$OPENTTP,$NATIVE);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "2.0.3";
+$VERSION = "2.0.4";
 
 $OPENTTP=0;
 $NATIVE=1;
@@ -528,6 +528,7 @@ sub ConfigureReceiver
     # Wait a second
     sleep(1);
   }
+  
   # Set type of messages for COM1 (UART A) - if we are not using it so we may as well turn it off.
   #                                        - If we are using it as a source of time of day for NTP,
   #                                          we need to set it up to send NMEA messages
@@ -535,8 +536,18 @@ sub ConfigureReceiver
   #                                          from NVS.
   #sendCmd("\x0B\x01\x00\xC2\x01\x00\x04"); # Setup for BINR messages. <- Used for testing 115200 baud
   #sendCmd("\x0B\x01\x80\x25\x00\x00\x02"); # Setup for NMEA messages. <- Used for testing 9600 baud
-  #sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Setup for NMEA messages. <- Used for testing 115200 baud
-  sendCmd("\x0B\x01\x00\xC2\x01\x00\x01"); # Setup to turn port off. <- This is the default
+  if (defined($Init{"receiver:enable nmea"})){
+		my $mode = lc $Init{"receiver:enable nmea"};
+		if ($mode =~ /yes/){
+			sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Setup for NMEA messages at 115200 baud
+		}
+		else{
+			sendCmd("\x0B\x01\x00\xC2\x01\x00\x01");
+		}
+	}
+  else{
+		sendCmd("\x0B\x01\x00\xC2\x01\x00\x01"); # Setup to turn port off. <- This is the default
+  }
   #          |   |   |           |   |  
   #          |   |   +-----+-----+   +--- Protocol type: 0 current protocol, 1 no protocol, 2 NMEA protocol, 3 RTCM protocol, 4 BINR protocol, 5 BINR2 protocol  
   #          |   |         +------------- Baud rate: 4800 to 230400 baud, x00 x01 xC2 x00 is 115200 baud
