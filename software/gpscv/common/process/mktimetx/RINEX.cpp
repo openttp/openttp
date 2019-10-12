@@ -238,8 +238,12 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 		else
 			currMeas++;
 	}
-	
-	std::fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS");
+	if (rx->leapsecs > 0){
+        std::fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS");
+    }
+    else{
+        DBGMSG(debugStream,INFO,"LEAP SECONDS unknown so omitted");
+    }
 	std::fprintf(fout,"%60s%-20s\n","","END OF HEADER");
 	
 	obsTime=0;
