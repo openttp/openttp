@@ -110,6 +110,9 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	
 	std::fprintf(fout,"%-60s%-20s\n",ant->markerName.c_str(),"MARKER NAME");
 	std::fprintf(fout,"%-20s%40s%-20s\n",ant->markerNumber.c_str(),"","MARKER NUMBER");
+    if (V3 == ver){
+        std::fprintf(fout,"%-20s%40s%-20s\n",ant->markerType.c_str(),"","MARKER TYPE");
+    }
 	std::fprintf(fout,"%-20s%-40s%-20s\n",observer.c_str(),agency.c_str(),"OBSERVER / AGENCY");
 	std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",
 		rx->serialNumber.c_str(),rx->modelName.c_str(),rx->version1.c_str(),"REC # / TYPE / VERS");
@@ -614,8 +617,8 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 			break;
 	}
 	
-	time_t tnow = time(NULL);
-	struct tm *tgmt = gmtime(&tnow);
+	time_t tnow = std::time(NULL);
+	struct tm *tgmt = std::gmtime(&tnow);
 	
 	// Determine the GPS week number FIXME why am I not using the receiver-provided WN_t ?
 	// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
@@ -624,7 +627,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 	{
 		case V2:
 		{
-			strftime(buf,80,"%d-%b-%y %T",tgmt);
+			std::strftime(buf,80,"%d-%b-%y %T",tgmt);
 			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			std::fprintf(fout,"%2s%12.4e%12.4e%12.4e%12.4e%10s%-20s\n","",
 				rx->gps.ionoData.a0,rx->gps.ionoData.a1,rx->gps.ionoData.a2,rx->gps.ionoData.a3,"","ION ALPHA");
@@ -658,7 +661,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 	struct tm tmGPS0;
 	tmGPS0.tm_sec=tmGPS0.tm_min=tmGPS0.tm_hour=0;
 	tmGPS0.tm_mday=6;tmGPS0.tm_mon=0;tmGPS0.tm_year=1980-1900,tmGPS0.tm_isdst=0;
-	time_t tGPS0=mktime(&tmGPS0);
+	time_t tGPS0=std::mktime(&tmGPS0);
 	for (unsigned int i=0;i<rx->gps.ephemeris.size();i++){
 			
 		// Account for GPS rollover:
@@ -703,7 +706,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 		int second=t;
 	
 		time_t tgps = tGPS0+GPSWeek*86400*7+Toc;
-		struct tm *tmGPS = gmtime(&tgps);
+		struct tm *tmGPS = std::gmtime(&tgps);
 		
 		switch (ver)
 		{
