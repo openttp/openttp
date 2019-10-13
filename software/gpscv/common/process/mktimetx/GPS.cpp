@@ -403,6 +403,39 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 } // ionnodelay
 
+double GPS::measIonoDelay(unsigned int code1,unsigned int code2,double tpr1,double tpr2,EphemerisData *ed)
+{
+	// This returns the measured ionospheric delay for the higher of the two frequencies
+	// Pseudoranges must be in seconds
+	
+	double f1,f2;
+	
+	switch (code1){
+		case GNSSSystem::C1C: case GNSSSystem::C1P:
+			f1 = 77.0;
+			break;
+		case GNSSSystem::C2P: case GNSSSystem::C2C:
+			f1= 60.0;
+			break;
+		default:
+			break;
+	}
+	
+	switch (code2){
+		case GNSSSystem::C1C: case GNSSSystem::C1P:
+			f2 = 77.0;
+			break;
+		case GNSSSystem::C2P: case GNSSSystem::C2C:
+			f2 = 60.0;
+			break;
+		default:
+			break;
+	}
+
+	return (1.0 - f1*f1/(f1*f1 - f2*f2))*(tpr1-tpr2);
+}
+
+
 bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 	EphemerisData *ed,int signal,
 	double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
@@ -417,7 +450,7 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 		case GNSSSystem::C1C: case GNSSSystem::C1P:
 			freqCorr=1.0;
 			break;
-		case GNSSSystem::C2P:
+		case GNSSSystem::C2P: case GNSSSystem::C2C:
 			freqCorr=77.0*77.0/(60.0*60.0);
 			break;
 		default:

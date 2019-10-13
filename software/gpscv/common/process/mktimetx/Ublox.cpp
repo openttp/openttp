@@ -101,6 +101,7 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 		beidou.codes = GNSSSystem::C2I | GNSSSystem::C7I;
 		glonass.codes = GNSSSystem::C1C| GNSSSystem::C2C;
 		codes = beidou.codes | galileo.codes | glonass.codes | gps.codes;
+		dualFrequency = true;
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);

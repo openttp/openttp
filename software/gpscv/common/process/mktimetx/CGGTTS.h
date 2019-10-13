@@ -44,7 +44,7 @@ class CGGTTS
 		CGGTTS(Antenna *,Counter *,Receiver *);
 		bool writeObservationFile(std::string fname,int mjd,int startTime,int stopTime,MeasurementPair **mpairs,bool TICenabled);
 	
-		static unsigned int strToCode(std::string );
+		static unsigned int strToCode(std::string,bool *);
 		
 		std::string ref;
 		std::string lab;
@@ -52,12 +52,14 @@ class CGGTTS
 		std::string calID; // for V2E only
 		
 		int ver;
-		int constellation; // V2E
-		unsigned int code;          // V2E
+		int constellation; 		// V2E
+		unsigned int code;     // V2E
 		int delayKind;         // V2E
+		bool useMSIO;
+		bool isP3;
 		
 		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated
-		double intDly,cabDly,refDly; // intDly is also SYSDLY or TOTDLY in v2E
+		double intDly,intDly2,cabDly,refDly; // intDly is also SYSDLY or TOTDLY in v2E
 		bool quadFits;
 		
 		int minTrackLength; // in seconds
@@ -76,6 +78,7 @@ class CGGTTS
 		Counter *cntr;
 		Receiver *rx;
 		
+		std::string code1Str,code2Str;
 };
 
 #endif
