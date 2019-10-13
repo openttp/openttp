@@ -158,7 +158,7 @@ def ReadV2Observations(fin,nobs):
 
 # ------------------------------------------
 def ReadV2Record(fin,nobs):
-	comments='';
+	comments=''
 	while True:
 		l = fin.readline()
 		if (len(l) == 0): #EOF
@@ -198,7 +198,44 @@ def ReadV2Record(fin,nobs):
 			comments += l
 	return (None)
 
-	
+# ------------------------------------------
+def ReadV3Observations(fin):
+	reading = True
+	obs=[]
+	while (reading):
+		r = ReadV3Rec(fin)
+		if (not (r == None)):
+			obs.append(r)
+		else:
+			reading = False
+	Debug('Read ' + str(int(len(obs))) + ' observations')
+	return obs
+
+# ------------------------------------------
+def ReadV3Rec(fin):
+	comments=''
+	while True:
+		l = fin.readline()
+		if (len(l) == 0): #EOF
+			return None
+		if (l[0]=='>'):
+			year = int(l[2:6])
+			mon = int(l[6:10])
+			day = int(l[9:13])
+			hours= int(l[12:16])
+			mins = int(l[15:19])
+			secs = float(l[19:30])
+			tod = datetime.datetime(year,mon,day,hours,mins,int(secs)) # FIXME whatabout non-integer secs - use microseconds field ?
+			nmeas = int(l[32:36]) # cols 32-35
+			rec=[]
+			for m in range(0,nmeas):
+				l=fin.readline()
+				rec.append(l)
+			return (tod,rec,comments)
+		else:
+			comments += l
+	return None
+			
 # ------------------------------------------
 def ReadV3Record(l,f):
 	if (l[0]=='>'):
@@ -277,21 +314,26 @@ def FixMissing(infiles):
 				nobs = int(str(hdrField[0][0:6]))
 				Debug('Number of observations ' + str(nobs))
 			else:
-				pass
-			
+				hdrField = GetHeaderField(hdr1,'SYS / # / OBS TYPES')
+				# FIXME
+				
 			hdr2 = ReadHeader(finNext)
-			nobs2 = 2
+			nobs2 = 1
 			if (ver1 == 2):
 				hdrField = GetHeaderField(hdr2,'# / TYPES OF OBSERV')
 				nobs2 = int(str(hdrField[0][0:6]))
 				Debug('Number of observations ' + str(nobs2))
 			else:
-				pass
+				hdrField = GetHeaderField(hdr2,'SYS / # / OBS TYPES')
 			
 			if (not nobs == nobs2):
 				ErrorExit('# of observations do not match')
+			obs1=[]
+			if (ver1==2):	
+				obs1 = ReadV2Observations(fin,nobs)
+			else:
+				obs1 = ReadV3Observations(fin)
 				
-			obs1 = ReadV2Observations(fin,nobs)
 			obsTmp = []
 			
 			# Find any records in the first file which are in the next day
@@ -324,11 +366,20 @@ def FixMissing(infiles):
 				tmpFout.close()
 				
 				# Rename the old file
-				# TODO
+				# if (args.replace):
+				# 	os.rename(finName,finName+'.bak')
+				# 	os.rename(tmpName,finName)
+				#		if not args.keep:
+				# 		os.remove(finName+'.bak')
 				
 				# Now examine the next file
 				# Already read the header to do some checks
-				obs2 = ReadV2Observations(finNext,nobs)
+				obs2=[]
+				if (ver1 == 2):
+					obs2 = ReadV2Observations(finNext,nobs)
+				else:
+					obs2 = ReadV3Observations(finNext)
+					
 				# Find the first observation time
 				# If we have any observations that can be inserted before this, print them
 				firstObs = obs2[0][0]
@@ -352,6 +403,12 @@ def FixMissing(infiles):
 					WriteObservations(tmpFout,obs2)
 					tmpFout.close()
 					# Rename files
+					# if (args.replace):
+					# 	os.rename(finName,finName+'.bak')
+					# 	os.rename(tmpName,finName)
+					# 	if not args.keep:
+					#			os.remove(finName+'.bak')
+					
 # ------------------------------------------
 # Main
 
@@ -365,6 +422,7 @@ parser.add_argument('infile',nargs='+',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--output','-o',help='output to file/directory',default='')
+group.add_argument('--keep','-k',help='keep intermediate files',action='store_true')
 group.add_argument('--replace','-r',help='replace edited file',action='store_true')
 parser.add_argument('--system',help='satellite system (BeiDou,Galileo,GPS,GLONASS)')
 parser.add_argument('--obstype',help='observation type (C2I,L2I,...)')
