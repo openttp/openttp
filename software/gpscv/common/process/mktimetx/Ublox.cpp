@@ -96,7 +96,7 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	else if (modelName == "ZED-F9P" or modelName == "ZED-F9T"){
 	  channels=184;
 		constellations=GNSSSystem::GPS | GNSSSystem::GLONASS | GNSSSystem::GALILEO | GNSSSystem::BEIDOU;
-		gps.codes = GNSSSystem::C1C | GNSSSystem::C2L;
+		gps.codes = GNSSSystem::C1C | GNSSSystem::C2L | GNSSSystem::L1C | GNSSSystem::L2L ;
 		galileo.codes = GNSSSystem::C1C| GNSSSystem::C1B | GNSSSystem::C7I | GNSSSystem::C7Q;
 		beidou.codes = GNSSSystem::C2I | GNSSSystem::C7I;
 		glonass.codes = GNSSSystem::C1C| GNSSSystem::C2C;
@@ -151,7 +151,7 @@ void Ublox::addConstellation(int constellation)
 			else if (modelName == "NEO-M8T")
 				gps.codes = GNSSSystem::C1C;
 			else if (modelName == "ZED-F9P" or modelName == "ZED-F9T")
-				gps.codes = GNSSSystem::C1C | GNSSSystem::C2L;
+				gps.codes = GNSSSystem::C1C | GNSSSystem::C2L | GNSSSystem::L1C | GNSSSystem::L2L;
 			codes |= gps.codes;
 			break;
 	}
@@ -325,7 +325,9 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							if (gnssSys & constellations ){
 								// Since we get all the measurements in one message (which starts each second) there's no need to check for multiple measurement messages
 								// like with eg the Resolution T
+                                R8 cpmeas;
 								HexToBin((char *) msg.substr((16+32*m)*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &r8buf); //pseudorange (m)
+								HexToBin((char *) msg.substr((24+32*m)*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &cpmeas); //carrier phase (cycles)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
 								if (modelName == "ZED-F9P"){
@@ -340,6 +342,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								// When PR is reported, trkStat is always 1 but .
 								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID <= maxSVN){ // also filters out svid=255 'unknown GLONASS'
 									int sig=-1;
+                                    int cpsig=-1;
 									switch (gnssSys){
 										case GNSSSystem::BEIDOU:
 											switch (sigID){
@@ -368,8 +371,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 											break;
 										case GNSSSystem::GPS:
 											switch (sigID){
-												case 0:sig=GNSSSystem::C1C;break;
-												case 3:sig=GNSSSystem::C2L;break;
+                                                case 0:sig=GNSSSystem::C1C;cpsig=GNSSSystem::L1C;break;
+												case 3:sig=GNSSSystem::C2L;cpsig=GNSSSystem::L2L;break;
 												//case 4:sig=GNSSSystem::C2M;break;
 												default: break;
 											}
@@ -377,8 +380,14 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 									}
 									if (sig > 0){
 										SVMeasurement *svm = new SVMeasurement(svID,gnssSys,sig,r8buf/CLIGHT,NULL);
-										svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
-										svmeas.push_back(svm);
+                                        svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
+                                        svmeas.push_back(svm);
+                                        if (cpsig > 0){ // FIXME until all CP used ...
+                                            SVMeasurement *svm = new SVMeasurement(svID,gnssSys,cpsig,cpmeas,NULL);
+                                            svmeas.push_back(svm);
+                                           
+                                        }
+
 									}
 									else{
 									}

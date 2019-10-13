@@ -84,6 +84,13 @@ std::string GNSSSystem::observationCodeToStr(int c,int RINEXmajorVersion,int RIN
 			}
 			break;
 		case L2C:return "L2C";break;
+        case L2L:
+            switch (RINEXmajorVersion)
+			{
+				case RINEX::V2:return "L2";break;
+				case RINEX::V3:return "L2L";break;
+			}
+            break;
 		case L2I:return "L2I";break;
 		case L7I:return "L7I";break;
 		default:return "";break;
@@ -104,7 +111,7 @@ unsigned int GNSSSystem::strToObservationCode(std::string s, int RINEXversion)
 				else if (s=="C2"){c=C2L;}
 				//else if (s=="L1"){c=L1C;} // FIXME ambiguity
 				else if (s=="L1"){c=L1P;}   // this is the more common case 
-				else if (s=="L2"){c=L2P;}
+				else if (s=="L2"){c=L2P;}   // ditto (Javad is L2P, ublox L2 is L2L) 
 			}
 			break;
 		case RINEX::V3:
@@ -123,6 +130,7 @@ unsigned int GNSSSystem::strToObservationCode(std::string s, int RINEXversion)
 				else if (s=="L1P"){c=L1P;}
 				else if (s=="L2P"){c=L2P;}
 				else if (s=="L2C"){c=L2C;}
+				else if (s=="L2L"){c=L2L;}
 				else if (s=="L2I"){c=L2I;}
 				else if (s=="L7I"){c=L7I;}
 			}
