@@ -1,6 +1,6 @@
 \subsection{cmpcggtts.py}
 
-\cc{cmpcggtts.py} matches tracks in paired CGGTTS files, and outputs 
+\cc{cmpcggtts.py} matches tracks in paired CGGTTS files. It can be used for time transfer and delay calibration. 
 
 \subsubsection{usage}
 
@@ -22,6 +22,7 @@ The command line options are:
   \item[-{}-delaycal]            delay calibration mode
   \item[-{}-timetransfer]        time-transfer mode (default)
   \item[-{}-ionosphere]          use the ionosphere in delay calibration mode (default = not used)
+   \item[-{}-checksum]           exit on bad checksum (default = warn only)
   \item[-{}-refprefix REFPREFIX] file prefix for reference receiver (default = MJD)
   \item[-{}-calprefix CALPREFIX] file prefix for calibration receiver (default = MJD)
   \item[-{}-refext REFEXT]       file extension for reference receiver (default = cctf)
@@ -32,3 +33,37 @@ The command line options are:
   \item[-{}-keepall]             keep tracks after the end of the day
   \item[-{}-version, -v]         show version and exit
 \end{description*}
+
+\subsubsection{examples}
+
+Basic common-view time transfer with CGGTTS files in the folders \cc{refrx} and \cc{remrx}
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py refrx remrx 57555 57556
+\end{lstlisting}
+
+Delay calibration with filenames according to the CGGTTS V2E specification:
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py --delaycal --refprefix GZAU01 --calprefix GZAU99 refrx remrx 57555 57556
+\end{lstlisting}
+
+\subsubsection{}
+
+Time-transfer mode is the default. In this mode, a linear fit to the time-transfer data is made and the 
+fractional frequency error and REFSYS (evaluated at the midpoint of the data set) are outputted. 
+The uncertainties are estimated from the linear fit.
+
+In delay calibration mode, the presumption is that the data are for two receivers sharing a
+common clock and operating on a short baseline. The ionosphere correction is removed by default
+but can be retained via a command line option. Delays as reported in the CGGTTS header can be 
+changed interactively; prompting for the new delays can be skipped with a command line option.
+
+
+Data can be filtered by elevation, track length and DSG.
+
+Matching on ephemeris (IODE) can reduce time-transfer noise.
+
+Three text files are produced:
+
+
+
+
