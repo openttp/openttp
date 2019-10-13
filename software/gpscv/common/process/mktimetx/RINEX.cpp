@@ -51,7 +51,6 @@
 extern Application *app;
 extern std::ostream *debugStream;
 
-const char * RINEXVersionName[]= {"2.11","3.03"};
 char gsbuf[256];
 
 #define SBUFSIZE 160
@@ -65,7 +64,7 @@ RINEX::RINEX()
 	init();
 }
 
-bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,std::string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
+bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd,int interval, MeasurementPair **mpairs,bool TICenabled)
 {
 	char buf[81];
 	FILE *fout;
@@ -86,12 +85,12 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 		default: obs= 'M';break;
 	}
 	
-	std::fprintf(fout,"%9s%11s%-20s%c%-19s%-20s\n",RINEXVersionName[ver],"","O",obs,"","RINEX VERSION / TYPE");
+	std::fprintf(fout,"%9s%11s%-20s%c%-19s%-20s\n",makeVerName(majorVer,minorVer).c_str(),"","O",obs,"","RINEX VERSION / TYPE");
 	
 	time_t tnow = time(NULL);
 	struct tm *tgmt = gmtime(&tnow);
 	
-	switch (ver){
+	switch (majorVer){
 		case V2:
 		{
 			std::strftime(buf,80,"%d-%b-%y %T",tgmt);
@@ -110,7 +109,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	
 	std::fprintf(fout,"%-60s%-20s\n",ant->markerName.c_str(),"MARKER NAME");
 	std::fprintf(fout,"%-20s%40s%-20s\n",ant->markerNumber.c_str(),"","MARKER NUMBER");
-    if (V3 == ver){
+    if (V3 == majorVer){
         std::fprintf(fout,"%-20s%40s%-20s\n",ant->markerType.c_str(),"","MARKER TYPE");
     }
 	std::fprintf(fout,"%-20s%-40s%-20s\n",observer.c_str(),agency.c_str(),"OBSERVER / AGENCY");
@@ -121,7 +120,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	std::fprintf(fout,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",ant->deltaH,ant->deltaE,ant->deltaN," ","ANTENNA: DELTA H/E/N");
 	
 	
-	switch (ver){
+	switch (majorVer){
 		case V2:
 		{
 			int nobs=0;
@@ -297,14 +296,14 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				}
 				
 				// Record header
-				switch (ver){
+				switch (majorVer){
 					case V2:
 					{
 						int allsv = svids.size();
 						int nsv=0; // number to output
 						
 						for ( int sv=0;sv<allsv;sv++){ // RINEX v2.11 only supports GPS and GLONASS so only count those
-							if (ver == RINEX::V2){
+							if (majorVer == RINEX::V2){
 								if (svids[sv].c_str()[0]=='C') continue;
 								if (svids[sv].c_str()[0]=='E') continue;
 							}
@@ -318,7 +317,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 			
 						int svcount=0;
 						for ( int sv=0;sv<allsv;sv++){
-							if (ver == RINEX::V2){ // skip BeiDou and Galileo
+							if (majorVer == RINEX::V2){ // skip BeiDou and Galileo
 								if (svids[sv].c_str()[0]=='C') continue;
 								if (svids[sv].c_str()[0]=='E') continue;
 							}
@@ -343,14 +342,14 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 				// SV measurements
 				for (unsigned int sv=0;sv<svids.size();sv++){
 					
-					if (ver == V3)
+					if (majorVer == V3)
 						std::fprintf(fout,"%s",svids[sv].c_str());
 					
 					switch (svsys[sv])
 					{
 						case GNSSSystem::BEIDOU:
 						{	
-							if (ver==V2) continue;
+							if (majorVer==V2) continue;
 							for (unsigned int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 								bool foundit=false;
 								for (unsigned int svc=0;svc<rm->meas.size();svc++){
@@ -368,7 +367,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 						
 						case GNSSSystem::GALILEO:
 						{	
-							if (ver==V2) continue;
+							if (majorVer==V2) continue;
 							for (unsigned int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 								bool foundit=false;
 								for (unsigned int svc=0;svc<rm->meas.size();svc++){
@@ -441,12 +440,12 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int v
 	return true;
 }
 
-bool  RINEX::writeNavigationFile(Receiver *rx,int constellation,int ver,std::string fname,int mjd)
+bool  RINEX::writeNavigationFile(Receiver *rx,int constellation,int majorVer,int minorVer,std::string fname,int mjd)
 {
 	switch (constellation)
 	{
-		case GNSSSystem::BEIDOU:return writeBeiDouNavigationFile(rx,ver,fname,mjd);break;
-		case GNSSSystem::GPS:return writeGPSNavigationFile(rx,ver,fname,mjd);break;
+		case GNSSSystem::BEIDOU:return writeBeiDouNavigationFile(rx,majorVer,minorVer,fname,mjd);break;
+		case GNSSSystem::GPS:return writeGPSNavigationFile(rx,majorVer,minorVer,fname,mjd);break;
 		default: break;
 	}
 	return false;
@@ -539,9 +538,9 @@ std::string RINEX::makeFileName(std::string pattern,int mjd)
 // Private members
 //
 
-bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,int mjd)
+bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd)
 {
-	if (ver != RINEX::V3) return false;
+	if (majorVer != RINEX::V3) return false;
 	
 	char buf[81];
 	FILE *fout;
@@ -549,7 +548,7 @@ bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,in
 		return false;
 	}
 	
-	std::fprintf(fout,"%9s%11s%-20s%-20s%-20s\n",RINEXVersionName[ver],"","N: GNSS NAV DATA","C: BDS","RINEX VERSION / TYPE");
+	std::fprintf(fout,"%9s%11s%-20s%-20s%-20s\n",makeVerName(majorVer,minorVer).c_str(),"","N: GNSS NAV DATA","C: BDS","RINEX VERSION / TYPE");
 	time_t tnow = time(NULL);
 	struct tm *tgmt = gmtime(&tnow);
 	std::snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
@@ -601,7 +600,7 @@ bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,in
 	return true;
 }
 
-bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int mjd)
+bool  RINEX::writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd)
 {
 	char buf[81];
 	FILE *fout;
@@ -609,13 +608,13 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 		return false;
 	}
 	
-	switch (ver)
+	switch (majorVer)
 	{
 		case V2:
-			std::fprintf(fout,"%9s%11s%1s%-39s%-20s\n",RINEXVersionName[ver],"","N","","RINEX VERSION / TYPE");
+			std::fprintf(fout,"%9s%11s%1s%-39s%-20s\n",makeVerName(majorVer,minorVer).c_str(),"","N","","RINEX VERSION / TYPE");
 			break;
 		case V3:
-			std::fprintf(fout,"%9s%11s%-20s%-20s%-20s\n",RINEXVersionName[ver],"","N: GNSS NAV DATA","G: GPS","RINEX VERSION / TYPE");
+			std::fprintf(fout,"%9s%11s%-20s%-20s%-20s\n",makeVerName(majorVer,minorVer).c_str(),"","N: GNSS NAV DATA","G: GPS","RINEX VERSION / TYPE");
 			break;
 		default:
 			break;
@@ -627,7 +626,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 	// Determine the GPS week number FIXME why am I not using the receiver-provided WN_t ?
 	// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
 	int gpsWeek=int ((mjd-44244)/7);
-	switch (ver)
+	switch (majorVer)
 	{
 		case V2:
 		{
@@ -712,7 +711,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int m
 		time_t tgps = tGPS0+GPSWeek*86400*7+Toc;
 		struct tm *tmGPS = std::gmtime(&tgps);
 		
-		switch (ver)
+		switch (majorVer)
 		{
 			case V2:
 			{
@@ -1324,4 +1323,13 @@ bool RINEX::get4DParams(FILE *fin,int startCol,
 	
 	return true;
 	
+}
+
+std::string RINEX::makeVerName(int majorVer,int minorVer)
+{
+    char sbuf[SBUFSIZE];
+    std::string n;
+    sprintf(sbuf,"%i.%02d",majorVer,minorVer);
+    n=sbuf;
+    return n;
 }

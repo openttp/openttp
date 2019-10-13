@@ -43,11 +43,11 @@ class RINEX
 	
 	public:
 		
-		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
+		enum RINEXVERSIONS {V2=2, V3=3};
 		
 		RINEX();
-		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,std::string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
-		bool writeNavigationFile(Receiver *rx,int constellation,int ver,std::string fname,int mjd);
+		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
+		bool writeNavigationFile(Receiver *rx,int constellation,int majorVer,int minorVer, std::string fname,int mjd);
 		
 		bool readNavigationFile(Receiver *rx,int constellation,std::string fname);
 		
@@ -67,8 +67,8 @@ class RINEX
 		GPS::EphemerisData* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
 		BeiDou::EphemerisData* getBeiDouEphemeris(FILE *fin,unsigned int *lineCount);
 		
-		bool writeGPSNavigationFile(Receiver *rx,int ver,std::string fname,int mjd);
-		bool writeBeiDouNavigationFile(Receiver *rx,int ver,std::string fname,int mjd);
+		bool writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
+		bool writeBeiDouNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
 		
 		char * formatFlags(int,int);
 		
@@ -77,6 +77,7 @@ class RINEX
 		void parseParam(char *,int start,int len,double *val);
 		bool get4DParams(FILE *fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
+        std::string makeVerName(int majorVer,int minorVer);
 };
 
 #endif

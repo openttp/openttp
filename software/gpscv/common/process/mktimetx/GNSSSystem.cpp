@@ -25,18 +25,18 @@
 #include "GNSSSystem.h"
 #include "RINEX.h"
 
-std::string GNSSSystem::observationCodeToStr(int c,int RINEXversion){
+std::string GNSSSystem::observationCodeToStr(int c,int RINEXmajorVersion,int RINEXminorVersion){
 	switch (c)
 	{
 		case C1C:
-			switch (RINEXversion)
+			switch (RINEXmajorVersion)
 			{
 				case RINEX::V2:return "C1";break;
 				case RINEX::V3:return "C1C";break;
 			}
 			break;
 		case C1P:
-			switch (RINEXversion)
+			switch (RINEXmajorVersion)
 			{
 				case RINEX::V2:return "P1";break;
 				case RINEX::V3:return "C1P";break;
@@ -45,16 +45,16 @@ std::string GNSSSystem::observationCodeToStr(int c,int RINEXversion){
 		case C1B:return "C1B";break;
 		case C2C:return "C2C";break;
 		case C2P:
-			switch (RINEXversion)
+			switch (RINEXmajorVersion)
 			{
 				case RINEX::V2:return "P2";break;
 				case RINEX::V3:return "C2P";break;
 			}
 			break;
 		case C2L:
-			switch (RINEXversion)
+			switch (RINEXmajorVersion)
 			{
-				case RINEX::V2:return "C2";break;
+				case RINEX::V2:return "C2";break; // FIXME L2C signal in V2.12 is CC
 				case RINEX::V3:return "C2L";break;
 			}
 			break;
@@ -63,21 +63,21 @@ std::string GNSSSystem::observationCodeToStr(int c,int RINEXversion){
 		case C7I:return "C7I";break;
 		case C7Q:return "C7Q";break;
 		case L1C:
-			switch (RINEXversion)
+			switch (RINEXmajorVersion)
 			{
 				case RINEX::V2:return "L1";break;
 				case RINEX::V3:return "L1C";break;
 			}
 			break;
 		case L1P:
-			switch (RINEXversion)
+			switch (RINEXmajorVersion)
 			{
 				case RINEX::V2:return "L1";break;
 				case RINEX::V3:return "L1P";break;
 			}
 			break;
 		case L2P:
-			switch (RINEXversion)
+			switch (RINEXmajorVersion)
 			{
 				case RINEX::V2:return "L2";break;
 				case RINEX::V3:return "L2P";break;

@@ -54,19 +54,20 @@ class CGGTTSOutput{
 		enum EphemerisSource{ GNSSReceiver, UserSupplied};
 		
 		CGGTTSOutput();
-		CGGTTSOutput(int constellation,int code,std::string path,std::string calID,
-			double internalDelay,int delayKind,
+		CGGTTSOutput(int constellation,int code,bool isP3,std::string path,std::string calID,
+			double internalDelay,double internalDelay2,int delayKind,
 			int ephemerisSource,std::string ephemerisPath,std::string ephemerisFile
 			):
-			constellation(constellation),code(code),path(path),
-			calID(calID),internalDelay(internalDelay),delayKind(delayKind),
+			constellation(constellation),code(code),isP3(isP3),path(path),
+			calID(calID),internalDelay(internalDelay),internalDelay2(internalDelay2),delayKind(delayKind),
 			ephemerisSource(ephemerisSource),ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile){};
 		
 		int constellation;
 		int code;
+		bool isP3; // for convenience
 		std::string path;
 		std::string calID;
-		double internalDelay;
+		double internalDelay,internalDelay2;
 		int delayKind;
 		int ephemerisSource;
 		std::string ephemerisPath;
@@ -151,7 +152,7 @@ class Application
 		int MJD,startTime,stopTime;
 		long refTime;
 		int interval;
-		int RINEXversion;
+		int RINEXmajorVersion,RINEXminorVersion;
 		std::string homeDir;
 		std::string rootDir;
 		std::string configurationFile;

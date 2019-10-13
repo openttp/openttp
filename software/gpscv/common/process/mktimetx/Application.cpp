@@ -75,7 +75,7 @@ Application *app;
 
 static struct option longOptions[] = {
 		{"configuration",required_argument, 0,  0 },
-		{"debug",         required_argument, 0,  0 },
+		{"debug",         optional_argument, 0,  0 },
 		{"disable-tic", no_argument, 0,  0 },
 		{"help",          no_argument, 0, 0 },
 		{"start",required_argument, 0,  0 },
@@ -121,18 +121,24 @@ Application::Application(int argc,char **argv)
 							break;
 						case 1:
 							{
-								std::string dbgout = optarg;
-								if ((std::string::npos != dbgout.find("stderr"))){
+								if (optarg == NULL){
 									debugStream = & std::cerr;
 								}
 								else{
-									debugFileName = dbgout;
-									debugLog.open(debugFileName.c_str(),std::ios_base::out);
-									if (!debugLog.is_open()){
-										std::cerr << "Error! Unable to open " << dbgout << std::endl;
-										exit(EXIT_FAILURE);
+									std::string dbgout = optarg;
+									
+									if ((std::string::npos != dbgout.find("stderr"))){
+										debugStream = & std::cerr;
 									}
-									debugStream = & debugLog;
+									else{
+										debugFileName = dbgout;
+										debugLog.open(debugFileName.c_str(),std::ios_base::out);
+										if (!debugLog.is_open()){
+											std::cerr << "Error! Unable to open " << dbgout << std::endl;
+											exit(EXIT_FAILURE);
+										}
+										debugStream = & debugLog;
+									}
 								}
 								break;
 							}
@@ -300,6 +306,7 @@ void Application::run()
 			cggtts.revDateDD=CGGTTSRevDateDD;
 			cggtts.cabDly=antCableDelay;
 			cggtts.intDly=CGGTTSoutputs.at(i).internalDelay;
+			cggtts.intDly2=CGGTTSoutputs.at(i).internalDelay2;
 			cggtts.delayKind=CGGTTSoutputs.at(i).delayKind;
 			cggtts.refDly=refCableDelay;
 			cggtts.minElevation=CGGTTSminElevation;
@@ -310,7 +317,8 @@ void Application::run()
 			cggtts.constellation=CGGTTSoutputs.at(i).constellation;
 			cggtts.code=CGGTTSoutputs.at(i).code;
 			cggtts.calID=CGGTTSoutputs.at(i).calID;
-		
+			cggtts.isP3=CGGTTSoutputs.at(i).isP3;
+			cggtts.useMSIO=cggtts.isP3; // FIXME not the whole story
 			std::string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
 			cggtts.writeObservationFile(CGGTTSfile,MJD,startTime,stopTime,mpairs,TICenabled);
 	
@@ -324,9 +332,9 @@ void Application::run()
 		rnx.allObservations=allObservations;
 		
 		if (generateNavigationFile) 
-			rnx.writeNavigationFile(receiver,GNSSSystem::GPS,RINEXversion,RINEXnavFile,MJD);
-		
-		rnx.writeObservationFile(antenna,counter,receiver,RINEXversion,RINEXobsFile,MJD,interval,mpairs,TICenabled);
+			rnx.writeNavigationFile(receiver,GNSSSystem::GPS,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
+		rnx.writeObservationFile(antenna,counter,receiver,RINEXmajorVersion,RINEXminorVersion
+            ,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	} // if createRINEX
 	
 	if (timingDiagnosticsOn) 
@@ -418,8 +426,9 @@ void Application::init()
 	
 	createCGGTTS=createRINEX=true;
 	
-	RINEXversion=RINEX::V2;
-	
+	RINEXmajorVersion=RINEX::V2;
+	RINEXminorVersion=11;
+    
 	CGGTTSversion=CGGTTS::V1;
 	CGGTTScomment="NONE";
 	CGGTTSref="REF";
@@ -516,18 +525,18 @@ void  Application::makeFilenames()
 	
 	char fname[64];
 	std::ostringstream ss5;
-	if (RINEX::V2 == RINEXversion || forceV2name)
+	if (RINEX::V2 == RINEXmajorVersion || forceV2name)
 		std::snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
-	else if (RINEXversion == RINEX::V3)
+	else if (RINEXmajorVersion == RINEX::V3)
 		std::snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
 	
 	ss5 << RINEXPath << "/" << fname; // at least no problem with length of RINEXPath
 	RINEXnavFile=ss5.str();
 	
 	std::ostringstream ss6;
-	if (RINEX::V2 == RINEXversion  || forceV2name)
+	if (RINEX::V2 == RINEXmajorVersion  || forceV2name)
 		std::snprintf(fname,15,"%s%03d0.%02dO",antenna->markerName.c_str(),yday,yy);
-	else if (RINEXversion == RINEX::V3)
+	else if (RINEXmajorVersion == RINEX::V3)
 		std::snprintf(fname,63,"%s_R_%d%03d0000_01D_30S_MO.rnx",v3name.c_str(),year,yday);
 	
 	ss6 << RINEXPath << "/" << fname;
@@ -672,6 +681,7 @@ bool Application::loadConfig()
 			std::vector<std::string> configs;
 			boost::split(configs, stmp,boost::is_any_of(","), boost::token_compress_on);
 			int constellation=0,code=0;
+			bool isP3=false;
 			int ephemerisSource=CGGTTSOutput::GNSSReceiver;
 			std::string ephemerisFile,ephemerisPath;
 			
@@ -695,14 +705,15 @@ bool Application::loadConfig()
 				}
 				if (setConfig(last,configs.at(i).c_str(),"code",stmp,&configOK)){
 					boost::to_upper(stmp);
-					if (0== (code = CGGTTS::strToCode(stmp))){
+					
+					if (0== (code = CGGTTS::strToCode(stmp,&isP3))){
 						std::cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << std::endl;
 						configOK=false;
 						continue;
 					}
 				}
 				setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,&configOK,false);
-				double intdly=0.0;
+				double intdly=0.0,intdly2=0.0;
 				int delayKind = CGGTTS::INTDLY; 
 				
 				switch (CGGTTSversion){
@@ -710,8 +721,11 @@ bool Application::loadConfig()
 						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK)){
 							continue;
 						}
+						setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
 						break;
 					case CGGTTS::V2E:
+						if (isP3)
+							setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
 						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK,false)){
 							if (!setConfig(last,configs.at(i).c_str(),"system delay",&intdly,&configOK,false)){
 								DBGMSG(debugStream,INFO,"Got there");
@@ -755,7 +769,7 @@ bool Application::loadConfig()
 					// FIXME check compatibility of constellation+code
 					stmp=relativeToAbsolutePath(stmp);
 					ephemerisPath = relativeToAbsolutePath(ephemerisPath);
-					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,stmp,calID,intdly,delayKind,
+					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,isP3,stmp,calID,intdly,intdly2,delayKind,
 						ephemerisSource,ephemerisPath,ephemerisFile));
 				}
 				
@@ -820,8 +834,12 @@ bool Application::loadConfig()
 		if (setConfig(last,"rinex","version",&itmp,&configOK)){
 			switch (itmp)
 			{
-				case 2:RINEXversion=RINEX::V2;break;
-				case 3:RINEXversion=RINEX::V3;break;
+				case 2:RINEXmajorVersion=RINEX::V2;
+                    RINEXminorVersion=11;
+                    break;
+				case 3:RINEXmajorVersion=RINEX::V3;
+                    RINEXminorVersion=3;
+                    break;
 				default:configOK=false;
 			}
 		}

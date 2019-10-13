@@ -61,7 +61,7 @@ class GNSSSystem
 		~GNSSSystem(){};
 		
 		int codes; // observation codes
-		static std::string observationCodeToStr(int c,int RINEXversion);
+		static std::string observationCodeToStr(int c,int RINEXmajorVersion,int RINEXminorVersion=-1);
 		static unsigned int strToObservationCode(std::string, int RINEXversion);
 		
 		virtual int maxSVN(){return -1;}
