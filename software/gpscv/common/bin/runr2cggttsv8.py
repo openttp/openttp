@@ -124,7 +124,7 @@ def MakeRINEXNavigationName(dirname,staname,yyyy,doy,rnxver,reqd):
 # ------------------------------------------
 # Main
 
-parser = argparse.ArgumentParser(description='Edit a RINEX navigation file')
+parser = argparse.ArgumentParser(description='Set up and run r2cggtts v8')
 parser.add_argument('obssta',help='station name for RINEX observation files',type=str)
 parser.add_argument('MJD',help='mjd')
 parser.add_argument('obspath',help='path to RINEX observations',type=str)
