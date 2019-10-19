@@ -515,7 +515,10 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 			trklen=999
 			reject=False
 			if (not(CGGTTS_RAW == ver)): # DSG not defined for RAW
-				dsg = int(fields[DSG])/10.0
+				if (fields[DSG] == '9999' or fields[DSG] == '****'):
+					reject=True;
+				else:
+					dsg = int(fields[DSG])/10.0
 				trklen = int(fields[TRKL])
 			elv = int(fields[ELV])/10.0
 			if (elv < elevationMask):
@@ -532,11 +535,13 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 					nBadSRSV +=1
 					reject=True
 				if (dualFrequency):
-					if (fields[MSIO] == '9999' or fields[MSIO] == '****'):
+					if (fields[MSIO] == '9999' or fields[MSIO] == '****' or fields[SMSI]=='***' ):
 						nBadMSIO +=1
 						reject=True
 			if (reject):
 				continue
+			print fields[SMSI];
+			print l;
 			frc = 0
 			if (ver == CGGTTS_V2 or ver == CGGTTS_V2E):
 				frc=fields[FRC]
