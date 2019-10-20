@@ -498,14 +498,15 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		l = fin.readline().rstrip()
 		if l:
 			fields = l.split()
-			cksum = int(fields[CK],16)
-			#print CK,fields[CK],cksum,CheckSum(l[:cksumend])
-			if (not(cksum == (CheckSum(l[:cksumend])))):
-				if (enforceChecksum):
-					sys.stderr.write('Bad checksum in data of ' + fname + '\n')
-					exit()
-				else:
-					Warn('Bad checksum in data of ' + fname )
+			if (ver != CGGTTS_RAW):
+				cksum = int(fields[CK],16)
+				#print CK,fields[CK],cksum,CheckSum(l[:cksumend])
+				if (not(cksum == (CheckSum(l[:cksumend])))):
+					if (enforceChecksum):
+						sys.stderr.write('Bad checksum in data of ' + fname + '\n')
+						exit()
+					else:
+						Warn('Bad checksum in data of ' + fname )
 			theMJD = int(fields[MJD])
 			hh = int(fields[STTIME][0:2])
 			mm = int(fields[STTIME][2:4])
@@ -538,10 +539,13 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 					if (fields[MSIO] == '9999' or fields[MSIO] == '****' or fields[SMSI]=='***' ):
 						nBadMSIO +=1
 						reject=True
+			if (CGGTTS_RAW == ver):
+				if (dualFrequency):
+					if (fields[MSIO] == '9999' or fields[MSIO] == '****'):
+						nBadMSIO +=1
+						reject=True	
 			if (reject):
 				continue
-			print fields[SMSI];
-			print l;
 			frc = 0
 			if (ver == CGGTTS_V2 or ver == CGGTTS_V2E):
 				frc=fields[FRC]
@@ -1150,6 +1154,7 @@ if (MODE_DELAY_CAL==mode ):
 
 elif (MODE_TT == mode):
 	if (not args.quiet):
-		print
+		print ' Linear fit to data'
+		print 'Offset (REF - CAL) at midpoint {} ns '.format(meanOffset)
 		print 'ffe = {:.3e} +/- {:.3e}'.format(p[0]*1.0E-9/86400.0,slopeErr*1.0E-9/86400.0)
 		
