@@ -41,7 +41,7 @@ import os
 import re
 import sys
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -492,8 +492,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 	nBadSRSV=0
 	nBadMSIO =0
 	 
-	
-	
+	 
 	while True:
 		l = fin.readline().rstrip()
 		if l:
@@ -589,6 +588,13 @@ def GetDelay(headers,delayName):
 	return False,0.0
 
 # ------------------------------------------
+def IsDualFrequency(headers):
+	for h in headers:
+		if (h['dual frequency'] == 'no'): # one bad one spoils the bunch
+			return False
+	return True
+
+# ------------------------------------------
 def GetFloat(msg,defaultValue):
 	ok = False
 	while (not ok):
@@ -609,7 +615,10 @@ def AverageTracks(trks):
 	iref = 0
 	mjd1 = trks[iref][MJD]
 	st1  = trks[iref][STTIME]
-	av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+	if (useMSIO):
+		av = trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+	else:
+		av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
 	iref +=1
 	svcnt=1
 	trklen = len(trks)
@@ -617,7 +626,11 @@ def AverageTracks(trks):
 		mjd2 = trks[iref][MJD]
 		st2 = trks[iref][STTIME]
 		if (mjd2 == mjd1 and st2 == st1):
-			av += trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+			#av += trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO]
+			if (useMSIO):
+				av += trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+			else:
+				av += trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
 			#print trks[iref][REFSYS] + IONO_OFF*trksf[iref][REF_IONO] 
 			svcnt += 1
 		else:
@@ -626,7 +639,10 @@ def AverageTracks(trks):
 			svcnt=1
 			mjd1=mjd2
 			st1 = st2
-			av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+			if (useMSIO):
+				av = trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+			else:
+				av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
 		iref += 1
 	avs.append([mjd1,st1, av/svcnt]) # last one
 	#print mjd1-firstMJD+st1/86400.0, av/svcnt,svcnt
@@ -645,6 +661,7 @@ maxDSG=DSG_MAX
 cmpMethod=USE_GPSCV
 mode = MODE_TT
 ionosphere=True
+useMSIO=False
 acceptDelays=False
 matchEphemeris=False
 refIonosphere=MODELED_IONOSPHERE
@@ -693,6 +710,7 @@ parser.add_argument('--acceptdelays',help='accept the delays (no prompts in dela
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
+parser.add_argument('--useMSIO',help='use the measured ionosphere (mdio is removed from refsys and msio is subtracted) ',action='store_true')
 
 parser.add_argument('--checksum',help='exit on bad checksum (default is to warn only)',action='store_true')
 
@@ -774,7 +792,10 @@ if (args.delaycal):
 	if (args.ionosphere): # only use this option in delay calibration
 		ionosphere=True
 		IONO_OFF=0
-		
+
+if (args.useMSIO):
+	useMSIO=True
+	
 if (args.timetransfer):
 	mode = MODE_TT
 
@@ -837,7 +858,15 @@ if (reflen==0 or callen == 0):
 	exit()
 
 Debug('CAL total tracks= {}'.format(len(allcal)))
-			
+		
+if (useMSIO):
+	if not(IsDualFrequency(calHeaders)):
+		sys.stderr.write('CAL data does not have MSIO');
+		exit()
+	if not(IsDualFrequency(refHeaders)):
+		sys.stderr.write('REF data does not have MSIO');
+		exit()
+		
 refCorrection = 0 # sign convention: add to REFSYS
 calCorrection = 0 # ditto
 	
@@ -940,6 +969,8 @@ REFSYS = 7
 IOE = 9
 CAL_IONO = 10
 REF_IONO = 10
+CAL_MSIO=11
+REF_MSIO=11
 
 # Averaged deltas, in numpy friendly format,for analysis
 tMatch=[]
@@ -965,7 +996,9 @@ except:
 
 Debug('Matching tracks ...')
 Debug('Ionosphere '+('removed' if (IONO_OFF==1) else 'included'))
-			
+if (useMSIO):
+	Debug('Using MSIO')
+	
 if (cmpMethod == USE_GPSCV):
 	matches = []
 	iref=0
@@ -1007,8 +1040,12 @@ if (cmpMethod == USE_GPSCV):
 						break
 					fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
 					tMatch.append(mjd1-firstMJD+st1/86400.0)  #used in the linear fit
-					delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
-						allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
+					if useMSIO:
+						delta = (allref[iref][REFSYS] + allref[iref][REF_IONO] - allref[iref][REF_MSIO]  + refCorrection) - (
+							allcal[jtmp][REFSYS] + allcal[jtmp][CAL_IONO] - allcal[jtmp][REF_MSIO] + calCorrection)
+					else:
+						delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
+							allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
 					refMatch.append(allref[iref][REFSYS])
 					calMatch.append(allcal[jtmp][REFSYS])
 					deltaMatch.append(delta) # used in the linear fit
@@ -1031,8 +1068,14 @@ if (cmpMethod == USE_GPSCV):
 	lenmatch=len(matches)
 	mjd1=matches[0][MJD]
 	st1=matches[0][STTIME]
-	avref = matches[0][REFSYS]
-	avcal = matches[0][ncols + REFSYS]
+	if (useMSIO):
+		avref = matches[0][REFSYS]  +  matches[0][REF_IONO] - matches[0][REF_MSIO] + refCorrection
+	else:
+		avref = matches[0][REFSYS]  +  IONO_OFF*matches[0][REF_IONO]  + refCorrection
+	if (useMSIO):
+		avcal = matches[0][ncols + REFSYS] + matches[0][ncols+CAL_IONO] - matches[0][ncols+CAL_MSIO] + calCorrection
+	else:
+		avcal = matches[0][ncols + REFSYS] + IONO_OFF*matches[0][ncols+CAL_IONO] + calCorrection
 	nsv = 1
 	imatch=1
 	while imatch < lenmatch:
@@ -1040,8 +1083,14 @@ if (cmpMethod == USE_GPSCV):
 		st2  = matches[imatch][STTIME]
 		if (mjd1==mjd2 and st1==st2):
 			nsv += 1
-			avref  += matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
-			avcal  += matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
+			if (useMSIO):
+					avref  += matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
+			else:
+				avref  += matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
+			if (useMSIO):
+				avcal  += matches[imatch][ncols + REFSYS] + matches[imatch][ncols+CAL_IONO] - matches[imatch][ncols+CAL_MSIO] + calCorrection
+			else:
+				avcal  += matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
 		else:
 			favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
 			tAvMatches.append(mjd1-firstMJD+st1/86400.0)
@@ -1049,8 +1098,16 @@ if (cmpMethod == USE_GPSCV):
 			mjd1 = mjd2
 			st1  = st2
 			nsv=1
-			avref = matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
-			avcal = matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
+			
+			if (useMSIO):
+					avref  = matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
+			else:
+				avref  = matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
+			if (useMSIO):
+				avcal  = matches[imatch][ncols + REFSYS] + matches[imatch][ncols+CAL_IONO] - matches[imatch][ncols+CAL_MSIO] + calCorrection
+			else:
+				avcal  = matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
+				
 		imatch += 1
 	# last one
 	favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
