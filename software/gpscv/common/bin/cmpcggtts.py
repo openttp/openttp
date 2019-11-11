@@ -41,7 +41,7 @@ import os
 import re
 import sys
 
-VERSION = "0.2.4"
+VERSION = "0.2.5"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -492,7 +492,6 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 	nBadSRSV=0
 	nBadMSIO =0
 	 
-	 
 	while True:
 		l = fin.readline().rstrip()
 		if l:
@@ -506,6 +505,12 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 						exit()
 					else:
 						Warn('Bad checksum in data of ' + fname )
+			# V1 is GPS-only and doesn't have the constellation identifier prepending 
+			# the PRN, so we'll add it for compatibility with later versions
+			if (ver == CGGTTS_V1):
+				thePRN = int(fields[PRN])
+				fields[PRN]= "G{:02d}".format(thePRN)
+				
 			theMJD = int(fields[MJD])
 			hh = int(fields[STTIME][0:2])
 			mm = int(fields[STTIME][2:4])
@@ -1031,6 +1036,7 @@ if (cmpMethod == USE_GPSCV):
 					st2 =allcal[jtmp][STTIME]
 					prn2=allcal[jtmp][PRN]
 					ioe2=allcal[jtmp][IOE]
+
 					if (prn1 == prn2):
 						break
 					jtmp += 1
@@ -1059,6 +1065,11 @@ if (cmpMethod == USE_GPSCV):
 		iref +=1
 		
 	Info(str(len(matches))+' matched tracks')
+	
+	if (len(matches) ==0):
+		sys.stderr.write('No matched tracks\n')
+		exit()
+		
 	if (matchEphemeris):
 		Info(str(nEphemerisMisMatches) + ' mismatched ephemerides')
 	
