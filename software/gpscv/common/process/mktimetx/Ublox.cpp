@@ -159,7 +159,7 @@ void Ublox::addConstellation(int constellation)
 
 bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
-	DBGMSG(debugStream,INFO,"reading " << fname);	
+	DBGMSG(debugStream,INFO,"reading " << fname << ", constellations = " << (int) constellations);	
 	
 	std::ifstream infile (fname.c_str());
 	std::string line;
@@ -342,7 +342,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								// When PR is reported, trkStat is always 1 but .
 								if (trkStat > 0 && r8buf/CLIGHT < 1.0 && svID <= maxSVN){ // also filters out svid=255 'unknown GLONASS'
 									int sig=-1;
-                                    int cpsig=-1;
+									int cpsig=-1;
 									switch (gnssSys){
 										case GNSSSystem::BEIDOU:
 											switch (sigID){
@@ -371,7 +371,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 											break;
 										case GNSSSystem::GPS:
 											switch (sigID){
-                                                case 0:sig=GNSSSystem::C1C;cpsig=GNSSSystem::L1C;break;
+												case 0:sig=GNSSSystem::C1C;cpsig=GNSSSystem::L1C;break;
 												case 3:sig=GNSSSystem::C2L;cpsig=GNSSSystem::L2L;break;
 												//case 4:sig=GNSSSystem::C2M;break;
 												default: break;
@@ -592,7 +592,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	for (int i=0;i<=GNSSSystem::GALILEO;i++)
 		nDropped[i]=0;
 	
-	if ((modelName != "ZED-F9P")){ // FIXME can't do this until we've got an epehmeris ...
+	if ((modelName != "ZED-F9P")){ // FIXME can't do this until we've got an ephemeris ...
 		for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
 			if (!(g & constellations)) continue;
 			DBGMSG(debugStream,INFO,"Fixing ms ambiguities for " << g);

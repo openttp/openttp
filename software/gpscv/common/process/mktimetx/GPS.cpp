@@ -54,6 +54,8 @@ extern int verbosity;
 
 static const double URAvalues[] = {2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
 const double* GPS::URA = URAvalues;
+const double  GPS::fL1 = 1575420000.0; // 154*10.23 MHz
+const double  GPS::fL2 = 1227620000.0; // 120*10.23 MHz
 
 GPS::GPS():GNSSSystem()
 {
@@ -403,36 +405,36 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 } // ionnodelay
 
-double GPS::measIonoDelay(unsigned int code1,unsigned int code2,double tpr1,double tpr2,EphemerisData *ed)
+double GPS::measIonoDelay(unsigned int code1,unsigned int code2,double tpr1,double tpr2,double calDelay1,double calDelay2,EphemerisData *ed)
 {
-	// This returns the measured ionospheric delay for the higher of the two frequencies
+	// code1 is assumed to be the higher frequency
+	// This returns the measured ionospheric delay for the higher of the two frequencies as per the CGGTTS V2E specification
+	// For GPS, this will typically be the L1 frequency
 	// Pseudoranges must be in seconds
 	
-	double f1,f2;
+	double f1,f2,GD=0.0;
+	
+    // FIXME GD is zero when the signal combination matches the broadcast clock ..
+    GD=ed->t_GD;
+	
 	
 	switch (code1){
 		case GNSSSystem::C1C: case GNSSSystem::C1P:
 			f1 = 77.0;
-			break;
-		case GNSSSystem::C2P: case GNSSSystem::C2C:
-			f1= 60.0;
 			break;
 		default:
 			break;
 	}
 	
 	switch (code2){
-		case GNSSSystem::C1C: case GNSSSystem::C1P:
-			f2 = 77.0;
-			break;
 		case GNSSSystem::C2P: case GNSSSystem::C2C:
 			f2 = 60.0;
 			break;
 		default:
 			break;
 	}
-
-	return (1.0 - f1*f1/(f1*f1 - f2*f2))*(tpr1-tpr2);
+    
+	return (1.0 - f1*f1/(f1*f1 - f2*f2))*((tpr1-calDelay1) - (tpr2-calDelay2)) - GD; 
 }
 
 

@@ -92,6 +92,7 @@ class Application
 		void logMessage(std::string msg);
 		
 		long referenceTime(){return refTime;}
+		bool positioningMode;
 		
 	private:
 	

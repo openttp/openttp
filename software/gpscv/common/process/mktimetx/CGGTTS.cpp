@@ -174,7 +174,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 			break;
 		case GNSSSystem::C2P:
 			FRCcode="L2P";
-			code1Str="P1";
+			code1Str="P2";
 			break;
 		case GNSSSystem::C2I:
 			FRCcode="B1i";
@@ -201,7 +201,10 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 			FRCcode="L3P";break;
 		default:break;
 	}
-			
+	
+	
+	double aij=0.0; // frequency weight for pseudoranges, as per CGGTTS v2E
+	
 	switch (constellation){
 		case GNSSSystem::BEIDOU:
 			GNSSsys="C"; break;
@@ -210,7 +213,8 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		case GNSSSystem::GLONASS:
 			GNSSsys="R"; break;
 		case GNSSSystem::GPS:
-			GNSSsys="G"; break;
+			GNSSsys="G"; 
+			aij = 77.0*77.0/(77.0*77.0-60*60);break;
 		default:break;
 	}
 	
@@ -432,22 +436,32 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 						if (ed==NULL) // use only one ephemeris for each track
 							ed = rx->gps.nearestEphemeris(sv,rxmt->gpstow,maxURA);
 						if (NULL == ed) ephemerisMisses++;
-						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps;
+						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps,pr;
 						
 						// FIXME MDIO needs to change for L2
 						// getPseudorangeCorrections will check for NULL ephemeris
-						if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,svm1->meas,ant,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						pr = svm1->meas;
+						if (isP3)
+							pr = aij*svm1->meas + (1.0-aij)*svm2->meas + ed->t_GD; // FUDGE
+						if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,pr,ant,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
 							svel[npts]=el;
 							mdtr[npts]=tropo;
 							mdio[npts]=iono;
 							if (useMSIO){
-								msio[npts]=1.0E9*rx->gps.measIonoDelay(code1,code2,svm1->meas,svm2->meas,ed);
+								msio[npts]=1.0E9*rx->gps.measIonoDelay(code1,code2,svm1->meas,svm2->meas,0,0,ed);// FIXME calibrated delays ....
+                                //DBGMSG(debugStream,INFO,tmeas << " " <<"G"<<(int) svm1->svn << "G" << (int)svm2->svn <<  " " << (svm2->meas - svm1->meas)*1.0E9 << " " << msio[npts])
 							}
 							refpps= useTIC*(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
-							refsv[npts]  = svm1->meas*1.0E9 + refsvcorr  - iono - tropo + refpps;
-							refsys[npts] = svm1->meas*1.0E9 + refsyscorr - iono - tropo + refpps;
+							if (isP3){ // ionosphere free so don't use mdio
+								refsv[npts]  = pr*1.0E9 + refsvcorr  - tropo + refpps;
+								refsys[npts] = pr*1.0E9 + refsyscorr - tropo + refpps;
+							}
+							else{
+								refsv[npts]  = pr*1.0E9 + refsvcorr  - iono - tropo + refpps;
+								refsys[npts] = pr*1.0E9 + refsyscorr - iono - tropo + refpps;
+							}
 							svm1->dbuf2 = refsv[npts]/1.0E9; // back to seconds !
 							npts++;
 						}
@@ -500,12 +514,22 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				mdiotc=rint(mdiotc*10);
 				mdiom=rint(mdiom*10000);
 				
-				double msiotc,msioc,msiom,msioresid;
+				double msiotc=0.0,msioc=0.0,msiom=0.0,msioresid=0.0;
 				if (useMSIO){
 					Utility::linearFit(tutc,msio,npts,tc,&msiotc,&msioc,&msiom,&msioresid);
 					msiotc=rint(msiotc*10);
-					msiom=rint(msiom*10000);
-					msioresid=rint(msioresid*10);
+                    if (msiotc < -999)
+                        msiotc=-999;
+                    else if (msiotc > 9999)
+                        msiotc=9999;
+					msiom=rint(msiom*10000); // 4 digits
+                    if (msiom < -999) // clamp out of range
+                        msiom=-999;
+                    else if (msiom > 9999)
+                        msiom=9999;
+					msioresid=rint(msioresid*10); // 3 digits
+                    if (msioresid > 999)
+                        msioresid=999;
 				}
 				
 				// Some range checks on the data - flag bad measurements
@@ -517,7 +541,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				
 				if (refsysresid > 999.9) refsysresid = 999.9;
 				
-				if (fabs(refsvm)==99999 || fabs(refsysm) == 99999 || refsysresid == 999.9)
+				if (fabs(refsvm)==99999 || fabs(refsysm) == 99999 || refsysresid == 999.9 || msioresid==999) // so that we only count a single track
 					badMeasurementCnt++;
 				
 				// Ready to output

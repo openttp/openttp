@@ -75,14 +75,16 @@ Application *app;
 
 static struct option longOptions[] = {
 		{"configuration",required_argument, 0,  0 },
-		{"debug",         optional_argument, 0,  0 },
-		{"disable-tic", no_argument, 0,  0 },
-		{"help",          no_argument, 0, 0 },
-		{"start",required_argument, 0,  0 },
-		{"stop",required_argument, 0,  0 },
-		{"verbosity",     required_argument, 0,  0 },
+		{"debug",        optional_argument, 0,  0 },
+		{"disable-tic",  no_argument, 0,  0 },
+		{"help",         no_argument, 0, 0 },
+		{"mjd",          required_argument, 0,  0 },
+		{"positioning",  no_argument, 0,  0 },
+		{"start",        required_argument, 0,  0 },
+		{"stop",         required_argument, 0,  0 },
+		{"verbosity",    required_argument, 0,  0 },
 		{"timing-diagnostics",no_argument, 0,  0 },
-		{"version",       no_argument, 0,  0 },
+		{"version",      no_argument, 0,  0 },
 		{"sv-diagnostics",no_argument, 0,  0 },
 		{"short-debug-message",no_argument, 0,  0 },
 		{0,         			0,0,  0 }
@@ -108,7 +110,7 @@ Application::Application(int argc,char **argv)
 	
 	std::string RINEXHeaderFile("");
 	
-	while ((c=getopt_long(argc,argv,"hm:",longOptions,&longIndex)) != -1)
+	while ((c=getopt_long(argc,argv,"c:d:hm:",longOptions,&longIndex)) != -1)
 	{
 		switch(c)
 		{
@@ -116,10 +118,10 @@ Application::Application(int argc,char **argv)
 				{
 					switch (longIndex)
 					{
-						case 0:
+						case 0: // --configuration
 							configurationFile=optarg;
 							break;
-						case 1:
+						case 1: // --debug
 							{
 								if (optarg == NULL){
 									debugStream = & std::cerr;
@@ -142,14 +144,29 @@ Application::Application(int argc,char **argv)
 								}
 								break;
 							}
-						case 2:
+						case 2: // --disable-tic
 							TICenabled=false;
 							break;
-						case 3:
+						case 3: // --help
 							showHelp();
 							exit(EXIT_SUCCESS);
 							break;
-						case 4:
+						case 4: // --mjd
+						{
+							if (1!=std::sscanf(optarg,"%i",&MJD)){
+								std::cerr << "Error! Bad value for option --mjd" << std::endl;
+								showHelp();
+								exit(EXIT_FAILURE);
+							}
+							break;
+						}
+						case 5: // --positioning
+						{
+							positioningMode=true;
+							allObservations=true;
+							break;
+						}
+						case 6: //--start
 							if (!Utility::TODStrtoTOD(optarg,&hh,&mm,&ss)){
 								std::cerr << "Error! Bad value for option --start" << std::endl;
 								showHelp();
@@ -157,7 +174,7 @@ Application::Application(int argc,char **argv)
 							}
 							startTime = hh*3600 + mm*60 + ss;
 							break;
-						case 5:
+						case 7: // --stop
 							if (!Utility::TODStrtoTOD(optarg,&hh,&mm,&ss)){
 								std::cerr << "Error! Bad value for option --stop" << std::endl;
 								showHelp();
@@ -165,7 +182,7 @@ Application::Application(int argc,char **argv)
 							}
 							stopTime = hh*3600 + mm*60 + ss;
 							break;
-						case 6:
+						case 8: // --verbosity
 							{
 								if (1!=std::sscanf(optarg,"%i",&verbosity)){
 									std::cerr << "Error! Bad value for option --verbosity" << std::endl;
@@ -174,23 +191,48 @@ Application::Application(int argc,char **argv)
 								}
 							}
 							break;
-						case 7:
+						case 9: // --timing-diagnostics
 							timingDiagnosticsOn=true;
 							break;
-							
-						case 8:
+						case 10: // --version
 							showVersion();
 							exit(EXIT_SUCCESS);
 							break;
-						case 9:
+						case 11: // --sv-diagnostics
 							SVDiagnosticsOn=true;
 							break;
-						case 10:
+						case 12:// --short-debug-message
 							shortDebugMessage=true;
 							break;
 					}
 				}
 				break;
+			case 'c':
+				configurationFile = optarg;
+				break;
+			case 'd':
+			{
+				if (optarg == NULL){
+					debugStream = & std::cerr;
+				}
+				else{
+					std::string dbgout = optarg;
+					
+					if ((std::string::npos != dbgout.find("stderr"))){
+						debugStream = & std::cerr;
+					}
+					else{
+						debugFileName = dbgout;
+						debugLog.open(debugFileName.c_str(),std::ios_base::out);
+						if (!debugLog.is_open()){
+							std::cerr << "Error! Unable to open " << dbgout << std::endl;
+							exit(EXIT_FAILURE);
+						}
+						debugStream = & debugLog;
+					}
+				}
+				break;
+			}
 			case 'h':
 				showHelp();
 				exit(EXIT_SUCCESS);
@@ -221,6 +263,17 @@ Application::Application(int argc,char **argv)
 	}
 	
 	// Note: can't get any debugging output until the command line is parsed !
+	
+	if (positioningMode){
+		TICenabled=false; // no TIC correction needed for positioning
+		allObservations=true; // configuration file may say otherwise
+		if (!createRINEX){
+			std::cerr << std::endl;
+			std::cerr << "Warning! RINEX output is not enabled in the configuration files and this is needed for" << std::endl;
+			std::cerr << "positioning mode. Has a valid RINEX output been configured ?" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+	}
 	
 }
 
@@ -366,18 +419,19 @@ void Application::showHelp()
 	std::cout << std::endl << APP_NAME << " version " << APP_VERSION << std::endl;
 	std::cout << "Usage: " << APP_NAME << " [options]" << std::endl;
 	std::cout << "Available options are" << std::endl;
-	std::cout << "--configuration <file> full path to the configuration file" << std::endl;
-	std::cout << "--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << std::endl;
-	std::cout << "--disable-tic          disables use of sawtooth-corrected TIC measurements" << std::endl;
-	std::cout << "-h,--help              print this help message" << std::endl;
-	std::cout << "-m <n>                 set the mjd" << std::endl;
-	std::cout << "--start HH:MM:SS/HHMMSS  set start time" << std::endl;
-	std::cout << "--stop  HH:MM:SS/HHMMSS  set stop time" << std::endl;
-	std::cout << "--short-debug-message  shorter debugging messages" << std::endl;
-	std::cout << "--sv-diagnostics       write SV diagnostics files" << std::endl;
-	std::cout << "--timing-diagnostics   write receiver timing diagnostics file" << std::endl;
-	std::cout << "--verbosity <n>        set debugging verbosity" << std::endl;
-	std::cout << "--version              print version" << std::endl;
+	std::cout << "-c,--configuration <file> full path to the configuration file" << std::endl;
+	std::cout << "-d,--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << std::endl;
+	std::cout << "--disable-tic             disables use of sawtooth-corrected TIC measurements" << std::endl;
+	std::cout << "-h,--help                 print this help message" << std::endl;
+	std::cout << "-m,--mjd <n>              set the mjd" << std::endl;
+	std::cout << "--positioning             produce output suitable for PPP positioning" << std::endl;
+	std::cout << "--start HH:MM:SS/HHMMSS   set start time" << std::endl;
+	std::cout << "--stop  HH:MM:SS/HHMMSS   set stop time" << std::endl;
+	std::cout << "--short-debug-message     shorter debugging messages" << std::endl;
+	std::cout << "--sv-diagnostics          write SV diagnostics files" << std::endl;
+	std::cout << "--timing-diagnostics      write receiver timing diagnostics file" << std::endl;
+	std::cout << "--verbosity <n>           set debugging verbosity" << std::endl;
+	std::cout << "--version                 print version" << std::endl;
 
 
 }
@@ -424,6 +478,7 @@ void Application::init()
 	// defer instantiating the receiver until we know what kind is configured
 	receiver = NULL;
 	
+	positioningMode=false;
 	createCGGTTS=createRINEX=true;
 	
 	RINEXmajorVersion=RINEX::V2;
@@ -663,6 +718,12 @@ bool Application::loadConfig()
 		}
 	}
 
+	// In positioning mode, we don't care about CGGTTS so suppress it
+	if (positioningMode){
+		createCGGTTS = false;
+		DBGMSG(debugStream,INFO,"CGGTTS creation suppressed");
+	}
+	
 	if (createCGGTTS){
 		
 		if (setConfig(last,"cggtts","version",stmp,&configOK,false)){
@@ -854,7 +915,10 @@ bool Application::loadConfig()
 
 		if (setConfig(last,"rinex","observations",stmp,&configOK)){
 			if (stmp=="all"){
-				allObservations=true;
+				allObservations = true;
+			}
+			else if (stmp == "code"){
+				allObservations = false;
 			}
 		}
 		

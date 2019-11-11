@@ -56,7 +56,7 @@ class RINEX
 		std::string observer;
 		std::string agency;
 	
-		bool allObservations;
+		bool allObservations; // output code AND phase if true
 		
 	private:
 		
@@ -77,7 +77,7 @@ class RINEX
 		void parseParam(char *,int start,int len,double *val);
 		bool get4DParams(FILE *fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
-        std::string makeVerName(int majorVer,int minorVer);
+		std::string makeVerName(int majorVer,int minorVer);
 };
 
 #endif

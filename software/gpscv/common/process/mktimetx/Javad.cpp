@@ -119,7 +119,7 @@ void Javad::addConstellation(int constellation)
 	{
 		case GNSSSystem::GPS:
 			if (modelName=="HE_GD"){	
-				gps.codes = GNSSSystem::C1C | GNSSSystem::C1P | GNSSSystem::C2P;
+				gps.codes = GNSSSystem::C1C | GNSSSystem::C1P | GNSSSystem::C2P | GNSSSystem::L1P | GNSSSystem::L2P;
 				codes |= gps.codes;
 				break;
 			}
@@ -180,6 +180,10 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	//F8 relP2pr[MAX_CHANNELS];
 	unsigned char P2lockFlags[MAX_CHANNELS*2];
 	
+	F8 cpP1[MAX_CHANNELS];
+	
+	F8 cpP2[MAX_CHANNELS];
+	
 	I2 i2bufarray[MAX_CHANNELS];
 	I4 i4bufarray[MAX_CHANNELS];
 	F4 f4bufarray[MAX_CHANNELS];
@@ -193,9 +197,16 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	U2 RDyyyy;
 	U1 RDmm,RDdd;
 	
+	// In positioning mode, RxTimeOffset is not applied to pseudorange measurements
+	// because that creates clock discontinuities with the carrier phase measurements
+	
+	double useTimeOffset = 1.0;
+	if (app->positioningMode)
+		useTimeOffset=0.0;
+	
 	reqdMsgs = AZ_MSG | EL_MSG | FC_MSG | RC_rc_MSG| RT_MSG | SI_MSG | SS_MSG | TO_MSG | YA_MSG| ZA_MSG;
 	if (dualFrequency)
-		reqdMsgs |= R1_r1_1R_1r_MSG | R2_r2_2R_2r_MSG | F1_MSG | F2_MSG;
+		reqdMsgs |= R1_r1_1R_1r_MSG | R2_r2_2R_2r_MSG | F1_MSG | F2_MSG ; // don't require P1 and P2
 	
 
   if (infile.is_open()){
@@ -261,7 +272,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			
 			if(msgid=="RD"){ // Receiver Date (RD) message 
 				
-				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // save measurements
+				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // save measurements for the current second
 					
 					if ((dualFrequency &&
 						!((R1cnt<=1) && (r1Cnt<=1) && (m1RCnt<=1) && (m1rCnt<=1) &&
@@ -299,18 +310,20 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							
 							// Simple sanity check in case pseudoranges or the receiver time offset are wild
 							if (((CApr[chan]-rxTimeOffset)<0.05) || ((CApr[chan]-rxTimeOffset)>0.10)){
-								DBGMSG(debugStream,WARNING," C/A pseudorange too large at line " << linecount << "(" << CApr[chan]-rxTimeOffset << ")");
+								DBGMSG(debugStream,WARNING," C/A pseudorange too large at line " << linecount << "(" << CApr[chan] - 
+									rxTimeOffset << ")");
 								if (ok) badC1Measurements++; // don't count it twice
 								ok=false;
 							}
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1C,CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1C,CApr[chan] - 
+									useTimeOffset*rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								svm->dbuf3 = CApr[chan];
 								rmeas->meas.push_back(svm);
 							}
 							
-						} // if codes & C1
+						} // if codes & C1C
 						
 						if (codes & GNSSSystem::C1P){
 							bool ok=true;
@@ -324,11 +337,12 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							ok = ok && !std::isnan(P1pr[chan]);
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1P,P1pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1P,P1pr[chan] -
+									useTimeOffset*rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								rmeas->meas.push_back(svm);
 							}
 							
-						} // if codes & P1	
+						} // if codes & C1P	
 							
 						if (codes & GNSSSystem::C2P){
 							bool ok = true;
@@ -342,13 +356,49 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							ok = ok && !std::isnan(P2pr[chan]);
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C2P,P2pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C2P,P2pr[chan] -
+									useTimeOffset*rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								rmeas->meas.push_back(svm);
 							}
 							
 
-						} // if codes & P2
+						} // if codes & C2P
 						
+						// Carrier phase measurements
+						
+						if (app->allObservations){ // don't parse if we don't need 'em
+							if (codes & GNSSSystem::L1P){
+								bool ok=true;
+								if (P1lockFlags[chan*2] != 83)
+									ok=false;
+								
+								// FIXME better sanity check
+								ok = ok && !std::isnan(cpP1[chan]);
+								
+								if (ok){
+									SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::L1P,
+										cpP1[chan] - useTimeOffset*rxTimeOffset*GPS::fL1,rmeas); 
+									rmeas->meas.push_back(svm);
+								}
+								
+							} // if codes & L1P	
+								
+							if (codes & GNSSSystem::L2P){
+								bool ok = true;
+								if (P2lockFlags[chan*2] != 83)
+									ok=false;
+								
+								// FIXME better sanity check
+								ok = ok && !std::isnan(cpP2[chan]);
+								
+								if (ok){
+									SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::L2P,
+										cpP2[chan] - useTimeOffset*rxTimeOffset*GPS::fL2,rmeas); 
+									rmeas->meas.push_back(svm);
+								}
+								
+							} // if codes & L2P
+						} // if app->allObservations
 					}
 					
 					if (rmeas->meas.size() > 0){ // FIXME check other codes
@@ -373,8 +423,12 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								rmeas->tmGPS.tm_isdst=0;
 								mktime(&(rmeas->tmGPS)); // this sets wday (note: TZ=UTC enforced in Main.cpp) so DST stays correct
 								rmeas->gpstow = 86400*rmeas->tmGPS.tm_wday+igpsTOD;
-								rmeas->tmfracs = rxTimeOffset;
+								if (app->positioningMode) // FIXME a kludge
+									rmeas->tmfracs = 0.0; // assume on the second with no interpolation
+								else
+									rmeas->tmfracs = rxTimeOffset; 
 								
+								// The following code was removed because interpolation sets tmfracs to zero 
 								// The time offset can be negative so have to account for rollovers
 // 								time_t ttGPS = (time_t)(mktime(&(rmeas->tmGPS)) + rxTimeOffset);
 // 								struct tm *tmGPS = gmtime(&ttGPS);
@@ -413,7 +467,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						DBGMSG(debugStream,WARNING,"No useable GPS measurements at " << currpctime);
 						delete rmeas;
 					}
-				}
+				} // end of save measurements for the current second
 				
 				if (msg.size() == 6*2){
 					HexToBin((char *) msg.c_str(),sizeof(U2),(unsigned char *) &RDyyyy);
@@ -761,7 +815,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					}
 					continue;
 				}
-			
+				
 				if(msgid == "F2"){ // P2 Lock Flags (F2) message
 					unsigned int msgSats = (msg.size() - 2) /(2*sizeof(U2));
 					if (msgSats == nSats){
@@ -771,6 +825,36 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					else{
 						errorCount++;
 						DBGMSG(debugStream,WARNING," F2 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "P1"){ // L1 carrier phase message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F8));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F8),(unsigned char *) (f8bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							cpP1[i] = (double) f8bufarray[i];
+						//currMsgs |= ;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," P1 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "P2"){ // L2 carrier phase message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F8));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F8),(unsigned char *) (f8bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							cpP2[i] = (double) f8bufarray[i];
+						//currMsgs |= ;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," P2 msg wrong size at line " << linecount);	
 					}
 					continue;
 				}
@@ -916,8 +1000,12 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	}
 	
 	// Post load cleanups 
-	
-	interpolateMeasurements();
+	// Interpolation reduces time-transfer noise slightly but 
+	// messes up position by introducing a large systematic error of several m
+	// TODO It could be that if the CP measurements are corrected by rxTimeOffset
+	// then the systematic error is removed
+	if (!(app->positioningMode))  
+		interpolateMeasurements();
 	
 	// Calculate UTC time of measurements, now that the number of leap seconds is known
 	for (unsigned int i=0;i<measurements.size();i++){

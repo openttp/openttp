@@ -52,7 +52,9 @@ class GPS: public GNSSSystem
 		
 	public:
 	
-		static const double *URA;
+		static const double *URA; // User Range Accuracy table
+		static const double fL1; // L1 frequency
+		static const double fL2; // L2 frequency
 		
 	class IonosphereData
 	{
@@ -139,7 +141,7 @@ class GPS: public GNSSSystem
 		float alpha0,float alpha1,float alpha2,float alpha3,
 		float beta0,float beta1,float beta2,float beta3);
 	
-	double measIonoDelay(unsigned int code1,unsigned int code2,double tpr1, double tpr2,EphemerisData *ed);
+	double measIonoDelay(unsigned int code1,unsigned int code2,double tpr1, double tpr2,double calDelay1,double calDelay2,EphemerisData *ed);
 	
 	bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,int signal,
 		double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
