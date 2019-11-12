@@ -423,19 +423,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								rmeas->tmGPS.tm_isdst=0;
 								mktime(&(rmeas->tmGPS)); // this sets wday (note: TZ=UTC enforced in Main.cpp) so DST stays correct
 								rmeas->gpstow = 86400*rmeas->tmGPS.tm_wday+igpsTOD;
-								if (app->positioningMode) // FIXME a kludge
-									rmeas->tmfracs = 0.0; // assume on the second with no interpolation
-								else
-									rmeas->tmfracs = rxTimeOffset; 
-								
-								// The following code was removed because interpolation sets tmfracs to zero 
-								// The time offset can be negative so have to account for rollovers
-// 								time_t ttGPS = (time_t)(mktime(&(rmeas->tmGPS)) + rxTimeOffset);
-// 								struct tm *tmGPS = gmtime(&ttGPS);
-// 								rmeas->tmGPS=*tmGPS;
-// 								rmeas->tmfracs = rxTimeOffset;
-// 								if (rmeas->tmfracs < 0)
-// 									rmeas->tmfracs += 1.0;
+								rmeas->tmfracs = 0.0; // measurements are apparently on the second ...
 								
 								// YA and TO messages can roll over at different times - handle this case
 								// Typically, the difference between the smoothed and receiver time offsets is <= 1 ns
@@ -443,7 +431,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								if ((smoothingOffset - rxTimeOffset)<-5e-4) smoothingOffset+=1e-3;
 				
 								rmeas->sawtooth=sawtooth-(smoothingOffset-rxTimeOffset); // added to the counter measurement
-																																				 // the term (moothingOffset-rxTimeOffset) is typically zero
+																																				 // the term (smoothingOffset-rxTimeOffset) is typically zero
 								rmeas->timeOffset = rxTimeOffset; // just used for diagnostics
 								
 								// All OK
@@ -1000,12 +988,8 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	}
 	
 	// Post load cleanups 
-	// Interpolation reduces time-transfer noise slightly but 
-	// messes up position by introducing a large systematic error of several m
-	// TODO It could be that if the CP measurements are corrected by rxTimeOffset
-	// then the systematic error is removed
-	if (!(app->positioningMode))  
-		interpolateMeasurements();
+	
+	// Interpolation REMOVED
 	
 	// Calculate UTC time of measurements, now that the number of leap seconds is known
 	for (unsigned int i=0;i<measurements.size();i++){

@@ -119,6 +119,7 @@ class GPS: public GNSSSystem
 	GPS();
 	~GPS();
 	
+	virtual double codeToFreq(int);
 	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();
 		

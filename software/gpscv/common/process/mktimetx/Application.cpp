@@ -265,7 +265,7 @@ Application::Application(int argc,char **argv)
 	// Note: can't get any debugging output until the command line is parsed !
 	
 	if (positioningMode){
-		TICenabled=false; // no TIC correction needed for positioning
+		TICenabled=false; // no TIC correction needed for positioning and it will only add noise anyway
 		allObservations=true; // configuration file may say otherwise
 		if (!createRINEX){
 			std::cerr << std::endl;

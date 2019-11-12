@@ -93,6 +93,7 @@ class Application
 		
 		long referenceTime(){return refTime;}
 		bool positioningMode;
+		bool allObservations;
 		
 	private:
 	
@@ -144,7 +145,7 @@ class Application
 		std::string v3name;
 		bool forceV2name;
 		
-		bool   allObservations;
+		
 		
 		double antCableDelay,refCableDelay;
 		

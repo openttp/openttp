@@ -70,6 +70,17 @@ GPS::~GPS()
 {
 }
 
+double GPS::codeToFreq(int c)
+{
+	double f=0.0;
+	switch(c){
+		case GNSSSystem::C1C: case GNSSSystem::C1P:case GNSSSystem::L1C: case GNSSSystem::L1P:
+			f = GPS::fL1;break;
+		case GNSSSystem::C2C: case GNSSSystem::C2P:case GNSSSystem::C2M:case GNSSSystem::L2C:case GNSSSystem::L2P:
+			f = GPS::fL2;break;
+	}
+	return f;
+}
 
 void GPS::deleteEphemeris()
 {

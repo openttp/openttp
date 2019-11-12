@@ -61,7 +61,7 @@ Receiver::Receiver(Antenna *ant)
 	codes=GNSSSystem::C1C;
 	sawtoothPhase=CurrentSecond;
 	sawtooth=0.0;
-    leapsecs=0;
+	leapsecs=0;
 }
 
 Receiver::~Receiver()

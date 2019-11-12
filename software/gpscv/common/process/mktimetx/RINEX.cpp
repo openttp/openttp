@@ -259,7 +259,8 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 				nDayRollovers++;
 				yday = rm->tmGPS.tm_yday;
 			}
-			double ppsTime = useTIC*(rm->cm->rdg+rm->sawtooth - rx->ppsOffset*1.0E-9); // correction to the local clock
+			// pps = counter measurement + sawtooth correction - programmed offset
+			double ppsTime = useTIC*(rm->cm->rdg + rm->sawtooth - rx->ppsOffset*1.0E-9); // correction to the local clock
 			
 			// Round the measurement time to the nearest second, accounting for any fractional part of the second)
 			int tMeas= nDayRollovers*86400 + (int) rint(rm->tmGPS.tm_hour*3600+rm->tmGPS.tm_min*60+rm->tmGPS.tm_sec + rm->tmfracs);
@@ -406,6 +407,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 						{
 							for (unsigned int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 								bool foundit=false;
+								double freq = rx->gps.codeToFreq(c);
 								for (unsigned int svc=0;svc<rm->meas.size();svc++){
 									if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == c){
 										//std::fprintf(fout,"%14.3lf%1i%1i",(rm->meas[svc]->meas+ppsTime)*CVACUUM,rm->meas[svc]->lli,rm->meas[svc]->signal);
@@ -414,7 +416,8 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 											std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
 										else if (c >= 0x10000 && allObservations){ // phase observations, which can be masked out
-											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+											
+											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas+ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
 										foundit=true;
 										break;
