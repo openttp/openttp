@@ -35,7 +35,7 @@ import subprocess
 import sys
 import time
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -137,7 +137,7 @@ parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--rename','-r',help='rename cggtts output',action='store_true')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
 parser.add_argument('--rinexversion',help='set RINEX version for constructing file names')
-
+parser.add_argument('--leapsecs',help='manually set number of leap seconds')
 
 rnxVersion = 2
 
@@ -201,18 +201,25 @@ else:
 
 # Get the current number of leap seconds
 nLeap = 0;
-# Try the RINEX navigation file.
-# Use the number of leap seconds in nav1
-fin = open(nav1,'r')
-Debug('Opening '+nav1);
-for l in fin:
-	m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
-	if (m):
-		nLeap = int(m.group(1))
-		Debug('Leap seconds = '+str(nLeap))
-		break
-fin.close()
+if (args.leapsecs):
+	nLeap = int(args.leapsecs)
+else:	
+	# Try the RINEX navigation file.
+	# Use the number of leap seconds in nav1
+	fin = open(nav1,'r')
+	Debug('Opening '+nav1);
+	for l in fin:
+		m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
+		if (m):
+			nLeap = int(m.group(1))
+			Debug('Leap seconds = '+str(nLeap))
+			break
+	fin.close()
 
+if (nLeap == 0):
+	print "Can't determine the number of leap seconds";
+	exit()
+	
 if (nLeap > 0):
 	
 	# Back up paramCGGTTS
@@ -231,7 +238,8 @@ if (nLeap > 0):
 	fin.close();
 	fout.close();
 	shutil.copyfile(PARS+'.tmp',PARS)
-  
+
+	
 shutil.copyfile(PARS+'.bak',PARS)
   
 # Almost there ...
