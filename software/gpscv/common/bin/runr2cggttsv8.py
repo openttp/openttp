@@ -272,10 +272,12 @@ for f in files:
 		
 # Kludge for the moment
 if (args.rename):
+	
+	# single frequency CGGTTS
 	if (os.path.exists('CGGTTS_GPS_C1')):
-		os.rename('CGGTTS_GPS_C1',args.cggttsout+'/'+str(mjd)+'.cctf')
+		os.rename('CGGTTS_GPS_C1',args.cggttsout+'/'+str(mjd)+'.GPS.cctf')
 	if (os.path.exists('CGGTTS_BDS_B1')):
-		os.rename('CGGTTS_BDS_B1',args.cggttsout+'/'+str(mjd)+'.BD.B1.cctf')
+		os.rename('CGGTTS_BDS_B1',args.cggttsout+'/'+str(mjd)+'.BDS.B1.cctf')
 	if (os.path.exists('CGGTTS_GLO_C1')):
 		os.rename('CGGTTS_GLO_C1',args.cggttsout+'/'+str(mjd)+'.GLO.C1.cctf')
 	if (os.path.exists('CGGTTS_GAL_E1')):
@@ -289,3 +291,22 @@ if (args.rename):
 		os.rename('CTTS_GLO_30s_C1',args.cggttsout+'/'+str(mjd)+'.glo.C1.30s.dat')
 	if (os.path.exists('CTTS_GAL_30s_E1')):
 		os.rename('CTTS_GAL_30s_E1',args.cggttsout+'/'+str(mjd)+'.gal.E1.30s.dat')
+		
+	# dual frequency CGGTTS 
+	if (os.path.exists('CGGTTS_GPS_L3P')):
+		os.rename('CGGTTS_GPS_L3P',args.cggttsout+'/'+str(mjd)+'.GPS.L3P.cctf')
+	if (os.path.exists('CGGTTS_BDS_L3B')):
+		os.rename('CGGTTS_BDS_L3B',args.cggttsout+'/'+str(mjd)+'.BDS.L3B.cctf')
+	if (os.path.exists('CGGTTS_GLO_L3P')):
+		os.rename('CGGTTS_GLO_L3P',args.cggttsout+'/'+str(mjd)+'.GLO.L3P.cctf')
+	if (os.path.exists('CGGTTS_GAL_L3E')):
+		os.rename('CGGTTS_GAL_L3E',args.cggttsout+'/'+str(mjd)+'.GAL.L3E.cctf')
+		
+	if (os.path.exists('CTTS_GPS_30s_L3P')):
+		os.rename('CTTS_GPS_30s_L3P',args.cggttsout+'/'+str(mjd)+'.gps.L3P.30s.dat')
+	if (os.path.exists('CTTS_BDS_30s_L3B')):
+		os.rename('CTTS_BDS_30s_L3B',args.cggttsout+'/'+str(mjd)+'.bds.L3B.30s.dat')
+	if (os.path.exists('CTTS_GLO_30s_L3P')):
+		os.rename('CTTS_GLO_30s_L3P',args.cggttsout+'/'+str(mjd)+'.glo.L3P.30s.dat')
+	if (os.path.exists('CTTS_GAL_30s_L3E')):
+		os.rename('CTTS_GAL_30s_L3E',args.cggttsout+'/'+str(mjd)+'.gal.L3E.30s.dat')
