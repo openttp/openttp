@@ -84,7 +84,7 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	gps.codes = GNSSSystem::C1C;
 	galileo.codes = GNSSSystem::C1C;
 	beidou.codes = GNSSSystem::C2I;
-	glonass.codes = GNSSSystem::C2C;
+	glonass.codes = GNSSSystem::C1C;
 	codes = beidou.codes | galileo.codes | glonass.codes | gps.codes;
 	channels=72;
 	if (modelName == "LEA-M8T"){
@@ -96,10 +96,11 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	else if (modelName == "ZED-F9P" or modelName == "ZED-F9T"){
 	  channels=184;
 		constellations=GNSSSystem::GPS | GNSSSystem::GLONASS | GNSSSystem::GALILEO | GNSSSystem::BEIDOU;
+		// Appendix B in the ZED-F9P interfcae descriptiion identifies the GPS signals available as L1 C/A, L2 CL and L2 CM
 		gps.codes = GNSSSystem::C1C | GNSSSystem::C2L | GNSSSystem::L1C | GNSSSystem::L2L ;
 		galileo.codes = GNSSSystem::C1C| GNSSSystem::C1B | GNSSSystem::C7I | GNSSSystem::C7Q;
 		beidou.codes = GNSSSystem::C2I | GNSSSystem::C7I;
-		glonass.codes = GNSSSystem::C1C| GNSSSystem::C2C;
+		glonass.codes = GNSSSystem::C1C| GNSSSystem::C2C | GNSSSystem::L1C |  GNSSSystem::L2C;
 		codes = beidou.codes | galileo.codes | glonass.codes | gps.codes;
 		dualFrequency = true;
 	}
@@ -265,13 +266,15 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						//if (constellations & GNSSSystem::GPS){
 							for (unsigned int sv=0;sv<svmeas.size();sv++){
 								svmeas.at(sv)->dbuf3 = svmeas.at(sv)->meas; // save for debugging
-								svmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
-								// Now subtract the ms part so that ms ambiguity resolution works:
-								// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
-								// resolution. We could only keep the ms part, but for now only do this for
-								// GPS because we do get the necessary data for GPS from the ublox.
-								if(svmeas.at(sv)->constellation == GNSSSystem::GPS && (modelName != "ZED-F9P")){
-									svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
+								if (!app->positioningMode){ // corrections only add noise, in principle
+									svmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
+									// Now subtract the ms part so that ms ambiguity resolution works:
+									// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
+									// resolution. We could only keep the ms part, but for now only do this for
+									// GPS because we do get the necessary data for GPS from the ublox.
+									if(svmeas.at(sv)->constellation == GNSSSystem::GPS && (modelName != "ZED-F9P")){
+										svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
+									}
 								}
 								svmeas.at(sv)->rm=rmeas;
 							}
@@ -364,8 +367,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 											break;
 										case GNSSSystem::GLONASS:
 											switch (sigID){
-												case 0:sig=GNSSSystem::C1C;break;
-												case 2:sig=GNSSSystem::C2C;break;
+												case 0:sig=GNSSSystem::C1C;cpsig=GNSSSystem::L1C;break;
+												case 2:sig=GNSSSystem::C2C;cpsig=GNSSSystem::L2C;break;
 												default: break;
 											}
 											break;
@@ -380,14 +383,12 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 									}
 									if (sig > 0){
 										SVMeasurement *svm = new SVMeasurement(svID,gnssSys,sig,r8buf/CLIGHT,NULL);
-                                        svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
-                                        svmeas.push_back(svm);
-                                        if (cpsig > 0){ // FIXME until all CP used ...
-                                            SVMeasurement *svm = new SVMeasurement(svID,gnssSys,cpsig,cpmeas,NULL);
-                                            svmeas.push_back(svm);
-                                           
-                                        }
-
+										svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
+										svmeas.push_back(svm);
+										if (cpsig > 0){ // FIXME until all CP used ...
+											SVMeasurement *svm = new SVMeasurement(svID,gnssSys,cpsig,cpmeas,NULL);
+											svmeas.push_back(svm);
+										}
 									}
 									else{
 									}

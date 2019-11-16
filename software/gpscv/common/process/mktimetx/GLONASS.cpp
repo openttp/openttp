@@ -40,7 +40,13 @@ GLONASS::~GLONASS()
 {
 }
 
-	
+double GLONASS::codeToFreq(int c)
+{
+	// FIXM totally borked
+	double f=0.0;
+	return f;
+}
+
 void GLONASS::deleteEphemeris()
 {
 }
