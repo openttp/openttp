@@ -172,7 +172,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	I4 clockBias;
 	R8 measTOW;
 	U2 measGPSWN;
-	I1 measLeapSecs;
+	I1 measLeapSecs=0;
 	
 	U2 UTCyear;
 	U1 UTCmon,UTCday,UTChour,UTCmin,UTCsec,UTCvalid;
@@ -310,6 +310,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						HexToBin((char *) msg.substr(8*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &measGPSWN); // full WN
 						HexToBin((char *) msg.substr(10*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &measLeapSecs);
 						DBGMSG(debugStream,TRACE,currpctime << " meas tow=" << measTOW << std::setprecision(12) << " gps wn=" << (int) measGPSWN << " leap=" << (int) measLeapSecs);
+						// Check the validity of leap seconds
+						HexToBin((char *) msg.substr(12*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); // recStat
+						if (!(u1buf & 0x01))
+							measLeapSecs = 0;
 						//DBGMSG(debugStream,TRACE,nmeas);
 						for (unsigned int m=0;m<nmeas;m++){
 							HexToBin((char *) msg.substr((36+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //GNSS id
@@ -385,7 +389,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 										SVMeasurement *svm = new SVMeasurement(svID,gnssSys,sig,r8buf/CLIGHT,NULL);
 										svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
 										svmeas.push_back(svm);
-										if (cpsig > 0){ // FIXME until all CP used ...
+										if (app->allObservations && cpsig > 0){ // FIXME until all CP used ...
 											SVMeasurement *svm = new SVMeasurement(svID,gnssSys,cpsig,cpmeas,NULL);
 											svmeas.push_back(svm);
 										}
@@ -546,6 +550,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	}
 	infile.close();
 
+	leapsecs = measLeapSecs;
 	
 	if ((modelName != "ZED-F9P") && !gotUTCdata){ // FIXME temporary until ephemeris polling and decoding is implemented
 		app->logMessage("failed to find ionosphere/UTC parameters - no 0b02 messages");
