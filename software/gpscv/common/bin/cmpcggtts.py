@@ -871,7 +871,10 @@ if (useMSIO):
 	if not(IsDualFrequency(refHeaders)):
 		sys.stderr.write('REF data does not have MSIO');
 		exit()
-		
+
+calDualFreq = IsDualFrequency(calHeaders)
+refDualFreq = IsDualFrequency(refHeaders)
+
 refCorrection = 0 # sign convention: add to REFSYS
 calCorrection = 0 # ditto
 	
@@ -1044,7 +1047,10 @@ if (cmpMethod == USE_GPSCV):
 					if (matchEphemeris and not(ioe1 == ioe2)):
 						nEphemerisMisMatches += 1
 						break
-					fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
+					if (calDualFreq and refDualFreq):
+						fmatches.write('{} {} {} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS],allref[iref][REF_MSIO],allcal[jtmp][CAL_MSIO]))
+					else:
+						fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
 					tMatch.append(mjd1-firstMJD+st1/86400.0)  #used in the linear fit
 					if useMSIO:
 						delta = (allref[iref][REFSYS] + allref[iref][REF_IONO] - allref[iref][REF_MSIO]  + refCorrection) - (
