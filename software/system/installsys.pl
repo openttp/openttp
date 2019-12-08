@@ -58,7 +58,8 @@ $SYSTEMD="systemd";
 	["Ubuntu 16.04","ubuntu16",$UPSTART,
 		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
 	["Ubuntu 18.04","ubuntu18",$SYSTEMD,
-		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
+		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages",
+		"/usr/local/lib/python3.6/site-packages"],
 	["BeagleBoard.org Debian","bbdebian8",$SYSTEMD,"/usr/local/lib/site_perl",
 		"/usr/local/lib/python2.7/site-packages"],
 	['Debian GNU/Linux 9 (stretch)',"bbdebian9",$SYSTEMD,"/usr/local/lib/site_perl",
@@ -219,12 +220,17 @@ if (grep (/^gpscvperllibs/,@targets)){
 
 # Installation of ottplib (Python module)
 if (grep (/^ottplib/,@targets)){
-	# Check the python version
-	$ver = `python -V 2>&1`; # output is to STDERR
-	chomp $ver;
-	$ver =~ /^Python\s+(\d)\.(\d)/;
-	if ($1 == 2){
-		if ($2 >= 7){
+	
+	$py2 = `which python2`;
+	$py3 = `which python3`;
+	
+	if ($py2 =~ /python2/){
+		$ver = `python2 -V 2>&1`; # output is to STDERR
+		chomp $ver;
+		$ver =~ /^Python\s+(\d)\.(\d)/;
+		$minorVer = $2;
+		
+		if ($minorVer >= 7){
 			$dir = $os[$i][4];
 			if (!(-e $dir)){
 				`mkdir -p $dir`;
@@ -238,10 +244,31 @@ if (grep (/^ottplib/,@targets)){
 		else{
 			Log("Python version is $ver - can't install\n",$ECHO);
 		}
+		 
 	}
-	else{
-		Log("Python version is $ver - can't install\n",$ECHO);
+	
+	if ($py3 =~ /python3/){
+		$ver = `python3 -V 2>&1`; # output is to STDERR
+		chomp $ver;
+		$ver =~ /^Python\s+(\d)\.(\d)/;
+		$minorVer = $2;
+		
+		if ($minorVer >= 6){
+			$dir = $os[$i][5];
+			if (!(-e $dir)){
+				`mkdir -p $dir`;
+				`chmod a+rx $dir`;
+				Log("Created $dir\n",$ECHO);
+			}
+			`python -c "import py_compile;py_compile.compile('src/ottplib.py')"`;
+			`cp src/ottplib.py src/ottplib.pyc $dir`;
+			Log("Installed ottlib.py to $dir\n",$ECHO);
+		}
+		else{
+			Log("Python version is $ver - can't install\n",$ECHO);
+		}
 	}
+	
 }
 
 if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
