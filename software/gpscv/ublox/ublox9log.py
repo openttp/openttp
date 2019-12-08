@@ -56,6 +56,7 @@ NATIVE_FORMAT=1;
 # Globals
 debug = False
 killed = False
+ubxMsgs = set() # the set of messages we want to log
 
 # ------------------------------------------
 def SignalHandler(signal,frame):
@@ -95,8 +96,8 @@ def Initialise(configFile):
 def Cleanup():
 	# Hmm ugly globals
 	ottplib.RemoveProcessLock(lockFile)
-	if (not rxport==None):
-		rxport.close()
+	if (not serport==None):
+		serport.close()
 		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
 	
 #-----------------------------------------------------------------------------
@@ -122,7 +123,7 @@ def OpenDataFile(mjd):
 		fout.write('@ MJD={}\n'.format(mjd))
 	else: # native mode UNTESTED
 		try:
-			fout = open(fname,'ab',0)
+			fout = open(fname,'ab')
 		except:
 			Cleanup()
 			ErrorExit('Failed to open data file ' + fname)
@@ -147,13 +148,13 @@ def Checksum(msg):
 	return struct.pack('2B',cka,ckb);
 	
 # ---------------------------------------------------------------------------
-def SendCommand(rxport,cmd):
+def SendCommand(serport,cmd):
 	cksum = Checksum(cmd)
 	msg = b'\xb5\x62' + cmd + cksum
-	rxport.write(msg)
+	serport.write(msg)
 
 #----------------------------------------------------------------------------
-def ConfigureReceiver(rxport):
+def ConfigureReceiver(serport):
 
 	# Note that reset causes a USB disconnect
 	# so it's a good idea to use udev to map the device to a 
@@ -161,26 +162,64 @@ def ConfigureReceiver(rxport):
 	if (args.reset): # hard reset
 		Debug('Resetting ')
 		cmd = b'\x06\x04\x04\x00\xff\xff\x00\x00'
-		SendCommand(rxport,cmd)
+		SendCommand(serport,cmd)
 		time.sleep(5)
 
 	Debug('Configuring receiver')
 	
-	PollVersionInfo(rxport);
-	PollChipID(rxport);
+	# Navigation/measurement rate settings
+	ubxMsgs.add(b'\x06\x08')
+	#$msg = "\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE
+	#SendCommand($msg);
+	
+	# Configure various messages for 1 Hz output
+	
+	# RXM-RAWX raw data message
+	ubxMsgs.add(b'\x06\x01')
+	ubxMsgs.add(b'\x02\x15')
+	#$msg="\x06\x01\x03\x00\x02\x15\x01"; #CFG-MSG 0x02 0x15
+	#SendCommand($msg);
+	
+	# TIM-TP time pulse message (contains sawtooth error)
+	ubxMsgs.add(b'\x0d\x01')
+	#$msg="\x06\x01\x03\x00\x0d\x01\x01"; #CFG-MSG 0x0d 0x01
+	#SendCommand($msg);
+	
+	# Satellite information
+	ubxMsgs.add(b'\x01\x35')
+	#$msg="\x06\x01\x03\x00\x01\x35\x01"; #CFG-MSG 0x01 0x35
+	#SendCommand($msg); 
+	
+	# NAV-TIMEUTC UTC time solution 
+	ubxMsgs.add(b'\x01\x21')
+	#$msg="\x06\x01\x03\x00\x01\x21\x01"; #CFG-MSG 0x01 0x21
+	#SendCommand($msg); 
+	
+	# NAV-CLOCK clock solution (contains clock bias)
+	ubxMsgs.add(b'\x01\x22')
+	#$msg="\x06\x01\x03\x00\x01\x22\x01"; #CFG-MSG 0x01 0x22
+	#SendCommand($msg); 
+	
+	PollVersionInfo(serport);
+	PollChipID(serport);
+	
+	ubxMsgs.add(b'\x05\x00') # ACK-NAK 
+	ubxMsgs.add(b'\x05\x01') # ACK_ACK
+	ubxMsgs.add(b'\x27\x03') # chip ID
 	
 	Debug('Done configuring')
+
 	
 # ---------------------------------------------------------------------------
 # Gets receiver/software version
-def PollVersionInfo(rxport):
+def PollVersionInfo(serport):
 	cmd = b'\x0a\x04\x00\x00'
-	SendCommand(rxport,cmd)
+	SendCommand(serport,cmd)
 
 # ---------------------------------------------------------------------------
-def PollChipID(rxport):
+def PollChipID(serport):
 	cmd = b'\x27\x03\x00\x00'
-	SendCommand(rxport,cmd)
+	SendCommand(serport,cmd)
 
 # ------------------------------------------
 # Main 
@@ -261,25 +300,32 @@ signal.signal(signal.SIGTERM,SignalHandler)
 
 Debug('Opening ' + port)
 
-rxport=None # so that this can flag failure to open the port
+serport=None # so that this can flag failure to open the port
 try:
-	rxport = serial.Serial(port,115200,timeout=2)
+	serport = serial.Serial(port,115200,timeout=0.2)
 except:
 	Cleanup()
 	ErrorExit('Failed to open ' + port)
 
-ConfigureReceiver(rxport)
+ConfigureReceiver(serport)
 
 tt = time.time()
+tStr = time.strftime('%H:%M:%S',time.gmtime(tt))
 mjd = ottplib.MJD(tt)
 fdata = OpenDataFile(mjd)
+tNext=(mjd-40587+1)*86400
+tThen = 0
 
 tLastMsg=time.time()
+inp = b''
+
+# Since we like using regexes, pre-compile the main ones
+ubxre = re.compile(rb'\xb5\x62(..)(..)([\s\S]*)')
 
 while (not killed):
 	
 	# Check for timeout
-	if (time.time()-tLastMsg > rxTimeout):
+	if (time.time() - tLastMsg > rxTimeout):
 		msg = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()) + ' no response from receiver'
 		if (dataFormat == OPENTTP_FORMAT):
 			flog.write('# ' + msg + '\n')
@@ -287,7 +333,61 @@ while (not killed):
 			print ('# ' + msg + '\n')
 		break
 
-	time.sleep(1) # FIXME
+	# The guts
+	select.select([serport],[],[],0.2)
+	if (serport.in_waiting == 0):
+		continue
+	
+	newinp = serport.read(serport.in_waiting)
+	inp = inp + newinp
+	
+	# Header structure for UBX packets is 
+	# Sync char 1 | Sync char 2| Class (1 byte) | ID (1 byte) | payload length (2 bytes) | payload | cksum_a | cksum_b
+	
+	matches = ubxre.search(inp)
+	if (matches): # UBX header
+		inp = inp[matches.start():] # discard the prematch string
+		classid = matches.group(1)
+		payloadLength, = struct.unpack_from('<H',matches.group(2)); # ushort, little endian FIXME what about ARM?
+		data = matches.group(3)
+		
+		#PREMATCH: match.string[:match.start()]
+		#MATCH: match.group()
+		#POSTMATCH: match.string[match.end():]
+
+		packetLength = payloadLength + 8;
+		inputLength = len(inp);
+		if (packetLength <= inputLength): # it's all there ! yay !
+			tNow = time.time()	# got one - tag the time
+			tLastMsg = tNow # resets the timeout
+			
+			if (tNow >= tNext):
+				# (this way is safer than just incrementing mjd)
+				fdata.close()
+				mjd=int(tNow/86400) + 40587	
+				fdata = OpenDataFile(mjd)
+				
+				PollVersionInfo()
+				PollChipID()
+				tNext=(mjd-40587+1)*86400	# seconds at next MJD
+			
+			if (tNow > tThen):
+				tThen = tNow
+				tStr = time.strftime('%H:%M:%S',time.gmtime(tNow))
+				
+			# Parse messages
+			if (classid in ubxMsgs):
+				pass
+			
+			# Tidy up the input buffer - remove what we just parsed
+			if (packetLength == inputLength):
+				inp='' # we ate the lot
+			else:
+				inp = inp[packetLength:] # still some chewy bits 
+			
+		else:
+			pass # nuffink to do
+			
 	
 # Do what you gotta do
 msg = '# {} {} killed\n'.format( \
