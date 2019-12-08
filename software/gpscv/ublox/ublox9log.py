@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -24,28 +24,30 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-# ublox9log.py - a logging script for the TAPR TICC
+# ublox9log.py - a logging script for the ublox series 9 GNSS receiver
 #
 # Modification history
 #
 
 import argparse
+import binascii
 import os
 import re
 import select
 import serial
 import signal
 import string
+import struct
 import subprocess
 import sys
 # This is where ottplib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
+sys.path.append('/usr/local/lib/python3.6/site-packages')
 import time
 
 import ottplib
 
-VERSION = "0.0.1"
-AUTHORS = "Michael Wouters,Louis Marais"
+VERSION = '0.0.1'
+AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
 OPENTTP_FORMAT=0;
@@ -64,12 +66,12 @@ def SignalHandler(signal,frame):
 # ------------------------------------------
 def Debug(msg):
 	if (debug):
-		print msg
+		print (time.strftime('%H:%M:%S ',time.gmtime()) + msg)
 	return
 
 # ------------------------------------------
 def ErrorExit(msg):
-	print msg
+	print (msg)
 	sys.exit(0)
 	
 # ------------------------------------------
@@ -84,8 +86,8 @@ def Initialise(configFile):
 		'receiver:status file']
 	
 	for k in reqd:
-		if (not cfg.has_key(k)):
-			ErrorExit("The required configuration entry '" + k + "' is undefined")
+		if (not k in cfg):
+			ErrorExit('The required configuration entry "' + k + '" is undefined')
 		
 	return cfg
 
@@ -93,8 +95,8 @@ def Initialise(configFile):
 def Cleanup():
 	# Hmm ugly globals
 	ottplib.RemoveProcessLock(lockFile)
-	if (not ser==None):
-		ser.close()
+	if (not rxport==None):
+		rxport.close()
 		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
 	
 #-----------------------------------------------------------------------------
@@ -104,15 +106,17 @@ def OpenDataFile(mjd):
 	appending = os.path.isfile(fname)
 	
 	Debug('Opening ' + fname);
-
+	
 	if (dataFormat == OPENTTP_FORMAT):
 		try:
-			fout = open(fname,'a',0)
+			fout = open(fname,'a')
 		except:
 			Cleanup()
 			ErrorExit('Failed to open data file ' + fname)
 			
-		fout.write('# {} (version {}) {}\n'.format(os.path.basename(sys.argv[0]),VERSION, \
+		fout.write('# {} {} (version {})\n'.format( \
+			time.strftime('%H:%M:%S',time.gmtime()),
+			os.path.basename(sys.argv[0]),VERSION, \
 			'continuing' if appending  else 'beginning'))
 		fout.write('# {} {}\n'.format('Appending to ' if appending  else 'Beginning new',fname))
 		fout.write('@ MJD={}\n'.format(mjd))
@@ -125,13 +129,68 @@ def OpenDataFile(mjd):
 			
 	return fout
 
+#----------------------------------------------------------------------------
+# Calculate the UBX checksum - needed for sending UBX messages
+# TESTED 2019-12-07
+def Checksum(msg):
+	ba = bytearray()
+	ba.extend(msg)
+	cka = 0
+	ckb = 0
+	
+	for b in ba:
+		cka = cka + b
+		ckb = ckb + cka
+		cka = cka & 0xff
+		ckb = ckb & 0xff
+		
+	return struct.pack('2B',cka,ckb);
+	
+# ---------------------------------------------------------------------------
+def SendCommand(rxport,cmd):
+	cksum = Checksum(cmd)
+	msg = b'\xb5\x62' + cmd + cksum
+	rxport.write(msg)
+
+#----------------------------------------------------------------------------
+def ConfigureReceiver(rxport):
+
+	# Note that reset causes a USB disconnect
+	# so it's a good idea to use udev to map the device to a 
+	# fixed name
+	if (args.reset): # hard reset
+		Debug('Resetting ')
+		cmd = b'\x06\x04\x04\x00\xff\xff\x00\x00'
+		SendCommand(rxport,cmd)
+		time.sleep(5)
+
+	Debug('Configuring receiver')
+	
+	PollVersionInfo(rxport);
+	PollChipID(rxport);
+	
+	Debug('Done configuring')
+	
+# ---------------------------------------------------------------------------
+# Gets receiver/software version
+def PollVersionInfo(rxport):
+	cmd = b'\x0a\x04\x00\x00'
+	SendCommand(rxport,cmd)
+
+# ---------------------------------------------------------------------------
+def PollChipID(rxport):
+	cmd = b'\x27\x03\x00\x00'
+	SendCommand(rxport,cmd)
+
 # ------------------------------------------
 # Main 
 # ------------------------------------------
 
+#print(binascii.hexlify(Checksum(b"\x06\x01\x03\x00\x01\x35\x01\x06\x01\x03\x00\x01\x35\x01\xfa")))
+#exit(0)
+			
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
-
 
 parser = argparse.ArgumentParser(description='Log ublox 9 GNSS receivers',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -148,7 +207,7 @@ debug = args.debug
 configFile = args.config;
 
 if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + " not found")
+	ErrorExit(configFile + ' not found')
 	
 logPath = os.path.join(home,'logs')
 if (not os.path.isdir(logPath)):
@@ -156,61 +215,86 @@ if (not os.path.isdir(logPath)):
 
 cfg=Initialise(configFile)
 
-# Check for receiver model
-rxModel = string.lower(cfg['receiver:model'])
+# Check the receiver model is supported
+rxModel = cfg['receiver:model'].lower()
 if (None == re.search('zed-f9',rxModel)):
 	ErrorExit('Receiver model ' + rxModel + ' is not supported')
-	
+
+rxTimeout = 600
+if ('receiver:timeout' in cfg):
+	rxTimeout = int(cfg['receiver:timeout'])
+
 port = cfg['receiver:port']
 dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
 rxStatus = ottplib.MakeAbsolutePath(cfg['receiver:status file'], home)
 
 dataExt = cfg['receiver:file extension']
-if (None == re.search(r'\.$',dataExt)):
+if (None == re.search(r'\.$',dataExt)): # add a '.' separator if needed
 	dataExt = '.' + dataExt 
 
 dataFormat = OPENTTP_FORMAT
-if (cfg.has_key('receiver:file format')):
-	ff = string.lower(cfg['receiver:file format'])
+if (not 'receiver:file format' in cfg):
+	ff = cfg['receiver:file format'].lower()
 	if (ff == 'native'):
 		dataFormat = NATIVE_FORMAT;
 		cfg['receiver:file extension']= '.ubx'
 	
 # Create the process lock		
 lockFile = ottplib.MakeAbsoluteFilePath(cfg['receiver:lock file'],home,home + '/etc')
-Debug("Creating lock " + lockFile)
+Debug('Creating lock ' + lockFile)
 if (not ottplib.CreateProcessLock(lockFile)):
 	ErrorExit("Couldn't create a lock")
 
 # Create UUCP lock for the serial port
-uucpLockPath = "/var/lock";
-if (cfg.has_key('paths:uucp lock')):
+uucpLockPath = '/var/lock';
+if ('paths:uucp lock' in cfg):
 	uucpLockPath = cfg['paths:uucp lock']
-
+Debug('Creating uucp lock in ' + uucpLockPath)
 ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,'-p',str(os.getpid()),port,sys.argv[0]])
 
-if (re.match('1',ret)==None):
+if (re.match(rb'1',ret)==None):
 	ottplib.RemoveProcessLock(lockFile)
 	ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
 
 signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
 
-Debug("Opening " + port)
+Debug('Opening ' + port)
 
-ser=None # so that this can flag failure to open the port
+rxport=None # so that this can flag failure to open the port
 try:
-	ser = serial.Serial(port,115200,timeout=2)
+	rxport = serial.Serial(port,115200,timeout=2)
 except:
 	Cleanup()
 	ErrorExit('Failed to open ' + port)
 
+ConfigureReceiver(rxport)
+
 tt = time.time()
 mjd = ottplib.MJD(tt)
-OpenDataFile(mjd)
-		
+fdata = OpenDataFile(mjd)
+
+tLastMsg=time.time()
+
 while (not killed):
-	#
-	pass
+	
+	# Check for timeout
+	if (time.time()-tLastMsg > rxTimeout):
+		msg = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()) + ' no response from receiver'
+		if (dataFormat == OPENTTP_FORMAT):
+			flog.write('# ' + msg + '\n')
+		else:
+			print ('# ' + msg + '\n')
+		break
+
+	time.sleep(1) # FIXME
+	
+# Do what you gotta do
+msg = '# {} {} killed\n'.format( \
+			time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()), \
+			os.path.basename(sys.argv[0]))
+print (msg)
+if (dataFormat == OPENTTP_FORMAT):
+	fdata.write(msg)
 
 Cleanup()
