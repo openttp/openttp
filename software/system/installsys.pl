@@ -52,7 +52,8 @@ $SYSTEMD="systemd";
 @os =(
 	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6",$UPSTART,"/usr/local/lib/site_perl"], 
 	["CentOS release 6","centos6",$UPSTART,"/usr/local/lib/site_perl"],
-	["CentOS Linux 7","centos7",$SYSTEMD,"/usr/local/lib64/perl5","/usr/local/lib/python2.7/site-packages"],
+	["CentOS Linux 7","centos7",$SYSTEMD,"/usr/local/lib64/perl5",
+		"/usr/local/lib/python2.7/site-packages","/usr/local/lib/python3.6/site-packages"],
 	["Ubuntu 14.04","ubuntu14",$UPSTART,
 		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
 	["Ubuntu 16.04","ubuntu16",$UPSTART,
