@@ -177,13 +177,13 @@ def ConfigureReceiver(serport):
 	# RXM-RAWX raw data message
 	ubxMsgs.add(b'\x06\x01')
 	ubxMsgs.add(b'\x02\x15')
-	#$msg="\x06\x01\x03\x00\x02\x15\x01"; #CFG-MSG 0x02 0x15
+	#msg=b'\x06\x01\x03\x00\x02\x15\x01' #CFG-MSG 0x02 0x15
 	#SendCommand($msg);
 	
 	# TIM-TP time pulse message (contains sawtooth error)
 	ubxMsgs.add(b'\x0d\x01')
-	#$msg="\x06\x01\x03\x00\x0d\x01\x01"; #CFG-MSG 0x0d 0x01
-	#SendCommand($msg);
+	msg=b'\x06\x01\x03\x00\x0d\x01\x01'
+	SendCommand(serport,msg);
 	
 	# Satellite information
 	ubxMsgs.add(b'\x01\x35')
@@ -200,15 +200,16 @@ def ConfigureReceiver(serport):
 	#$msg="\x06\x01\x03\x00\x01\x22\x01"; #CFG-MSG 0x01 0x22
 	#SendCommand($msg); 
 	
-	PollVersionInfo(serport);
-	PollChipID(serport);
+	PollVersionInfo(serport)
+	PollChipID(serport)
 	
 	ubxMsgs.add(b'\x05\x00') # ACK-NAK 
 	ubxMsgs.add(b'\x05\x01') # ACK_ACK
 	ubxMsgs.add(b'\x27\x03') # chip ID
+	ubxMsgs.add(b'\x0a\x04') # chip ID
 	
 	Debug('Done configuring')
-
+	PollVersionInfo(serport)
 	
 # ---------------------------------------------------------------------------
 # Gets receiver/software version
@@ -221,6 +222,15 @@ def PollChipID(serport):
 	cmd = b'\x27\x03\x00\x00'
 	SendCommand(serport,cmd)
 
+# ---------------------------------------------------------------------------
+def UpdateStatus(rxStatus,msg):
+	try:
+		fstat = open(rxStatus,'w')
+	except:
+		return
+	fstat.write('sats=\n')
+	fstat.close()
+	
 # ------------------------------------------
 # Main 
 # ------------------------------------------
@@ -266,7 +276,8 @@ if ('receiver:timeout' in cfg):
 port = cfg['receiver:port']
 dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
 rxStatus = ottplib.MakeAbsolutePath(cfg['receiver:status file'], home)
-
+statusUpdateInterval = 30
+ 
 dataExt = cfg['receiver:file extension']
 if (None == re.search(r'\.$',dataExt)): # add a '.' separator if needed
 	dataExt = '.' + dataExt 
@@ -315,6 +326,7 @@ mjd = ottplib.MJD(tt)
 fdata = OpenDataFile(mjd)
 tNext=(mjd-40587+1)*86400
 tThen = 0
+tLastStatusUpdate=0
 
 tLastMsg=time.time()
 inp = b''
@@ -336,6 +348,7 @@ while (not killed):
 	# The guts
 	select.select([serport],[],[],0.2)
 	if (serport.in_waiting == 0):
+		Debug('Timeout')
 		continue
 	
 	newinp = serport.read(serport.in_waiting)
@@ -355,8 +368,8 @@ while (not killed):
 		#MATCH: match.group()
 		#POSTMATCH: match.string[match.end():]
 
-		packetLength = payloadLength + 8;
-		inputLength = len(inp);
+		packetLength = payloadLength + 8
+		inputLength = len(inp)
 		if (packetLength <= inputLength): # it's all there ! yay !
 			tNow = time.time()	# got one - tag the time
 			tLastMsg = tNow # resets the timeout
@@ -377,11 +390,20 @@ while (not killed):
 				
 			# Parse messages
 			if (classid in ubxMsgs):
-				pass
-			
+				#print(binascii.hexlify(classid),packetLength,inputLength)
+				
+				ubxClass,ubxID=struct.unpack('2B',classid)
+				
+				if (dataFormat  == OPENTTP_FORMAT):
+					fdata.write('{:02x}{:02x} {} {}\n'.format(ubxClass,ubxID,tStr,str(binascii.hexlify(data[:payloadLength+2]))[2:-1]))
+				
+				if (ubxClass == 0x01 and ubxID == 0x35 and tNow - tLastStatusUpdate >= statusUpdateInterval):
+					UpdateStatus(rxStatus,data[:payloadLength+2])
+					tLastStatusUpdate = tNow
+					
 			# Tidy up the input buffer - remove what we just parsed
 			if (packetLength == inputLength):
-				inp='' # we ate the lot
+				inp=b'' # we ate the lot
 			else:
 				inp = inp[packetLength:] # still some chewy bits 
 			
