@@ -127,7 +127,7 @@ def OpenDataFile(mjd):
 		except:
 			Cleanup()
 			ErrorExit('Failed to open data file ' + fname)
-			
+	fout.flush()
 	return fout
 
 #----------------------------------------------------------------------------
@@ -156,6 +156,9 @@ def SendCommand(serport,cmd):
 #----------------------------------------------------------------------------
 def ConfigureReceiver(serport):
 
+	# Note that UBX is LITTLE-ENDIAN
+	# Haven't thought about ARM yet
+	
 	# Note that reset causes a USB disconnect
 	# so it's a good idea to use udev to map the device to a 
 	# fixed name
@@ -187,18 +190,18 @@ def ConfigureReceiver(serport):
 	
 	# Satellite information
 	ubxMsgs.add(b'\x01\x35')
-	#$msg="\x06\x01\x03\x00\x01\x35\x01"; #CFG-MSG 0x01 0x35
-	#SendCommand($msg); 
+	msg=b'\x06\x01\x03\x00\x01\x35\x01' #CFG-MSG 0x01 0x35
+	SendCommand(serport,msg); 
 	
 	# NAV-TIMEUTC UTC time solution 
 	ubxMsgs.add(b'\x01\x21')
-	#$msg="\x06\x01\x03\x00\x01\x21\x01"; #CFG-MSG 0x01 0x21
-	#SendCommand($msg); 
+	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x5e\x00\x91\x20' + b'\x01' # USB
+	SendCommand(serport,msg); 
 	
 	# NAV-CLOCK clock solution (contains clock bias)
 	ubxMsgs.add(b'\x01\x22')
-	#$msg="\x06\x01\x03\x00\x01\x22\x01"; #CFG-MSG 0x01 0x22
-	#SendCommand($msg); 
+	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x68\x00\x91\x20' + b'\x01' # USB
+	SendCommand(serport,msg)
 	
 	PollVersionInfo(serport)
 	PollChipID(serport)
@@ -224,19 +227,56 @@ def PollChipID(serport):
 
 # ---------------------------------------------------------------------------
 def UpdateStatus(rxStatus,msg):
+	
 	try:
 		fstat = open(rxStatus,'w')
 	except:
 		return
-	fstat.write('sats=\n')
+	
+	numSVs=int((len(msg)-8-2)/12)
+	bds = ''
+	gal = ''
+	glo = ''
+	gps = ''
+	
+	ngood = 0
+	
+	for i in range(0,numSVs):
+		#gnssID,svID,cno,elev,azim=unpack("CCCcssI",substr $data,8+12*$i,12);
+		gnssID,svID,cno,elev,azim,prRes,flags =struct.unpack_from('BBBbhhI',msg,8+12*i)
+		#print(gnssID,svID,cno,elev,azim,flags & 0x07)
+		flags = flags & 0x07
+		if (flags < 0x04): # code and time synchronized at least ?
+			continue
+		ngood = ngood + 1
+		if   (0 == gnssID ):
+			gps = gps + str(svID) + ','
+		elif (2 == gnssID):
+			gal = gal + str(svID) + ',' 
+		elif (3 == gnssID):
+			bds = bds + str(svID) + ','
+		elif (6 == gnssID):
+			glo = glo + str(svID) + ','
+			
+	if (len(gps) > 0):
+		gps = gps[:-1]
+	if (len(gal) > 0):
+		gal = gal[:-1]
+	if (len(bds) > 0):
+		bds = bds[:-1]
+	if (len(glo) > 0):
+		glo = glo[:-1]
+
+	fstat.write('sats = ' + str(ngood) + '\n')
+	fstat.write('BDS = ' + bds + '\n')
+	fstat.write('GAL = ' + gal + '\n')
+	fstat.write('GLO = ' + glo + '\n')
+	fstat.write('GPS = ' + gps + '\n')
 	fstat.close()
 	
 # ------------------------------------------
 # Main 
 # ------------------------------------------
-
-#print(binascii.hexlify(Checksum(b"\x06\x01\x03\x00\x01\x35\x01\x06\x01\x03\x00\x01\x35\x01\xfa")))
-#exit(0)
 			
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
@@ -275,7 +315,7 @@ if ('receiver:timeout' in cfg):
 
 port = cfg['receiver:port']
 dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
-rxStatus = ottplib.MakeAbsolutePath(cfg['receiver:status file'], home)
+rxStatus = ottplib.MakeAbsoluteFilePath(cfg['receiver:status file'], home,home + '/log')
 statusUpdateInterval = 30
  
 dataExt = cfg['receiver:file extension']
@@ -348,7 +388,7 @@ while (not killed):
 	# The guts
 	select.select([serport],[],[],0.2)
 	if (serport.in_waiting == 0):
-		Debug('Timeout')
+		# Debug('Timeout')
 		continue
 	
 	newinp = serport.read(serport.in_waiting)
@@ -394,13 +434,16 @@ while (not killed):
 				
 				ubxClass,ubxID=struct.unpack('2B',classid)
 				
-				if (dataFormat  == OPENTTP_FORMAT):
-					fdata.write('{:02x}{:02x} {} {}\n'.format(ubxClass,ubxID,tStr,str(binascii.hexlify(data[:payloadLength+2]))[2:-1]))
-				
+				if (not (ubxClass == 0x01 and ubxID == 0x35)): # log it ?
+					if (dataFormat  == OPENTTP_FORMAT):
+						fdata.write('{:02x}{:02x} {} {}\n'.format(ubxClass,ubxID,tStr,str(binascii.hexlify(data[:payloadLength+2]))[2:-1]))
+						fdata.flush()
+						
 				if (ubxClass == 0x01 and ubxID == 0x35 and tNow - tLastStatusUpdate >= statusUpdateInterval):
 					UpdateStatus(rxStatus,data[:payloadLength+2])
 					tLastStatusUpdate = tNow
-					
+			else:
+				Debug('Unhandled')
 			# Tidy up the input buffer - remove what we just parsed
 			if (packetLength == inputLength):
 				inp=b'' # we ate the lot
