@@ -46,7 +46,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.1'
+VERSION = '0.1.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -176,31 +176,36 @@ def ConfigureReceiver(serport):
 	#SendCommand($msg);
 	
 	# Configure various messages for 1 Hz output
+	# Note that the configuration database token has its bytes reversed
+	# (wrt what's written in the docs)
 	
 	# RXM-RAWX raw data message
-	ubxMsgs.add(b'\x06\x01')
 	ubxMsgs.add(b'\x02\x15')
-	#msg=b'\x06\x01\x03\x00\x02\x15\x01' #CFG-MSG 0x02 0x15
-	#SendCommand($msg);
+	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\xa7\x02\x91\x20' + b'\x01' # USB
+	SendCommand(serport,msg);
 	
 	# TIM-TP time pulse message (contains sawtooth error)
 	ubxMsgs.add(b'\x0d\x01')
-	msg=b'\x06\x01\x03\x00\x0d\x01\x01'
-	SendCommand(serport,msg);
+	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x80\x01\x91\x20' + b'\x01' # USB
+	SendCommand(serport,msg)
 	
-	# Satellite information
+	# NAV-SAT satellite information
 	ubxMsgs.add(b'\x01\x35')
-	msg=b'\x06\x01\x03\x00\x01\x35\x01' #CFG-MSG 0x01 0x35
-	SendCommand(serport,msg); 
+	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x18\x00\x91\x20' + b'\x01' # USB
+	SendCommand(serport,msg)
 	
 	# NAV-TIMEUTC UTC time solution 
 	ubxMsgs.add(b'\x01\x21')
 	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x5e\x00\x91\x20' + b'\x01' # USB
-	SendCommand(serport,msg); 
+	SendCommand(serport,msg)
 	
 	# NAV-CLOCK clock solution (contains clock bias)
 	ubxMsgs.add(b'\x01\x22')
 	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x68\x00\x91\x20' + b'\x01' # USB
+	SendCommand(serport,msg)
+	
+	ubxMsgs.add(b'\x02\x13')
+	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x34\x02\x91\x20' + b'\x01' # USB
 	SendCommand(serport,msg)
 	
 	PollVersionInfo(serport)
@@ -209,7 +214,7 @@ def ConfigureReceiver(serport):
 	ubxMsgs.add(b'\x05\x00') # ACK-NAK 
 	ubxMsgs.add(b'\x05\x01') # ACK_ACK
 	ubxMsgs.add(b'\x27\x03') # chip ID
-	ubxMsgs.add(b'\x0a\x04') # chip ID
+	ubxMsgs.add(b'\x0a\x04') # version info
 	
 	Debug('Done configuring')
 	PollVersionInfo(serport)
