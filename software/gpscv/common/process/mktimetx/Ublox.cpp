@@ -49,6 +49,8 @@
 extern std::ostream *debugStream;
 extern Application *app;
 
+extern int verbosity; // FIXME temporary
+
 #define CLIGHT 299792458.0
 #define ICD_PI 3.1415926535898
 
@@ -72,7 +74,7 @@ typedef double         R8;
 #define MSG0122 0x02
 #define MSG0215 0x04
 #define MSG0D01 0x08
-
+#define MSG0213 0x10 # ublox9 only
 
 Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 {
@@ -107,6 +109,10 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
 		app->logMessage("Assuming NEO-M8T");
+	}
+	for (int i=1;i<=gps.maxSVN();i++){
+		GPS::EphemerisData *ed = new GPS::EphemerisData();
+		gpsEph[i]=ed;
 	}
 }
 
@@ -523,6 +529,26 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				}
 			}
 		
+			if(msgid == "0213"){
+				U1 gnssID;
+				U1 svID,sigID;
+				U1 numWords;
+				U1 freqID,chn;
+				U1 ubuf[10*4]; // max number of data words is currently 10
+				HexToBin((char *) msg.substr(0*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &gnssID);
+				HexToBin((char *) msg.substr(1*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &svID);
+				HexToBin((char *) msg.substr(2*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &sigID);
+				HexToBin((char *) msg.substr(3*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &freqID);
+				HexToBin((char *) msg.substr(4*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &numWords);
+				HexToBin((char *) msg.substr(5*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &chn);
+				HexToBin((char *) msg.substr(8*2,2*sizeof(U1)*numWords*4).c_str(),sizeof(U1)*40,(unsigned char *) &ubuf);
+				//std::cerr << (int) gnssID << " " << (int) svID << " " << (int) sigID << " " << (int) numWords << std::endl;
+				if (0 == gnssID ){ // GPS
+					//std::cerr << msg << std::endl;
+					processGPSEphemerisLNAVSubframe(svID,ubuf);
+				}
+			}
+			
 			// Ephemeris
 			if(msgid == "0b31"){
 				if (msg.size()==(8+2)*2){
@@ -535,7 +561,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
 						else
 							ed->tLogged = -1;
-					gps.addEphemeris(ed);
+					gps.addEphemeris(ed); // FIXME memory leak
 				}
 				else{
 					DBGMSG(debugStream,WARNING,"Bad 0b31 message size");
@@ -550,6 +576,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	}
 	infile.close();
 
+	//exit(0); // FIXME temporary
+	
 	leapsecs = measLeapSecs;
 	
 	if ((modelName != "ZED-F9P") && !gotUTCdata){ // FIXME temporary until ephemeris polling and decoding is implemented
@@ -690,8 +718,6 @@ GPS::EphemerisData* Ublox::decodeGPSEphemeris(std::string msg)
 	ed->SVN=u4buf;
 	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
 	
-	// cerr << "EPH" << endl;
-
 	// To use the MID macro, LSB is bit 0, m is first bit, n is last bit
 	#define LAST(k,n) ((k) & ((1<<(n))-1))
 	#define MID(k,m,n) LAST((k)>>(m),((n)-(m)+1)) 
@@ -875,4 +901,86 @@ GPS::EphemerisData* Ublox::decodeGPSEphemeris(std::string msg)
 	//fprintf(stderr,"%08x %.12e\n",u4buf,ed->IDOT);
 	
 	return ed;
+}
+
+static unsigned int   U4x(unsigned char *p) {unsigned int   u; memcpy(&u,p,4); return u;}
+
+void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
+{
+	// Decode a GPS LNAV subframe
+	
+	unsigned int dwords[10];
+	unsigned char *p = ubuf;
+	
+	
+	for (int i=0;i<10;i++,p+=4) {
+		//fprintf(stderr,"%08x\n",U4x(p));
+		dwords[i] = U4x(p) >> 6; // remove parity bits
+	}
+	int id = (dwords[1] >> 2) & 0x07; // Handover Word subframe ID bits 20-22
+	//std::cerr << svID << " " << id << std::endl;
+	
+	GPS::EphemerisData *ed = gpsEph[svID];
+	ed->SVN = svID;
+	
+	if (id==1){ 
+		//std::cerr<< "WN " << (int) ((dwords[2] >> 14) & 1023) << std::endl; // transmission WN bits 1-10 
+		// C/A or P on L2 bits 11-12
+		// URA            bits 13-16
+		// SV health      bits 17-22
+		// IODC two MSBs  bits 23-24
+		
+		ed->subframes |= 0x01;
+		ed->week_number =  ((dwords[2] >> 14) & 1023);  //  word 3 bits 1-10 
+		ed->SV_accuracy_raw = ((dwords[2] >> 8) & 0xf);
+		ed->SV_accuracy = GPS::URA[ed->SV_accuracy_raw];
+		ed->SV_health = ((dwords[2] >> 2) & 63);
+	
+		ed->t_OC = (SINGLE) (16*((dwords[7]) & 0xffff)); // word 8
+	}
+	else if (id==2){
+		ed->subframes |= 0x02;
+		ed->IODE = (UINT8)  ((dwords[2] >> 16) & 0xff); // word 3
+		signed short Crs =  dwords[2] & 0xffff; // word 3
+		ed->C_rs = ((double) Crs )/((double) 32.0);
+		
+		ed->t_oe = (SINGLE) (16*((dwords[9] >> 8) & 0xffff)); // word 10
+	}
+	else if (id==3){
+		ed->subframes |= 0x04;
+		int odot = (dwords[8] & 0xffffff) << 8;
+		odot = odot >> 8;	
+		ed->OMEGADOT = ICD_PI * (double) (odot)/ (double) pow(2,43);
+		int idot =  ((dwords[9] >> 2) & 0x3fff) << 18;
+		idot = idot >> 18;
+		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
+	}
+	else if (id==4){
+		//
+	}
+	else if (id==5){
+		// Almanac - don't want
+	}
+	else{
+		// Bad
+	}
+	
+	// Now test whether there is a complete ephemeris and
+	// if so, if we already have it
+	if (ed->subframes == 0x07){
+		//verbosity=4;
+		DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
+			" t_oe " << ed->t_oe << " t_OC " << ed->t_OC);
+		if (!(gps.addEphemeris(ed))){
+			// don't delete it - reuse the buffer
+			ed->subframes=0x0;
+		}
+		else{ // data was appended to the SV ephemeris list so create a new buffer for this SV
+			ed = new GPS::EphemerisData();
+			gpsEph[svID]=ed;
+			DBGMSG(debugStream,INFO,"Added!");
+		}
+		//verbosity=1;
+	}
+	
 }

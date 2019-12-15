@@ -102,14 +102,14 @@ void GPS::deleteEphemeris()
 // A hash table is alos built for quick ephemeris lookup
 // Note that when the ephemeris is completely read, another fixup must be done for week rollovers
 
-void GPS::addEphemeris(EphemerisData *ed)
+bool GPS::addEphemeris(EphemerisData *ed)
 {
 	// Check whether this is a duplicate
 	int issue;
 	for (issue=0;issue < (int) sortedEphemeris[ed->SVN].size();issue++){
 		if (sortedEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
 			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
-			return;
+			return false;
 		}
 	}
 	
@@ -155,8 +155,9 @@ void GPS::addEphemeris(EphemerisData *ed)
 		DBGMSG(debugStream,4,"first eph ");
 		ephemeris.push_back(ed);
 		sortedEphemeris[ed->SVN].push_back(ed);
-		return;
+		return true;
 	}
+	return true;
 }
 
 GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow,double maxURA)

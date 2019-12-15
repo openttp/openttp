@@ -78,6 +78,7 @@ class GPS: public GNSSSystem
 	{
 		
 		public:
+			
 			UINT8 SVN;
 			SINGLE t_ephem;
 			UINT16 week_number;
@@ -114,6 +115,9 @@ class GPS: public GNSSSystem
 			DOUBLE ODOT_n;
 			
 			int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
+			unsigned char subframes; // used to flag receipt of each subframe
+			
+			EphemerisData(){subframes=0;}
 	};
 	
 	GPS();
@@ -127,7 +131,7 @@ class GPS: public GNSSSystem
 	UTCData UTCdata;
 	std::vector<EphemerisData *> ephemeris;
 			
-	void addEphemeris(EphemerisData *);
+	bool addEphemeris(EphemerisData *);
 	std::vector<EphemerisData *> sortedEphemeris[NSATS+1];
 	EphemerisData *nearestEphemeris(int,int,double);
 	bool fixWeekRollovers();
