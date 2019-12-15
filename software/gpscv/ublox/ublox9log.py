@@ -146,6 +146,23 @@ def Checksum(msg):
 		ckb = ckb & 0xff
 		
 	return struct.pack('2B',cka,ckb);
+
+# ------------------------------------------------------------------------------
+# Verify the checksum
+# Note that a full message, including the UBX header, is assumed
+#
+def CheckSumOK(msg):
+	cka=0
+	ckb=0
+	l = len(msg)
+	for i in range(2,l-2): # skip the two bytes of the header (start) and the checksum (end) 
+		cka = cka + msg[i]
+		cka = cka & 0xff
+		ckb = ckb + cka
+		ckb = ckb & 0xff
+	
+	return ((cka == msg[l-2]) and (ckb == msg[l-1]))
+
 	
 # ---------------------------------------------------------------------------
 def SendCommand(serport,cmd):
