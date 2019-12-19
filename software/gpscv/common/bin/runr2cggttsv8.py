@@ -56,71 +56,110 @@ def Debug(msg):
 def MJD(unixtime):
         return int(unixtime/86400) + 40587
 
+# Find
+
+def FindFile(basename,extensions):
+	fname = basename
+	Debug('Trying ' + fname )
+	if (os.path.exists(fname)):
+		Debug('Success')
+		return (True,'')
+	
+	for ext in extensions:
+		fname = basename + ext
+		Debug('Trying ' + fname )
+		if (os.path.exists(fname)):
+			Debug('Success')
+			return (True,ext)
+	
+	return (False,'') # flag failure
+
 # ------------------------------------------
 #
+
+
 def MakeRINEXObservationName(dirname,staname,yyyy,doy,rnxver,reqd):
 	if (rnxver == 2):
 		yy = yyyy - int(yyyy/100)*100
-		fname = '{}/{}{:03d}0.{:02d}o'.format(dirname,staname,doy,yy)
-		Debug('Trying '+fname)
-		if (os.path.exists(fname)):
-			return fname
 		
-		fname = '{}/{}{:03d}0.{:02d}O'.format(dirname,staname,doy,yy)
-		if (os.path.exists(fname)):
-			return fname
+		bname = '{}/{}{:03d}0.{:02d}o'.format(dirname,staname,doy,yy)
+		(found,ext) = FindFile(bname,['.gz'])
+		if (found):
+			return (bname,ext)
+		
+		bname = '{}/{}{:03d}0.{:02d}O'.format(dirname,staname,doy,yy)
+		(found,ext) = FindFile(bname,['.gz'])
+		if (found):
+			return (bname,ext)
 		
 		if (reqd):	
-			print "Can't open",fname,"(or .o)"
+			print "Can't open",bname,"(or .o)"
 			exit()
+			
 	elif (rnxver==3):
 		# Try a V3 name first
 		fname = '{}/{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(dirname,staname,yyyy,doy)
 		Debug('Trying '+fname)
 		if (os.path.exists(fname)):
-			return fname
+			return (fname,'')
 		
 		yy = yyyy - int(yyyy/100)*100
 		fname = '{}/{}{:03d}0.{:02d}o'.format(dirname,staname,doy,yy)
 		Debug('Trying '+fname)
 		if (os.path.exists(fname)):
-			return fname
+			return (fname,'')
 		
 		fname = '{}/{}{:03d}0.{:02d}O'.format(dirname,staname,doy,yy)
 		if (os.path.exists(fname)):
-			return fname
+			return (fname,'')
 		
 		if (reqd):	
 			print "Can't open",fname,"(or .o)"
 			exit()
-	return ''
+			
+	return ('','')
 
 # ------------------------------------------		
 #
 def MakeRINEXNavigationName(dirname,staname,yyyy,doy,rnxver,reqd):
 	if (rnxver == 2):
 		yy = yyyy - int(yyyy/100)*100
-		fname = '{}/{}{:03d}0.{:02d}n'.format(dirname,staname,doy,yy)
-		if (os.path.exists(fname)):
-			return fname
 		
-		fname = '{}/{}{:03d}0.{:02d}N'.format(dirname,staname,doy,yy)
-		if (os.path.exists(fname)):
-			return fname
+		bname = '{}/{}{:03d}0.{:02d}n'.format(dirname,staname,doy,yy)
+		(found,ext) = FindFile(bname,['.gz'])
+		if (found):
+			return (bname,ext)
+		
+		bname = '{}/{}{:03d}0.{:02d}N'.format(dirname,staname,doy,yy)
+		(found,ext) = FindFile(bname,['.gz'])
+		if (found):
+			return (bname,ext)
 		
 		if (reqd):
-			print "Can't open",fname,"(or .N)"
+			print "Can't open",bname,"(or .N)"
 			exit()
+			
 	elif (rnxver == 3):
 		# Mixed navigation files only
 		fname = '{}/{}_R_{:04d}{:03d}0000_01D_MN.rnx'.format(dirname,staname,yyyy,doy)
 		if (os.path.exists(fname)):
-			return fname
+			return (fname,'')
 		if (reqd):
 			print "Can't open",fname
 			exit()
+			
 	return ''
 
+def DecompressFile(basename,ext):
+	if (ext == '.gz'):
+		subprocess.check_output(['gunzip',basename + ext])
+		Debug('Decompressed ' + basename)
+		
+def RecompressFile(basename,ext):
+	if (ext == '.gz'):
+		subprocess.check_output(['gzip',basename])
+		Debug('Recompressed ' + basename)
+		
 # ------------------------------------------
 # Main
 
@@ -185,10 +224,10 @@ if args.rinexversion:
 
 
 # Make RINEX file names
-rnx1=MakeRINEXObservationName(RNXOBSDIR,STA,yyyy1,doy1,rnxVersion,True);
-nav1=MakeRINEXNavigationName(RNXNAVDIR,NAV,yyyy1,doy1,rnxVersion,True);
-rnx2=MakeRINEXObservationName(RNXOBSDIR,STA,yyyy2,doy2,rnxVersion,False); #don't require next day
-nav2=MakeRINEXNavigationName(RNXNAVDIR,NAV,yyyy2,doy2,rnxVersion,False);
+(rnx1,rnx1ext)=MakeRINEXObservationName(RNXOBSDIR,STA,yyyy1,doy1,rnxVersion,True);
+(nav1,nav1ext)=MakeRINEXNavigationName(RNXNAVDIR,NAV,yyyy1,doy1,rnxVersion,True);
+(rnx2,rnx2ext)=MakeRINEXObservationName(RNXOBSDIR,STA,yyyy2,doy2,rnxVersion,False); #don't require next day
+(nav2,nav2ext)=MakeRINEXNavigationName(RNXNAVDIR,NAV,yyyy2,doy2,rnxVersion,False);
 
 if (os.path.exists(PARS)):
 	if (PARS != 'paramCGGTTS.dat'):
@@ -206,8 +245,9 @@ if (args.leapsecs):
 else:	
 	# Try the RINEX navigation file.
 	# Use the number of leap seconds in nav1
+	
+	DecompressFile(nav1,nav1ext)
 	fin = open(nav1,'r')
-	Debug('Opening '+nav1);
 	for l in fin:
 		m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
 		if (m):
@@ -215,7 +255,9 @@ else:
 			Debug('Leap seconds = '+str(nLeap))
 			break
 	fin.close()
-
+	# RecompressFile(nav1,nav1ext) don't recompress just yet
+	
+	
 if (nLeap == 0):
 	print "Can't determine the number of leap seconds";
 	exit()
@@ -243,17 +285,27 @@ if (nLeap > 0):
 shutil.copyfile(PARS+'.bak',PARS)
   
 # Almost there ...
+
+DecompressFile(rnx1,rnx1ext)
 shutil.copy(rnx1,'rinex_obs')
+RecompressFile(rnx1,rnx1ext)
+
 if (rnxVersion == 2):
 	shutil.copy(nav1,'rinex_nav_gps')
+	RecompressFile(nav1,nav1ext) # now we can recompress it
 elif (rnxVersion == 3):
 	shutil.copy(nav1,'rinex_nav_mix')
 	
-if (rnx2 != ''):
+if (rnx2 != ''): # not required
+	DecompressFile(rnx2,rnx2ext)
 	shutil.copy(rnx2,'rinex_obs_p')
-if (nav2 != ''):
+	RecompressFile(rnx2,rnx2ext)
+	
+if (nav2 != ''): # not required
 	if (rnxVersion == 2):
+		DecompressFile(nav2,nav2ext)
 		shutil.copy(nav1,'rinex_nav_p_gps')
+		RecompressFile(nav2,nav2ext)
 	elif (rnxVersion == 3):
 		shutil.copy(nav1,'rinex_nav_p_mix')
 
