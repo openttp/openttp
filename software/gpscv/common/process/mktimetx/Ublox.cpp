@@ -917,10 +917,13 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		//fprintf(stderr,"%08x\n",U4x(p));
 		dwords[i] = U4x(p) >> 6; // remove parity bits
 	}
+	
 	int id = (dwords[1] >> 2) & 0x07; // Handover Word subframe ID bits 20-22
 	//std::cerr << svID << " " << id << std::endl;
 	
 	GPS::EphemerisData *ed = gpsEph[svID];
+	ed->t_ephem = (((dwords[1] >> 7) & 0x01ffff ) << 2)*((double) 604799 / (double) 403199.0); // CHECKME
+	
 	ed->SVN = svID;
 	
 	if (id==1){ 
@@ -931,29 +934,104 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		// IODC two MSBs  bits 23-24
 		
 		ed->subframes |= 0x01;
+		
 		ed->week_number =  ((dwords[2] >> 14) & 1023);  //  word 3 bits 1-10 
+		
 		ed->SV_accuracy_raw = ((dwords[2] >> 8) & 0xf);
+		
 		ed->SV_accuracy = GPS::URA[ed->SV_accuracy_raw];
+		
 		ed->SV_health = ((dwords[2] >> 2) & 63);
+		
+		unsigned int hibits = dwords[2] & 0x03;
+		hibits = hibits << 8;
+	
+		signed char tGD = (dwords[6] & 0xff);// word 7 signed, scaled by 2^-31
+		ed->t_GD =  (double) tGD / (double) pow(2,31);
+		
+		unsigned int lobits = (dwords[7] >> 16) & 0xff; // word 8
+		ed->IODC = hibits | lobits;
 	
 		ed->t_OC = (SINGLE) (16*((dwords[7]) & 0xffff)); // word 8
+		
+		signed char af2 = (dwords[8] >> 16) & 0xff; // word 9
+		ed->a_f2 = af2/pow(2,55);
+		
+		signed short af1 = dwords[8] & 0xffff;
+		ed->a_f1 = (double) af1/(double) pow(2,43);
+	
+		int tmp = ((dwords[9] >> 2) << 10);
+		tmp = tmp >> 10;
+		ed->a_f0 = (double) tmp /(double) pow(2,31); // signed, scaled by 2^-31
+	
 	}
 	else if (id==2){
 		ed->subframes |= 0x02;
+		
 		ed->IODE = (UINT8)  ((dwords[2] >> 16) & 0xff); // word 3
+		
 		signed short Crs =  dwords[2] & 0xffff; // word 3
 		ed->C_rs = ((double) Crs )/((double) 32.0);
 		
+		signed short deltaN = (dwords[3] >> 8) & 0xffff;
+		ed->delta_N = ICD_PI*(double) deltaN/(double) pow(2,43); // GPS units are semi-circles/s, RINEX units are rad/s
+	
+		unsigned int hibits =  (dwords[3] & 0xff) << 24; // M_0 (upper 8 bits) b17-b24
+		unsigned int lobits = dwords[4] & 0xffffff; // word 5 M_0 (lower 24 bits) b1-b24
+		ed->M_0 = ICD_PI * ((double) ((int) (hibits | lobits)))/ (double) pow(2,31);
+	
+		signed short Cuc = (dwords[5] >> 8) & 0xffff; // word 6
+		ed->C_uc = (double) Cuc/(double) pow(2,29);
+	
+		hibits = (dwords[5] & 0xff) << 24; // word 6, e b17-b24 (upper 8 bits)
+		lobits = (dwords[6] & 0xffffff);   // word 7, e b1-b23  (lower 24 bits)
+		ed->e = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,33);
+
+		signed short Cus= (dwords[7]  >> 8) & 0xffff; // word 8, C_us b1-b16 
+		ed->C_us = (double) Cus/(double) pow(2,29);
+		
+		hibits =  (dwords[7] & 0xff) << 24; // word 8, sqrtA b1-b8 (upper bits)
+		lobits =  (dwords[8] & 0xffffff) ; //word 9, sqrtA b1-b24 (lower bits)
+		ed->sqrtA = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,19);
+	
 		ed->t_oe = (SINGLE) (16*((dwords[9] >> 8) & 0xffff)); // word 10
 	}
 	else if (id==3){
 		ed->subframes |= 0x04;
-		int odot = (dwords[8] & 0xffffff) << 8;
+		
+		signed short Cic = (dwords[2] >> 8) & 0xffff; // word 3, C_ic b1-b16 
+		ed->C_ic = (double) Cic/(double) pow(2,29);
+	
+		unsigned int hibits =  (dwords[2] & 0xff) << 24; // word3, OMEGA_0 b17-b24 (upper bits)
+		unsigned int lobits = dwords[3] & 0xffffff ; // word4, OMEGA_0 b1-b24 lower bits 
+		ed->OMEGA_0 = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
+	
+		signed short Cis = (dwords[4] >> 8) & 0xff; // word 5, C_is b1-b16 
+		ed->C_is= (double) Cis/(double) pow(2,29);
+	
+		hibits =  (dwords[4] & 0xff) << 24; // word 4
+		lobits = dwords[5] & 0xffffff;  // word 6, i_0 b1-b24 (lower bits) 
+		ed->i_0 = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
+	
+		signed short Crc = (dwords[6] >> 8) & 0xffff; // word 7, C_rc b1-b16 
+		ed->C_rc= (double) Crc/32.0;
+	
+		hibits =  (dwords[6] & 0xff) << 24; // word 7, OMEGA b17-b24 (upper bits)
+		lobits = dwords[7] & 0xffffff ; // word 8, OMEGA b1-b24 (lower bits) 
+		ed->OMEGA = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
+	
+		int odot = (dwords[8] & 0xffffff) << 8; // CHECKME rounding errors ? disagreement
 		odot = odot >> 8;	
+		
 		ed->OMEGADOT = ICD_PI * (double) (odot)/ (double) pow(2,43);
+		
+		// IODE b1-b8 (repeated to facilitate checking for data cutovers)
+		// FIXME not used
+		
 		int idot =  ((dwords[9] >> 2) & 0x3fff) << 18;
 		idot = idot >> 18;
 		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
+		
 	}
 	else if (id==4){
 		//
