@@ -51,30 +51,30 @@ def MJD(unixtime):
 	return int(unixtime/86400) + 40587
 
 # ------------------------------------------
-# Make a path relative to root, if needed
+# Make a path relative to root (which must be absolute), if needed
 # If a path starts with a '/' then it is not modified
-#
+# Adds a trailing separator
 def MakeAbsolutePath(path,root):
-	if (re.search(r'^/',path) == None):
-		path = os.path.join(root,path)
-	if (re.search(r'/$',path) == None): # add trailing '/' if needed
-		path = path + '/'
+	if (not os.path.isabs(path)):
+		path = os.path.join(root,path) 
+	path = os.path.join(path,'') # add trailing separator if necessary
 	return path
 
 # ------------------------------------------
 # Make a file path relative to home, if needed
 #
-def MakeAbsoluteFilePath(fname,home,defaultPath):
+def MakeAbsoluteFilePath(fname,rootPath,defaultPath):
+	
 	ret = fname
 	
-	if (re.search(r'/$',defaultPath) == None): # add trailing '/' if needed
-		defaultPath = defaultPath + '/'
-		
-	if (re.search(r'^/',fname)):
-		# absolute path already - nothing to do
+	defaultPath = os.path.join(defaultPath,'') # add separator if necessary
+	rootPath = os.path.join(rootPath,'')	
+	sep=os.sep
+	
+	if (os.path.isabs(fname)): # absolute path already - nothing to do
 		return ret
-	elif (re.search(r"\w+/",fname)): # relative to $HOME
-		ret = home + fname
+	elif (re.search('^\w+'+sep,fname)): # relative to rootPath
+		ret = rootPath + fname
 	else:
 		ret = defaultPath + fname
 	return ret
