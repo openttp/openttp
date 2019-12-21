@@ -280,9 +280,6 @@ if (nLeap > 0):
 	fin.close();
 	fout.close();
 	shutil.copyfile(PARS+'.tmp',PARS)
-
-	
-shutil.copyfile(PARS+'.bak',PARS)
   
 # Almost there ...
 
