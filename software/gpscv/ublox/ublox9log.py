@@ -442,8 +442,8 @@ while (not killed):
 				mjd=int(tNow/86400) + 40587	
 				fdata = OpenDataFile(mjd)
 				
-				PollVersionInfo()
-				PollChipID()
+				PollVersionInfo(serport)
+				PollChipID(serport)
 				tNext=(mjd-40587+1)*86400	# seconds at next MJD
 			
 			if (tNow > tThen):
