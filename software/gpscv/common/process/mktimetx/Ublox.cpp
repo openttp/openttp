@@ -1026,15 +1026,75 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		ed->OMEGADOT = ICD_PI * (double) (odot)/ (double) pow(2,43);
 		
 		// IODE b1-b8 (repeated to facilitate checking for data cutovers)
-		// FIXME not used
+		// FIXME POSSIBLY not used
 		
 		int idot =  ((dwords[9] >> 2) & 0x3fff) << 18;
 		idot = idot >> 18;
 		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
 		
 	}
-	else if (id==4){
-		//
+	else if (id==4 && !gotUTCdata ){ // subframe 4 contains ionosphere and UTC parameters
+		// Get the page ID
+		unsigned int svID = (dwords[2] >> 16) & 0x3f;
+		if (svID == 56){ // page 18
+			
+			GPS::IonosphereData &iono = gps.ionoData;
+			
+			// The 'a' params are all signed
+			char a = (dwords[2] >> 8) & 0xff;
+			iono.a0 = (double) a / (double) pow(2,30);
+			
+			a = (dwords[2] & 0xff);
+			iono.a1 = (double) a / (double) pow(2,27);
+			
+			a = (dwords[3] >> 16) & 0xff;
+			iono.a2 = (double) a / (double) pow(2,24);
+			
+			a = (dwords[3] >> 8) & 0xff;
+			iono.a3 = (double) a / (double) pow(2,24);
+			
+			// The 'b' params are all signed
+			char b = (dwords[3] & 0xff);
+			iono.B0 = (double) b * (double) pow(2,11);
+			
+			b = (dwords[4] >> 16) & 0xff;
+			iono.B1 = (double) b * (double) pow(2,14);
+			
+			b = (dwords[4] >> 8) & 0xff;
+			iono.B2 = (double) b * (double) pow(2,16);
+			
+			b = (dwords[4] & 0xff);
+			iono.B3 = (double) b * (double) pow(2,16);
+			
+			GPS::UTCData &utc = gps.UTCdata;
+			int a1 = (dwords[5] & 0xffffff) << 8;
+			a1 = a1 >> 8;
+			utc.A1 = (double) a1 / (double) pow(2,50);
+			
+			unsigned int hibits = (dwords[6] & 0xffffff) << 8;
+			unsigned int lobits = (dwords[7] >> 16) & 0xff;
+			utc.A0 =  (double) ((int) (hibits | lobits) ) / (double) pow(2,30);
+			
+			unsigned char t_ot = (dwords[7] >> 8) & 0xff;
+			utc.t_ot = t_ot * 4096;
+			
+			utc.WN_t = dwords[7] & 0xff;
+			
+			char dtLs = (dwords[8] >> 16) & 0xff;
+			utc.dtlS = dtLs;
+			
+			utc.WN_LSF = (dwords[8] >> 8) & 0xff; // unsigned
+			
+			utc.DN = dwords[8] & 0xff; // word 9 unsigned, right justified ? 
+			
+			char dt_LSF = (dwords[9] >> 16) & 0xff; // word 10, signed
+			utc.dt_LSF = dt_LSF;
+			
+			gotUTCdata = gotIonoData = true;
+			
+			//fprintf(stderr,"%d %d\n",utc.DN, utc.dtlS);
+		}
+		
 	}
 	else if (id==5){
 		// Almanac - don't want
