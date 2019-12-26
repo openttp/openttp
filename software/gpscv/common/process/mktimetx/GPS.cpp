@@ -99,9 +99,20 @@ void GPS::deleteEphemeris()
 
 
 // The ephemeris is sorted so that the RINEX navigation file is written correctly
-// A hash table is alos built for quick ephemeris lookup
-// Note that when the ephemeris is completely read, another fixup must be done for week rollovers
+// A hash table is also built for quick ephemeris lookup
+// Note that when the ephemeris is completely read in, another fixup must be done for week rollovers
 
+// t_oe and t_OC are usually the same 
+// Some disagreements at the end of the GPS week but at other times too (when satellite picked up?)
+// No particular relationship - sometimes t_oe is before t_OC, sometimes after
+// Sometimes IODE will be the same ( and data the same too)
+// eg SV 17 IODE 66 t_oe 597600 t_OC 597600
+//    SV 17 IODE 66 t_oe 597600 t_OC 0
+// eg SV 25 IODE 4 t_oe 532800 t_OC 532800
+//    SV 25 IODE 4 t_oe 532800 t_OC 540000
+// eg SV 24 IODE 13 t_oe 547200 t_OC 532800
+//    SV 24 IODE 13 t_oe 547200 t_OC 547200
+//
 bool GPS::addEphemeris(EphemerisData *ed)
 {
 	// Check whether this is a duplicate
@@ -119,7 +130,7 @@ bool GPS::addEphemeris(EphemerisData *ed)
 		
 		std::vector<EphemerisData *>::iterator it;
 		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
-			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
+			if (ed->t_OC < (*it)->t_OC){ // RINEX uses t_OC
 				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
 				ephemeris.insert(it,ed);
 				break;
@@ -168,7 +179,7 @@ GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow,double maxURA)
 	if (sortedEphemeris[svn].size()==0)
 		return ed;
 	
-	// This algorithm does not depend one the epemeris being sorted
+	// This algorithm does not depend on the ephemeris being sorted
 	// (and, at present, because week rollovers are not accounted for,it isn't fully sorted)
 	for (unsigned int i=0;i<sortedEphemeris[svn].size();i++){
 		tmpdt=sortedEphemeris[svn][i]->t_oe - tow;

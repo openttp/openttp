@@ -590,6 +590,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 		return false;
 	}
 	
+	gps.fixWeekRollovers();
+	
 	// Pass through the data to realign the sawtooth correction.
 	// This could be done in the main loop but it's more flexible this way.
 	// For the ublox, the sawtooth correction applies to the next second
@@ -1108,7 +1110,7 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	if (ed->subframes == 0x07){
 		//verbosity=4;
 		DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
-			" t_oe " << ed->t_oe << " t_OC " << ed->t_OC);
+			" t_oe " << ed->t_oe << " t_OC " << ed->t_OC << ((ed->t_oe != ed->t_OC)?"XXX":""));
 		if (!(gps.addEphemeris(ed))){
 			// don't delete it - reuse the buffer
 			ed->subframes=0x0;
