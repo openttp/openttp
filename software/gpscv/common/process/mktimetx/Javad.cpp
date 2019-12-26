@@ -924,7 +924,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					HexToBin((char *) msg.substr(24*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->a_f1));
 					HexToBin((char *) msg.substr(28*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->a_f0));
 					HexToBin((char *) msg.substr(32*2,2*sizeof(SINT32)).c_str(),sizeof(SINT32), (unsigned char *) &sint32buf);
-					ed->t_oe=sint32buf;
+					ed->t_0e=sint32buf;
 					HexToBin((char *) msg.substr(36*2,2*sizeof(SINT16)).c_str(), sizeof(SINT16),  (unsigned char *) &sint16buf);
 					ed->IODE=(UINT8) sint16buf; // WARNING! Truncated
 					HexToBin((char *) msg.substr(38*2,2*sizeof(DOUBLE)).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->sqrtA));
@@ -957,7 +957,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					else
 						ed->tLogged = -1;
 						
-					DBGMSG(debugStream,TRACE,"Ephemeris: SVN="<< (unsigned int) ed->SVN << ",toe="<< ed->t_oe << ",IODE=" << (int) ed->IODE);
+					DBGMSG(debugStream,TRACE,"Ephemeris: SVN="<< (unsigned int) ed->SVN << ",t0e="<< ed->t_0e << ",IODE=" << (int) ed->IODE);
 					gps.addEphemeris(ed);
 					
 				}

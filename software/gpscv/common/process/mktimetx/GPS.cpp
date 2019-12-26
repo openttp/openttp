@@ -102,7 +102,7 @@ void GPS::deleteEphemeris()
 // A hash table is also built for quick ephemeris lookup
 // Note that when the ephemeris is completely read in, another fixup must be done for week rollovers
 
-// t_oe and t_OC are usually the same 
+// t_0e and t_OC are usually the same 
 // Some disagreements at the end of the GPS week but at other times too (when satellite picked up?)
 // No particular relationship - sometimes t_oe is before t_OC, sometimes after
 // Sometimes IODE will be the same ( and data the same too)
@@ -118,8 +118,8 @@ bool GPS::addEphemeris(EphemerisData *ed)
 	// Check whether this is a duplicate
 	int issue;
 	for (issue=0;issue < (int) sortedEphemeris[ed->SVN].size();issue++){
-		if (sortedEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
-			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
+		if (sortedEphemeris[ed->SVN][issue]->t_0e == ed->t_0e){
+			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_0e);
 			return false;
 		}
 	}
@@ -182,7 +182,7 @@ GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow,double maxURA)
 	// This algorithm does not depend on the ephemeris being sorted
 	// (and, at present, because week rollovers are not accounted for,it isn't fully sorted)
 	for (unsigned int i=0;i<sortedEphemeris[svn].size();i++){
-		tmpdt=sortedEphemeris[svn][i]->t_oe - tow;
+		tmpdt=sortedEphemeris[svn][i]->t_0e - tow;
 		// handle week rollover
 		if (tmpdt < -5*86400){ 
 			tmpdt += 7*86400;
@@ -200,7 +200,7 @@ GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow,double maxURA)
 		}
 	}
 				
-	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_oe="<< ((ed!=NULL)?(int)(ed->t_oe):-1));
+	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_0e="<< ((ed!=NULL)?(int)(ed->t_0e):-1));
 	
 	return ed;
 }
@@ -338,7 +338,7 @@ bool GPS::satXYZ(GPS::EphemerisData *ed,double t,double *Ek,double x[3])
 	double e=ed->e;
 	
 	// as per the ICD 20.3.3.4.3.1, account for beginning/end of week crossovers
-	if ( (tk = t - ed->t_oe) > 302400) tk -= 604800;
+	if ( (tk = t - ed->t_0e) > 302400) tk -= 604800;
 	else if (tk < -302400) tk += 604800; // make (-302400 <= tk <= 302400)
 	
 	// solve Kepler's Equation for the Eccentric Anomaly by iteration
@@ -359,7 +359,7 @@ bool GPS::satXYZ(GPS::EphemerisData *ed,double t,double *Ek,double x[3])
 	double ik = ed->i_0 + ed->IDOT*tk + ed->C_ic*cos(2*phik) + ed->C_is*sin(2*phik);
 	double xkprime = rk*cos(uk);
 	double ykprime = rk*sin(uk);
-	double omegak = ed->OMEGA_0 + (ed->OMEGADOT - OMEGA_E_DOT)*tk - OMEGA_E_DOT*ed->t_oe;
+	double omegak = ed->OMEGA_0 + (ed->OMEGADOT - OMEGA_E_DOT)*tk - OMEGA_E_DOT*ed->t_0e;
 	
 	x[0] = xkprime*cos(omegak) - ykprime*cos(ik)*sin(omegak);
 	x[1] = xkprime*sin(omegak) + ykprime*cos(ik)*cos(omegak);

@@ -35,15 +35,6 @@ class Antenna;
 class ReceiverMeasurement;
 class SVMeasurement;
 
-typedef double DOUBLE;
-typedef float  SINGLE;
-typedef unsigned char UINT8;
-typedef signed char SINT8;
-typedef unsigned short UINT16;
-typedef short SINT16;
-typedef int SINT32;
-typedef unsigned int UINT32;
-
 class GPS: public GNSSSystem
 {
 	private:
@@ -99,7 +90,7 @@ class GPS: public GNSSSystem
 			DOUBLE e;
 			SINGLE C_us;
 			DOUBLE sqrtA;
-			SINGLE t_oe;
+			SINGLE t_0e;
 			SINGLE C_ic;
 			DOUBLE OMEGA_0;
 			SINGLE C_is;

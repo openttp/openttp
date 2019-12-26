@@ -34,9 +34,6 @@ class Antenna;
 class ReceiverMeasurement;
 class SVMeasurement;
 
-typedef double DOUBLE;
-typedef float  SINGLE;
-
 class Galileo: public GNSSSystem
 {
 	public:
@@ -45,18 +42,69 @@ class Galileo: public GNSSSystem
 	{
 		public:
 			SINGLE ai0,ai1,ai2;
+			unsigned char SFflags; // ionospheric disturbance
 	};
 
-	class UTCData
+	class UTCData // GSt->UTC, same as GPS
 	{
 		public:
-			
+			DOUBLE A0;
+			SINGLE A1;
+			SINT16 dtlS;
+			SINGLE t_ot;
+			UINT16 WN_t,WN_LSF,DN;
+			SINT16 dt_LSF;	
 	};
 
+	class GPSData // GST -> GPS
+	{
+		public:
+			// A_0G
+			// A_1G
+			// t_0G
+			// WN_0G
+	};
+	
 	class EphemerisData
 	{
 		public:
+			UINT8 SVN;
+			SINGLE t_ephem;
+			UINT16 week_number;
+			UINT16 IODC;
+			SINGLE t_GD;
+			SINGLE t_OC;
+			SINGLE a_f2;
+			SINGLE a_f1;
+			SINGLE a_f0;
+			SINGLE SV_accuracy;
+			UINT8 IODE;
+			SINGLE C_rs;
+			SINGLE delta_N;
+			DOUBLE M_0;
+			SINGLE C_uc;
+			DOUBLE e;
+			SINGLE C_us;
+			DOUBLE sqrtA;
+			SINGLE t_0e;
+			SINGLE C_ic;
+			DOUBLE OMEGA_0;
+			SINGLE C_is;
+			DOUBLE i_0;
+			SINGLE C_rc;
+			DOUBLE OMEGA;
+			SINGLE OMEGADOT;
+			SINGLE IDOT;
+			DOUBLE Axis;
+			DOUBLE n;
+			DOUBLE r1me2;
+			DOUBLE OMEGA_N;
+			DOUBLE ODOT_n;
 			
+			int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
+			unsigned char subframes; // used to flag receipt of each subframe
+			
+			EphemerisData(){subframes=0;}	
 	};
 	
 	Galileo();

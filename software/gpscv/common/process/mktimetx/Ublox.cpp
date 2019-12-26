@@ -114,6 +114,10 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 		GPS::EphemerisData *ed = new GPS::EphemerisData();
 		gpsEph[i]=ed;
 	}
+	for (int i=1;i<=galileo.maxSVN();i++){
+		Galileo::EphemerisData *ed = new Galileo::EphemerisData();
+		galEph[i]=ed;
+	}
 }
 
 Ublox::~Ublox()
@@ -543,9 +547,11 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				HexToBin((char *) msg.substr(5*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &chn);
 				HexToBin((char *) msg.substr(8*2,2*sizeof(U1)*numWords*4).c_str(),sizeof(U1)*40,(unsigned char *) &ubuf);
 				//std::cerr << (int) gnssID << " " << (int) svID << " " << (int) sigID << " " << (int) numWords << std::endl;
-				if (0 == gnssID ){ // GPS
-					//std::cerr << msg << std::endl;
-					processGPSEphemerisLNAVSubframe(svID,ubuf);
+				switch (gnssID)
+				{
+					case 0: processGPSEphemerisLNAVSubframe(svID,ubuf);break;
+					case 2: processGALEphemerisINAVSubframe(svID,sigID,ubuf);break;
+					default:break;
 				}
 			}
 			
@@ -835,7 +841,7 @@ GPS::EphemerisData* Ublox::decodeGPSEphemeris(std::string msg)
 	// t_OE b1-b16 // CHECKED
 	HexToBin((char *) msg.substr(68*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	unsigned short toe=MID(u4buf,8,23);
-	ed->t_oe = toe * 16;
+	ed->t_0e = toe * 16;
 	//fprintf(stderr,"%08x %.12e \n",u4buf,ed->t_oe);
 	
 	// data frame 3
@@ -907,13 +913,65 @@ GPS::EphemerisData* Ublox::decodeGPSEphemeris(std::string msg)
 
 static unsigned int   U4x(unsigned char *p) {unsigned int   u; memcpy(&u,p,4); return u;}
 
+void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
+{
+	// The ublox sends the even and odd pages together
+	unsigned int dwords[8];
+	unsigned char *p = ubuf;
+	for (int i=0;i<8;i++,p+=4) {
+		dwords[i] = U4x(p);
+	}
+	
+	unsigned char evenPage =  dwords[0] >> 31;
+	unsigned char pageType = (dwords[0] >> 30) & 0x01; 
+	unsigned char wordType = (dwords[0] >> 24 ) & 0x3f; 
+	
+	std::cerr << svID << " " << sigID << " " << " " << (int) evenPage << " " << 
+		(int) pageType << " " << (int) wordType << std::endl;
+		
+	if (wordType == 0 || wordType == 63) return; // 0 flags spare word, 63 flags no valid data is available
+	
+	Galileo::EphemerisData *ed = galEph[svID];	
+	ed->SVN = svID;
+	
+	if (wordType == 1){
+		// t0e, word 1, unsigned, lower 14 bits, scale factor 60 (ie in minutes)
+		// M0 , word 2, signed, 32 bits, scale factor 2^-31
+		ed->subframes |= 0x01;
+	}
+	else if (wordType == 2){
+		ed->subframes |= 0x02;
+	}
+	else if (wordType == 3){
+		ed->subframes |= 0x04;
+	}
+	else if (wordType == 4){
+		ed->subframes |= 0x08;
+	}
+	else if (wordType == 5){ // Ionospheric correction, BGD, signal health and data validity status and GST
+	}
+	else if (wordType == 6){
+	}
+	else if (wordType == 10){
+	}
+	else{ // 7-10 are almanac
+	}
+	
+	evenPage =  dwords[4] >> 31;
+	//std::cerr << " " << (int) evenPage << std::endl;
+	
+	if (ed->subframes == 0x0f){
+		std::cerr << " " << "complete" << std::endl;
+		ed->subframes = 0x0;
+	}
+}
+
 void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 {
 	// Decode a GPS LNAV subframe
 	
 	unsigned int dwords[10];
 	unsigned char *p = ubuf;
-	
 	
 	for (int i=0;i<10;i++,p+=4) {
 		//fprintf(stderr,"%08x\n",U4x(p));
@@ -996,7 +1054,7 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		lobits =  (dwords[8] & 0xffffff) ; //word 9, sqrtA b1-b24 (lower bits)
 		ed->sqrtA = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,19);
 	
-		ed->t_oe = (SINGLE) (16*((dwords[9] >> 8) & 0xffff)); // word 10
+		ed->t_0e = (SINGLE) (16*((dwords[9] >> 8) & 0xffff)); // word 10
 	}
 	else if (id==3){
 		ed->subframes |= 0x04;
@@ -1110,7 +1168,7 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	if (ed->subframes == 0x07){
 		//verbosity=4;
 		DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
-			" t_oe " << ed->t_oe << " t_OC " << ed->t_OC << ((ed->t_oe != ed->t_OC)?"XXX":""));
+			" t_0e " << ed->t_0e << " t_OC " << ed->t_OC << ((ed->t_0e != ed->t_OC)?"XXX":""));
 		if (!(gps.addEphemeris(ed))){
 			// don't delete it - reuse the buffer
 			ed->subframes=0x0;

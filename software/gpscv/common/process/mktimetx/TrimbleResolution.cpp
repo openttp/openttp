@@ -433,7 +433,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 					HexToBin((char *) reversestr(msg.substr(63*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->e));
 					HexToBin((char *) reversestr(msg.substr(71*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->C_us));
 					HexToBin((char *) reversestr(msg.substr(75*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->sqrtA));
-					HexToBin((char *) reversestr(msg.substr(83*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->t_oe));
+					HexToBin((char *) reversestr(msg.substr(83*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->t_0e));
 					HexToBin((char *) reversestr(msg.substr(87*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->C_ic));
 					HexToBin((char *) reversestr(msg.substr(91*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->OMEGA_0));
 					HexToBin((char *) reversestr(msg.substr(99*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->C_is));

@@ -567,7 +567,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 						HexToBin((char *) msg.substr(30*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_us));
 						HexToBin((char *) msg.substr(34*2,2*sizeof(FP64)).c_str(),sizeof(FP64), (unsigned char *) &(ed->sqrtA));
 						HexToBin((char *) msg.substr(42*2,2*sizeof(FP64)).c_str(),sizeof(FP64), (unsigned char *) &fp64buf);
-						ed->t_oe = fp64buf*1.0E-3;
+						ed->t_0e = fp64buf*1.0E-3;
 						HexToBin((char *) msg.substr(50*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_ic));
 						HexToBin((char *) msg.substr(54*2,2*sizeof(FP64)).c_str(),sizeof(FP64), (unsigned char *) &(ed->OMEGA_0));
 						HexToBin((char *) msg.substr(62*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_is));
@@ -604,7 +604,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
 						else
 							ed->tLogged = -1;
-						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->SV_accuracy_raw);
+						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_0e << " " << ed->t_OC << " " << (int) ed->SV_accuracy_raw);
 						gps.addEphemeris(ed);
 					
 					}

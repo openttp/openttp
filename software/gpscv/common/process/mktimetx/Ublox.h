@@ -48,9 +48,11 @@ class Ublox:public Receiver
 	
 		GPS::EphemerisData *decodeGPSEphemeris(std::string);
 		
+		void processGALEphemerisINAVSubframe(int,int,unsigned char *ubuf);
 		void processGPSEphemerisLNAVSubframe(int,unsigned char *ubuf);
 		
-		GPS::EphemerisData * gpsEph[32+1]; // FIXME NSATS should be used
+		GPS::EphemerisData     *gpsEph[32+1]; // FIXME NSATS should be used
+		Galileo::EphemerisData *galEph[36+1];
 };
 
 #endif
