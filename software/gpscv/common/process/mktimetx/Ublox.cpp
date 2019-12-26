@@ -1006,7 +1006,7 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		unsigned int lobits = dwords[3] & 0xffffff ; // word4, OMEGA_0 b1-b24 lower bits 
 		ed->OMEGA_0 = ICD_PI * ((double) (signed int)((hibits | lobits)))/ (double) pow(2,31);
 	
-		signed short Cis = (dwords[4] >> 8) & 0xff; // word 5, C_is b1-b16 
+		signed short Cis = (dwords[4] >> 8) & 0xffff; // word 5, C_is b1-b16 
 		ed->C_is= (double) Cis/(double) pow(2,29);
 	
 		hibits =  (dwords[4] & 0xff) << 24; // word 4
