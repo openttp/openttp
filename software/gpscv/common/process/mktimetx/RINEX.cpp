@@ -454,13 +454,14 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 	return true;
 }
 
-bool  RINEX::writeNavigationFile(Receiver *rx,int constellation,int majorVer,int minorVer,std::string fname,int mjd)
+bool  RINEX::writeNavigationFile(Receiver *rx,unsigned int constellations,int majorVer,int minorVer,std::string fname,int mjd)
 {
-	switch (constellation)
+	switch (constellations)
 	{
 		case GNSSSystem::BEIDOU:return writeBeiDouNavigationFile(rx,majorVer,minorVer,fname,mjd);break;
 		case GNSSSystem::GPS:return writeGPSNavigationFile(rx,majorVer,minorVer,fname,mjd);break;
-		default: break;
+		case GNSSSystem::GALILEO:return writeGALNavigationFile(rx,majorVer,minorVer,fname,mjd);break;
+		default:break; // mixed
 	}
 	return false;
 }
@@ -610,6 +611,58 @@ bool  RINEX::writeBeiDouNavigationFile(Receiver *rx,int majorVer,int minorVer,st
 	}
 	
 	std::fclose(fout);
+	
+	return true;
+}
+
+bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd)
+{
+	char buf[81];
+	FILE *fout;
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
+		return false;
+	}
+
+	// minorVer must be 12 for Galileo, so force it
+	minorVer = 12;
+	switch (majorVer)
+	{
+		case V2:
+			
+			std::fprintf(fout,"%9s%11s%1s%19s%1s%19s%-20s\n",makeVerName(majorVer,minorVer).c_str(),"","N","","E"," ",
+				"RINEX VERSION / TYPE");
+			break;
+		case V3:
+			std::fprintf(fout,"%9s%11s%-20s%-20s%-20s\n",makeVerName(majorVer,minorVer).c_str(),"","N: GNSS NAV DATA","E: GAL",
+									 "RINEX VERSION / TYPE");
+			break;
+		default:
+			break;
+	}
+	
+	time_t tnow = std::time(NULL);
+	struct tm *tgmt = std::gmtime(&tnow);
+	
+	switch (majorVer)
+	{
+		case V2:
+		{
+			std::strftime(buf,80,"%Y%m%d %H%M%S UTC",tgmt);
+			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
+			std::fprintf(fout,"%4s %12.4e%12.4e%12.4e%12.4e%7s%-20s\n","GAL ",
+				rx->galileo.ionoData.ai0,rx->galileo.ionoData.ai1,rx->galileo.ionoData.ai2,0.0,"","IONOSPHERIC CORR");
+			//std::fprintf(fout,"%3s%19.12e%19.12e%9d%9d %-20s\n","",
+			//	rx->gps.UTCdata.A0,rx->gps.UTCdata.A1,(int) rx->gps.UTCdata.t_ot, gpsWeek,"DELTA-UTC: A0,A1,T,W"); // FIXME gpsWeek is NOT right !
+			break;
+		}
+		case V3:
+		{
+			std::snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
+					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
+			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
+			break;
+		}
+	}
 	
 	return true;
 }
@@ -774,6 +827,11 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 	
 	std::fclose(fout);
 	
+	return true;
+}
+
+bool RINEX::writeMixedNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd)
+{
 	return true;
 }
 

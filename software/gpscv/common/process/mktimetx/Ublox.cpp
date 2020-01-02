@@ -198,8 +198,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 	std::vector<SVMeasurement *> svmeas;
 	
-	gotUTCdata=false;
-	gotIonoData=false;
+	gps.gotUTCdata=false;
+	gps.gotIonoData=false;
 	
 	unsigned int currentMsgs=0;
 	unsigned int reqdMsgs =  MSG0121 | MSG0122 | MSG0215 | MSG0D01 ;
@@ -488,7 +488,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			//
 			
 			// Ionosphere parameters, UTC parameters 
-			if (!gotUTCdata){
+			if (!gps.gotUTCdata){
 				if(msgid == "0b02"){
 					if (msg.size()==(72+2)*2){
 						HexToBin((char *) msg.substr(4*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &(gps.UTCdata.A0)); 
@@ -523,8 +523,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						HexToBin((char *) msg.substr(64*2,2*sizeof(R4)).c_str(),sizeof(R4),(unsigned char *) &(gps.ionoData.B3));
 						//gps.ionoData.B3 /= (ICD_PI*ICD_PI*ICD_PI);
 						
-						gotUTCdata=true;
-						gotIonoData=true;
+						gps.gotUTCdata=true;
+						gps.gotIonoData=true;
 					}
 					else{
 						DBGMSG(debugStream,WARNING,"Bad 0b02 message size");
@@ -549,7 +549,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				//std::cerr << (int) gnssID << " " << (int) svID << " " << (int) sigID << " " << (int) numWords << std::endl;
 				switch (gnssID)
 				{
-					case 0: processGPSEphemerisLNAVSubframe(svID,ubuf);break;
+					//case 0: processGPSEphemerisLNAVSubframe(svID,ubuf);break; // FIXME temporary
 					case 2: processGALEphemerisINAVSubframe(svID,sigID,ubuf);break;
 					default:break;
 				}
@@ -586,7 +586,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 	leapsecs = measLeapSecs;
 	
-	if ((modelName != "ZED-F9P") && !gotUTCdata){ // FIXME temporary until ephemeris polling and decoding is implemented
+	if ((modelName != "ZED-F9P") && !gps.gotUTCdata){ // FIXME temporary until ephemeris polling and decoding is implemented
 		app->logMessage("failed to find ionosphere/UTC parameters - no 0b02 messages");
 		return false; 
 	}
@@ -701,6 +701,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
+	DBGMSG(debugStream,INFO,galileo.ephemeris.size() << " GAL ephemeris entries read");
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
 	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
 		if (!(g & constellations)) continue;
@@ -916,6 +917,7 @@ static unsigned int   U4x(unsigned char *p) {unsigned int   u; memcpy(&u,p,4); r
 void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 {
 	// The ublox sends the even and odd pages together
+	// There are 4 x 32 bit words in each page
 	unsigned int dwords[8];
 	unsigned char *p = ubuf;
 	for (int i=0;i<8;i++,p+=4) {
@@ -926,8 +928,8 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 	unsigned char pageType = (dwords[0] >> 30) & 0x01; 
 	unsigned char wordType = (dwords[0] >> 24 ) & 0x3f; 
 	
-	std::cerr << svID << " " << sigID << " " << " " << (int) evenPage << " " << 
-		(int) pageType << " " << (int) wordType << std::endl;
+	//std::cerr << svID << " " << sigID << " " << " " << (int) evenPage << " " << 
+	//	(int) pageType << " " << (int) wordType << std::endl;
 		
 	if (wordType == 0 || wordType == 63) return; // 0 flags spare word, 63 flags no valid data is available
 	
@@ -935,11 +937,53 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 	ed->SVN = svID;
 	
 	if (wordType == 1){
+		ed->IODnav = (dwords[0] >> (32-18)) & 0x3ff;
+		
 		// t0e, word 1, unsigned, lower 14 bits, scale factor 60 (ie in minutes)
-		// M0 , word 2, signed, 32 bits, scale factor 2^-31
+		unsigned int t0e = (dwords[0] & 0x3fff)*60;
+		ed->t_0e = t0e;
+		
+		int M0 = dwords[1]; // M0 , word 2, signed, 32 bits, scale factor 2^-31
+		ed->M_0 = ICD_PI * (double) M0 / (double) pow(2,31);
+		
+		ed->e = (double) dwords[2]/ (double) pow(2,33); // e, word 3, unsigned, 32 bits, scale factor 2^-33
+		
+		 // sqrtA, word 4 top 18 bits
+		unsigned int hibits = (dwords[3] >> 14) << 14;
+		unsigned int lobits = (dwords[4] >> 16) & 0x3fff; // sqrtA, odd page, word 1, 14 bits
+		ed->sqrtA = (double) (hibits | lobits)/(double ) pow(2,19);           // 32 bits unsignmed, scale factor 2^-19
+		
+		//std::cerr << svID << " " << (int) ed->IODnav << " " << (int) ed->t_0e << " " << ed->M_0 << 
+		//" " << ed->e << " " << ed->sqrtA << std::endl;
 		ed->subframes |= 0x01;
 	}
 	else if (wordType == 2){
+		
+		unsigned short IODnav = (dwords[0] >> (32-18)) & 0x3ff;
+		
+		// OMEGA_0, 32 bits signed, scale factor 2^-31
+		unsigned int hibits = (dwords[0] & 0x3fff) << 18; // upper 14 bits
+		unsigned int lobits =  dwords[1] >> 14; // lower 18 bits
+		ed->OMEGA_0 = ICD_PI* (double) ((int) (hibits|lobits)) / (double) pow(2,31);
+		
+		// i_0 ,   32 bits signed, scale factor 2^-31
+		hibits = (dwords[1] & 0x3fff) << 18; // upper 14 bits
+		lobits =  dwords[2] >> 14; //lower 18 bits
+		ed->i_0 = ICD_PI* (double) ((int) (hibits|lobits)) / (double) pow(2,31);
+		
+		// OMEGA   ,   32 bits signed, scale factor 2^-31
+		hibits = (dwords[2] & 0x3fff) << 18; // upper 14 bits
+		lobits =  dwords[3] >> 14; //lower 18 bits
+		ed->OMEGA = ICD_PI* (double) ((int) (hibits|lobits)) / (double) pow(2,31);
+		
+		// idot,   14 bits signed, scale factor 2^-43		
+		int idot =  ((dwords[4] >> 16) & 0x3fff) << 18;
+		idot = idot >> 18;
+		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
+		
+		//std::cerr << svID << " " << (int) IODnav << " " << std::setprecision(14) << 
+		//	ed->OMEGA_0 << " " << ed->i_0 << " " << ed->OMEGA << " " << ed->IDOT << std::endl;
+		
 		ed->subframes |= 0x02;
 	}
 	else if (wordType == 3){
@@ -949,6 +993,21 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 		ed->subframes |= 0x08;
 	}
 	else if (wordType == 5){ // Ionospheric correction, BGD, signal health and data validity status and GST
+		// ai0 11 bits unsigned scale factor 2^-2
+		galileo.ionoData.ai0 = (double) ((dwords[0] >> 13) & 0x07ff) / (double) 4.0;
+		// ai1 11 bits signed   scale factor 2^-8
+		int ai1 = ((dwords[0] >> 2) & 0x07ff) << 21;
+		ai1 = ai1 >> 21;
+		galileo.ionoData.ai1 = (double) ai1 / (double) pow(2,8);
+		
+		// ai2 14 bits signed   scale factor 2^-15
+		unsigned int hibits = (dwords[0] & 0x02) << 30; // last two bits
+		unsigned int lobits = (dwords[1] >> 20) & 0x03ff;
+		galileo.ionoData.ai2 = (double) ((int) (hibits|lobits)) / (double) pow(2,15);
+		
+		galileo.gotIonoData = true;
+		
+		std::cerr << galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2 << std::endl;
 	}
 	else if (wordType == 6){
 	}
@@ -1093,7 +1152,7 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
 		
 	}
-	else if (id==4 && !gotUTCdata ){ // subframe 4 contains ionosphere and UTC parameters
+	else if (id==4 && !gps.gotUTCdata ){ // subframe 4 contains ionosphere and UTC parameters
 		// Get the page ID
 		unsigned int svID = (dwords[2] >> 16) & 0x3f;
 		if (svID == 56){ // page 18
@@ -1150,7 +1209,7 @@ void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 			char dt_LSF = (dwords[9] >> 16) & 0xff; // word 10, signed
 			utc.dt_LSF = dt_LSF;
 			
-			gotUTCdata = gotIonoData = true;
+			gps.gotUTCdata = gps.gotIonoData = true;
 			
 			//fprintf(stderr,"%d %d\n",utc.DN, utc.dtlS);
 		}

@@ -30,6 +30,7 @@ Galileo::Galileo():GNSSSystem()
 {
 	n="Galileo";
 	olc="E";
+	gotUTCdata = gotIonoData=false;
 }
 
 Galileo::~Galileo()

@@ -153,8 +153,8 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	std::vector<std::string> rxid;
 	
 	std::vector<SVMeasurement *> gpsmeas;
-	gotIonoData = false;
-	gotUTCdata=false;
+	gps.gotIonoData = false;
+	gps.gotUTCdata=false;
 	
 	U1 uint8buf;
 	I1 sint8buf;
@@ -853,7 +853,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			// Intermittent  messages - parse last
 			//
 			
-			if (!gotIonoData){
+			if (!gps.gotIonoData){
 				if (msgid=="IO"){
 					if (msg.size()==39*2){
 						HexToBin((char *) msg.substr(6*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.a0));
@@ -864,7 +864,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						HexToBin((char *) msg.substr(26*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B1));
 						HexToBin((char *) msg.substr(30*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B2));
 						HexToBin((char *) msg.substr(34*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B3));
-						gotIonoData=true;
+						gps.gotIonoData=true;
 						DBGMSG(debugStream,TRACE,"ionosphere parameters: a0=" << gps.ionoData.a0);
 					}
 					else{
@@ -875,7 +875,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				}
 			}
 	
-			if (!gotUTCdata){
+			if (!gps.gotUTCdata){
 				if (msgid=="UO"){
 					if (msg.size()==24*2){
 						HexToBin((char *) msg.substr(0*2,2*sizeof(F8)).c_str(),sizeof(F8),(unsigned char *) &(gps.UTCdata.A0));
@@ -891,7 +891,7 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						HexToBin((char *) msg.substr(22*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &sint8buf);
 						gps.UTCdata.dt_LSF=sint8buf;
 						DBGMSG(debugStream,TRACE,"UTC parameters: dtLS=" << gps.UTCdata.dtlS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
-						gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
+						gps.gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 					}
 					else{
 						errorCount++;
@@ -977,12 +977,12 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 	infile.close();
 
-	if (!gotIonoData){
+	if (!gps.gotIonoData){
 		app->logMessage("failed to find ionosphere parameters - no IO messages");
 		return false;
 	}
 	
-	if (!gotUTCdata){
+	if (!gps.gotUTCdata){
 		app->logMessage("failed to find UTC parameters - no U0 messages");
 		return false;
 	}

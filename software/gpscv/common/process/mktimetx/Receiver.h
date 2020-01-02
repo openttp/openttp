@@ -96,7 +96,6 @@ class Receiver
 		
 		void deleteMeasurements(std::vector<SVMeasurement *> &);
 		void interpolateMeasurements();
-		bool gotUTCdata,gotIonoData;
 		
 	private:
 	

@@ -154,6 +154,8 @@ class GPS: public GNSSSystem
 	
 	time_t L1lastunlock[NSATS+1]; // used for tracking loss of carrier-phase lock
 	
+	bool gotUTCdata,gotIonoData;
+	
 };
 
 #endif

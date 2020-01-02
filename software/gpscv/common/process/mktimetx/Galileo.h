@@ -71,7 +71,7 @@ class Galileo: public GNSSSystem
 			UINT8 SVN;
 			SINGLE t_ephem;
 			UINT16 week_number;
-			UINT16 IODC;
+			UINT16 IODnav;
 			SINGLE t_GD;
 			SINGLE t_OC;
 			SINGLE a_f2;
@@ -120,6 +120,8 @@ class Galileo: public GNSSSystem
 	std::vector<EphemerisData *> ephemeris;
 			
 	bool currentLeapSeconds(int mjd,int *leapsecs);
+	
+	bool gotUTCdata,gotIonoData;
 	
 	private:
 		

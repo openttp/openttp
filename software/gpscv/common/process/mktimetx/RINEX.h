@@ -47,7 +47,7 @@ class RINEX
 		
 		RINEX();
 		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
-		bool writeNavigationFile(Receiver *rx,int constellation,int majorVer,int minorVer, std::string fname,int mjd);
+		bool writeNavigationFile(Receiver *rx,unsigned int constellations,int majorVer,int minorVer, std::string fname,int mjd);
 		
 		bool readNavigationFile(Receiver *rx,int constellation,std::string fname);
 		
@@ -69,6 +69,8 @@ class RINEX
 		
 		bool writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
 		bool writeBeiDouNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
+		bool writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
+		bool writeMixedNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
 		
 		char * formatFlags(int,int);
 		

@@ -153,8 +153,8 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 	unsigned char cbuf;
 	
 	std::vector<SVMeasurement *> gpsmeas;
-	gotIonoData = false;
-	gotUTCdata=false;
+	gps.gotIonoData = false;
+	gps.gotUTCdata=false;
 	UINT8 fabss,fabmm,fabhh,fabmday,fabmon;
 	UINT16 fabyyyy;
 	
@@ -329,7 +329,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 				}
 			}
 			
-			if (!gotIonoData){
+			if (!gps.gotIonoData){
 				if(strncmp(msg.c_str(),"580204",6)==0){ // ionosphere
 					DBGMSG(debugStream,1,"ionosphere parameters");
 					if (msg.size()==45*2){
@@ -342,7 +342,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 						HexToBin((char *) reversestr(msg.substr(32*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.ionoData.B1));
 						HexToBin((char *) reversestr(msg.substr(36*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.ionoData.B2));
 						HexToBin((char *) reversestr(msg.substr(40*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.ionoData.B3));
-						gotIonoData=true;
+						gps.gotIonoData=true;
 						DBGMSG(debugStream,1,"ionosphere parameters: a0=" << gps.ionoData.a0);
 						continue;
 					}
@@ -352,7 +352,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 				}
 			}
 			
-			if (!gotUTCdata){
+			if (!gps.gotUTCdata){
 				if(strncmp(msg.c_str(),"580205",6)==0){ // UTC
 					DBGMSG(debugStream,1,"UTC parameters");
 					if (msg.size()==44*2){
@@ -365,7 +365,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 							HexToBin((char *) reversestr(msg.substr(39*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &(gps.UTCdata.DN));
 							HexToBin((char *) reversestr(msg.substr(41*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &(gps.UTCdata.dt_LSF));
 							DBGMSG(debugStream,1,"UTC parameters: dtLS=" << gps.UTCdata.dtlS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
-							gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
+							gps.gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 							continue;
 					}
 					else{
@@ -469,12 +469,12 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 	}
 	infile.close();
 	
-	if (!gotIonoData){
+	if (!gps.gotIonoData){
 		app->logMessage("failed to find ionosphere parameters - no 580204 messages");
 		return false;
 	}
 	
-	if (!gotUTCdata){
+	if (!gps.gotUTCdata){
 		app->logMessage("failed to find UTC parameters - no 580205 messages");
 		return false;
 	}

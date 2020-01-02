@@ -161,8 +161,8 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 	INT8U int8ubuf;
 	
 	std::vector<SVMeasurement *> gnssmeas;
-	gotIonoData = false;
-	gotUTCdata=false;
+	gps.gotIonoData = false;
+	gps.gotUTCdata=false;
 	
 	INT8U msg46ss,msg46mm,msg46hh,msg46mday,msg46mon;
 	INT16U msg46yyyy;
@@ -516,7 +516,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 						HexToBin((char *) msg.substr(20*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B1));
 						HexToBin((char *) msg.substr(24*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B2));
 						HexToBin((char *) msg.substr(28*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B3));
-						gotIonoData = true;
+						gps.gotIonoData = true;
 					}
 				}
 				else{
@@ -541,7 +541,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 						HexToBin((char *) msg.substr(24*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.WN_LSF));
 						HexToBin((char *) msg.substr(26*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.DN));
 						HexToBin((char *) msg.substr(28*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dt_LSF));
-						gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
+						gps.gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 					}
 				}
 				else{
@@ -628,12 +628,12 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 	}
 	infile.close();
 
-	if (!gotIonoData){
+	if (!gps.gotIonoData){
 		app->logMessage("failed to find ionosphere parameters - no 4A messages");
 		return false;
 	}
 	
-	if (!gotUTCdata){
+	if (!gps.gotUTCdata){
 		app->logMessage("failed to find UTC parameters - no 4B messages");
 		return false;
 	}
