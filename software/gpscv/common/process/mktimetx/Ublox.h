@@ -45,11 +45,11 @@ class Ublox:public Receiver
 	protected:
 	
 	private:
-	
-		GPS::EphemerisData *decodeGPSEphemeris(std::string);
 		
-		void processGALEphemerisINAVSubframe(int,int,unsigned char *ubuf);
-		void processGPSEphemerisLNAVSubframe(int,unsigned char *ubuf);
+		GPS::EphemerisData *readGPSEphemeris(std::string);
+		
+		void readGALEphemerisINAVSubframe(int,int,unsigned char *ubuf);
+		void readGPSEphemerisLNAVSubframe(int,unsigned char *ubuf);
 		
 		GPS::EphemerisData     *gpsEph[32+1]; // FIXME NSATS should be used
 		Galileo::EphemerisData *galEph[36+1];

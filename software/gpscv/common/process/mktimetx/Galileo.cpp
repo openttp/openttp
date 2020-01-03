@@ -37,7 +37,28 @@ Galileo::~Galileo()
 {
 }
 
+double Galileo::decodeSISA(unsigned char sisa)
+{
 	
+	if (sisa <= 49){
+		return sisa/100.0;
+	}
+	else if (sisa <= 74){
+		return 0.5 + (sisa-50) * 0.02;
+	}
+	else if (sisa <= 99){
+		return 1.0 + (sisa-75) * 0.04;
+	}
+	else if (sisa <= 125){
+		return 2.0 + (sisa - 100) * 0.16;
+	}
+	else if (sisa <= 254){ // shouldn't happen ...
+		return 6.0; 
+	}
+	else
+		return -1.0;
+}
+
 void Galileo::deleteEphemeris()
 {
 }

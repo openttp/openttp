@@ -77,7 +77,7 @@ class Galileo: public GNSSSystem
 			SINGLE a_f2;
 			SINGLE a_f1;
 			SINGLE a_f0;
-			SINGLE SV_accuracy;
+			SINGLE SISA;
 			UINT8 IODE;
 			SINGLE C_rs;
 			SINGLE delta_N;
@@ -109,6 +109,8 @@ class Galileo: public GNSSSystem
 	
 	Galileo();
 	~Galileo();
+	
+	double decodeSISA(unsigned char);
 	
 	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();

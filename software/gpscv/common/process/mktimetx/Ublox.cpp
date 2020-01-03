@@ -549,8 +549,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				//std::cerr << (int) gnssID << " " << (int) svID << " " << (int) sigID << " " << (int) numWords << std::endl;
 				switch (gnssID)
 				{
-					//case 0: processGPSEphemerisLNAVSubframe(svID,ubuf);break; // FIXME temporary
-					case 2: processGALEphemerisINAVSubframe(svID,sigID,ubuf);break;
+					//case 0: readGPSEphemerisLNAVSubframe(svID,ubuf);break; // FIXME temporary
+					case 2: readGALEphemerisINAVSubframe(svID,sigID,ubuf);break;
 					default:break;
 				}
 			}
@@ -561,7 +561,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					DBGMSG(debugStream,WARNING,"Empty ephemeris");
 				}
 				else if (msg.size()==(104+2)*2){
-					GPS::EphemerisData *ed = decodeGPSEphemeris(msg);
+					GPS::EphemerisData *ed = readGPSEphemeris(msg);
 					int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss)))
 							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
@@ -719,17 +719,19 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 }
 
-GPS::EphemerisData* Ublox::decodeGPSEphemeris(std::string msg)
+double DecodeSISA(unsigned char);
+
+// To use the MID macro, LSB is bit 0, m is first bit, n is last bit
+#define LAST(k,n) ((k) & ((1<<(n))-1))
+#define MID(k,m,n) LAST((k)>>(m),((n)-(m)+1)) 
+	
+GPS::EphemerisData* Ublox::readGPSEphemeris(std::string msg)
 {
 	U4 u4buf;
 	HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	GPS::EphemerisData* ed= new GPS::EphemerisData();
 	ed->SVN=u4buf;
 	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
-	
-	// To use the MID macro, LSB is bit 0, m is first bit, n is last bit
-	#define LAST(k,n) ((k) & ((1<<(n))-1))
-	#define MID(k,m,n) LAST((k)>>(m),((n)-(m)+1)) 
 	
 	// Data is in bits 0-23, parity bits are discarded by ublox
 	// To translate from ICD numbering b24 (ICD) -> b0 (ublox)
@@ -914,7 +916,7 @@ GPS::EphemerisData* Ublox::decodeGPSEphemeris(std::string msg)
 
 static unsigned int   U4x(unsigned char *p) {unsigned int   u; memcpy(&u,p,4); return u;}
 
-void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
+void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 {
 	// The ublox sends the even and odd pages together
 	// There are 4 x 32 bit words in each page
@@ -933,25 +935,28 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 		
 	if (wordType == 0 || wordType == 63) return; // 0 flags spare word, 63 flags no valid data is available
 	
+	unsigned int hibits,lobits;
+	
 	Galileo::EphemerisData *ed = galEph[svID];	
 	ed->SVN = svID;
 	
 	if (wordType == 1){
-		ed->IODnav = (dwords[0] >> (32-18)) & 0x3ff;
 		
-		// t0e, word 1, unsigned, lower 14 bits, scale factor 60 (ie in minutes)
-		unsigned int t0e = (dwords[0] & 0x3fff)*60;
-		ed->t_0e = t0e;
+		ed->IODnav = MID(dwords[0],14,23);
 		
-		int M0 = dwords[1]; // M0 , word 2, signed, 32 bits, scale factor 2^-31
-		ed->M_0 = ICD_PI * (double) M0 / (double) pow(2,31);
+		// t_0e, word 1, 14 bits unsigned, scale factor 60 (ie in minutes)
+		ed->t_0e = 60*MID(dwords[0],0,13);
 		
-		ed->e = (double) dwords[2]/ (double) pow(2,33); // e, word 3, unsigned, 32 bits, scale factor 2^-33
+		// M0 , word 2, 32 bits signed, scale factor 2^-31
+		ed->M_0 = ICD_PI * (double) ((int) dwords[1]) / (double) pow(2,31);
 		
-		 // sqrtA, word 4 top 18 bits
-		unsigned int hibits = (dwords[3] >> 14) << 14;
-		unsigned int lobits = (dwords[4] >> 16) & 0x3fff; // sqrtA, odd page, word 1, 14 bits
-		ed->sqrtA = (double) (hibits | lobits)/(double ) pow(2,19);           // 32 bits unsignmed, scale factor 2^-19
+		// e, word 3, 32 bits unsigned, scale factor 2^-33
+		ed->e = (double) dwords[2]/ (double) pow(2,33); 
+		
+		 // sqrtA, 32 bits unsigned, scale factor 2^-19 
+		hibits = MID(dwords[3],14,31) << 14; // word 4 top 18 bits
+		lobits = MID(dwords[4],16,29); // sqrtA, odd page, word 1, 14 bits
+		ed->sqrtA = (double) ((hibits | lobits))/(double ) pow(2,19);    
 		
 		//std::cerr << svID << " " << (int) ed->IODnav << " " << (int) ed->t_0e << " " << ed->M_0 << 
 		//" " << ed->e << " " << ed->sqrtA << std::endl;
@@ -959,11 +964,11 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 	}
 	else if (wordType == 2){
 		
-		unsigned short IODnav = (dwords[0] >> (32-18)) & 0x3ff;
+		unsigned short IODnav = MID(dwords[0],14,23);
 		
 		// OMEGA_0, 32 bits signed, scale factor 2^-31
-		unsigned int hibits = (dwords[0] & 0x3fff) << 18; // upper 14 bits
-		unsigned int lobits =  dwords[1] >> 14; // lower 18 bits
+		hibits = (dwords[0] & 0x3fff) << 18; // upper 14 bits
+		lobits =  dwords[1] >> 14; // lower 18 bits
 		ed->OMEGA_0 = ICD_PI* (double) ((int) (hibits|lobits)) / (double) pow(2,31);
 		
 		// i_0 ,   32 bits signed, scale factor 2^-31
@@ -976,10 +981,10 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 		lobits =  dwords[3] >> 14; //lower 18 bits
 		ed->OMEGA = ICD_PI* (double) ((int) (hibits|lobits)) / (double) pow(2,31);
 		
+		// odd page - 2 bits leading
+		
 		// idot,   14 bits signed, scale factor 2^-43		
-		int idot =  ((dwords[4] >> 16) & 0x3fff) << 18;
-		idot = idot >> 18;
-		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
+		ed->IDOT = ICD_PI * (double) (((int) (MID(dwords[4],16,29) << 18)) >> 18)/ (double) pow(2,43);
 		
 		//std::cerr << svID << " " << (int) IODnav << " " << std::setprecision(14) << 
 		//	ed->OMEGA_0 << " " << ed->i_0 << " " << ed->OMEGA << " " << ed->IDOT << std::endl;
@@ -987,9 +992,64 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 		ed->subframes |= 0x02;
 	}
 	else if (wordType == 3){
+		
+		unsigned short IODnav = MID(dwords[0],14,23); 
+		
+		// nb 18 bits now consumed
+		
+		// OMEGA_DOT 24 bits signed scale factor 2^-43
+		hibits =  MID(dwords[0],0,13) << 10; // upper 14 bits
+		lobits =  MID(dwords[1],22,31);      //lower 10 bits
+		ed->OMEGADOT = ICD_PI * (double) (((int) ((hibits|lobits) << 10)) >> 10) / (double) pow(2,43);
+		
+		// delta_N   16 bits signed scale factor 2^-43
+		ed->delta_N = ICD_PI * (double) ((short) MID(dwords[1],6,21))/ (double) pow(2,43);
+		
+		// C_uc      16 bits signed scale factor 2^-29 (rad)
+		hibits =  MID(dwords[1],0,5) << 10; // upper 6 bits
+		lobits =  MID(dwords[2],22,31);      //lower 10 bits
+		ed->C_uc = (double) ((short) (hibits|lobits) )/ (double) pow(2,29);
+		
+		// C_us      16 bits signed scale factor 2^-29 (rad)
+		ed->C_us = (double) ((short) MID(dwords[2],6,21))/ (double) pow(2,29);
+		
+		// C_rc      16 bits signed scale factor 2^-5 (m)
+		hibits =  MID(dwords[2],0,5) << 10; // upper 6 bits
+		lobits =  MID(dwords[3],22,31);     //lower 10 bits
+		ed->C_rc = (double) ((short) (hibits|lobits) )/ (double) 32.0;
+		
+		// C_rs      16 bits signed scale factor 2^-5 (m)
+		hibits =  MID(dwords[3],14,21) << 8; // upper 8 bits
+		// skip bits 30,31 of odd page header
+		lobits =  MID(dwords[4],22,29);     //lower 8 bits
+		ed->C_rs = (double) ((short) (hibits|lobits) )/ (double) 32.0;
+		
+		// SISA       8 bits unsigned
+		ed->SISA = galileo.decodeSISA( MID(dwords[4],14,21));
+		
+		//std::cerr << svID << " " << (int) IODnav << " " << std::setprecision(14) << 
+		//	ed->OMEGADOT << " " << ed->delta_N << " " << ed->C_uc << " " << ed->C_us << 
+		//	" " << ed->C_rc << " " << ed->C_rs << " " << ed->SISA << std::endl;
+		
 		ed->subframes |= 0x04;
 	}
 	else if (wordType == 4){
+		
+		unsigned short IODnav = MID(dwords[0],14,23);
+		
+		// SVID   6 bits
+		// C_ic  16 bits signed scale factor 2^-29
+		// C_is  16 bits signed scale factor 2^-29
+		
+		// Clock correction parameters
+		
+		// t_0c  14 bits unsigned scale factor 60
+		// a_f0  31 bits signed scale factor 2^-34
+		// a_f1  21 bits signed scale factor 2^-46
+		// a_f2   6 bits signed scale factor 2^-59
+		
+		// 2 bits spare
+		
 		ed->subframes |= 0x08;
 	}
 	else if (wordType == 5){ // Ionospheric correction, BGD, signal health and data validity status and GST
@@ -1001,13 +1061,13 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 		galileo.ionoData.ai1 = (double) ai1 / (double) pow(2,8);
 		
 		// ai2 14 bits signed   scale factor 2^-15
-		unsigned int hibits = (dwords[0] & 0x02) << 30; // last two bits
-		unsigned int lobits = (dwords[1] >> 20) & 0x03ff;
+		hibits = (dwords[0] & 0x02) << 30; // last two bits
+		lobits = (dwords[1] >> 20) & 0x03ff;
 		galileo.ionoData.ai2 = (double) ((int) (hibits|lobits)) / (double) pow(2,15);
 		
 		galileo.gotIonoData = true;
 		
-		std::cerr << galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2 << std::endl;
+		//std::cerr << galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2 << std::endl;
 	}
 	else if (wordType == 6){
 	}
@@ -1025,7 +1085,7 @@ void Ublox::processGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ub
 	}
 }
 
-void Ublox::processGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
+void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 {
 	// Decode a GPS LNAV subframe
 	

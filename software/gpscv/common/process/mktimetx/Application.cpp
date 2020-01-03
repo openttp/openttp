@@ -385,7 +385,7 @@ void Application::run()
 		rnx.allObservations=allObservations;
 		
 		if (generateNavigationFile) 
-			rnx.writeNavigationFile(receiver,GNSSSystem::GALILEO,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
+			rnx.writeNavigationFile(receiver,GNSSSystem::GPS,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
 		rnx.writeObservationFile(antenna,counter,receiver,RINEXmajorVersion,RINEXminorVersion
             ,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	} // if createRINEX
