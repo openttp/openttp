@@ -623,8 +623,12 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 		return false;
 	}
 
-	// minorVer must be 12 for Galileo, so force it
-	minorVer = 12;
+	// For V2, minorVer must be 12 for Galileo, so force it
+	// Apparently, 2.12 was never officially adopted so the utility of producing this file
+	// seems questionable. 
+	if (majorVer == 2)
+		minorVer = 12;
+	
 	switch (majorVer)
 	{
 		case V2:
@@ -643,6 +647,11 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 	time_t tnow = std::time(NULL);
 	struct tm *tgmt = std::gmtime(&tnow);
 	
+	// GAL week 0 begins 23:59:47 22nd August 1999, MJD 51412 ie 1024 weeks before GPS epoch. Johnny come lately.
+	// int galWeek=int ((mjd-51412)/7);
+	// GPS epoch is used as reference week in RINEX
+	int gpsWeek=int ((mjd-44244)/7);
+	
 	switch (majorVer)
 	{
 		case V2:
@@ -651,8 +660,9 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			std::fprintf(fout,"%4s %12.4e%12.4e%12.4e%12.4e%7s%-20s\n","GAL ",
 				rx->galileo.ionoData.ai0,rx->galileo.ionoData.ai1,rx->galileo.ionoData.ai2,0.0,"","IONOSPHERIC CORR");
-			//std::fprintf(fout,"%3s%19.12e%19.12e%9d%9d %-20s\n","",
-			//	rx->gps.UTCdata.A0,rx->gps.UTCdata.A1,(int) rx->gps.UTCdata.t_ot, gpsWeek,"DELTA-UTC: A0,A1,T,W"); // FIXME gpsWeek is NOT right !
+			std::fprintf(fout,"%4s %17.10e%16.9e%7d%5d%10s%-20s\n","GAUT",
+				rx->galileo.UTCdata.A0,rx->galileo.UTCdata.A1,
+				(int) rx->galileo.UTCdata.t_0t, gpsWeek," ","TIME SYSTEM CORR");
 			break;
 		}
 		case V3:
@@ -663,6 +673,9 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 			break;
 		}
 	}
+	
+	//std::fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS"); // not in v2.12
+	std::fprintf(fout,"%60s%-20s\n"," ","END OF HEADER");
 	
 	return true;
 }

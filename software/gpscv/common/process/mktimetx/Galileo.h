@@ -50,35 +50,36 @@ class Galileo: public GNSSSystem
 		public:
 			DOUBLE A0;
 			SINGLE A1;
-			SINT16 dtlS;
-			SINGLE t_ot;
-			UINT16 WN_t,WN_LSF,DN;
+			SINT16 dt_LS;
+			SINGLE t_0t;
+			UINT16 WN_0t,WN_LSF,DN;
 			SINT16 dt_LSF;	
 	};
 
 	class GPSData // GST -> GPS
 	{
 		public:
-			// A_0G
-			// A_1G
-			// t_0G
-			// WN_0G
+			DOUBLE A_0G;
+			DOUBLE A_1G;
+			UINT32 t_0G;
+			UINT32 WN_0G;
 	};
 	
 	class EphemerisData
 	{
 		public:
 			UINT8 SVN;
-			SINGLE t_ephem;
-			UINT16 week_number;
+			//SINGLE t_ephem;
+			UINT16 WN;
 			UINT16 IODnav;
-			SINGLE t_GD;
-			SINGLE t_OC;
+			SINGLE BGD_E1E5a;
+			SINGLE BGD_E1E5b;
+			UINT8  sigFlags; // validity and health, lower 6 bits as per ICD 
+			SINGLE t_0c;
 			SINGLE a_f2;
 			SINGLE a_f1;
 			SINGLE a_f0;
 			SINGLE SISA;
-			UINT8 IODE;
 			SINGLE C_rs;
 			SINGLE delta_N;
 			DOUBLE M_0;
@@ -95,11 +96,6 @@ class Galileo: public GNSSSystem
 			DOUBLE OMEGA;
 			SINGLE OMEGADOT;
 			SINGLE IDOT;
-			DOUBLE Axis;
-			DOUBLE n;
-			DOUBLE r1me2;
-			DOUBLE OMEGA_N;
-			DOUBLE ODOT_n;
 			
 			int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
 			unsigned char subframes; // used to flag receipt of each subframe
@@ -119,6 +115,8 @@ class Galileo: public GNSSSystem
 	
 	IonosphereData ionoData;
 	UTCData UTCdata;
+	GPSData GPSdata;
+	
 	std::vector<EphemerisData *> ephemeris;
 			
 	bool currentLeapSeconds(int mjd,int *leapsecs);

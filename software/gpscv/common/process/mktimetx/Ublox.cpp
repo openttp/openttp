@@ -1037,41 +1037,152 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 		
 		unsigned short IODnav = MID(dwords[0],14,23);
 		
+		// 18 bits consumed 
+		
 		// SVID   6 bits
+		unsigned char svid = MID(dwords[0],8,13);
+		if (svid != svID){ // out of sync so clear any data we might have accumulated
+			ed->subframes = 0x0;
+			return;
+		}
 		// C_ic  16 bits signed scale factor 2^-29
+		hibits =  MID(dwords[0],0,7) << 8; // upper 8 bits
+		lobits =  MID(dwords[1],24,31);     //lower 8 bits
+		ed->C_ic = (double) ((short) (hibits|lobits) )/ (double) pow(2,29);
+		
 		// C_is  16 bits signed scale factor 2^-29
+		ed->C_is = (double) ((short) MID(dwords[1],8,23 ))/ (double) pow(2,29);
 		
 		// Clock correction parameters
 		
 		// t_0c  14 bits unsigned scale factor 60
-		// a_f0  31 bits signed scale factor 2^-34
-		// a_f1  21 bits signed scale factor 2^-46
-		// a_f2   6 bits signed scale factor 2^-59
+		hibits =  MID(dwords[1],0,7) << 6; // upper 8 bits
+		lobits =  MID(dwords[2],26,31);     //lower 6 bits
+		ed->t_0c = 60.0 * (double) ((short) (( hibits| lobits ) << 2) >> 2);
 		
-		// 2 bits spare
+		// a_f0  31 bits signed scale factor 2^-34
+		hibits =  MID(dwords[2],0,25) << 5; // upper 26 bits
+		lobits =  MID(dwords[3],27,31);     // lower 5 bits
+		ed->a_f0 = (double) (((int) ((hibits|lobits) << 1)) >> 1)/ (double) pow(2,34);
+		
+		// a_f1  21 bits signed scale factor 2^-46
+		hibits =  MID(dwords[3],14,26) << 8; // upper 13 bits
+		// odd page
+		lobits =  MID(dwords[4],22,29);     // lower 8 bits
+		ed->a_f1 = (double) (((int) ((hibits|lobits) << 11)) >> 11)/ (double) pow(2,46);
+		
+		// a_f2   6 bits signed scale factor 2^-59
+		ed->a_f2 = (double) (((char) (MID(dwords[4],16,21) << 2)) >> 2)/ (double) pow(2,59);
+		
+		// 2 bits spare - maybe for the guv' ?
+		
+		//std::cerr << svID << " " << (int) IODnav << " " << (int) svid << std::setprecision(14) 
+		//	<< " " << ed->C_ic << " " << ed->C_is << " " << ed->t_0c 
+		//	<< " " << ed->a_f0 << " " << ed->a_f1 << " " << ed->a_f2 << std::endl;
 		
 		ed->subframes |= 0x08;
 	}
 	else if (wordType == 5){ // Ionospheric correction, BGD, signal health and data validity status and GST
-		// ai0 11 bits unsigned scale factor 2^-2
-		galileo.ionoData.ai0 = (double) ((dwords[0] >> 13) & 0x07ff) / (double) 4.0;
-		// ai1 11 bits signed   scale factor 2^-8
-		int ai1 = ((dwords[0] >> 2) & 0x07ff) << 21;
-		ai1 = ai1 >> 21;
-		galileo.ionoData.ai1 = (double) ai1 / (double) pow(2,8);
+		// 12 24 0.33984375 0.004425048828125 0 -1.2340024113655e-08 -1.2340024113655e-08 0 1059
 		
-		// ai2 14 bits signed   scale factor 2^-15
-		hibits = (dwords[0] & 0x02) << 30; // last two bits
-		lobits = (dwords[1] >> 20) & 0x03ff;
-		galileo.ionoData.ai2 = (double) ((int) (hibits|lobits)) / (double) pow(2,15);
+		if (!galileo.gotIonoData){
+			// ai0 11 bits unsigned scale factor 2^-2
+			galileo.ionoData.ai0 = (double) MID(dwords[0],13,23) / (double) 4.0;
+			
+			// ai1 11 bits signed   scale factor 2^-8
+			galileo.ionoData.ai1 = (double) ( ((short) (MID(dwords[0],2,12) << 5)) >> 5) / (double) pow(2,8);
+			
+			// ai2 14 bits signed   scale factor 2^-15
+			hibits = MID(dwords[0],0,1) << 12;   // upper  2 bits
+			lobits = MID(dwords[1],20,31) ; // lower 12 bits
+			galileo.ionoData.ai2 = (double) (((short) ((hibits|lobits) << 2)) >> 2) / (double) pow(2,15);
+			
+			// ionospheric disturbance flags 5 bits
+			galileo.ionoData.SFflags = MID(dwords[1],15,19);
+			
+			galileo.gotIonoData = true;
+		}
 		
-		galileo.gotIonoData = true;
+		// BGD E1-E5a 10 bits signed scale factor 2^-32
+		ed->BGD_E1E5a = (double) ( ((short) (MID(dwords[1],5,14) << 6)) >> 6) / (double) pow(2,32);
 		
-		//std::cerr << galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2 << std::endl;
+		// BGD E1-E5b 10 bits signed scale factor 2^-32
+		hibits = MID(dwords[1],0,4) << 5;   // upper 5 bits
+		lobits = MID(dwords[2],27,31) ;     // lower 5 bits
+		ed->BGD_E1E5b = (double) (((short) ((hibits|lobits) << 6)) >> 6) / (double) pow(2,32);
+		
+		// signal validity and health flags // 6 bits
+		ed->sigFlags = MID(dwords[2],21,26); // FIXME may be wrong
+		
+		// GST
+		
+		// WN  12 bits unsigned (rolls over every 78 years)
+		ed->WN = MID(dwords[2],9,20); 
+		
+		// TOW 20 bits unsigned
+		hibits = MID(dwords[2],0,8) << 11;   // upper  9 bits
+		lobits = MID(dwords[3],21,31) ;      // lower 11 bits
+		unsigned int TOW = hibits | lobits; 
+		
+		ed->subframes |= 0x10;
+		
+		std::cerr << svID << " " << std::setprecision(14) 
+			<< galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2 
+			<< " " << (int) galileo.ionoData.SFflags << " "
+			<< ed->BGD_E1E5a << " " << ed->BGD_E1E5b << " " << (int) ed->sigFlags 
+			<< " " << (int) ed->WN << " " << (int) TOW << std::endl;
+			
 	}
-	else if (wordType == 6){
+	else if (wordType == 6){ // GST - UTC conversion parameters
+		
+		if (!galileo.gotUTCdata){
+			// A0    32 bits signed, scale factor 2^-30
+			hibits = MID(dwords[0],0,23) << 8;   // upper  24 bits
+			lobits = MID(dwords[1],24,31) ;      // lower   8 bits
+			galileo.UTCdata.A0 = (double) ((int) (hibits | lobits)) / (double) pow(2,30);
+			
+			// A1    24 bits signed, scale factor 2^-50
+			galileo.UTCdata.A1 = (double) (((int) (MID(dwords[1],0,23) << 8)) >> 8) / (double) pow(2,50);
+			
+			// dt_LS  8 bits signed 
+			galileo.UTCdata.dt_LS = MID(dwords[2],24,31);
+			leapsecs = galileo.UTCdata.dt_LS;
+			
+			// t_0t   8 bits unsigned, scale factor 3600
+			galileo.UTCdata.t_0t  = 3600 * MID(dwords[2],16,23);
+
+			// WN_0t  8 bits unsigned
+			galileo.UTCdata.WN_0t  = MID(dwords[2],8,15);
+			
+			// WN_LSF 8 bits unsigned
+			galileo.UTCdata.WN_LSF  = MID(dwords[2],0,7);
+			
+			// DN     3 bits unsigned (1 to 7 are the valid values)
+			galileo.UTCdata.DN = MID(dwords[3], 29,31);
+			
+			// dt_LSF 8 bits signed 
+			galileo.UTCdata.dt_LSF = (char) MID(dwords[3], 21,28); 
+			
+			// TOW   20 bits unsigned
+			hibits = MID(dwords[3],14,20) << 13; // upper 7 bits
+			lobits = MID(dwords[4],17,29);       // lower 13 bits
+			unsigned int TOW = hibits | lobits;
+			
+			// 3 bits for the guv
+			galileo.gotUTCdata = true;
+		}
+		//std::cerr << svID << " " << std::setprecision(14)  
+		//<< galileo.UTCdata.A0 << " " << galileo.UTCdata.A1 << " " 
+		//<< (int) galileo.UTCdata.dt_LS << " " << galileo.UTCdata.t_0t << " "
+		//<< galileo.UTCdata.t_0t << " " << (int) galileo.UTCdata.WN_0t << " " << (int)  galileo.UTCdata.DN << " "
+		//<< galileo.UTCdata.dt_LSF << " " << (int) TOW
+		//<< std::endl;
 	}
-	else if (wordType == 10){
+	else if (wordType == 10){ // GST-GPS parameters tucked away here
+		// A_0G 16 bits signed, scale factor 2^-35
+		// A_1G 12 bits signed, scale factor 2^-51
+		// t_0G  8 bits unsigned, scale factor 3600
+		// WN_0G 6 bits unsigned
 	}
 	else{ // 7-10 are almanac
 	}
@@ -1079,7 +1190,7 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 	evenPage =  dwords[4] >> 31;
 	//std::cerr << " " << (int) evenPage << std::endl;
 	
-	if (ed->subframes == 0x0f){
+	if (ed->subframes == 0x1f){
 		std::cerr << " " << "complete" << std::endl;
 		ed->subframes = 0x0;
 	}
