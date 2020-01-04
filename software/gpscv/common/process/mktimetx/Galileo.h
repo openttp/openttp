@@ -34,6 +34,54 @@ class Antenna;
 class ReceiverMeasurement;
 class SVMeasurement;
 
+class GalEphemeris:public Ephemeris
+{
+	public:
+		
+		
+		UINT8 SVN;
+		SINGLE TOW; // time of ephemeris transmission
+		UINT16 WN;
+		UINT16 IODnav;
+		SINGLE BGD_E1E5a;
+		SINGLE BGD_E1E5b;
+		UINT8  sigFlags; // validity and health, lower 6 bits as per ICD 
+		SINGLE t_0c;
+		SINGLE a_f2;
+		SINGLE a_f1;
+		SINGLE a_f0;
+		SINGLE SISA;
+		SINGLE C_rs;
+		SINGLE delta_N;
+		DOUBLE M_0;
+		SINGLE C_uc;
+		DOUBLE e;
+		SINGLE C_us;
+		DOUBLE sqrtA;
+		SINGLE t_0e;
+		SINGLE C_ic;
+		DOUBLE OMEGA_0;
+		SINGLE C_is;
+		DOUBLE i_0;
+		SINGLE C_rc;
+		DOUBLE OMEGA;
+		SINGLE OMEGADOT;
+		SINGLE IDOT;
+		
+		int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
+		unsigned char subframes; // used to flag receipt of each subframe
+		int dataSource;  // set by the receiver capabilities
+		
+		GalEphemeris(){subframes=0;}
+		virtual ~GalEphemeris(){};
+		
+		virtual double t0e(){return t_0e;}
+		virtual double t0c(){return t_0c;}
+		virtual int    svn(){return SVN;}
+		virtual int    iod(){return IODnav;}
+		
+};
+	
 class Galileo: public GNSSSystem
 {
 	public:
@@ -65,59 +113,18 @@ class Galileo: public GNSSSystem
 			UINT32 WN_0G;
 	};
 	
-	class EphemerisData
-	{
-		public:
-			UINT8 SVN;
-			//SINGLE t_ephem;
-			UINT16 WN;
-			UINT16 IODnav;
-			SINGLE BGD_E1E5a;
-			SINGLE BGD_E1E5b;
-			UINT8  sigFlags; // validity and health, lower 6 bits as per ICD 
-			SINGLE t_0c;
-			SINGLE a_f2;
-			SINGLE a_f1;
-			SINGLE a_f0;
-			SINGLE SISA;
-			SINGLE C_rs;
-			SINGLE delta_N;
-			DOUBLE M_0;
-			SINGLE C_uc;
-			DOUBLE e;
-			SINGLE C_us;
-			DOUBLE sqrtA;
-			SINGLE t_0e;
-			SINGLE C_ic;
-			DOUBLE OMEGA_0;
-			SINGLE C_is;
-			DOUBLE i_0;
-			SINGLE C_rc;
-			DOUBLE OMEGA;
-			SINGLE OMEGADOT;
-			SINGLE IDOT;
-			
-			int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
-			unsigned char subframes; // used to flag receipt of each subframe
-			
-			EphemerisData(){subframes=0;}	
-	};
-	
 	Galileo();
 	~Galileo();
 	
 	double decodeSISA(unsigned char);
 	
 	virtual int maxSVN(){return NSATS;}
-	virtual void deleteEphemeris();
 	
 	virtual bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
 	
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	GPSData GPSdata;
-	
-	std::vector<EphemerisData *> ephemeris;
 			
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	

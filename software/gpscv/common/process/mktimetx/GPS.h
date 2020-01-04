@@ -116,7 +116,7 @@ class GPS: public GNSSSystem
 	
 	virtual double codeToFreq(int);
 	virtual int maxSVN(){return NSATS;}
-	virtual void deleteEphemeris();
+	virtual void deleteEphemerides();
 		
 	IonosphereData ionoData;
 	UTCData UTCdata;

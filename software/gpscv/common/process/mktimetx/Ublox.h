@@ -46,13 +46,14 @@ class Ublox:public Receiver
 	
 	private:
 		
-		GPS::EphemerisData *readGPSEphemeris(std::string);
+		bool checkGalIODNav(GalEphemeris *,int);
 		
+		GPS::EphemerisData *readGPSEphemeris(std::string);
 		void readGALEphemerisINAVSubframe(int,int,unsigned char *ubuf);
 		void readGPSEphemerisLNAVSubframe(int,unsigned char *ubuf);
 		
 		GPS::EphemerisData     *gpsEph[32+1]; // FIXME NSATS should be used
-		Galileo::EphemerisData *galEph[36+1];
+		GalEphemeris *galEph[36+1];
 };
 
 #endif

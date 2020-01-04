@@ -650,7 +650,7 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 	// GAL week 0 begins 23:59:47 22nd August 1999, MJD 51412 ie 1024 weeks before GPS epoch. Johnny come lately.
 	// int galWeek=int ((mjd-51412)/7);
 	// GPS epoch is used as reference week in RINEX
-	int gpsWeek=int ((mjd-44244)/7);
+	int GALweek=int ((mjd-44244)/7);
 	
 	switch (majorVer)
 	{
@@ -662,20 +662,99 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 				rx->galileo.ionoData.ai0,rx->galileo.ionoData.ai1,rx->galileo.ionoData.ai2,0.0,"","IONOSPHERIC CORR");
 			std::fprintf(fout,"%4s %17.10e%16.9e%7d%5d%10s%-20s\n","GAUT",
 				rx->galileo.UTCdata.A0,rx->galileo.UTCdata.A1,
-				(int) rx->galileo.UTCdata.t_0t, gpsWeek," ","TIME SYSTEM CORR");
+				(int) rx->galileo.UTCdata.t_0t, GALweek," ","TIME SYSTEM CORR");
 			break;
 		}
 		case V3:
 		{
 			std::snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
 					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
+			//std::fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS"); // not in v2.12
 			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			break;
 		}
 	}
 	
-	//std::fprintf(fout,"%6d%54s%-20s\n",rx->leapsecs," ","LEAP SECONDS"); // not in v2.12
 	std::fprintf(fout,"%60s%-20s\n"," ","END OF HEADER");
+	
+	int lastGALweek=-1;
+	int lastToc=-1;
+	int weekRollovers=0;
+	struct tm tmGAL0;
+	tmGAL0.tm_sec=tmGAL0.tm_min=tmGAL0.tm_hour=0;
+	tmGAL0.tm_mday=6;tmGAL0.tm_mon=0;tmGAL0.tm_year=1980-1900,tmGAL0.tm_isdst=0;
+	time_t tGAL0=std::mktime(&tmGAL0);
+	
+	for (unsigned int i=0;i<rx->galileo.ephemeris.size();i++){
+		GalEphemeris *ed = dynamic_cast<GalEphemeris *>(rx->galileo.ephemeris.at(i));
+		
+		//std::fprintf(fout,"%d %d %d %d\n",(int) eph->t_0c,(int) eph->t_0e,(int) eph->SVN,(int) eph->IODnav);
+		if (-1==lastGALweek){lastGALweek=GALweek;}
+		double Toc=ed->t_0c;
+		if (-1==lastToc) {lastToc = Toc;}
+		if ((GALweek == lastGALweek) && (Toc-lastToc < -2*86400)){
+			weekRollovers=1;
+		}
+		else if (GALweek == lastGALweek+1){//OK now 
+			weekRollovers=0; 	
+		}
+		
+		lastGALweek=GALweek;
+		lastToc=Toc;
+		
+		GALweek += weekRollovers;
+		
+		double t=ed->t_0c;
+		int day=(int) t/86400;
+		t-=86400*day;
+		int hour=(int) t/3600;
+		t-=3600*hour;
+		int minute=(int) t/60;
+		t-=60*minute;
+		int second=t;
+		
+		time_t tGAL = tGAL0+GALweek*86400*7+Toc;
+		struct tm *tmGAL = std::gmtime(&tGAL);
+		
+		switch (majorVer){
+			case V2:
+			{
+				int yy = tmGAL->tm_year-100*(tmGAL->tm_year/100);
+				std::fprintf(fout,"E%02d %02d %02d %02d %02d %02d%5.1f%19.12e%19.12e%19.12e\n",ed->SVN,
+					yy,tmGAL->tm_mon+1,tmGAL->tm_mday,hour,minute,(float) second,
+					ed->a_f0,ed->a_f1,ed->a_f2);
+			}
+			case V3:
+			{
+			}
+		}
+		
+		std::snprintf(buf,80,"%%4s%%19.12e%%19.12e%%19.12e%%19.12e\n"); // format string
+		
+		std::fprintf(fout,buf," ", // broadcast orbit 1
+			(double) ed->IODnav,ed->C_rs,ed->delta_N,ed->M_0);
+				
+		std::fprintf(fout,buf," ", // broadcast orbit 2
+			ed->C_uc,ed->e,ed->C_us,ed->sqrtA);
+		
+		std::fprintf(fout,buf," ", // broadcast orbit 3
+			ed->t_0e,ed->C_ic,ed->OMEGA_0,ed->C_is);
+		
+		std::fprintf(fout,buf," ", // broadcast orbit 4
+			ed->i_0,ed->C_rc,ed->OMEGA,ed->OMEGADOT);
+		
+		std::fprintf(fout,buf," ", // broadcast orbit 5
+			ed->IDOT,(double) ed->dataSource,(double) GALweek,0.0);
+	
+		std::fprintf(fout,buf," ", // broadcast orbit 6
+			ed->SISA,(double) ed->sigFlags,ed->BGD_E1E5a,(double) ed->BGD_E1E5b);
+		
+		// Transmission time of message (sec of GAL week, derived from WN and TOW of page type 1 ie odd page)
+		// 
+		std::fprintf(fout,buf," ", // broadcast orbit 7
+			0.0,0.0,0.0,0.0);
+		
+	}
 	
 	return true;
 }

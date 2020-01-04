@@ -26,6 +26,7 @@
 #define __GNSS_SYSTEM_H_
 
 #include <string>
+#include <vector>
 
 class Antenna;
 class ReceiverMeasurement;
@@ -39,6 +40,19 @@ typedef unsigned short UINT16;
 typedef short SINT16;
 typedef int SINT32;
 typedef unsigned int UINT32;
+
+class Ephemeris
+{
+	public:
+		
+		virtual double t0e(){return 0.0;}
+		virtual double t0c(){return 0.0;}
+		virtual int    svn(){return 0;}
+		virtual int    iod(){return 0;}
+		
+		Ephemeris(){};
+		virtual ~Ephemeris(){};
+};
 
 class GNSSSystem
 {
@@ -73,13 +87,16 @@ class GNSSSystem
 		int codes; // observation codes
 		static std::string observationCodeToStr(int c,int RINEXmajorVersion,int RINEXminorVersion=-1);
 		static unsigned int strToObservationCode(std::string, int RINEXversion);
+		std::vector<Ephemeris *> ephemeris;
+		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
 		
 		virtual double freqFromCode(int){return 0.0;}
 		
 		virtual int maxSVN(){return -1;}
 		std::string oneLetterCode(){return olc;}
 	
-		virtual void deleteEphemeris(){};
+		virtual void deleteEphemerides();
+		virtual bool addEphemeris(Ephemeris *);
 		
 		std::string name(){return n;}
 		

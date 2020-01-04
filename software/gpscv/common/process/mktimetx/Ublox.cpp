@@ -115,7 +115,7 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 		gpsEph[i]=ed;
 	}
 	for (int i=1;i<=galileo.maxSVN();i++){
-		Galileo::EphemerisData *ed = new Galileo::EphemerisData();
+		GalEphemeris *ed = new GalEphemeris();
 		galEph[i]=ed;
 	}
 }
@@ -549,7 +549,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				//std::cerr << (int) gnssID << " " << (int) svID << " " << (int) sigID << " " << (int) numWords << std::endl;
 				switch (gnssID)
 				{
-					//case 0: readGPSEphemerisLNAVSubframe(svID,ubuf);break; // FIXME temporary
+					//case 0: readGPSEphemerisLNAVSubframe(svID,ubuf);break; 
 					case 2: readGALEphemerisINAVSubframe(svID,sigID,ubuf);break;
 					default:break;
 				}
@@ -719,7 +719,22 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 }
 
-double DecodeSISA(unsigned char);
+// This catches eg the situation where part of an ephemeris is transmitted
+// and then a new one starts transmitting. We want to scrub the aprtially transmitted ephemeris.
+//
+bool Ublox::checkGalIODNav(GalEphemeris *ed,int IODnav)
+{
+	if (!(ed->subframes & 0x0f)){ // if we've got a subframe 1 - 4 then all is OK 
+		ed->IODnav = IODnav;
+		return true;
+	}
+	else if (IODnav != ed->IODnav){
+		//std::cerr << "IODnav mismatch! " << IODnav << " " << ed->IODnav << " SV= " << (int) ed->SVN << std::endl;
+		ed->subframes = 0x0;
+		return false;
+	}
+	return true; // dummy
+}
 
 // To use the MID macro, LSB is bit 0, m is first bit, n is last bit
 #define LAST(k,n) ((k) & ((1<<(n))-1))
@@ -727,6 +742,7 @@ double DecodeSISA(unsigned char);
 	
 GPS::EphemerisData* Ublox::readGPSEphemeris(std::string msg)
 {
+	
 	U4 u4buf;
 	HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	GPS::EphemerisData* ed= new GPS::EphemerisData();
@@ -937,12 +953,14 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 	
 	unsigned int hibits,lobits;
 	
-	Galileo::EphemerisData *ed = galEph[svID];	
+	GalEphemeris *ed = galEph[svID];	
 	ed->SVN = svID;
 	
 	if (wordType == 1){
 		
-		ed->IODnav = MID(dwords[0],14,23);
+		unsigned short IODnav = MID(dwords[0],14,23);
+		if (!checkGalIODNav(ed,IODnav))
+			return;
 		
 		// t_0e, word 1, 14 bits unsigned, scale factor 60 (ie in minutes)
 		ed->t_0e = 60*MID(dwords[0],0,13);
@@ -960,11 +978,16 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 		
 		//std::cerr << svID << " " << (int) ed->IODnav << " " << (int) ed->t_0e << " " << ed->M_0 << 
 		//" " << ed->e << " " << ed->sqrtA << std::endl;
+		
+		//std::cerr << "W1 " << svID << " " << (int) ed->IODnav <<  std::endl;
+		
 		ed->subframes |= 0x01;
 	}
 	else if (wordType == 2){
 		
 		unsigned short IODnav = MID(dwords[0],14,23);
+		if (!checkGalIODNav(ed,IODnav))
+			return;
 		
 		// OMEGA_0, 32 bits signed, scale factor 2^-31
 		hibits = (dwords[0] & 0x3fff) << 18; // upper 14 bits
@@ -989,11 +1012,15 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 		//std::cerr << svID << " " << (int) IODnav << " " << std::setprecision(14) << 
 		//	ed->OMEGA_0 << " " << ed->i_0 << " " << ed->OMEGA << " " << ed->IDOT << std::endl;
 		
+		// std::cerr << "W2 " << svID << " " << (int) IODnav <<  std::endl;
+		
 		ed->subframes |= 0x02;
 	}
 	else if (wordType == 3){
 		
 		unsigned short IODnav = MID(dwords[0],14,23); 
+		if (!checkGalIODNav(ed,IODnav))
+			return;
 		
 		// nb 18 bits now consumed
 		
@@ -1031,11 +1058,16 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 		//	ed->OMEGADOT << " " << ed->delta_N << " " << ed->C_uc << " " << ed->C_us << 
 		//	" " << ed->C_rc << " " << ed->C_rs << " " << ed->SISA << std::endl;
 		
+		// std::cerr << "W3 " << svID << " " << (int) IODnav <<  std::endl;
+		
 		ed->subframes |= 0x04;
+		
 	}
 	else if (wordType == 4){
 		
 		unsigned short IODnav = MID(dwords[0],14,23);
+		if (!checkGalIODNav(ed,IODnav))
+			return;
 		
 		// 18 bits consumed 
 		
@@ -1058,7 +1090,7 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 		// t_0c  14 bits unsigned scale factor 60
 		hibits =  MID(dwords[1],0,7) << 6; // upper 8 bits
 		lobits =  MID(dwords[2],26,31);     //lower 6 bits
-		ed->t_0c = 60.0 * (double) ((short) (( hibits| lobits ) << 2) >> 2);
+		ed->t_0c = 60.0 * (double) (((unsigned short) (( hibits| lobits ) << 2)) >> 2);
 		
 		// a_f0  31 bits signed scale factor 2^-34
 		hibits =  MID(dwords[2],0,25) << 5; // upper 26 bits
@@ -1076,10 +1108,12 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 		
 		// 2 bits spare - maybe for the guv' ?
 		
-		//std::cerr << svID << " " << (int) IODnav << " " << (int) svid << std::setprecision(14) 
-		//	<< " " << ed->C_ic << " " << ed->C_is << " " << ed->t_0c 
-		//	<< " " << ed->a_f0 << " " << ed->a_f1 << " " << ed->a_f2 << std::endl;
-		
+// 		std::cerr << svID << " " << (int) IODnav << " " << (int) svid << std::setprecision(14) 
+// 			<< " " << ed->C_ic << " " << ed->C_is << " " << ed->t_0c 
+// 			<< " " << ed->a_f0 << " " << ed->a_f1 << " " << ed->a_f2 << std::endl;
+// 		
+// 		std::cerr << "W4 " << svID << " " << (int) IODnav <<  std::endl;
+// 		
 		ed->subframes |= 0x08;
 	}
 	else if (wordType == 5){ // Ionospheric correction, BGD, signal health and data validity status and GST
@@ -1122,15 +1156,17 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 		// TOW 20 bits unsigned
 		hibits = MID(dwords[2],0,8) << 11;   // upper  9 bits
 		lobits = MID(dwords[3],21,31) ;      // lower 11 bits
-		unsigned int TOW = hibits | lobits; 
+		ed->TOW = (double) (hibits | lobits); 
 		
 		ed->subframes |= 0x10;
 		
-		std::cerr << svID << " " << std::setprecision(14) 
-			<< galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2 
-			<< " " << (int) galileo.ionoData.SFflags << " "
-			<< ed->BGD_E1E5a << " " << ed->BGD_E1E5b << " " << (int) ed->sigFlags 
-			<< " " << (int) ed->WN << " " << (int) TOW << std::endl;
+// 		std::cerr << svID << " " << std::setprecision(14) 
+// 			<< galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2 
+// 			<< " " << (int) galileo.ionoData.SFflags << " "
+// 			<< ed->BGD_E1E5a << " " << ed->BGD_E1E5b << " " << (int) ed->sigFlags 
+// 			<< " " << (int) ed->WN << " " << (int) ed->TOW << std::endl;
+		
+		// std::cerr << "W5 " << svID << " " << (int) ed->IODnav <<  std::endl;
 			
 	}
 	else if (wordType == 6){ // GST - UTC conversion parameters
@@ -1187,12 +1223,22 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 	else{ // 7-10 are almanac
 	}
 	
-	evenPage =  dwords[4] >> 31;
+	// evenPage =  dwords[4] >> 31;
 	//std::cerr << " " << (int) evenPage << std::endl;
 	
-	if (ed->subframes == 0x1f){
-		std::cerr << " " << "complete" << std::endl;
-		ed->subframes = 0x0;
+	if (ed->subframes == 0x1f){ // got a complete ephemeris so process it
+		// std::cerr << svID << " complete" << std::endl;
+		ed->dataSource = 0x01 | 0x0100; // bit 0: I/NAV E1-B, bit 8: clock parametrs are E5A,E1
+		if (!(galileo.addEphemeris(ed))){
+			// don't delete it - reuse the buffer
+			ed->subframes=0x0;
+		}
+		else{ // data was appended to the SV ephemeris list so create a new buffer for this SV
+			ed = new GalEphemeris();
+			galEph[svID]=ed;
+			// DBGMSG(debugStream,INFO,"Added " << svID);
+		}
+		
 	}
 }
 

@@ -59,10 +59,6 @@ double Galileo::decodeSISA(unsigned char sisa)
 		return -1.0;
 }
 
-void Galileo::deleteEphemeris()
-{
-}
-
 bool Galileo::resolveMsAmbiguity(Antenna*,ReceiverMeasurement *,SVMeasurement *,double *)
 {
 	return true;

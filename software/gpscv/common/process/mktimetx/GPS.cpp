@@ -83,7 +83,7 @@ double GPS::codeToFreq(int c)
 	return f;
 }
 
-void GPS::deleteEphemeris()
+void GPS::deleteEphemerides()
 {
 	DBGMSG(debugStream,TRACE,"deleting rx ephemeris");
 	
