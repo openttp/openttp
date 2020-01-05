@@ -336,7 +336,7 @@ void Application::run()
 		for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
 			if (CGGTTSoutputs.at(i).ephemerisSource==CGGTTSOutput::UserSupplied){
 				if (CGGTTSoutputs.at(i).constellation == GNSSSystem::GPS){
-					receiver->gps.deleteEphemeris();
+					receiver->gps.deleteEphemerides();
 					RINEX rnx;
 					std::string fname=rnx.makeFileName(CGGTTSoutputs.at(i).ephemerisFile,MJD);
 					if (fname.empty()){
@@ -385,7 +385,7 @@ void Application::run()
 		rnx.allObservations=allObservations;
 		
 		if (generateNavigationFile) 
-			rnx.writeNavigationFile(receiver,GNSSSystem::GPS,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
+			rnx.writeNavigationFile(receiver,receiver->constellations,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
 		rnx.writeObservationFile(antenna,counter,receiver,RINEXmajorVersion,RINEXminorVersion
             ,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	} // if createRINEX
@@ -580,10 +580,34 @@ void  Application::makeFilenames()
 	
 	char fname[64];
 	std::ostringstream ss5;
-	if (RINEX::V2 == RINEXmajorVersion || forceV2name)
-		std::snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
-	else if (RINEXmajorVersion == RINEX::V3)
-		std::snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
+	if (RINEX::V2 == RINEXmajorVersion || forceV2name){
+		switch (receiver->constellations)
+		{
+			case GNSSSystem::GPS:
+				std::snprintf(fname,15,"%s%03d0.%02dN",antenna->markerName.c_str(),yday,yy);
+				break;
+			case GNSSSystem::GALILEO:
+				std::snprintf(fname,15,"%s%03d0.%02dL",antenna->markerName.c_str(),yday,yy);
+				break;
+			default:
+				break;
+		}
+	}
+	else if (RINEXmajorVersion == RINEX::V3){
+		switch (receiver->constellations)
+		{
+			case GNSSSystem::GPS:
+				std::snprintf(fname,63,"%s_R_%d%03d0000_01D_GN.rnx",v3name.c_str(),year,yday);
+				break;
+			case GNSSSystem::GALILEO:
+				std::snprintf(fname,63,"%s_R_%d%03d0000_01D_EN.rnx",v3name.c_str(),year,yday);
+				break;
+			default:
+				std::snprintf(fname,63,"%s_R_%d%03d0000_01D_MN.rnx",v3name.c_str(),year,yday);
+				break;
+		}
+		
+	}
 	
 	ss5 << RINEXPath << "/" << fname; // at least no problem with length of RINEXPath
 	RINEXnavFile=ss5.str();
