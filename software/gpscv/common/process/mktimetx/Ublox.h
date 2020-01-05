@@ -48,12 +48,15 @@ class Ublox:public Receiver
 		
 		bool checkGalIODNav(GalEphemeris *,int);
 		
-		GPS::EphemerisData *readGPSEphemeris(std::string);
+		GPSEphemeris *readGPSEphemeris(std::string);
 		void readGALEphemerisINAVSubframe(int,int,unsigned char *ubuf);
 		void readGPSEphemerisLNAVSubframe(int,unsigned char *ubuf);
 		
-		GPS::EphemerisData     *gpsEph[32+1]; // FIXME NSATS should be used
+		GPSEphemeris *gpsEph[32+1]; // FIXME NSATS should be used
 		GalEphemeris *galEph[36+1];
+		
+		// debugging stuff
+		int alertPagesCnt;
 };
 
 #endif

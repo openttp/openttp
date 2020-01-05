@@ -45,6 +45,7 @@
 #include "Ublox.h"
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
+#include "Timer.h"
 
 extern std::ostream *debugStream;
 extern Application *app;
@@ -89,6 +90,9 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	glonass.codes = GNSSSystem::C1C;
 	codes = beidou.codes | galileo.codes | glonass.codes | gps.codes;
 	channels=72;
+	
+	alertPagesCnt = 0;
+	
 	if (modelName == "LEA-M8T"){
 		// For the future
 	}
@@ -111,7 +115,7 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 		app->logMessage("Assuming NEO-M8T");
 	}
 	for (int i=1;i<=gps.maxSVN();i++){
-		GPS::EphemerisData *ed = new GPS::EphemerisData();
+		GPSEphemeris *ed = new GPSEphemeris();
 		gpsEph[i]=ed;
 	}
 	for (int i=1;i<=galileo.maxSVN();i++){
@@ -203,7 +207,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 	unsigned int currentMsgs=0;
 	unsigned int reqdMsgs =  MSG0121 | MSG0122 | MSG0215 | MSG0D01 ;
-
+	
+	Timer timer;
+	timer.start();
+	
   if (infile.is_open()){
     while (std::getline (infile,line) ){
 			linecount++;
@@ -549,7 +556,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				//std::cerr << (int) gnssID << " " << (int) svID << " " << (int) sigID << " " << (int) numWords << std::endl;
 				switch (gnssID)
 				{
-					//case 0: readGPSEphemerisLNAVSubframe(svID,ubuf);break; 
+					case 0: readGPSEphemerisLNAVSubframe(svID,ubuf);break; 
 					case 2: readGALEphemerisINAVSubframe(svID,sigID,ubuf);break;
 					default:break;
 				}
@@ -561,7 +568,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 					DBGMSG(debugStream,WARNING,"Empty ephemeris");
 				}
 				else if (msg.size()==(104+2)*2){
-					GPS::EphemerisData *ed = readGPSEphemeris(msg);
+					GPSEphemeris *ed = readGPSEphemeris(msg);
 					int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss)))
 							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
@@ -581,8 +588,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 		return false;
 	}
 	infile.close();
-
-	//exit(0); // FIXME temporary
+	
+	timer.stop();
+	
+	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
 	
 	leapsecs = measLeapSecs;
 	
@@ -597,6 +606,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	}
 	
 	gps.fixWeekRollovers();
+	gps.setAbsT0c(mjd); 
+	
+	galileo.fixWeekRollovers();
+	galileo.setAbsT0c(mjd);
 	
 	// Pass through the data to realign the sawtooth correction.
 	// This could be done in the main loop but it's more flexible this way.
@@ -715,6 +728,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 		}
 		DBGMSG(debugStream,INFO,"dropped " << nDropped[g] << " " << gnss->name() << " SV measurements (ms ambiguity failure)"); 
 	}
+	DBGMSG(debugStream,INFO,alertPagesCnt << " alert pages in navigation data");
 	return true;
 	
 }
@@ -740,12 +754,12 @@ bool Ublox::checkGalIODNav(GalEphemeris *ed,int IODnav)
 #define LAST(k,n) ((k) & ((1<<(n))-1))
 #define MID(k,m,n) LAST((k)>>(m),((n)-(m)+1)) 
 	
-GPS::EphemerisData* Ublox::readGPSEphemeris(std::string msg)
+GPSEphemeris* Ublox::readGPSEphemeris(std::string msg)
 {
 	
 	U4 u4buf;
 	HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
-	GPS::EphemerisData* ed= new GPS::EphemerisData();
+	GPSEphemeris* ed= new GPSEphemeris();
 	ed->SVN=u4buf;
 	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
 	
@@ -946,6 +960,11 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 	unsigned char pageType = (dwords[0] >> 30) & 0x01; 
 	unsigned char wordType = (dwords[0] >> 24 ) & 0x3f; 
 	
+	if (pageType == 0x01){ // an alert page - not handled
+		alertPagesCnt++;
+		DBGMSG(debugStream,WARNING,svID << " alert page");
+		return;
+	}
 	//std::cerr << svID << " " << sigID << " " << " " << (int) evenPage << " " << 
 	//	(int) pageType << " " << (int) wordType << std::endl;
 		
@@ -1257,7 +1276,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	int id = (dwords[1] >> 2) & 0x07; // Handover Word subframe ID bits 20-22
 	//std::cerr << svID << " " << id << std::endl;
 	
-	GPS::EphemerisData *ed = gpsEph[svID];
+	GPSEphemeris *ed = gpsEph[svID];
 	ed->t_ephem = (((dwords[1] >> 7) & 0x01ffff ) << 2)*((double) 604799 / (double) 403199.0); // CHECKME
 	
 	ed->SVN = svID;
@@ -1417,7 +1436,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 			utc.WN_t = dwords[7] & 0xff;
 			
 			char dtLs = (dwords[8] >> 16) & 0xff;
-			utc.dtlS = dtLs;
+			utc.dt_LS = dtLs;
 			
 			utc.WN_LSF = (dwords[8] >> 8) & 0xff; // unsigned
 			
@@ -1443,16 +1462,15 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	// if so, if we already have it
 	if (ed->subframes == 0x07){
 		//verbosity=4;
-		DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
-			" t_0e " << ed->t_0e << " t_OC " << ed->t_OC << ((ed->t_0e != ed->t_OC)?"XXX":""));
+		//DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
+		//	" t_0e " << ed->t_0e << " t_OC " << ed->t_OC << ((ed->t_0e != ed->t_OC)?"XXX":""));
 		if (!(gps.addEphemeris(ed))){
 			// don't delete it - reuse the buffer
 			ed->subframes=0x0;
 		}
 		else{ // data was appended to the SV ephemeris list so create a new buffer for this SV
-			ed = new GPS::EphemerisData();
+			ed = new GPSEphemeris();
 			gpsEph[svID]=ed;
-			DBGMSG(debugStream,INFO,"Added!");
 		}
 		//verbosity=1;
 	}

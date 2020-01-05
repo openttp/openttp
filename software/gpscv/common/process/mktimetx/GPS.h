@@ -35,6 +35,59 @@ class Antenna;
 class ReceiverMeasurement;
 class SVMeasurement;
 
+class GPSEphemeris:public Ephemeris
+{
+	
+	public:
+		
+		UINT8 SVN;
+		SINGLE t_ephem;
+		UINT16 week_number;
+		UINT8 SV_accuracy_raw;  // this is URA index
+		UINT8 SV_health;
+		UINT16 IODC;
+		SINGLE t_GD;
+		SINGLE t_OC;
+		SINGLE a_f2;
+		SINGLE a_f1;
+		SINGLE a_f0;
+		SINGLE SV_accuracy;
+		UINT8 IODE;
+		SINGLE C_rs;
+		SINGLE delta_N;
+		DOUBLE M_0;
+		SINGLE C_uc;
+		DOUBLE e;
+		SINGLE C_us;
+		DOUBLE sqrtA;
+		SINGLE t_0e;
+		SINGLE C_ic;
+		DOUBLE OMEGA_0;
+		SINGLE C_is;
+		DOUBLE i_0;
+		SINGLE C_rc;
+		DOUBLE OMEGA;
+		SINGLE OMEGADOT;
+		SINGLE IDOT;
+		DOUBLE Axis;
+		DOUBLE n;
+		DOUBLE r1me2;
+		DOUBLE OMEGA_N;
+		DOUBLE ODOT_n;
+		
+		int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
+		unsigned char subframes; // used to flag receipt of each subframe
+		
+		GPSEphemeris(){subframes=0;}
+		~GPSEphemeris(){};
+		
+		virtual double t0e(){return t_0e;}
+		virtual double t0c(){return t_OC;}
+		virtual int    svn(){return SVN;}
+		virtual int    iod(){return IODE;}
+		
+};
+	
 class GPS: public GNSSSystem
 {
 	private:
@@ -59,87 +112,38 @@ class GPS: public GNSSSystem
 		public:
 			DOUBLE A0;
 			SINGLE A1;
-			SINT16 dtlS;
+			SINT16 dt_LS;
 			SINGLE t_ot;
 			UINT16 WN_t,WN_LSF,DN;
 			SINT16 dt_LSF;
 	};
 
-	class EphemerisData
-	{
-		
-		public:
-			
-			UINT8 SVN;
-			SINGLE t_ephem;
-			UINT16 week_number;
-			UINT8 SV_accuracy_raw;  // this is URA index
-			UINT8 SV_health;
-			UINT16 IODC;
-			SINGLE t_GD;
-			SINGLE t_OC;
-			SINGLE a_f2;
-			SINGLE a_f1;
-			SINGLE a_f0;
-			SINGLE SV_accuracy;
-			UINT8 IODE;
-			SINGLE C_rs;
-			SINGLE delta_N;
-			DOUBLE M_0;
-			SINGLE C_uc;
-			DOUBLE e;
-			SINGLE C_us;
-			DOUBLE sqrtA;
-			SINGLE t_0e;
-			SINGLE C_ic;
-			DOUBLE OMEGA_0;
-			SINGLE C_is;
-			DOUBLE i_0;
-			SINGLE C_rc;
-			DOUBLE OMEGA;
-			SINGLE OMEGADOT;
-			SINGLE IDOT;
-			DOUBLE Axis;
-			DOUBLE n;
-			DOUBLE r1me2;
-			DOUBLE OMEGA_N;
-			DOUBLE ODOT_n;
-			
-			int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
-			unsigned char subframes; // used to flag receipt of each subframe
-			
-			EphemerisData(){subframes=0;}
-	};
+	
 	
 	GPS();
 	~GPS();
 	
 	virtual double codeToFreq(int);
 	virtual int maxSVN(){return NSATS;}
-	virtual void deleteEphemerides();
-		
+
 	IonosphereData ionoData;
 	UTCData UTCdata;
-	std::vector<EphemerisData *> ephemeris;
-			
-	bool addEphemeris(EphemerisData *);
-	std::vector<EphemerisData *> sortedEphemeris[NSATS+1];
-	EphemerisData *nearestEphemeris(int,int,double);
-	bool fixWeekRollovers();
 	
 	bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
+	GPSEphemeris *nearestEphemeris(int,int,double);
+	virtual void setAbsT0c(int);
 	
-	bool satXYZ(EphemerisData *ed,double t,double *Ek,double x[3]);
+	bool satXYZ(GPSEphemeris *ed,double t,double *Ek,double x[3]);
 	
-	double sattime(EphemerisData *ed,double Ek,double tsv,double toc);
+	double sattime(GPSEphemeris *ed,double Ek,double tsv,double toc);
 	
 	double ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
 		float alpha0,float alpha1,float alpha2,float alpha3,
 		float beta0,float beta1,float beta2,float beta3);
 	
-	double measIonoDelay(unsigned int code1,unsigned int code2,double tpr1, double tpr2,double calDelay1,double calDelay2,EphemerisData *ed);
+	double measIonoDelay(unsigned int code1,unsigned int code2,double tpr1, double tpr2,double calDelay1,double calDelay2,GPSEphemeris *ed);
 	
-	bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,EphemerisData *ed,int signal,
+	bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,GPSEphemeris *ed,int signal,
 		double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 		double *azimuth,double *elevation, int *ioe);
 	

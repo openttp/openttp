@@ -122,6 +122,8 @@ class Galileo: public GNSSSystem
 	
 	virtual bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
 	
+	virtual void setAbsT0c(int);
+	
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	GPSData GPSdata;

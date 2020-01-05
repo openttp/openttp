@@ -382,11 +382,11 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				
 				// Now we can compute the pr corrections etc for the fitted prs
 
-				GPS::EphemerisData *ed=NULL;
+				GPSEphemeris *ed=NULL;
 				npts=0;
 				for ( unsigned int q=0;q<nqfits;q++){
 					if (ed==NULL) // use only one ephemeris for each track
-							ed = rx->gps.nearestEphemeris(sv,gpsTOW[q],maxURA);
+							ed = dynamic_cast<GPSEphemeris *>(rx->gps.nearestEphemeris(sv,gpsTOW[q],maxURA));
 					if (NULL == ed) ephemerisMisses++;
 					
 					double refsyscorr,refsvcorr,iono,tropo,az,el;
@@ -412,7 +412,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				int tsearch=trackStart;
 				int t=0;
 				
-				GPS::EphemerisData *ed=NULL;
+				GPSEphemeris *ed=NULL;
 				while (t< NTRACKPOINTS){
 					SVMeasurement *svm1  = svtrk[sv][t][OBSV1];
 					SVMeasurement *svm2  = NULL;
@@ -434,7 +434,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 					if (tmeas==tsearch){
 					
 						if (ed==NULL) // use only one ephemeris for each track
-							ed = rx->gps.nearestEphemeris(sv,rxmt->gpstow,maxURA);
+							ed = dynamic_cast<GPSEphemeris *>(rx->gps.nearestEphemeris(sv,rxmt->gpstow,maxURA));
 						if (NULL == ed) ephemerisMisses++;
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps,pr;
 						

@@ -64,13 +64,13 @@ class RINEX
 		bool readV2NavigationFile(Receiver* rx, int constellation,std::string fname);
 		bool readV3NavigationFile(Receiver *rx,int constellation,std::string fname);
 		
-		GPS::EphemerisData* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
+		GPSEphemeris* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
 		BeiDou::EphemerisData* getBeiDouEphemeris(FILE *fin,unsigned int *lineCount);
 		
 		bool writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
 		bool writeBeiDouNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
 		bool writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
-		bool writeMixedNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
+		bool writeMixedNavigationFile(Receiver *rx,unsigned int constellations,int majorVer,int minorVer,std::string fname,int mjd);
 		
 		char * formatFlags(int,int);
 		

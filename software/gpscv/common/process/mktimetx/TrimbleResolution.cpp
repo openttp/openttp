@@ -358,13 +358,13 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 					if (msg.size()==44*2){
 							HexToBin((char *) reversestr(msg.substr(17*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE),(unsigned char *) &(gps.UTCdata.A0));
 							HexToBin((char *) reversestr(msg.substr(25*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.UTCdata.A1));
-							HexToBin((char *) reversestr(msg.substr(29*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &(gps.UTCdata.dtlS));
+							HexToBin((char *) reversestr(msg.substr(29*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &(gps.UTCdata.dt_LS));
 							HexToBin((char *) reversestr(msg.substr(31*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.UTCdata.t_ot));
 							HexToBin((char *) reversestr(msg.substr(35*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &(gps.UTCdata.WN_t));
 							HexToBin((char *) reversestr(msg.substr(37*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &(gps.UTCdata.WN_LSF));
 							HexToBin((char *) reversestr(msg.substr(39*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &(gps.UTCdata.DN));
 							HexToBin((char *) reversestr(msg.substr(41*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &(gps.UTCdata.dt_LSF));
-							DBGMSG(debugStream,1,"UTC parameters: dtLS=" << gps.UTCdata.dtlS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
+							DBGMSG(debugStream,1,"UTC parameters: dt_LS=" << gps.UTCdata.dt_LS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
 							gps.gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 							continue;
 					}
@@ -412,7 +412,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 			
 			if(strncmp(msg.c_str(),"580206",6)==0){ // ephemeris
 				if (msg.size()==172*2){
-					GPS::EphemerisData *ed = new GPS::EphemerisData;
+					GPSEphemeris *ed = new GPSEphemeris;
 					HexToBin((char *) reversestr(msg.substr(4*2+2,2*sizeof(UINT8))).c_str(), sizeof(UINT8),  (unsigned char *) &(ed->SVN));
 					HexToBin((char *) reversestr(msg.substr(5*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->t_ephem));
 					HexToBin((char *) reversestr(msg.substr(9*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16), (unsigned char *) &(ed->week_number));
@@ -484,7 +484,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 	for (int svn=1;svn<=gps.maxSVN();svn++){
 		//cout << "SVN" << svn << endl;
 		for (unsigned int e=0;e<gps.sortedEphemeris[svn].size();e++){
-			GPS::EphemerisData *ed = gps.sortedEphemeris[svn].at(e);
+			GPSEphemeris *ed = dynamic_cast<GPSEphemeris *>(gps.sortedEphemeris[svn].at(e));
 			//cout << svn << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
 		}
 	}

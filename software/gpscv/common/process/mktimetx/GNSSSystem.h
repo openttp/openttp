@@ -25,6 +25,7 @@
 #ifndef __GNSS_SYSTEM_H_
 #define __GNSS_SYSTEM_H_
 
+#include <ctime>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,11 @@ class Ephemeris
 		
 		Ephemeris(){};
 		virtual ~Ephemeris(){};
+		
+		// this is kinda messy but it's handy to have t0c corrected for week rollover,
+		// converted to Unix time
+		time_t t0cAbs;
+		
 };
 
 class GNSSSystem
@@ -89,6 +95,7 @@ class GNSSSystem
 		static unsigned int strToObservationCode(std::string, int RINEXversion);
 		std::vector<Ephemeris *> ephemeris;
 		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
+		//virtual Ephemeris *nearestEphemeris(int,int,double);
 		
 		virtual double freqFromCode(int){return 0.0;}
 		
@@ -97,6 +104,8 @@ class GNSSSystem
 	
 		virtual void deleteEphemerides();
 		virtual bool addEphemeris(Ephemeris *);
+		virtual bool fixWeekRollovers();
+		virtual void setAbsT0c(int){};
 		
 		std::string name(){return n;}
 		

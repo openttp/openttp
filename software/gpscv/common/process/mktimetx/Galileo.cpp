@@ -23,6 +23,8 @@
 // THE SOFTWARE.
 
 
+#include <ctime>
+
 #include "Galileo.h"
 
 
@@ -62,4 +64,44 @@ double Galileo::decodeSISA(unsigned char sisa)
 bool Galileo::resolveMsAmbiguity(Antenna*,ReceiverMeasurement *,SVMeasurement *,double *)
 {
 	return true;
+}
+
+// This sets ephemeris t0c, corrected for week rollovers 
+void Galileo::setAbsT0c(int mjd)
+{
+	// GAL week 0 begins 23:59:47 22nd August 1999, MJD 51412 ie 1024 weeks before GPS epoch. Johnny come lately.
+	// int galWeek=int ((mjd-51412)/7);
+	// GPS epoch is used as reference week in RINEX
+	int GALweek=int ((mjd-44244)/7);
+	
+	int lastGALweek=-1;
+	int lastToc=-1;
+	int weekRollovers=0;
+	struct tm tmGAL0;
+	tmGAL0.tm_sec=tmGAL0.tm_min=tmGAL0.tm_hour=0;
+	tmGAL0.tm_mday=6;tmGAL0.tm_mon=0;tmGAL0.tm_year=1980-1900,tmGAL0.tm_isdst=0;
+	time_t tGAL0 = std::mktime(&tmGAL0);
+	
+	for (unsigned int i=0;i<ephemeris.size();i++){
+		GalEphemeris *ed = dynamic_cast<GalEphemeris *>(ephemeris.at(i));
+		
+		//std::fprintf(fout,"%d %d %d %d\n",(int) eph->t_0c,(int) eph->t_0e,(int) eph->SVN,(int) eph->IODnav);
+		if (-1==lastGALweek){lastGALweek=GALweek;}
+		double Toc=ed->t_0c;
+		if (-1==lastToc) {lastToc = Toc;}
+		if ((GALweek == lastGALweek) && (Toc-lastToc < -2*86400)){
+			weekRollovers=1;
+		}
+		else if (GALweek == lastGALweek+1){//OK now 
+			weekRollovers=0; 	
+		}
+		
+		lastGALweek=GALweek;
+		lastToc=Toc;
+		
+		GALweek += weekRollovers;
+		
+		ed->t0cAbs = tGAL0+GALweek*86400*7+Toc;
+	}
+	
 }

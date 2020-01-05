@@ -537,7 +537,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 						HexToBin((char *) msg.substr(16*2,2*sizeof(INT32U)).c_str(),sizeof(INT32U),(unsigned char *) &int32ubuf);
 						gps.UTCdata.t_ot = int32ubuf;
 						HexToBin((char *) msg.substr(20*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.WN_t));
-						HexToBin((char *) msg.substr(22*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dtlS));
+						HexToBin((char *) msg.substr(22*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dt_LS));
 						HexToBin((char *) msg.substr(24*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.WN_LSF));
 						HexToBin((char *) msg.substr(26*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.DN));
 						HexToBin((char *) msg.substr(28*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dt_LSF));
@@ -556,7 +556,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 					HexToBin((char *) msg.substr(0,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &eph);
 					if (eph == 0x01){
 						
-						GPS::EphemerisData *ed = new GPS::EphemerisData;
+						GPSEphemeris *ed = new GPSEphemeris();
 						HexToBin((char *) msg.substr(1*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),(unsigned char *) &(ed->SVN));
 						HexToBin((char *) msg.substr(2*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_rs));
 						HexToBin((char *) msg.substr(6*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->delta_N));

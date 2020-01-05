@@ -163,6 +163,23 @@ void GNSSSystem::deleteEphemerides()
 	}
 }
 
+// The ephemeris is sorted so that the RINEX navigation file is written correctly
+// A hash table is also built for quick ephemeris lookup
+// Note that when the ephemeris is completely read in, another fixup must be done for week rollovers
+
+// Notes on GPS
+// t_0e and t_OC are usually the same 
+// Some disagreements at the end of the GPS week but at other times too (when satellite picked up?)
+// No particular relationship - sometimes t_oe is before t_OC, sometimes after
+// Sometimes IODE will be the same ( and data the same too)
+// eg SV 17 IODE 66 t_oe 597600 t_OC 597600
+//    SV 17 IODE 66 t_oe 597600 t_OC 0
+// eg SV 25 IODE 4 t_oe 532800 t_OC 532800
+//    SV 25 IODE 4 t_oe 532800 t_OC 540000
+// eg SV 24 IODE 13 t_oe 547200 t_OC 532800
+//    SV 24 IODE 13 t_oe 547200 t_OC 547200
+//
+
 bool GNSSSystem::addEphemeris(Ephemeris *ed)
 {
 	// Check whether this is a duplicate
@@ -219,4 +236,49 @@ bool GNSSSystem::addEphemeris(Ephemeris *ed)
 		return true;
 	}
 	return true;
+}
+
+bool GNSSSystem::fixWeekRollovers()
+{
+	// There are two cases:
+	// (1) We are at the end of the week and get an ephemeris for the next day. Week number can't be used to discriminate.
+	//      In this case, the ephemeris needs to be moved to the end
+	// (2) We are at the beginning of the week and get an ephemeris for the previous day. 
+	//      This ephemeris must move to the beginning of the day
+	// Note that further disambiguation information is available from the time the message was logged
+	
+	if (ephemeris.size() <= 1) return false;
+	
+	//std::vector<Ephemeris *>::iterator it;
+	//for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+	//	GPSEphemeris *ed = dynamic_cast<GPSEphemeris *>(*it);
+		//cout << (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
+	//}
+	
+	// Because the ephemeris has been ordered by t_OC, the misplaced ephemerides can be moved as a block
+	
+	// This handles case (1)
+	int tOClast = ephemeris[0]->t0c();
+	for (unsigned i=1; i < ephemeris.size(); i++){
+		Ephemeris *ed = ephemeris[i];
+		if (ed->t0c() - tOClast > 5*86400){ // Detect the position of the break 
+			DBGMSG(debugStream,INFO,"Week rollover detected in ephemeris");
+			// Have to copy the first "i" entries to the end
+			for (unsigned int j=0;j<i;j++)
+				ephemeris.push_back(ephemeris[j]);
+			// and then remove the first i entries
+			ephemeris.erase(ephemeris.begin(),ephemeris.begin()+i);
+			
+			//std::vector<Ephemeris *>::iterator it;
+			//for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+			//	GPSEphemeris *ed = dynamic_cast<GPSEphemeris *>(*it);
+			//	cout << (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
+			//}
+			return true;
+		}
+		else
+			tOClast = ed->t0c();
+	}
+	
+	return false;
 }
