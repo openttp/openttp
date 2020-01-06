@@ -480,7 +480,7 @@ bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stop
 	}
 	
 	gps.fixWeekRollovers();
-	gps.setAbsT0c(mjd); 
+	gps.setAbsT0c(mjd); // precompute stuff for ephemeris output
 	
 	for (int svn=1;svn<=gps.maxSVN();svn++){
 		//cout << "SVN" << svn << endl;
