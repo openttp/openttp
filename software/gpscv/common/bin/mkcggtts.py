@@ -38,7 +38,7 @@ import time
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -383,7 +383,7 @@ for mjd in range(startMJD,stopMJD+1):
 	Debug('Processing ' + str(mjd))
 	
 	# Clean up the leftovers
-	misc = ['paramCGGTTS.dat']
+	misc = ['paramCGGTTS.dat','biasC1P1.dat','biasC2P2.dat','r2cggtts.log']
 	for f in misc:
 		if (os.path.isfile(f)):
 			os.unlink(f)
