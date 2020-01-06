@@ -239,8 +239,59 @@ bool GPS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *rxm,SVMeasure
 	return ok;
 }
 
-void GPS::setAbsT0c(int)
+void GPS::setAbsT0c(int mjd)
 {
+	// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
+	int gpsWeek=int ((mjd-44244)/7);
+	
+	int lastGPSWeek=-1;
+	int lastToc=-1;
+	int weekRollovers=0;
+	
+	// GPS epoch as a struct tm
+	struct tm tmGPS0;
+	tmGPS0.tm_sec=tmGPS0.tm_min=tmGPS0.tm_hour=0;
+	tmGPS0.tm_mday=6;tmGPS0.tm_mon=0;tmGPS0.tm_year=1980-1900,tmGPS0.tm_isdst=0;
+	time_t tGPS0=std::mktime(&tmGPS0);
+	
+	for (unsigned int i=0;i<ephemeris.size();i++){
+		
+		GPSEphemeris *eph = dynamic_cast<GPSEphemeris *>(ephemeris[i]);
+		
+		// Account for GPS rollover:
+		// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
+		// GPS week 1024 begins midnight 21/22 Aug 1999, MJD 51412
+		// GPS week 2048 begins midnight 6/7 Apr 2019, MJD 58580
+		
+		int tmjd=mjd;
+		int GPSWeek=eph->week_number;
+		
+		while (tmjd>=51412) {
+			GPSWeek+=1024;
+			tmjd-=(7*1024);
+		}
+		if (-1==lastGPSWeek){lastGPSWeek=GPSWeek;}
+		// Convert GPS week + $Toc to epoch as year, month, day, hour, min, sec
+		// Note that the epoch should be specified in GPS time
+		double Toc=eph->t_OC;
+		if (-1==lastToc) {lastToc = Toc;}
+		// If GPS week is unchanged and Toc has gone backwards by more than 2 days, increment GPS week
+		// It is assumed that ephemeris entries have been correctly ordered (using fixWeeKRollovers() prior to writing out
+		if ((GPSWeek == lastGPSWeek) && (Toc-lastToc < -2*86400)){
+			weekRollovers=1;
+		}
+		else if (GPSWeek == lastGPSWeek+1){//OK now 
+			weekRollovers=0; 	
+		}
+		
+		lastGPSWeek=GPSWeek;
+		lastToc=Toc;
+		
+		GPSWeek = GPSWeek + weekRollovers;
+		
+		eph->t0cAbs = tGPS0+GPSWeek*86400*7+Toc;
+		eph->correctedWeek= GPSWeek;
+	}
 }
 
 bool GPS::currentLeapSeconds(int mjd,int *leapsecs)

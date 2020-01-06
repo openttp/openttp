@@ -102,6 +102,7 @@ void Galileo::setAbsT0c(int mjd)
 		GALweek += weekRollovers;
 		
 		ed->t0cAbs = tGAL0+GALweek*86400*7+Toc;
+		ed->correctedWeek = GALweek;
 	}
 	
 }

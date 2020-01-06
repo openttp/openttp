@@ -666,6 +666,9 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 		}
 	}
 	
+	gps.fixWeekRollovers();
+	gps.setAbsT0c(mjd); 
+	
 	// The NVS sometime reports what appears to be an incorrect pseudorange after picking up an SV
 	// If you wanted to filter these out, this is where you should do it
 	
@@ -678,6 +681,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 	DBGMSG(debugStream,INFO,nGLONASSObs << " GLONASS code measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
+	
 	return true;
 	
 }

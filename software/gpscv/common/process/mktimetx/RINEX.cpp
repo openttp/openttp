@@ -688,32 +688,8 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 	
 	std::fprintf(fout,"%60s%-20s\n"," ","END OF HEADER");
 	
-	int lastGALweek=-1;
-	int lastToc=-1;
-	int weekRollovers=0;
-	struct tm tmGAL0;
-	tmGAL0.tm_sec=tmGAL0.tm_min=tmGAL0.tm_hour=0;
-	tmGAL0.tm_mday=6;tmGAL0.tm_mon=0;tmGAL0.tm_year=1980-1900,tmGAL0.tm_isdst=0;
-	time_t tGAL0=std::mktime(&tmGAL0);
-	
 	for (unsigned int i=0;i<rx->galileo.ephemeris.size();i++){
 		GalEphemeris *ed = dynamic_cast<GalEphemeris *>(rx->galileo.ephemeris.at(i));
-		
-		//std::fprintf(fout,"%d %d %d %d\n",(int) eph->t_0c,(int) eph->t_0e,(int) eph->SVN,(int) eph->IODnav);
-		if (-1==lastGALweek){lastGALweek=GALweek;}
-		double Toc=ed->t_0c;
-		if (-1==lastToc) {lastToc = Toc;}
-		if ((GALweek == lastGALweek) && (Toc-lastToc < -2*86400)){
-			weekRollovers=1;
-		}
-		else if (GALweek == lastGALweek+1){//OK now 
-			weekRollovers=0; 	
-		}
-		
-		lastGALweek=GALweek;
-		lastToc=Toc;
-		
-		GALweek += weekRollovers;
 		
 		double t=ed->t_0c;
 		int day=(int) t/86400;
@@ -724,8 +700,7 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 		t-=60*minute;
 		int second=t;
 		
-		time_t tGAL = tGAL0+GALweek*86400*7+Toc;
-		struct tm *tmGAL = std::gmtime(&tGAL);
+		struct tm *tmGAL = std::gmtime(&(ed->t0cAbs));
 		
 		switch (majorVer){
 			case V2:
@@ -758,7 +733,7 @@ bool  RINEX::writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 			ed->i_0,ed->C_rc,ed->OMEGA,ed->OMEGADOT);
 		
 		std::fprintf(fout,buf," ", // broadcast orbit 5
-			ed->IDOT,(double) ed->dataSource,(double) GALweek,0.0);
+			ed->IDOT,(double) ed->dataSource,(double) ed->correctedWeek,0.0);
 	
 		std::fprintf(fout,buf," ", // broadcast orbit 6
 			ed->SISA,(double) ed->sigFlags,ed->BGD_E1E5a,(double) ed->BGD_E1E5b);
@@ -833,48 +808,11 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 	std::fprintf(fout,"%60s%-20s\n"," ","END OF HEADER");
 	
 	// Write out the ephemeris entries
-	int lastGPSWeek=-1;
-	int lastToc=-1;
-	int weekRollovers=0;
-	struct tm tmGPS0;
-	tmGPS0.tm_sec=tmGPS0.tm_min=tmGPS0.tm_hour=0;
-	tmGPS0.tm_mday=6;tmGPS0.tm_mon=0;tmGPS0.tm_year=1980-1900,tmGPS0.tm_isdst=0;
-	time_t tGPS0=std::mktime(&tmGPS0);
+	
 	for (unsigned int i=0;i<rx->gps.ephemeris.size();i++){
 		GPSEphemeris *eph = dynamic_cast<GPSEphemeris *>(rx->gps.ephemeris[i]);
-		// Account for GPS rollover:
-		// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
-		// GPS week 1024 begins midnight 21/22 Aug 1999, MJD 51412
-		// GPS week 2048 begins midnight 6/7 Apr 2019, MJD 58580
-		int tmjd=mjd;
-		int GPSWeek=eph->week_number;
 		
-		while (tmjd>=51412) {
-			GPSWeek+=1024;
-			tmjd-=(7*1024);
-		}
-		if (-1==lastGPSWeek){lastGPSWeek=GPSWeek;}
-		// FIXME if we have read in a GPS navigation file then we should use Toc as given in the file
-		// (but why would you read it in and then write it out, except for debugging ??)
-		// Convert GPS week + $Toc to epoch as year, month, day, hour, min, sec
-		// Note that the epoch should be specified in GPS time
-		double Toc=eph->t_OC;
-		if (-1==lastToc) {lastToc = Toc;}
-		// If GPS week is unchanged and Toc has gone backwards by more than 2 days, increment GPS week
-		// It is assumed that ephemeris entries have been correctly ordered (using fixWeeKRollovers() prior to writing out
-		if ((GPSWeek == lastGPSWeek) && (Toc-lastToc < -2*86400)){
-			weekRollovers=1;
-		}
-		else if (GPSWeek == lastGPSWeek+1){//OK now 
-			weekRollovers=0; 	
-		}
-		
-		lastGPSWeek=GPSWeek;
-		lastToc=Toc;
-		
-		GPSWeek = GPSWeek + weekRollovers;
-		
-		double t=Toc;
+		double t=eph->t_OC;
 		int day=(int) t/86400;
 		t-=86400*day;
 		int hour=(int) t/3600;
@@ -883,8 +821,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 		t-=60*minute;
 		int second=t;
 	
-		time_t tgps = tGPS0+GPSWeek*86400*7+Toc;
-		struct tm *tmGPS = std::gmtime(&tgps);
+		struct tm *tmGPS = std::gmtime(&(eph->t0cAbs));
 		
 		switch (majorVer)
 		{
@@ -924,7 +861,7 @@ bool  RINEX::writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::
 			eph->i_0,eph->C_rc,eph->OMEGA,eph->OMEGADOT);
 		
 		std::fprintf(fout,buf," ", // broadcast orbit 5
-			eph->IDOT,1.0,(double) GPSWeek,0.0);
+			eph->IDOT,1.0,(double) eph->correctedWeek,0.0);
 	
 		std::fprintf(fout,buf," ", // broadcast orbit 6
 			GPS::URA[eph->SV_accuracy_raw],(double) eph->SV_health,eph->t_GD,(double) eph->IODC);

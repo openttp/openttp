@@ -1022,6 +1022,9 @@ bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 		}
 	}
 	
+	gps.fixWeekRollovers();
+	gps.setAbsT0c(mjd); 
+	
 	timer.stop();
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
