@@ -341,7 +341,7 @@ def ReadCGGTTSHeader(fin,fname):
 		
 			(dlyname,dly) = l.split('=',1)
 			# extra spaces in constellation and code for r2cggtts
-			match = re.search('(\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*(\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
+			match = re.search('([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
 			if (match):
 				header['int dly'] = match.group(1)
 				header['int dly code'] = match.group(2) # non-standard but convenient
