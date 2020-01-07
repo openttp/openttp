@@ -38,7 +38,7 @@ import time
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -240,7 +240,7 @@ def FindRINEXNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 		if (reqd):	
 			ErrorExit("Can't find nav file:\n\t" + bname1)
 			
-	return ''
+	return ('','')
 
 # ------------------------------------------
 def ReadLeapSeconds(nav,navExt,rnxVers):
