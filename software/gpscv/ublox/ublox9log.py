@@ -187,6 +187,100 @@ def ConfigureReceiver(serport):
 
 	Debug('Configuring receiver')
 	
+	# GNSS tracking configuration 
+	# First, query the current configuration
+	# If the configuration is not being changed, then don't reconfigure
+	
+	# Set which GNSS are enabled
+	# All GNSS are enabled by default
+	
+	BDS_ENA = b'\x22\x00\x31\x10' # CFG-SIGNAL-BDS_ENA 0x10310022
+	GAL_ENA = b'\x21\x00\x31\x10' # CFG-SIGNAL-GAL_ENA 0x10310021
+	GLO_ENA = b'\x25\x00\x31\x10' # CFG-SIGNAL-GLO_ENA 0x10310025
+	GPS_ENA = b'\x1f\x00\x31\x10' # CFG-SIGNAL-GPS_ENA 0x1031001f
+	
+	enabled = [BDS_ENA, GAL_ENA, GLO_ENA , GPS_ENA]
+	disabled = []
+	if ('receiver:observations' in cfg):
+		obsv = cfg['receiver:observations'].lower()
+	
+		if ('all' == obsv):
+			pass
+		else:
+			enabled = []
+			
+			if ('beidou' in obsv):
+				enabled.append(BDS_ENA)  
+			else:
+				disabled.append(BDS_ENA)
+				
+			if ('galileo' in obsv):
+				enabled.append(GAL_ENA) 
+			else:
+				disabled.append(GAL_ENA)
+				
+			if ('glonass' in obsv): 
+				enabled.append(GLO_ENA) 
+			else:
+				disabled.append(GLO_ENA)
+			
+			if ('gps' in obsv):
+				enabled.append(GPS_ENA) 
+			else:
+				disabled.append(GPS_ENA)
+	
+	if not enabled:
+		Cleanup();
+		ErrorExit('No valid GNSS have beeen configured in receiver:observations')
+	
+	# Set which signals are tracked for each constellation
+	# The default is dual frequency for all constellations
+	
+	GPS_L1CA_ENA = b'\x01\x00\x31\x10' # CFG-SIGNAL-GPS_L1CA_ENA 0x10310001
+	GPS_L2C_ENA  = b'\x03\x00\x31\x10' # CFG-SIGNAL-GPS_L2C_ENA  0x10310003
+	
+	GAL_E1_ENA   = b'\x07\x00\x31\x10' # CFG-SIGNAL-GAL_E1_ENA  0x10310007
+	GAL_E5B_ENA  = b'\x0a\x00\x31\x10' # CFG-SIGNAL-GAL_E5B_ENA 0x1031000a
+	
+	BDS_B1_ENA   = b'\x0d\x00\x31\x10' # CFG-SIGNAL-BDS_B1_ENA 0x1031000d
+	BDS_B2_ENA   = b'\x0e\x00\x31\x10' # CFG-SIGNAL-BDS_B2_ENA 0x1031000e
+	
+	GLO_L1_ENA   = b'\x18\x00\x31\x10' # CFG-SIGNAL-GLO_L1_ENA 0x10310018
+	GLO_L2_ENA   = b'\x1a\x00\x31\x10' # CFG-SIGNAL-GLO_L2_ENA 0x1031001a
+	
+	enabledSigs = [GPS_L1CA_ENA, GPS_L2C_ENA, GAL_E1_ENA, GAL_E5B_ENA,
+					BDS_B1_ENA, BDS_B2_ENA, GLO_L1_ENA, GLO_L2_ENA]
+	disabledSigs = []
+	
+	if ('receiver:beidou' in cfg):
+		sig = cfg['receiver:beidou'].lower()
+		if (sig == 'single'):
+			enabledSigs.remove(BDS_B2_ENA )
+			disabledSigs.append(BDS_B2_ENA)
+	
+	if ('receiver:galileo' in cfg):
+		sig = cfg['receiver:galileo'].lower()
+		if (sig == 'single'):
+			enabledSigs.remove(GAL_E5B_ENA)
+			disabledSigs.append(GAL_E5B_ENA)
+	
+	if ('receiver:glonass' in cfg):
+		sig = cfg['receiver:glonass'].lower()
+		if (sig == 'single'):
+			enabledSigs.remove(GPS_L1CA_ENA)
+			disabledSigs.append(GPS_L2C_ENA)
+			
+	if ('receiver:gps' in cfg):
+		sig = cfg['receiver:gps'].lower()
+		if (sig == 'single'):
+			enabledSigs.remove(GPS_L2C_ENA)
+			disabledSigs.append(GPS_L2C_ENA)
+	
+	# Defaults guarantee that some signals are enabled
+	
+	# FIXME not actually implemented yet
+	
+	
 	# Navigation/measurement rate settings
 	ubxMsgs.add(b'\x06\x08')
 	#$msg = "\x06\x08\x06\x00\xe8\x03\x01\x00\x01\x00"; # CFG_RATE
