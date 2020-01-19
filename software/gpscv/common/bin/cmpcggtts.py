@@ -41,7 +41,7 @@ import os
 import re
 import sys
 
-VERSION = "0.2.6"
+VERSION = "0.2.7"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -967,7 +967,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			
 			Info('Reported INT DLY={} CAB DLY={} INT DLY={}'.format(newIntDelay,newCabDelay,newRefDelay))
 			
-	Info('Delay delta = {}'.format(refCorrection))	
+	Info('Delay delta = {}'.format(calCorrection))	
 	
 # Can redefine the indices now
 PRN = 0
@@ -1212,12 +1212,12 @@ if (MODE_DELAY_CAL==mode ):
 	ax1.set_xlabel('MJD - '+str(firstMJD))
 	
 	ax2.plot(tMatch,calMatch,ls='None',marker='.')
-	ax2.set_title('CAL (filtered)')
+	ax2.set_title('CAL (filtered) [ ' + args.calDir+ ' ]')
 	ax2.set_ylabel('REFSYS (ns)')
 	ax2.set_xlabel('MJD - '+str(firstMJD))
 	
 	ax3.plot(tMatch,refMatch,ls='None',marker='.')
-	ax3.set_title('REF (filtered)')
+	ax3.set_title('REF (filtered) [ ' + args.refDir+ ' ]')
 	ax3.set_ylabel('REFSYS (ns)')
 	ax3.set_xlabel('MJD - '+str(firstMJD))
 	
