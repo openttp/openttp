@@ -4,13 +4,14 @@
 
 \section{Installation requirements}
 
-In addition to a basic Linux development environment, you will likely need the development packages for:
+You will need a basic Linux development environment, including C/C++ compilers, Perl and python2 and python3.
+You will likely need the development packages for:
 \begin{description*}
 	\item[\cc{boost}]  C++ libraries
 	\item[\cc{libgsl}] GNU scientific library
 \end{description*}
 
-Depending on your Linux installation, you may also need:
+You may also need:
 \begin{description*}
 	\item[\cc{Time::HiRes}] Perl library
 \end{description*}
@@ -79,7 +80,7 @@ The installer has been used with current versions of RedHat Enterprise Linux,
 CentOS, Ubuntu and Debian (on the BeagleBone Black).
 
 \cc{installsys.pl} must be run first (with superuser privileges), 
-because it installs `C' libraries which are needed by the GPSCV software.
+because it installs libraries which are needed by the GPSCV software.
 
 \cc{installsys.pl} can also be used to install various targets individually.
 Run \cc{installsys.pl -h} to see the options available. 
@@ -95,10 +96,22 @@ and will probably need to be installed. The various packages used can be inspect
 \cc{doc/manual/OpenTTPManual.tex}.
 To build the documentation as a PDF, change directory to \cc{doc/manual} and run \cc{make}.
 
+\section{Common configuration problems}
+
+\subsection{UUCP lock file creation}
+
+UUCP lock files are used to prevent non-OTTP processes from opening serial ports while they are 
+in use. You need to set the location for lock file creation specific to the operating system, 
+and ensure that the OTTP user (cvgps typically) has the right permissions to write to this location. 
+This is typically achieved by adding the user to the appropriate group. 
+For example, on Ubuntu 18 the lock directory is \cc{/var/lock}. 
+In this case, the directory is world writeable, so 
+the OTTP user does not need to belong to any supplementary groups.
+
 \section{A minimal software setup}
 
-Some users may wish to use their own hardware and are only interested in the core software that OpenTTP provides.
-This section describes the minimum setup required for operation.
+For users who wish to use their own hardware,
+this section describes the minimum setup required for operation.
 
 The OpenTTP software distribution is comprised of various C/C++ applications and Perl and python scripts.
 As a minimum, you will need:
@@ -112,7 +125,7 @@ As a minimum, you will need:
 	\item one of the OpenTTP-provided scripts to log your counter/timer
 \end{description*}
 
-You must use one of the OpenTTP receiver logging scripts for the GNSS receiver because \cc{mktimetx}
+You must use one of the OpenTTP receiver logging scripts with your GNSS receiver because \cc{mktimetx}
 expects a custom file-format \ref{s:DataFileFormat}. In particular, the
 receiver's native binary formats are not readable by \cc{mktimetx}. Similarly, OpenTTP uses a custom file
 format for the counter-timer measurement files, although in this case, conversion from another format
@@ -125,4 +138,7 @@ You may also find the following useful:
 	\item[] \cc{kickstart.pl} for automatic start of logging processes
 	\item[] \cc{runmktimetx.pl} for automated processing, and reprocessing
 	\item[] \cc{gziplogs.pl} for managing log file compression
-\end{description*} 
+\end{description*}
+
+
+

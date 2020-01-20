@@ -1,15 +1,9 @@
 
 This chapter describes software related to GPSCV time-transfer.
 
-
 \section{Software overview}
 
-Time-transfer files are produced by \cc{mktimetx} from the GNSS receiver logs and counter/timer measurements.
-The time-transfer files are in  RINEX observation  and CGGTTS format. 
-Currently, CGGTTS-format files are only produced for GPS. 
-Figure \ref{f:GPSCVProcessing} illustrates the processing chain. 
 
-The OpenTTP software suite is catalogued in Table \ref{t:OTTPSoftware}
 \begin{table}[h]
 \begin{tabular}{l|l|l}
 	& program & \\ 
@@ -17,7 +11,6 @@ The OpenTTP software suite is catalogued in Table \ref{t:OTTPSoftware}
 GPSCV processing  &  & \\
 	& \hyperlink{h:mktimetx}{mktimetx} & core program\\
 	& \hyperlink{h:runmktimetx}{runmktimetx.pl} & \\
-	& \hyperlink{h:runr2cggttsv8}{runr2cggtsv8.py} & \\
 	\hline
 TIC logging & & \\
 	& \hyperlink{h:hp5313xlog}{hp5313xlog.pl} &\\
@@ -27,36 +20,25 @@ TIC logging & & \\
 	\hline
 GNSS receiver logging & & \\
 	&	\hyperlink{h:jnslog}{jnslog.pl} & Javad\\
-	& \hyperlink{h:nvslog}{nv08log.pl} & NVS\\
+	& \hyperlink{h:nvslog}{nvslog.pl} & NVS\\
 	& \hyperlink{h:restlog}{restlog.pl} & Trimble Resolution T\\
 	& \hyperlink{h:ublox9log}{ublox9log.py} & ublox\\
 	& \hyperlink{h:ubloxlog}{ubloxlog.pl} & ublox\\
 GNSS receiver utilities & & \\
-	& \hyperlink{h:jnsextract}{jnsextract.pl} & \\
-	& \hyperlink{h:nv08extract}{nv08extract.pl} & \\
-	& \hyperlink{h:nv08info}{nv08info.pl} & \\
 	& \hyperlink{h:restextract}{restextract.pl} & \\
-	& \hyperlink{h:restinfo}{restinfo.pl} & \\
-	& \hyperlink{h:ubloxextract}{ubloxextract.py} & \\
-	& \hyperlink{h:ubloxmkdev}{ubloxmkdev.py} & \\
 	\hline
 Analysis tools & & \\
-	& \hyperlink{h:cggttsqc}{cggttsqc.py} & \\
 	& \hyperlink{h:cmpcggtts}{cmpcggtts.py} & \\
-	& \hyperlink{h:editcggtts}{editcggtts.py} & \\
-	& \hyperlink{h:editrnxnav}{editrnxnav.py} & \\
-	& \hyperlink{h:editrnxobs}{editrnxobs.py} & \\
-	& \hyperlink{h:ticqc}{ticqc.py} & \\
 Miscellaneous & & \\
   & \hyperlink{h:log1Wtemp}{log1Wtemp.pl} & \\ 
 	\hline
 \end{tabular}
-\caption{GPSCV software overview \label{t:OTTPSoftware} }
+\caption{GPSCV software overview}
 \end{table}
 
 \section{crontab \label{ss:crontab}}
 
-Automatic logging, processing and archival of data is co-ordinated via the user \cc{cvgps}' \cc{crontab}.
+Automatic logging, processing and archival of data is performed through the user \cc{cvgps}' \cc{crontab}.
 
 A minimal \cc{crontab} for the user \cc{cvgps} looks like this:
 \begin{lstlisting}
@@ -74,8 +56,8 @@ A minimal \cc{crontab} for the user \cc{cvgps} looks like this:
 \end{lstlisting}
 showing the three essential processes of logging, processing and archival of data.
 
-The active crontab can be examined with the command \cc{crontab -l}. 
-A default \cc{crontab} is saved in \cc{/home/cvgps/etc/crontab}. 
+The active crontab can be examined with the command \cc{crontab -l}. A default \cc{crontab} is
+stored in \cc{/home/cvgps/etc/crontab}. 
 
 \section{Configuration file format \label{sConfigFileFormat}}
 
@@ -98,34 +80,23 @@ defines a section \cc{Receiver} and the two keys: \cc{manufacturer} and \cc{mode
 The notation \cc{Section::Key} is used to fully specify keys. For example,
 \cc{Receiver::model} and \cc{Receiver::manufacturer} specify the two keys above.
 
-Keys and section names are not case-sensitive. In particular, the python and Perl libraries
-which provide functions for reading the configuration files convert keys and section names to lower case.
-The case of key values is preserved, since this may be signficant eg path names.
+Keys and section names are not case-sensitive. Comments begin with a `\#'.
 
-Leading and trailing whitespace is removed from keys, key values and section names.
-
-Comments begin with a `\#'. 
-
-Some keys define a list of sections. 
-For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
+Some keys define a list of sections. For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
 \begin{lstlisting}
 [CGGTTS]
-outputs = c1-code,p1-code,p2-code
+outputs = C1-code,P1-code,P2-code
 \end{lstlisting}
-defines three sections: \cc{c1-code}, \cc{p1-code}, and \cc{p2-code}.
-This is a bodge which would be more elegantly addressed using an extensible format like XML, 
-but it has proven to be sufficient for our needs.
+defines three sections: \cc{C1-code}, \cc{P1-code}, and \cc{P2-code}.
 
 \section{Data file formats \label{s:DataFileFormat}}
 
 \subsection{GPS receiver}
 
-This text file records messages from the GPS receiver. 
-The native format of the messages can be a mix of ASCII and binary messages.
-Binary messages are hexadecimal-encoded for saving in the log file. 
-Some logging scripts record ancillary information, such as commands sent to the receiver. 
-Comments in the log file are allowed, prefaced by a `\#' character. 
-The `@' character is used to tag lines containing special information that needs to be parsed by
+This text file records messages from the GPS receiver. The messages can be a mix of ASCII and binary messages.
+Binary messages are hexadecimal-encoded. Some logging scripts record ancillary information, 
+such as commands sent to the receiver. Comments are allowed, prefaced by a `\#' character. 
+The `@' character can be used to tag lines containing special information that needs to be parsed by
 the processing software.
 
 Messages are successive lines of the form:
@@ -153,13 +124,12 @@ where the time difference is in seconds.\\
 00:00:04  +4.0821E-006 
 \end{lstlisting}
 
+
 \input{srcs/gpscvconf}
 
 \input{srcs/mktimetx}
 
 \input{srcs/runmktimetx}
-
-\input{srcs/runr2cggttsv8}
 
 \input{srcs/hp53131xlog}
 
@@ -223,18 +193,14 @@ JNS receivers have a number of specific configuration entries in \cc{gpscv.conf}
 
 \section{NVS NV08C receivers}
 
-\subsection{nv08log.pl}
+\subsection{nvslog.pl}
 \hypertarget{h:nvslog}{}
 
 The NVS receiver is entirely configured using the script.
 
 \subsection{nv08extract.pl}
 
-\hypertarget{h:nv08extract}{}
-
 \subsection{nv08info.pl}
-
-\hypertarget{h:nv08info}{}
 
 \section{Trimble Resolution T receivers}
 
@@ -246,20 +212,31 @@ The Resolution T receiver is entirely configured using the script.
 
 \subsection{restextract.pl}
 
-\hypertarget{h:restextract}{}
-
 \subsection{restinfo.pl}
-
-\hypertarget{h:restinfo}{}
 
 \subsection{restconfig.pl}
 
-\hypertarget{h:restconfig}{}
-
 \subsection{restplayer.pl}
 
-\input{srcs/ublox}
+\section{ublox NEO-M8T receivers}
 
+\subsection{ubloxlog.pl}
+
+\hypertarget{h:ubloxlog}{}
+
+This script is for use with the NEO-M8T.
+The ublox receiver is entirely configured using the script.
+
+\subsection{ublox9log.py}
+
+This script is for use with ublox series 9 receivers. 
+
+\hypertarget{h:ublox9log}{}
+
+\subsection{ubloxextract.py}
+
+
+\input{srcs/rxdelaycal}
 
 \section{Miscellaneous tools}
 

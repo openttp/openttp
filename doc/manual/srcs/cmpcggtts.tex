@@ -36,7 +36,7 @@ The command line options are:
 
 \subsubsection{examples}
 
-Basic common-view time transfer with CGGTTS files in the folders \cc{refrx} and \cc{remrx}
+Basic common-view time transfer with CGGTTS files in the folders \cc{refrx} and \cc{remrx}:
 \begin{lstlisting}[mathescape=true]
 cmpcggtts.py refrx remrx 57555 57556
 \end{lstlisting}
@@ -48,7 +48,7 @@ cmpcggtts.py --delaycal --refprefix GZAU01 --calprefix GZAU99 refrx remrx 57555 
 
 \subsubsection{}
 
-Time-transfer mode is the default. In this mode, a linear fit to the time-transfer data is made and the 
+The default is time-transfer. In this mode, a linear fit to the time-transfer data is made and the 
 fractional frequency error and REFSYS (evaluated at the midpoint of the data set) are outputted. 
 The uncertainties are estimated from the linear fit.
 

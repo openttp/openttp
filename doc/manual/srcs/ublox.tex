@@ -1,0 +1,41 @@
+\section{ublox receivers}
+
+\subsection{ublox9log.py}
+
+\hypertarget{h:ublox9log}{}
+
+This \cc{python3} script is used with ublox series 9 receivers like the ZED-F9P and ZED-F9T.
+The following messages are enabled for 1 Hz output:
+\begin{itemize}
+	\item RXM-RAWX 
+	\item TIM-TP
+	\item NAV-SAT (not logged)
+	\item NAV-TIMEUTC
+	\item NAV-CLOCK
+\end{itemize}
+
+The command line options are:
+\begin{description*}
+ \item[-h, -{}-help] print help and exit
+ \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
+ \item[-{}-debug, -d]           run in debugging mode
+ \item[-{}-reset, -r]           reset the receiver
+  \item[-{}-version, -v]        print version information and exit
+\end{description*}
+
+A status file is written once per minute, containing the SV identifiers of  tracked satellites with
+code and time synchronization flags set.
+
+\subsection{ubloxlog.pl}
+
+\hypertarget{h:ubloxlog}{}
+
+The ublox receiver is entirely configured using the script.
+
+\subsection{ubloxextract.py}
+
+\hypertarget{h:ubloxextract}{}
+
+\subsection{ubloxmkdev.py}
+
+\hypertarget{h:ubloxmkdev}{}
