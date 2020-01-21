@@ -1,7 +1,9 @@
 \subsection{cggttsqc.py}
 
+\hypertarget{h:cggttsqc}{}
+
 \cc{cggttsqc.py} performs various checks on CGGTTS files.
-Running it on a single CGGTTS file with no options will produce the  output like:
+Running it on a single CGGTTS file with no options will produce output like:
 
 \begin{tabular}{lrrrrrr}
 File         & Tracks  & Short & min SV & max SV   &  DSG  &  elv \\
@@ -28,9 +30,9 @@ The command line options are:
 	\item[-{}-nowarn]   suppress warnings (eg about missing files, bad formatting in CGGTTS files)
 	\item[-{}-DSG DSG]  set the upper limit for acceptable DSG. The units are ns.
 	\item[-{}-elevation ELEVATION] set the lower limit for acceptable elevation. The units are degrees.
-	\item[-{}-tracklength  ELEVATION] set the lower limit for acceptable track length. The units seconds.
+	\item[-{}-tracklength  ELEVATION] set the lower limit for acceptable track length. The units are seconds.
 	\item[-{}-checkheader] show when significant fields in the header change, for example the delays.
-	\item[-{}-sequence, -s] interpret the input files as a sequence.
+	\item[-{}-sequence, -s] interpret the input filenames as a sequence.
 	\item[-{}-version,-v] show the version information and exit
 \end{description*}
 Mutiple files can be checked and a sequence can be specified with two file names and the \cc{--sequence} option.

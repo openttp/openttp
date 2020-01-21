@@ -166,7 +166,7 @@ where the time difference is in seconds.\\
 \section{okxemlog.pl}
 \hypertarget{h:okxemlog}{}
 The OpenTTP reference platform includes a multi-channel TIC and this script communicates with the daemon
-\cc{okcounterd}. The script will exit if no data is returned for more than two minutes.
+\cc{okcounterd}. The script will exit if no data are returned for more than two minutes.
 
 The command line options are:
 \begin{description*}
@@ -184,91 +184,29 @@ It has the following specific configuration file entries:
 \section{prs10log.pl}
 \hypertarget{h:prs10log}{}
 
-\section{ticclog.py}
-\hypertarget{h:ticclog}{}
+\input{srcs/ticclog}
 
-\cc{ticclog.py} is used to log data from a TAPR Timestamping/TIme Interval Counter (TICC).
-See \cc{https://www.tapr.org/kits\_ticc.html} for more information about this counter.
+\input{srcs/javad}
 
-The command line options are:
-\begin{description*}
- \item[-h, -{}-help] print help and exit
- \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
- \item[-{}-debug, -d]           run in debugging mode
- \item[-{}-settings, -s]        print the counter settings
-  \item[-{}-version, -v]        print version information and exit
-\end{description*}
+\input{srcs/nvs}
 
-There are no specific configuration file entries for this script.
-
-\section{Javad/Topcon receivers}
-
-\subsection{jnslog.pl}
-\hypertarget{h:jnslog}{}
-There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
-
-Configuration commands in \cc{gpscv.conf} specific to this receiver are:
-
-JNS receivers have a number of specific configuration entries in \cc{gpscv.conf}:
-\begin{itemize}
-\item \hyperlink{h:configuration}{receiver::configuration}
-\item \hyperlink{h:pps_synchronization}{receiver::pps synchronization}
-\item \hyperlink{h:pps_synchronization_delay}{receiver::pps synchronization delay}
-\item \hyperlink{h:rinex_l1l2}{paths::rinex l1l2}
-\end{itemize}
-
-\subsection{jnsextract.pl}
-
-\subsection{runrinexobstc.pl}
-
-\section{NVS NV08C receivers}
-
-\subsection{nv08log.pl}
-\hypertarget{h:nvslog}{}
-
-The NVS receiver is entirely configured using the script.
-
-\subsection{nv08extract.pl}
-
-\hypertarget{h:nv08extract}{}
-
-\subsection{nv08info.pl}
-
-\hypertarget{h:nv08info}{}
-
-\section{Trimble Resolution T receivers}
-
-\subsection{restlog.pl}
-
-\hypertarget{h:restlog}{}
-
-The Resolution T receiver is entirely configured using the script.
-
-\subsection{restextract.pl}
-
-\hypertarget{h:restextract}{}
-
-\subsection{restinfo.pl}
-
-\hypertarget{h:restinfo}{}
-
-\subsection{restconfig.pl}
-
-\hypertarget{h:restconfig}{}
-
-\subsection{restplayer.pl}
+\input{srcs/trimble}
 
 \input{srcs/ublox}
 
 
 \section{Miscellaneous tools}
 
-\input{srcs/cggttsqc.tex}
+\input{srcs/cggttsqc}
 
-\input{srcs/cmpcggtts.tex}
+\input{srcs/cmpcggtts}
 
-\input{srcs/editrnxnav.tex}
+\input{srcs/editcggtts}
 
-\subsection{editrnxobs.py}
+\input{srcs/editrnxnav}
+
+\input{srcs/editrnxobs}
 
 \subsection{fetchigs.py}
+
+\input{srcs/ticqc}
