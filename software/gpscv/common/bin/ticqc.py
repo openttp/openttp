@@ -32,9 +32,14 @@ import os
 import re
 import sys
 
+VERSION = "0.1.0"
+AUTHORS = "Michael Wouters"
+
 parser = argparse.ArgumentParser(description='Quality check TIC files')
 parser.add_argument('infile',help='input file',type=str)
 parser.add_argument('--verbose',help='verbose output',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
+
 args = parser.parse_args()
 
 try:
@@ -45,9 +50,10 @@ except:
 
 tlast=-1
 nDuplicates=0
-dupCount =0
+dupCount = 0
 nGaps=0
 nMeas=0
+minRdg=maxRdg=0
 for l in fin:
 	l=l.rstrip()
 	if (l.find('#') >= 0):
@@ -55,6 +61,14 @@ for l in fin:
 	(tstamp,rdg)=l.split()
 	match = re.match('^(\d{2}):(\d{2}):(\d{2})',tstamp)
 	if (match):
+		fRdg = float(rdg)
+		if (nMeas == 0):
+			minRdg = maxRdg = fRdg
+		else:
+			if (fRdg > maxRdg):
+				maxRdg = fRdg
+			if (fRdg < minRdg):
+				minRdg = fRdg
 		nMeas += 1
 		t = int(match.group(1))*3600 + int(match.group(2))*60 + int(match.group(3))
 		if (tlast==-1):
@@ -83,3 +97,4 @@ fin.close()
 sys.stdout.write('Measurements=' + str(nMeas)+'\n')
 sys.stdout.write('Duplicates=' + str(nDuplicates)+'\n')
 sys.stdout.write('Gaps=' + str(nGaps)+'\n')
+sys.stdout.write('Range=[' + str(minRdg)+ ',' + str(maxRdg) + ']\n')
