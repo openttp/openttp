@@ -39,9 +39,10 @@ import urllib2
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 AUTHORS = "Michael Wouters"
 
+# RINEX V3 constellation identifiers
 BEIDOU='C'
 GALILEO='E'
 GLONASS='R'
@@ -102,6 +103,18 @@ def MJDtoGPSWeekDay(mjd):
 	GPSday = (ttGPS - GPSWn*86400*7)/86400
 	return (GPSWn, GPSday)
 
+def GNSStoNavDirectory(gnss):
+	if (BEIDOU == gnss): # CN in 'f'
+		return 'f'
+	elif (GALILEO == gnss): # EN in 'l'
+		return 'l'
+	elif (GLONASS == gnss): 	# RN in 'g'
+		return 'g'
+	elif (GPS == gnss): # GN in 'n'
+		return 'n'
+	elif (MIXED == gnss): # MN in 'p'
+		return 'p'
+
 # ---------------------------------------------
 def FetchFile(url,destination):
 	Debug('Downloading '+ url)
@@ -144,11 +157,11 @@ parser.add_argument('--clocks',help='get clock products (.clk)',action='store_tr
 parser.add_argument('--orbits',help='get orbit products (.sp3)',action='store_true')
 
 group = parser.add_mutually_exclusive_group()
-group.add_argument('--rapid',help='fetch rapid products',action='store_true')
-group.add_argument('--final',help='fetch final products',action='store_true')
+group.add_argument('--rapid',help='get rapid products',action='store_true')
+group.add_argument('--final',help='get final products',action='store_true')
 
-parser.add_argument('--centre',help='set data centres',default='cddis')
-parser.add_argument('--listcentres','-l',help='list available data centres',action='store_true')
+parser.add_argument('--centre',help='set the data centre',default='cddis')
+parser.add_argument('--listcentres','-l',help='list the configured data centres',action='store_true')
 
 parser.add_argument('--observations',help='get station observations',action='store_true')
 parser.add_argument('--statid',help='station identifier (eg V3 SYDN00AUS, V2 sydn)')
@@ -281,14 +294,21 @@ for m in range(start,stop+1):
 	if (args.ephemeris):
 		if (rnxVersion == 2):
 			yy = yyyy-100*int(yyyy/100)
-			fname = 'brdc{:03d}0.{:02d}n.Z'.format(doy,yy)
-			url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
+			brdcName = 'brdc'
+			if (args.statid):
+				brdcName = args.statid
+			fname = '{}{:03d}0.{:02d}n.Z'.format(brdcName,doy,yy)
+			if (dataCentre == 'cddis'):
+				url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
+			else:
+				url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,brdcPath,yyyy,doy,fname)
 			FetchFile(url,'{}/{}'.format(outputdir,fname))
 		elif (rnxVersion == 3):
 			fname = '{}_R_{:04d}{:03d}0000_01D_{}N.rnx.gz'.format(stationID,yyyy,doy,gnss)
-			if (dataCentre == 'cddis'):		
+			if (dataCentre == 'cddis'):
 				yy = yyyy-100*int(yyyy/100)
-				url = '{}/{}/{:04d}/{:03d}/{:02d}p/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,fname)
+				url = '{}/{}/{:04d}/{:03d}/{:02d}{}/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,
+					GNSStoNavDirectory(gnss),fname)
 			else:
 				url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
 			FetchFile(url,'{}/{}'.format(outputdir,fname))
@@ -296,8 +316,25 @@ for m in range(start,stop+1):
 	if (args.observations):
 		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
 		if (rnxVersion == 2):
-			pass
+			if (gnss == MIXED):
+				yy = yyyy-100*int(yyyy/100)
+				fname = '{}{:03d}0.{}o.Z'.format(stationID,doy,yy)
+				if (dataCentre == 'cddis'):
+					url = '{}/{}/{:04d}/{:03d}/{:02d}o/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,fname)
+				else:
+					url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
+			else:
+				print 'Warning: only mixed observation files are downloaded - skipping ...'
 		elif (rnxVersion == 3):
-			fname = '{}_R_{:04d}{:03d}0000_01D_30S_{}O.crx.gz'.format(stationID,yyyy,doy,gnss)
-			url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
-			FetchFile(url,'{}/{}'.format(outputdir,fname))
+			if (gnss == MIXED):
+				fname = '{}_R_{:04d}{:03d}0000_01D_30S_{}O.crx.gz'.format(stationID,yyyy,doy,gnss)
+				if (dataCentre == 'cddis'):	
+					# MO in 'd'
+					yy = yyyy-100*int(yyyy/100)
+					url = '{}/{}/{:04d}/{:03d}/{:02d}d/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,fname)
+				else:	
+					url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
+			else:
+				print 'Warning: only mixed observation files are downloaded - skipping ...'
