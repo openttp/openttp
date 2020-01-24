@@ -1,0 +1,103 @@
+\subsection{fetchigs.py}
+
+\hypertarget{h:fetchigs}{}
+
+\cc{fetchigs.py} uses the Python library \cc{urllib} to download GNSS products and station observation
+files from IGS data centres. You will need a configuration file that sets up downloads from at least one IGS data
+centre. The sample configuration file should be sufficient for most uses.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+fetchigs.py [OPTION] $\ldots$ <start> [<stop>]
+\end{lstlisting}
+
+The \cc{start} and \cc{stop} times can be in the format:
+\begin{description*}
+\item[MJD] Modified Julian Date
+\item[yyyy-doy] year and day of year (1 \textellipsis)
+\item[yyyy-mm-dd] year, month (1-12) and day (1 \textellipsis)
+\end{description*}
+
+The command line options are:
+\begin{description*}
+	\item[-{}-help, -h] print help and exit
+	\item[-{}-config \textless CONFIG \textgreater] , -c use this configuration file
+	\item[-{}-debug, -d]           print debugging output to stderr
+	\item[-{}-outputdir \textless DIR \textgreater] set the output directory
+	\item[-{}-ephemeris]           get broadcast ephemeris
+	\item[-{}-clocks]              get clock products (.clk)
+	\item[-{}-orbits]              get orbit products (.sp3)
+	\item[-{}-rapid]               fetch rapid products
+	\item[-{}-final]               fetch final products
+	\item[-{}-centre \textless CENTRE \textgreater]       set data centres
+	\item[-{}-listcentres, -l]     list available data centres
+	\item[-{}-observations]        get station observations (only mixed observations for V3)
+	\item[-{}-statid \textless STATID \textgreater]      station identifier (eg V3 SYDN00AUS, V2 sydn)
+	\item[-{}-rinexversion \textless 2,3 \textgreater ]  rinex version of station observation files
+	\item[-{}-system \textless SYSTEM \textgreater]      gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED
+	\item[-{}-noproxy]             disable use of proxy server
+	\item[-{}-proxy \textless PROXY \textgreater]    set your proxy server (server:port)
+	\item[-{}-version, -v ]       print version information and exit
+\end{description*}
+
+\subsubsection{examples}
+
+This downloads V3 mixed observation files from the IGS station CEDU, with the identifier CEDU00AUS
+for days 10 to 12 in 2020.\\
+\begin{lstlisting}
+fetchigs.py --centre CDDIS --observations --statid CEDU00AUS --version 3 --system MIXED 2010-10 2020-12
+\end{lstlisting}
+
+This downloads final IGS clock and orbit products for MJD 58606 from the CDDIS data centre.\\
+\begin{lstlisting}
+fetchigs.py --centre CDDIS --clocks --orbits --final 58606
+\end{lstlisting}
+
+\subsubsection{configuration file}
+
+The \cc{[Main]} section has two keys.
+
+{\bfseries Data centres}\\
+This is a comma-separated list of sections which define IGS data centres which can be used to download data.\\
+\textit{Example:}
+\begin{lstlisting}
+Data centres = CDDIS,GSSC
+\end{lstlisting}
+
+{\bfseries Proxy server}\\
+This sets a proxy server (and port) to be used for downloads.\\
+\textit{Example:}
+\begin{lstlisting}
+Proxy server = someproxy.in.megacorp.com:8080
+\end{lstlisting}
+
+Each defined IGS data centre has the following keys, defining various paths.
+
+{\bfseries Base URL}\\
+This sets the base URL for downloading files.\\
+\textit{Example:}
+\begin{lstlisting}
+Base URL = ftp://cddis.gsfc.nasa.gov
+\end{lstlisting}
+
+{\bfseries Broadcast ephemeris}\\
+This sets the path relative to the base URL for downloading broadcast ephemeris files.\\
+\textit{Example:}
+\begin{lstlisting}
+Broadcast ephemeris = gnss/data/daily
+\end{lstlisting}
+
+{\bfseries Products}\\
+This sets the path relative to the base URL for downloading IGS products.\\
+\textit{Example:}
+\begin{lstlisting}
+Products = gnss/products
+\end{lstlisting}
+
+{\bfseries Station data}\\
+This sets the path relative to the base URL for downloading IGS station RINEX files. \\
+\textit{Example:}
+\begin{lstlisting}
+Station Data = gnss/data/daily
+\end{lstlisting}
