@@ -187,6 +187,9 @@ def ConfigureReceiver(serport):
 
 	Debug('Configuring receiver')
 	
+	# Note that all configuration is only done in RAM
+	# It is not saved
+	
 	# GNSS tracking configuration 
 	# First, query the current configuration
 	# If the configuration is not being changed, then don't reconfigure
@@ -201,6 +204,7 @@ def ConfigureReceiver(serport):
 	
 	enabled = [BDS_ENA, GAL_ENA, GLO_ENA , GPS_ENA]
 	disabled = []
+	
 	if ('receiver:observations' in cfg):
 		obsv = cfg['receiver:observations'].lower()
 	
