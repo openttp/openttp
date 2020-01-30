@@ -284,6 +284,10 @@ def ConfigureReceiver(serport):
 	
 	# FIXME not actually implemented yet
 	
+	# FIXME temporary hack to enable BeiDou dual frequency
+	#    CLASS + ID    BYTE COUNT    VERSION + LAYER + reserved  payload 
+	msg=b'\x06\x8a' + b'\x08\x00' + b'\x00\x01\x00\x00'    +     BDS_B2_ENA 
+	SendCommand(serport,msg)
 	
 	# Navigation/measurement rate settings
 	ubxMsgs.add(b'\x06\x08')
