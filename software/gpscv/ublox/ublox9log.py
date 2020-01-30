@@ -443,7 +443,7 @@ if (None == re.search(r'\.$',dataExt)): # add a '.' separator if needed
 	dataExt = '.' + dataExt 
 
 dataFormat = OPENTTP_FORMAT
-if (not 'receiver:file format' in cfg):
+if ('receiver:file format' in cfg):
 	ff = cfg['receiver:file format'].lower()
 	if (ff == 'native'):
 		dataFormat = NATIVE_FORMAT;
