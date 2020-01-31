@@ -32,7 +32,7 @@ import os
 import re
 import sys
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -151,19 +151,30 @@ def CheckFile(fname):
 		Warn('Invalid format in {} line {}'.format(fname,lineCount))
 		return ({},{})
 	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('COMMENTS') == 0):
-		header['comments'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
+	comments = ''
+	
+	# Some incorrectly! formatted files have multiple COMMENTS lines.
+	# We'll fix this badness by concatenating the comments
+	# and then outputting as a single line ...
+	while True:
+		l = fin.readline().rstrip()
+		lineCount = lineCount +1
+		if not l:
+			Warn('Invalid format in {} line {}'.format(fname,lineCount))
+			return ({},{})
+		if (l.find('COMMENTS') == 0):
+			(tag,comment) = l.split('=',1)
+			comments = comments + comment.rstrip()
+		else:
+			break
+	
+	header['comments'] = comments
 	
 	# Delays can be described in several ways
 	
 	if (header['version'] == '01'):
-		l = fin.readline().rstrip()
-		lineCount = lineCount +1
+		#l = fin.readline().rstrip() # Already got the next line
+		#lineCount = lineCount +1
 		match = re.match('^INT\s+DLY\s+=\s+(.+)\s+ns$',l)
 		if (match):
 			header['int dly'] = match.group(1)
@@ -191,10 +202,11 @@ def CheckFile(fname):
 			
 	elif (header['version'] == '2E'):
 		
-		l = fin.readline().rstrip()
-		lineCount = lineCount +1
+		#l = fin.readline().rstrip() # Already got the next line
+		# lineCount = lineCount +1
 		
 		match = re.match('(TOT DLY|SYS DLY|INT DLY)',l)
+		
 		if (match.group(1) == 'TOT DLY'): # if TOT DLY is provided, then finito
 			(dlyname,dly) = l.split('=',1)
 			header['tot dly'] = dly.strip()
@@ -357,7 +369,7 @@ parser.add_argument('--dsg',help='upper limit for DSG, in ns',default=20)
 parser.add_argument('--elevation',help='lowerlimit for elevation, in degrees',default=10)
 parser.add_argument('--tracklength',help='lower limit for track length, in s',default=780)
 parser.add_argument('--checkheader',help='check for header changes',action='store_true')
-parser.add_argument('--sequence','-s',help='interpret input files as a sequence',action='store_true')
+parser.add_argument('--nosequence',help='do not interpret (two) input files as a sequence',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS);
 
 args = parser.parse_args()
@@ -368,9 +380,13 @@ minElevation = int(args.elevation) * 10 # in units of 0.1 ns
 minTrackLength = int(args.tracklength)
 maxDSG = int(args.dsg) * 10 # in units of 0.1 ns
 
-if (args.sequence):
-	if (2==len(args.infile)):
-		# Determine if the file names determine a sequence
+infiles = []
+
+if (2==len(args.infile)):
+	if (args.nosequence ): 
+		infiles = args.infile
+	else:
+		# Determine whether the file names determine a sequence
 		# For simplicity, any filename in standard BIPM CGTTS format or NNNNN.***
 		# First, need to strip the path
 		(path1,file1) = os.path.split(args.infile[0])
@@ -424,10 +440,20 @@ if (args.sequence):
 		# bail out if the sequence is not recognzied
 		if (not isSeq):
 			sys.stderr.write('The filenames do not form a recognised sequence\n')
-			exit()
-	else:
-		sys.stderr.write('Only two filenames are allowed with the --sequence option\n')
-		exit()
+			sys.exit()
+		# Make a list of files
+		for m in range(start,stop+1):
+			# Construct the file name
+			if (Plain == sequenceStyle):
+				fname = str(m) + file1ext
+				infiles.append(os.path.join(path1,fname))
+			elif (BIPM == sequenceStyle):
+				dd  = int(m/1000)
+				ddd = int(m - dd*1000)
+				fname = stub1 + '{:02d}.{:03d}'.format(dd,ddd)
+				infiles.append(os.path.join(path1,fname))
+else:
+	infiles = args.infile
 
 currHeader = {}
 stats = {}
@@ -437,35 +463,13 @@ prevFile = ''
 if (not args.checkheader):
 	print '{:12} {:6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format('File','Tracks','Short','min SV','max SV','DSG','elv')
 
-if (args.sequence): # if we got here, then a sequence is defined
-	for m in range(start,stop+1):
-		# Construct the file name
-		if (Plain == sequenceStyle):
-			fname = str(m) + file1ext
-			f = os.path.join(path1,fname)
-		elif (BIPM == sequenceStyle):
-			dd  = int(m/1000)
-			ddd = int(m - dd*1000)
-			fname = stub1 + '{:02d}.{:03d}'.format(dd,ddd)
-			f = os.path.join(path1,fname)
-		(currHeader,stats) = CheckFile(f)
-		if (currHeader and stats): # may not be readable
-			currFile = fname
-			if (not args.checkheader):
-				PrettyPrintStats(os.path.basename(f),stats)
-			if (prevHeader and args.checkheader):
-				CompareHeaders(prevFile,prevHeader,currFile,currHeader)
-			prevHeader = currHeader
-			prevFile = currFile
-else:
-	for f in args.infile:
-		(currHeader,stats) = CheckFile(f)
-		if (currHeader and stats): # may not be readable
-			currFile = os.path.basename(f)
-			if (not args.checkheader):
-				PrettyPrintStats(currFile,stats)
-			if (prevHeader and args.checkheader):
-				CompareHeaders(prevFile,prevHeader,currFile,currHeader)
-			prevHeader = currHeader
-			prevFile = currFile
-			
+for f in infiles:
+	(currHeader,stats) = CheckFile(f)
+	if (currHeader and stats): # may not be readable
+		currFile = os.path.basename(f)
+		if (not args.checkheader):
+			PrettyPrintStats(currFile,stats)
+		if (prevHeader and args.checkheader):
+			CompareHeaders(prevFile,prevHeader,currFile,currHeader)
+		prevHeader = currHeader
+		prevFile = currFile
