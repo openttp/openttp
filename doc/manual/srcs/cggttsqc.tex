@@ -32,13 +32,21 @@ The command line options are:
 	\item[-{}-elevation ELEVATION] set the lower limit for acceptable elevation. The units are degrees.
 	\item[-{}-tracklength  ELEVATION] set the lower limit for acceptable track length. The units are seconds.
 	\item[-{}-checkheader] show when significant fields in the header change, for example the delays.
-	\item[-{}-sequence, -s] interpret the input filenames as a sequence.
+	\item[-{}-nosequence, -s] do not interpret (two) input filenames as a sequence.
 	\item[-{}-version,-v] show the version information and exit
 \end{description*}
-Mutiple files can be checked and a sequence can be specified with two file names and the \cc{--sequence} option.
+
+\subsubsection{examples}
+
+Mutiple files can be checked and a sequence can be specified with two file names.
 For example:
 \begin{lstlisting}
-cggttsqc.py -s --DSG 5 GZAA0157.834 GZAA0157.876
+cggttsqc.py --DSG 5 GZAA0157.834 GZAA0157.876
 \end{lstlisting}
 will report on all files between MJDs 57834 and 57876, indicating in the DSG field the number of tracks with DSG greater
-than 5 ns.
+than 5 ns. For the two file names to be interpreted as a sequence, they must:
+\begin{enumerate}
+	\item have names in v2E CGGTTS recommended format or in the format MJD.xxx
+	\item be in the same directory
+	\item have the same extension, if in the format MJD.xxx
+\end{enumerate}

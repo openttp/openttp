@@ -32,7 +32,7 @@ import os
 import re
 import sys
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -154,8 +154,7 @@ def CheckFile(fname):
 	comments = ''
 	
 	# Some incorrectly! formatted files have multiple COMMENTS lines.
-	# We'll fix this badness by concatenating the comments
-	# and then outputting as a single line ...
+	commentCount = 0
 	while True:
 		l = fin.readline().rstrip()
 		lineCount = lineCount +1
@@ -165,9 +164,11 @@ def CheckFile(fname):
 		if (l.find('COMMENTS') == 0):
 			(tag,comment) = l.split('=',1)
 			comments = comments + comment.rstrip()
+			commentCount = commentCount + 1
 		else:
 			break
-	
+	if (commentCount > 1):
+		Warn('Invalid format in {} line {}: too many comment lines'.format(fname,lineCount))
 	header['comments'] = comments
 	
 	# Delays can be described in several ways
@@ -359,8 +360,12 @@ def PrettyPrintStats(fname,stats):
 Plain = 0
 BIPM  = 1
 
+examples =  'Usage examples\n'
+examples += '1. Check all files between MJDs 58654 and 58660\n'
+examples += '  cggttsqc.py ~/cggtts/GZAU0158.654   ~/cggtts/GZAU0158.660\n'
+
 parser = argparse.ArgumentParser(description='Quality check CGGTTS files',
-	formatter_class=argparse.RawDescriptionHelpFormatter)
+	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
 
 parser.add_argument('infile',nargs='+',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
