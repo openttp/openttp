@@ -58,7 +58,7 @@ def CheckFile(fname):
 	
 	header={}
 	(header,warnings,checksumOK) = cggttslib.ReadHeader(fname)
-	if (header == None):
+	if (not header):
 		Warn(warnings)
 		return ({},{})
 	if (not(warnings == '')): # header OK, but there was a warning
@@ -157,13 +157,9 @@ def PrettyPrintStats(fname,stats):
 # ------------------------------------------
 # Main
 
-# Sequence styles
-Plain = 0
-BIPM  = 1
-
 examples =  'Usage examples\n'
 examples += '1. Check all files between MJDs 58654 and 58660\n'
-examples += '  cggttsqc.py ~/cggtts/GZAU0158.654   ~/cggtts/GZAU0158.660\n'
+examples += '   cggttsqc.py ~/cggtts/GZAU0158.654   ~/cggtts/GZAU0158.660\n'
 
 parser = argparse.ArgumentParser(description='Quality check CGGTTS files',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
@@ -192,72 +188,10 @@ if (2==len(args.infile)):
 	if (args.nosequence ): 
 		infiles = args.infile
 	else:
-		# Determine whether the file names determine a sequence
-		# For simplicity, any filename in standard BIPM CGTTS format or NNNNN.***
-		# First, need to strip the path
-		(path1,file1) = os.path.split(args.infile[0])
-		(path2,file2) = os.path.split(args.infile[1])
-		if (path1 != path2):
-			sys.stderr.write('The paths have to be the same for a sequence\n')
-			exit()
-		# Now try to guess the sequence
-		# The extension has to be the same
-		(file1root,file1ext) = os.path.splitext(file1)
-		(file2root,file2ext) = os.path.splitext(file2)
-		
-		isSeq=False
-		# First, test for 'plain' file names
-		Debug('Sequence {} -> {}'.format(file1,file2))
-		match1 = re.match('^(\d+)$',file1root)
-		match2 = re.match('^(\d+)$',file2root)
-		if (match1 and match2):
-			if (file1ext != file2ext):
-				sys.stderr.write('The file extensions have to be the same for a sequence\n')
-				exit()
-			isSeq = True
-			sequenceStyle = Plain
-			start = int(match1.group(1)) # NOTE that this won't work with names padded with leading zeroes
-			stop  = int(match2.group(1))
-			if (start > stop):
-				tmp = stop
-				stop = start
-				start = tmp
-			Debug('Numbered file sequence: {}->{}'.format(start,stop))
-		if (not isSeq): # try for BIPM style
-			match1 = re.match('^([G|R|E|C|J][S|M|Z][A-Za-z]{2}[0-9_]{2})(\d{2})\.(\d{3})$',file1)
-			match2 = re.match('^([G|R|E|C|J][S|M|Z][A-Za-z]{2}[0-9_]{2})(\d{2})\.(\d{3})$',file2)
-			if (match1 and match2):
-				stub1 = match1.group(1)
-				stub2 = match2.group(1)
-				if (stub1 == stub2):
-					start  = int(match1.group(2) + match1.group(3))
-					stop   = int(match2.group(2) + match2.group(3))
-					if (start > stop):
-						tmp = stop
-						stop = start
-						start = tmp
-					isSeq = True
-					sequenceStyle = BIPM
-					Debug('BIPM file sequence: {} MJD {}->{}'.format(stub1,start,stop))
-				else:
-					isSeq = false
-			else:
-				isSeq = False
-		# bail out if the sequence is not recognzied
-		if (not isSeq):
-			sys.stderr.write('The filenames do not form a recognised sequence\n')
-			sys.exit()
-		# Make a list of files
-		for m in range(start,stop+1):
-			# Construct the file name
-			if (Plain == sequenceStyle):
-				fname = str(m) + file1ext
-				infiles.append(os.path.join(path1,fname))
-			elif (BIPM == sequenceStyle):
-				dd  = int(m/1000)
-				ddd = int(m - dd*1000)
-				fname = stub1 + '{:02d}.{:03d}'.format(dd,ddd)
-				infiles.append(os.path.join(path1,fname))
+		(infiles,warnings,badSequence) = cggttslib.MakeFileSequence(args.infile[0],args.infile[1])
+		if (badSequence):
+			Warn(warnings)
+			sys.exit(0)
 else:
 	infiles = args.infile
 

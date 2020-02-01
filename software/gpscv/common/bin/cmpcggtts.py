@@ -171,7 +171,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		
 	ver = CGGTTS_UNKNOWN
 	(header,warnings,checksumOK) = cggttslib.ReadHeader(fname)
-	if (header == None):
+	if (not header):
 		Warn(warnings)
 		return ([],[],{})
 	if (not(warnings == '')): # header OK, but there was a warning
