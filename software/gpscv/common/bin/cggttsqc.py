@@ -31,8 +31,11 @@ import argparse
 import os
 import re
 import sys
+# This is where cggttslib is installed
+sys.path.append("/usr/local/lib/python2.7/site-packages")
+import cggttslib
 
-VERSION = "0.1.3"
+VERSION = "0.2.0"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -48,226 +51,24 @@ def Warn(msg):
 	return
 
 # ------------------------------------------
+#
 def CheckFile(fname):
+	
 	Debug('Checking ' + fname)
-	try:
-		fin = open(fname,'r')
-	except:
-		Warn('Unable to open ' + fname)
-		# not fatal
-		return ({},{})
 	
-	intdly=''
-	cabdly=''
-	antdly=''
-	
-	# Read the header
 	header={}
-	lineCount=0
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	match = re.match('(GGTTS GPS DATA FORMAT VERSION|CGGTTS     GENERIC DATA FORMAT VERSION)\s+=\s+(01|2E)',l)
-	if (match):
-		header['version'] = match.group(2)
-		version = 1
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
+	(header,warnings,checksumOK) = cggttslib.ReadHeader(fname)
+	if (header == None):
+		Warn(warnings)
 		return ({},{})
+	if (not(warnings == '')): # header OK, but there was a warning
+		Warn(warnings)
 		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('REV DATE') >= 0):
-		(tag,val) = l.split('=')
-		header['rev date'] = val.strip()
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('RCVR') >= 0):
-		header['rcvr'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('CH') >= 0):
-		header['ch'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('IMS') >= 0):
-		header['ims'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('LAB') == 0):
-		header['lab'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})	
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	match = re.match('^X\s+=\s+(.+)\s+m$',l)
-	if (match):
-		header['x'] = match.group(1)
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	match = re.match('^Y\s+=\s+(.+)\s+m$',l)
-	if (match):
-		header['y'] = match.group(1)
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	match = re.match('^Z\s+=\s+(.+)\s+m$',l)
-	if (match):
-		header['z'] = match.group(1)
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-		
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('FRAME') == 0):
-		header['frame'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-	
-	comments = ''
-	
-	# Some incorrectly! formatted files have multiple COMMENTS lines.
-	commentCount = 0
-	while True:
-		l = fin.readline().rstrip()
-		lineCount = lineCount +1
-		if not l:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return ({},{})
-		if (l.find('COMMENTS') == 0):
-			(tag,comment) = l.split('=',1)
-			comments = comments + comment.rstrip()
-			commentCount = commentCount + 1
-		else:
-			break
-	if (commentCount > 1):
-		Warn('Invalid format in {} line {}: too many comment lines'.format(fname,lineCount))
-	header['comments'] = comments
-	
-	# Delays can be described in several ways
-	
-	if (header['version'] == '01'):
-		#l = fin.readline().rstrip() # Already got the next line
-		#lineCount = lineCount +1
-		match = re.match('^INT\s+DLY\s+=\s+(.+)\s+ns$',l)
-		if (match):
-			header['int dly'] = match.group(1)
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return ({},{})
-		
-		l = fin.readline().rstrip()
-		lineCount = lineCount +1
-		match = re.match('^CAB\s+DLY\s+=\s+(.+)\s+ns$',l)
-		if (match):
-			header['cab dly'] = match.group(1)
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return ({},{})
-		
-		l = fin.readline().rstrip()
-		lineCount = lineCount +1
-		match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
-		if (match):
-			header['ref dly'] = match.group(1)
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return ({},{})
-			
-	elif (header['version'] == '2E'):
-		
-		#l = fin.readline().rstrip() # Already got the next line
-		# lineCount = lineCount +1
-		
-		match = re.match('(TOT DLY|SYS DLY|INT DLY)',l)
-		
-		if (match.group(1) == 'TOT DLY'): # if TOT DLY is provided, then finito
-			(dlyname,dly) = l.split('=',1)
-			header['tot dly'] = dly.strip()
-		
-		elif (match.group(1) == 'SYS DLY'): # if SYS DLY is provided, then read REF DLY
-		
-			(dlyname,dly) = l.split('=',1)
-			header['sys dly'] = dly.strip()
-			
-			l = fin.readline().rstrip()
-			lineCount = lineCount +1
-			match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
-			if (match):
-				header['ref dly'] = match.group(1)
-			else:
-				Warn('Invalid format in {} line {}'.format(fname,lineCount))
-				return ({},{})
-				
-		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
-		
-			(dlyname,dly) = l.split('=',1)
-			header['int dly'] = dly.strip()
-			
-			l = fin.readline().rstrip()
-			lineCount = lineCount +1
-			match = re.match('^CAB\s+DLY\s+=\s+(.+)\s+ns$',l)
-			if (match):
-				header['cab dly'] = match.group(1)
-			else:
-				Warn('Invalid format in {} line {}'.format(fname,lineCount))
-				return ({},{})
-			
-			l = fin.readline().rstrip()
-			lineCount = lineCount +1
-			match = re.match('^REF\s+DLY\s+=\s+(.+)\s+ns$',l)
-			if (match):
-				header['ref dly'] = match.group(1)
-			else:
-				Warn('Invalid format in {} line {}'.format(fname,lineCount))
-				return ({},{})
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('REF') == 0):
-		(tag,val) = l.split('=')
-		header['ref'] = val.strip()
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-	
-	l = fin.readline().rstrip()
-	lineCount = lineCount +1
-	if (l.find('CKSUM') == 0):
-		cksumok = True # TODO check the checksum
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return ({},{})
-		
-	for l in fin:
-		lineCount = lineCount +1
+	# OK to open the file
+	fin = open(fname,'r')
+	lineCount = 0
+	for l in fin: # Re-read the header
+		lineCount += 1
 		l.rstrip()
 		if (l.find('.1ns.1ps') >= 0):
 			break
