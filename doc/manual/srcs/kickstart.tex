@@ -1,10 +1,15 @@
 \section{kickstart.pl \label{s:kickstart}}
 
-\cc{kickstart.pl} is used to periodically check that user processes are running,
-and restart them. It is used to start receiver and counter logging processes, for example.
+\cc{kickstart.pl} is used to check that required processes are running,
+and restart them if necessary. 
+It is used to start the receiver and counter logging processes, for example.
 
-The lock file for each process (target) contains the running process ID; this is used to test whether the
-target is running.
+The lock file for each process (target) contains the running process ID; 
+this is used by \cc{kickstart.pl} to test whether the target is running.
+
+\cc{kickstart.pl} produces a log file in the user's home directory, \cc{logs/kickstart.log}. Each time 
+a process is checked, it touches the file \cc{logs/kickstart.target.check}, where \cc{target} is
+specified in the configuration file.
 
 \subsection{usage}
 
@@ -14,7 +19,7 @@ kickstart.pl [OPTION] $\ldots$
 \end{lstlisting}
 The command line options are:
 \begin{description*}
-	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-c  FILE] use the specified configuration file
 	\item[-d]	run in debugging mode
 	\item[-h]	print help and exit
 	\item[-v]	print version information and exit
@@ -31,16 +36,15 @@ command = bin/okxemlog.pl
 lock file = logs/okxem.gpscv.lock
 \end{lstlisting}
 
-
 {\bfseries targets}\\
 This defines a list of sections, each of which corresponds to a process to monitor.\\
 \textit{Example:}
 \begin{lstlisting}
-targets = restlog , okxem
+targets = restlog,okxem
 \end{lstlisting}
 
 {\bfseries target}\\
-This defines a target identifier. It is used to construct filenames and in logged messages.\\
+This defines a target identifier. It is used to construct filenames and as an identifier in logged messages.\\
 \textit{Example:}
 \begin{lstlisting}
 target = okxem
@@ -60,9 +64,6 @@ This defines the lock file associated with a target.\\
 lock file = logs/okxem.gpscv.lock
 \end{lstlisting}
 
+Paths specified in the configuration file are constructed using the usual rules.
 
 
-\subsection{log file}
-
-\cc{kickstart.pl} produces a log file in the user's home directory, \cc{logs/kickstart.log}. Each time 
-a process is checked, it touches the file \cc{logs/kickstart.target.check}.

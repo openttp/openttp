@@ -3,11 +3,56 @@
 
 \subsection{libconfigurator}
 
+This is a C library used for parsing of configuration files. 
+It is mainly used by \cc{mktimetx}.
+
+The configuration file is read using
+\begin{lstlisting}
+int configfile_parse_as_list(ListEntry **first,const char *filename)
+\end{lstlisting}
+This returns a pointer to the first item in a linked list of \cc{ListEntry}, which describe entries in the configuration file.
+
+Functions are provided for searching the list for an entry by section and key (token) name, returning a value of the
+required type.  
+
+\begin{lstlisting}
+int list_get_int(ListEntry *first,const char *section,const char * token,int *value);
+int list_get_float(ListEntry *first,const char *section,const char * token,float *value);
+int list_get_double(ListEntry *first,const char *section,const char * token,double *value);
+int list_get_string(ListEntry *first,const char *section,const char * token,char **value);
+\end{lstlisting}
+
+The return value of the function flags whether or not an error occurred.
+The last error to occur is determined by calling:
+\begin{lstlisting}
+config_file_get_last_error()
+\end{lstlisting}
+
+The error codes are:
+\begin{lstlisting}
+NoError
+FileNotFound
+SectionNotFound
+InternalError
+ParseFailed
+TokenNotFound
+\end{lstlisting}
+
+\cc{list\_clear()} can be used to delete the list.
+
+This should be replaced one day by something based on the C++ STL!
+
 \subsection{TFLibrary.pm}
 
 This library is effectively deprecated because all new development is now in Python.
 
 \subsection{OpenOK2}
+
+This is a C++ library that can be used for communicating with the Opal Kelly FPGA board. It is 
+a fork of a library originally written by Jennifer Holt and now manintained by Jorge Francisco.
+Opal Kelly provides a similar library for a number of platforms. When OpenTTP development began,
+ARM support was not available hence the use of OpenOK2. One significant limitation 
+of the library is that it does not provide support for USB block transfers.
 
 \subsection{ottplib.py}
 
@@ -28,3 +73,45 @@ This library replaces \cc{TFLibrary.pm} for all new development.
 \subsection{cggttslib.py}
 
 This library provides some functions for reading and manipulating CGGTTS files.
+
+\subsubsection{CheckSum()}
+
+This computes the checksum of a string using the algorithm described in
+the CGGTTS specification. It takes one argument, the string to be checksummed, and
+returns the checksum as an integer.
+
+\subsubsection{ReadHeader()}
+
+This reads the CGGTTS header and returns the fields in a Python dictionary.
+Dictionary keys are the same as in the header. For example, \cc{REV DATE} 
+has the key 'rev date' associated with it. The exceptions to this are the delays
+\cc{INT DLY}, \cc{SYS DLY} and \cc{TOT DLY}. For convenience, these are further
+broken down.
+
+The function takes one argument, a file name and returns a list containing
+the dictionary and any error messages as a single string. 
+An empty dictionary is returned if:
+\begin{enumerate}
+\item the file cannot be opened
+\item there is a formatting error in the header
+\end{enumerate}
+If the calculated checksum does not match the value in the header, an error message is returned.
+
+\subsubsection{MakeFileSequence()}
+
+\cc{MakeFileSequence} interpolates a sequence of file names between two file names.
+For example, if the two input file names are \cc{GZAU0158.532} and \cc{GZAU0158.537},
+file names with MJDs ranging from 58532 through to 58537 are generated. The generated file names are 
+returned as a Python list.
+
+File names in two formats can be interpolated:
+\begin{enumerate}
+\item names in the format \cc{MJD.ext} where \cc{MJD} is a five digit MJD and \cc{ext}, the file extension, is arbitrary.
+\item the format recommended in the CGGTTS v2E specification eg GZAU0158.532 
+\end{enumerate}
+
+For a sequence to be generated, the two file names must:
+\begin{enumerate}
+\item have the same path
+\item have the same extension
+\end{enumerate}

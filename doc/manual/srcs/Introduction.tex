@@ -13,10 +13,12 @@ The goals of the OpenTTP project are:
 \begin{enumerate}
 
 	\item Fully open source hardware and software 
+		\footnote{The Reference Platform uses some black-box software modules supplied by the FPGA vendor which cannot be freely distributed.}
 	
 	\item Easy customisation for specialised applications
 	
-	\item Production of time-transfer files in the standard CGGTTS data format
+	\item Production of time-transfer files in the standard CGGTTS data format 
+		(currently for GPS only)
 	
 	\item Easy extension to new receivers
 
@@ -35,15 +37,18 @@ It is available via GitHub:
 \begin{lstlisting}
 https://github.com/openttp
 \end{lstlisting}
-and users are invited to contribute to its development.
+Users are invited to contribute to its development.
 
-The software currently supports a number of GNSS receivers and counters. 
-The supported GNSS receivers are mostly low-cost, single-frequency receivers since low cost is a key objective of 
-the OpenTTP project.
+The software supports a number of GNSS receivers and counters. 
+The supported GNSS receivers are mostly low-cost, single-frequency receivers
+since low cost is a key objective of the OpenTTP project. 
+Low-cost dual frequency receivers have recently become available and one of these,
+the ublox ZED-F9, is now supported by OpenTTP.
+
 	
 	\subsection{Supported GNSS receivers}
 	
-	OpenTTP currently supports the receivers listed in \ref{t:receivers}
+	OpenTTP currently supports the receivers listed in table \ref{t:receivers}.
 	
 	\begin{table}[h]
 	\begin{tabular}{lll}
