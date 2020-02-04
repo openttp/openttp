@@ -54,6 +54,11 @@ This downloads final IGS clock and orbit products for MJD 58606 from the CDDIS d
 fetchigs.py --centre CDDIS --clocks --orbits --final 58606
 \end{lstlisting}
 
+This downloads a \cc{brdc} broadcast ephemeris file.\\
+\begin{lstlisting}
+fetchigs.py --centre GSSC --ephemeris --system MIXED --rinexversion 2 58606
+\end{lstlisting}
+
 \subsubsection{configuration file}
 
 The \cc{[Main]} section has two keys.

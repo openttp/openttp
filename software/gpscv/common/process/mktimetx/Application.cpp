@@ -112,8 +112,10 @@ Application::Application(int argc,char **argv)
 	
 	while ((c=getopt_long(argc,argv,"c:d:hm:",longOptions,&longIndex)) != -1)
 	{
+		
 		switch(c)
 		{
+			
 			case 0: // long options
 				{
 					switch (longIndex)
@@ -204,6 +206,10 @@ Application::Application(int argc,char **argv)
 						case 12:// --short-debug-message
 							shortDebugMessage=true;
 							break;
+						default:
+							showHelp();
+							exit(EXIT_FAILURE);
+							break;
 					}
 				}
 				break;
@@ -247,8 +253,9 @@ Application::Application(int argc,char **argv)
 				}
 				break;
 			default:
+				showHelp();
+				exit(EXIT_FAILURE);
 				break;
-			
 		}
 	}
 

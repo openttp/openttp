@@ -187,6 +187,9 @@ def ConfigureReceiver(serport):
 
 	Debug('Configuring receiver')
 	
+	# Note that all configuration is only done in RAM
+	# It is not saved
+	
 	# GNSS tracking configuration 
 	# First, query the current configuration
 	# If the configuration is not being changed, then don't reconfigure
@@ -201,6 +204,7 @@ def ConfigureReceiver(serport):
 	
 	enabled = [BDS_ENA, GAL_ENA, GLO_ENA , GPS_ENA]
 	disabled = []
+	
 	if ('receiver:observations' in cfg):
 		obsv = cfg['receiver:observations'].lower()
 	
@@ -280,6 +284,10 @@ def ConfigureReceiver(serport):
 	
 	# FIXME not actually implemented yet
 	
+	# FIXME temporary hack to enable BeiDou dual frequency
+	#    CLASS + ID    BYTE COUNT    VERSION + LAYER + reserved  payload 
+	msg=b'\x06\x8a' + b'\x08\x00' + b'\x00\x01\x00\x00'    +     BDS_B2_ENA 
+	SendCommand(serport,msg)
 	
 	# Navigation/measurement rate settings
 	ubxMsgs.add(b'\x06\x08')
@@ -439,7 +447,7 @@ if (None == re.search(r'\.$',dataExt)): # add a '.' separator if needed
 	dataExt = '.' + dataExt 
 
 dataFormat = OPENTTP_FORMAT
-if (not 'receiver:file format' in cfg):
+if ('receiver:file format' in cfg):
 	ff = cfg['receiver:file format'].lower()
 	if (ff == 'native'):
 		dataFormat = NATIVE_FORMAT;

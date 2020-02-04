@@ -70,6 +70,15 @@ git checkout develop
 \caption{Overview of the OpenTTP software source}
 \end{figure}
 
+\subsection{Building the documentation}
+
+The documentation is written in LaTeX and uses some packages and fonts that are generally packaged as `extras'
+and will probably need to be installed. The various packages used can be inspected in the file
+\cc{doc/manual/OpenTTPManual.tex}.
+To build the documentation as a PDF, change directory to \cc{doc/manual} and run \cc{make}.
+
+\subsection{Installing the software}
+
 Two scripts are provided for building and installing the software.
 \begin{lstlisting}
 software/system/installsys.pl
@@ -87,26 +96,8 @@ Run \cc{installsys.pl -h} to see the options available.
 This may be helpful when trying to resolve problems with building the software.
 
 \cc{install.pl} will archive any existing scripts and binaries, and create any
-directories it needs in the current user's home directory.
-
-\section{Building the documentation}
-
-The documentation is written in LaTeX and uses some packages and fonts that are generally packaged as `extras'
-and will probably need to be installed. The various packages used can be inspected in the file
-\cc{doc/manual/OpenTTPManual.tex}.
-To build the documentation as a PDF, change directory to \cc{doc/manual} and run \cc{make}.
-
-\section{Common configuration problems}
-
-\subsection{UUCP lock file creation}
-
-UUCP lock files are used to prevent non-OTTP processes from opening serial ports while they are 
-in use. You need to set the location for lock file creation specific to the operating system, 
-and ensure that the OTTP user (cvgps typically) has the right permissions to write to this location. 
-This is typically achieved by adding the user to the appropriate group. 
-For example, on Ubuntu 18 the lock directory is \cc{/var/lock}. 
-In this case, the directory is world writeable, so 
-the OTTP user does not need to belong to any supplementary groups.
+directories it needs in the current user's home directory. 
+Run \cc{install.pl -h} to see the options available.
 
 \section{A minimal software setup}
 
@@ -141,4 +132,14 @@ You may also find the following useful:
 \end{description*}
 
 
+\section{Common configuration problems}
 
+\subsection{UUCP lock file creation}
+
+UUCP lock files are used to prevent non-OTTP processes from opening serial ports while they are 
+in use. You need to set the location for lock file creation specific to the operating system, 
+and ensure that the OTTP user (cvgps typically) has the right permissions to write to this location. 
+This is typically achieved by adding the user to the appropriate group. 
+For example, on Ubuntu 18 the lock directory is \cc{/var/lock}. 
+In this case, the directory is world writeable, so 
+the OTTP user does not need to belong to any supplementary groups.

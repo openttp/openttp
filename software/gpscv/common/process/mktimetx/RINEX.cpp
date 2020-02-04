@@ -948,17 +948,56 @@ bool RINEX::writeMixedNavigationFile(Receiver *rx,unsigned int constellations,
 	
 	std::fprintf(fout,"%60s%-20s\n"," ","END OF HEADER");
 	
-	//int nBDS=0,nGAL=0,nGLO=0,nGPS=0;
-	//int iBDS=0,iGAL=0,iGLO=0,iGPS=0;
-	//if (constellations & GNSSSystem::BEIDOU)  nBDS=rx->beidou.ephemeris.size();
-	//if (constellations & GNSSSystem::GALILEO) nGAL=rx->galileo.ephemeris.size();
-	//if (constellations & GNSSSystem::GLONASS) nGLO=rx->glonass.ephemeris.size();
-	//if (constellations & GNSSSystem::GPS)     nGPS=rx->gps.ephemeris.size();
+	int nBDS=0,nGAL=0,nGLO=0,nGPS=0;
+	int iBDS=0,iGAL=0,iGLO=0,iGPS=0;
+	time_t tBDS, tGAL, tGLO, tGPS,tMin=0; 
+	int nextGNSS;
 	
-	//while (iBDS < nBDS || iGAL < nGAL || iGLO < nGLO || 
+	if (constellations & GNSSSystem::BEIDOU)  nBDS=rx->beidou.ephemeris.size();
+	if (constellations & GNSSSystem::GALILEO) nGAL=rx->galileo.ephemeris.size();
+	if (constellations & GNSSSystem::GLONASS) nGLO=rx->glonass.ephemeris.size();
+	if (constellations & GNSSSystem::GPS)     nGPS=rx->gps.ephemeris.size();
 	
 	// Now combine the ephemerides in time order
-	// Each ephemeris is already time ordered but we need to fix up t_0c for week rollovers
+	// Each ephemeris is already time ordered so just have to interleave them 
+
+	while (iBDS < nBDS || iGAL < nGAL || iGLO < nGLO || iGPS < nGPS){
+	
+		// At each loop iteration, the current set of ephemerides
+		// for the GNSS (one for each GNSS) is tested to see which occurs 
+		// first and should thus be output next
+		
+		tMin = 0; // initializing tMin to 0 is safe
+		
+		if (iGAL < nGAL){ // this is skipped if nGAL == 0
+			tGAL = rx->galileo.ephemeris.at(iGAL)->t0cAbs;
+			if (tMin == 0 || tGAL <= tMin){ // 
+				tMin = tGAL;
+				nextGNSS = GNSSSystem::GALILEO;
+			}
+		}
+		
+		if (iGPS < nGPS){ 
+			tGPS = rx->gps.ephemeris.at(iGPS)->t0cAbs;
+			if (tMin == 0 || tGPS <= tMin){
+				tMin = tGPS;
+				nextGNSS = GNSSSystem::GPS;
+			}
+		}
+		
+		switch (nextGNSS){
+			case GNSSSystem::GALILEO:
+				std::fprintf(fout,"GAL %i %i\n",(int) rx->galileo.ephemeris.at(iGAL)->t0cAbs,
+					rx->galileo.ephemeris.at(iGAL)->svn());
+				iGAL++;
+				break;
+			case GNSSSystem::GPS:
+				std::fprintf(fout,"GPS %i %i\n",(int) rx->gps.ephemeris.at(iGPS)->t0cAbs,
+					rx->gps.ephemeris.at(iGPS)->svn());
+				iGPS++;
+				break;
+		}
+	}
 	
 	return true;
 }

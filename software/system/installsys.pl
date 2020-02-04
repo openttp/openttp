@@ -71,10 +71,10 @@ $SYSTEMD="systemd";
 	);
 
 @defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
-	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib",
+	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib","cggttslib",
 	"okcounterd","okbitloader","udevrules","gpscvperllibs");
 
-@minimaltargets = ("libconfigurator","tflibrary","kickstart","gziplogs","misc","ottplib");
+@minimaltargets = ("libconfigurator","tflibrary","kickstart","gziplogs","misc","ottplib","cggttslib");
 	
 $hints="";
 
@@ -221,55 +221,11 @@ if (grep (/^gpscvperllibs/,@targets)){
 
 # Installation of ottplib (Python module)
 if (grep (/^ottplib/,@targets)){
-	
-	$py2 = `which python2`;
-	$py3 = `which python3`;
-	
-	if ($py2 =~ /python2/){
-		$ver = `python2 -V 2>&1`; # output is to STDERR
-		chomp $ver;
-		$ver =~ /^Python\s+(\d)\.(\d)/;
-		$minorVer = $2;
-		
-		if ($minorVer >= 7){
-			$dir = $os[$i][4];
-			if (!(-e $dir)){
-				`mkdir -p $dir`;
-				`chmod a+rx $dir`;
-				Log("Created $dir\n",$ECHO);
-			}
-			`python -c "import py_compile;py_compile.compile('src/ottplib.py')"`;
-			`cp src/ottplib.py src/ottplib.pyc $dir`;
-			Log("Installed ottlib.py to $dir\n",$ECHO);
-		}
-		else{
-			Log("Python version is $ver - can't install\n",$ECHO);
-		}
-		 
-	}
-	
-	if ($py3 =~ /python3/){
-		$ver = `python3 -V 2>&1`; # output is to STDERR
-		chomp $ver;
-		$ver =~ /^Python\s+(\d)\.(\d)/;
-		$minorVer = $2;
-		
-		if ($minorVer >= 6){
-			$dir = $os[$i][5];
-			if (!(-e $dir)){
-				`mkdir -p $dir`;
-				`chmod a+rx $dir`;
-				Log("Created $dir\n",$ECHO);
-			}
-			`python -c "import py_compile;py_compile.compile('src/ottplib.py')"`;
-			`cp src/ottplib.py src/ottplib.pyc $dir`;
-			Log("Installed ottlib.py to $dir\n",$ECHO);
-		}
-		else{
-			Log("Python version is $ver - can't install\n",$ECHO);
-		}
-	}
-	
+	InstallPyModule('ottplib');
+}
+
+if (grep (/^cggttslib/,@targets)){
+	InstallPyModule('cggttslib');
 }
 
 if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
@@ -438,6 +394,62 @@ sub InstallScript
 	for ($i=0;$i<=$#targets;$i+=2){
 		`cp $targets[$i] $targets[$i+1]`;
 		Log("Copied $targets[$i] to $targets[$i+1]\n",$ECHO);
+	}
+	
+}
+
+# Installation a Python module
+#
+sub InstallPyModule
+{
+	$mod = $_[0];
+	
+	$py2 = `which python2`;
+	$py3 = `which python3`;
+	
+	if ($py2 =~ /python2/){
+		$ver = `python2 -V 2>&1`; # output is to STDERR
+		chomp $ver;
+		$ver =~ /^Python\s+(\d)\.(\d)/;
+		$minorVer = $2;
+		
+		if ($minorVer >= 7){
+			$dir = $os[$i][4];
+			if (!(-e $dir)){
+				`mkdir -p $dir`;
+				`chmod a+rx $dir`;
+				Log("Created $dir\n",$ECHO);
+			}
+			`python -c "import py_compile;py_compile.compile('src/$mod.py')"`;
+			`cp src/$mod.py src/$mod.pyc $dir`;
+			Log("Installed $mod.py to $dir\n",$ECHO);
+		}
+		else{
+			Log("Python version is $ver - can't install\n",$ECHO);
+		}
+		 
+	}
+	
+	if ($py3 =~ /python3/){
+		$ver = `python3 -V 2>&1`; # output is to STDERR
+		chomp $ver;
+		$ver =~ /^Python\s+(\d)\.(\d)/;
+		$minorVer = $2;
+		
+		if ($minorVer >= 6){
+			$dir = $os[$i][5];
+			if (!(-e $dir)){
+				`mkdir -p $dir`;
+				`chmod a+rx $dir`;
+				Log("Created $dir\n",$ECHO);
+			}
+			`python -c "import py_compile;py_compile.compile('src/$mod.py')"`;
+			`cp src/$mod.py src/$mod.pyc $dir`;
+			Log("Installed $mod.py to $dir\n",$ECHO);
+		}
+		else{
+			Log("Python version is $ver - can't install\n",$ECHO);
+		}
 	}
 	
 }

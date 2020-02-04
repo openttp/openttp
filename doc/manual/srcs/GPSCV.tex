@@ -116,6 +116,18 @@ defines three sections: \cc{c1-code}, \cc{p1-code}, and \cc{p2-code}.
 This is a bodge which would be more elegantly addressed using an extensible format like XML, 
 but it has proven to be sufficient for our needs.
 
+\subsection{Paths} \label{s:ConfigFilePaths}
+
+Paths to files  specified in a configuration file are constructed with the following 
+precedence:
+\begin{enumerate}
+\item If the path begins with a leading slash, then it is interpreted as an absolute path
+\item If a non-absolute path is specified, it is interpreted as being relative to 
+	the users's home directory (or where the configuration file allows specification of a different root path eg in \hyperlink{h:rootpath}{gpscv.conf}, relative to that root path) 
+\item Otherwise, the default path is used.
+\end{enumerate}
+Most software in OpenTTP follows these conventions.
+
 \section{Data file formats \label{s:DataFileFormat}}
 
 \subsection{GPS receiver}

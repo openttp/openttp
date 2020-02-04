@@ -41,7 +41,11 @@ import os
 import re
 import sys
 
-VERSION = "0.2.7"
+# This is where cggttslib is installed
+sys.path.append("/usr/local/lib/python2.7/site-packages")
+import cggttslib
+
+VERSION = "0.3.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -95,7 +99,6 @@ MEASURED_IONOSPHERE=2
 # operating mode
 MODE_TT=1 # default
 MODE_DELAY_CAL=2
-
 
 # ------------------------------------------
 def Debug(msg):
@@ -152,255 +155,7 @@ def SetDataColumns(ver,isdf):
 			CK = 20
 
 # ------------------------------------------
-def ReadCGGTTSHeader(fin,fname):
-	
-	intdly=''
-	cabdly=''
-	antdly=''
-	checksumStart=0 # workaround for R2CGGTTS output
-	
-	# Read the header
-	header={}
-	hdr=''; # accumulate header for checksumming
-	lineCount=0
-	l = fin.readline().rstrip()
-	hdr += l
-	lineCount = lineCount +1
-	match = re.search('DATA FORMAT VERSION\s+=\s+(01|02|2E)',l)
-	if (match):
-		header['version'] = match.group(1)
-	else:
-		if (re.search('RAW CLOCK RESULTS',l)):
-			header['version'] = 'RAW'
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-	
-	if not(header['version'] == 'RAW'):
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		if (l.find('REV DATE') >= 0):
-			(tag,val) = l.split('=')
-			header['rev date'] = val.strip()
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-		
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		if (l.find('RCVR') >= 0):
-			header['rcvr'] = l
-			match = re.search('R2CGGTTS\s+v(\d+)\.(\d+)',l)
-			if (match):
-				majorVer=int(match.group(1))
-				minorVer=int(match.group(2))
-				if ( (majorVer == 8 and minorVer <=1) ):
-					checksumStart = 1
-					Debug('Fixing checksum for R2CGGTTS v'+str(majorVer)+'.'+str(minorVer))
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		if (l.find('CH') >= 0):
-			header['ch'] = l
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-			
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		if (l.find('IMS') >= 0):
-			header['ims'] = l
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-		
-	l = fin.readline().rstrip()
-	hdr += l
-	lineCount = lineCount +1
-	if (l.find('LAB') == 0):
-		header['lab'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}	
-	
-	l = fin.readline().rstrip()
-	hdr += l
-	lineCount = lineCount +1
-	match = re.match('X\s+=\s+(.+)\s+m',l)
-	if (match):
-		header['x'] = match.group(1)
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
-	
-	l = fin.readline().rstrip()
-	hdr += l
-	lineCount = lineCount +1
-	match = re.match('Y\s+=\s+(.+)\s+m',l)
-	if (match):
-		header['y'] = match.group(1)
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
-		
-	l = fin.readline().rstrip()
-	hdr += l
-	lineCount = lineCount +1
-	match = re.match('Z\s+=\s+(.+)\s+m',l)
-	if (match):
-		header['z'] = match.group(1)
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
-		
-	l = fin.readline().rstrip()
-	hdr += l
-	lineCount = lineCount +1
-	if (l.find('FRAME') == 0):
-		header['frame'] = l
-	else:
-		Warn('Invalid format in {} line {}'.format(fname,lineCount))
-		return {}
-	
-	comments = ''
-	while True:
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		if not l:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-		if (l.find('COMMENTS') == 0):
-			comments = comments + l +'\n'
-		else:
-			break
-	
-	header['comments'] = comments
-	
-	if (header['version'] == '01' or header['version'] == '02'):
-		#l = fin.readline().rstrip()
-		#lineCount = lineCount +1
-		match = re.match('INT\s+DLY\s+=\s+(.+)\s+ns',l)
-		if (match):
-			header['int dly'] = match.group(1)
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			print l
-			return {}
-		
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
-		if (match):
-			header['cab dly'] = match.group(1)
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			print l
-			return {}
-		
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
-		if (match):
-			header['ref dly'] = match.group(1)
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-			
-	elif (header['version'] == '2E' or header['version'] == 'RAW'):
-		
-		#l = fin.readline().rstrip()
-		#lineCount = lineCount +1
-		
-		match = re.match('(TOT DLY|SYS DLY|INT DLY)',l)
-		if (match.group(1) == 'TOT DLY'): # if TOT DLY is provided, then finito
-			(dlyname,dly) = l.split('=',1)
-			header['tot dly'] = dly.strip()
-		
-		elif (match.group(1) == 'SYS DLY'): # if SYS DLY is provided, then read REF DLY
-		
-			(dlyname,dly) = l.split('=',1)
-			header['sys dly'] = dly.strip()
-			
-			l = fin.readline().rstrip()
-			hdr += l
-			lineCount = lineCount +1
-			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
-			if (match):
-				header['ref dly'] = match.group(1)
-			else:
-				Warn('Invalid format in {} line {}'.format(fname,lineCount))
-				return {}
-				
-		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
-		
-			(dlyname,dly) = l.split('=',1)
-			# extra spaces in constellation and code for r2cggtts
-			match = re.search('([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
-			if (match):
-				header['int dly'] = match.group(1)
-				header['int dly code'] = match.group(2) # non-standard but convenient
-				if (not(match.group(5) == None) and not (match.group(5) == None)):
-					header['int dly 2'] = match.group(4) 
-					header['int dly code 2'] = match.group(5) 
-			else:
-				Warn('Invalid format in {} line {}'.format(fname,lineCount))
-				return {}
-				
-			l = fin.readline().rstrip()
-			hdr += l
-			lineCount = lineCount +1
-			match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
-			if (match):
-				header['cab dly'] = match.group(1)
-			else:
-				Warn('Invalid format in {} line {}'.format(fname,lineCount))
-				return {}
-			
-			l = fin.readline().rstrip()
-			hdr += l
-			lineCount = lineCount +1
-			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
-			if (match):
-				header['ref dly'] = match.group(1)
-			else:
-				Warn('Invalid format in {} line {}'.format(fname,lineCount))
-				return {}
-	if not (header['version'] == 'RAW'):
-		l = fin.readline().rstrip()
-		hdr += l
-		lineCount = lineCount +1
-		if (l.find('REF') == 0):
-			(tag,val) = l.split('=')
-			header['ref'] = val.strip()
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-		
-		l = fin.readline().rstrip()
-		lineCount = lineCount +1
-		if (l.find('CKSUM') == 0):
-			hdr += 'CKSUM = '
-			(tag,val) = l.split('=')
-			cksum = int(val,16)
-			if (not(CheckSum(hdr[checksumStart:]) == cksum)):
-				if (enforceChecksum):
-					sys.stderr.write('Bad checksum in header of ' + fname + '\n')
-					exit()
-				else:
-					Warn('Bad checksum in header of ' + fname)
-		else:
-			Warn('Invalid format in {} line {}'.format(fname,lineCount))
-			return {}
-	
-	return header;
 
-# ------------------------------------------
 def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 	d=[]
 	
@@ -414,16 +169,18 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 			return ([],[],{})
 		fname = fBIPMname
 		
-	Debug('--> Reading ' + fname)
-	try:
-		fin = open(fname,'r')
-	except:
-		Warn('Unable to open ' + fname)
-		# not fatal
-		return ([],[],{})
-	
 	ver = CGGTTS_UNKNOWN
-	header = ReadCGGTTSHeader(fin,fname)
+	(header,warnings,checksumOK) = cggttslib.ReadHeader(fname)
+	if (not header):
+		Warn(warnings)
+		return ([],[],{})
+	if (not(warnings == '')): # header OK, but there was a warning
+		Warn(warnings)
+	if (not checksumOK and enforceChecksum):
+		sys.exit()
+		
+	# OK to open the file
+	fin = open(fname,'r')
 	
 	if (header['version'] == 'RAW'):
 		Debug('Raw clock results')
@@ -499,7 +256,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 			if (ver != CGGTTS_RAW):
 				cksum = int(fields[CK],16)
 				#print CK,fields[CK],cksum,CheckSum(l[:cksumend])
-				if (not(cksum == (CheckSum(l[:cksumend])))):
+				if (not(cksum == (cggttslib.CheckSum(l[:cksumend])))):
 					if (enforceChecksum):
 						sys.stderr.write('Bad checksum in data of ' + fname + '\n')
 						exit()
@@ -575,13 +332,6 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 	Debug('bad MSIO = ' + str(nBadMSIO))
 	return (d,stats,header)
 	
-# ------------------------------------------
-def CheckSum(l):
-	cksum = 0
-	for c in l:
-		cksum = cksum + ord(c)
-	return int(cksum % 256)
-
 # ------------------------------------------
 def GetDelay(headers,delayName):
 	for h in headers:
