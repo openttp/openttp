@@ -35,7 +35,7 @@ import subprocess
 import sys
 import time
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -148,7 +148,7 @@ def MakeRINEXNavigationName(dirname,staname,yyyy,doy,rnxver,reqd):
 			print "Can't open",fname
 			exit()
 			
-	return ''
+	return ('','')
 
 def DecompressFile(basename,ext):
 	if (ext == '.gz'):
