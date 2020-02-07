@@ -396,16 +396,34 @@ The default is `tic'.\\
 file extension = tic
 \end{lstlisting}
 
-{\bfseries GPIB address}\\
+{\bfseries configuration}\\ \hypertarget{h:counter_configuration}{}
+This sets a configuration file for the counter. Its contents are defined by the calling script.
+In the case of HP5313x counters for example,
+it lists SCPI commands sent to initiliaze the counter.\\
+\textit{Example:}
+\begin{lstlisting}
+configuration = etc/hp53131.conf
+\end{lstlisting}
+
+{\bfseries flip sign}\\
+The processing software eg \cc{mktimetx} assumes that TIC measurements are started by the reference
+and stopped by the GNSS receiver. If you need to invert the sign of the measurements, set the option
+`flip sign' to `yes',
+\textit{Example:}
+\begin{lstlisting}
+flip sign = no 
+\end{lstlisting}
+
+{\bfseries GPIB address}\\ \hypertarget{h:counter_gpib_address}{}
 For GPIB devices, the GPIB address must be defined.\\
 \textit{Example:}
 \begin{lstlisting}
 GPIB address = 3
 \end{lstlisting}
 
-{\bfseries GPIB converter}\\
+{\bfseries GPIB converter}\\  \hypertarget{h:counter_gpib_converter}{}
 This defines the GPIB interface converter (eg RS232 to GPIB).
-Valid values are `Micro488'.\\
+Currently the only valid values is `Micro488'.\\
 \textit{Example:}
 \begin{lstlisting}
 GPIB converter = Micro488
@@ -442,14 +460,23 @@ This defines options passed to the counter logging script.\\
 logger options =
 \end{lstlisting}
 
-{\bfseries okxem channel}\\
+{\bfseries mode}\\ \hypertarget{h:counter_mode}{}
+This defines the operating mode of the counter.
+Valid values are \cc{timestamp} and \cc{time interval}
+Currently, this is only used by the TAPR TICC.\\
+\textit{Example:}
+\begin{lstlisting}
+mode = timestamp
+\end{lstlisting}
+
+{\bfseries okxem channel}\\ \hypertarget{h:counter_okxem_channel}{}
 The OpenTTP counter is multi-channel so the channel to use (1-6) must be specified.\\
 \textit{Example:}
 \begin{lstlisting}
 okxem channel=3
 \end{lstlisting}
 
-{\bfseries port}\\
+{\bfseries port}\\ \hypertarget{h:counter_port}{}
 This defines the port used to communicate with the counter. It's value depends on the type of counter. 
 For the XEM6001, it's a Unix socket. For serial devices, it's a device name like
 \cc{/dev/ttyUSB0}.\\
@@ -459,13 +486,13 @@ For the XEM6001, it's a Unix socket. For serial devices, it's a device name like
 port = 21577 
 \end{lstlisting}
 
-{\bfseries flip sign}\\
-The processing software eg \cc{mktimetx} assumes that TIC measurements are started by the reference
-and stopped by the GNSS receiver. If you need to invert the sign of the measurements, set the option
-`flip sign' to `yes',
+{\bfseries timestamp format}\\ \hypertarget{h:counter_timestamp_format}{}
+This controls the format of timestamps used in the counter log file.
+Valid values are \cc{unix} and \cc{time of day}.
+Currently, this is only used by the TAPR TICC.\\
 \textit{Example:}
 \begin{lstlisting}
-flip sign = no 
+timestamp format = time of day
 \end{lstlisting}
 
 \subsection{[Misc] section}
@@ -727,28 +754,28 @@ year commissioned = 1999
 
 \hypertarget{h:reference}{}
 
-{\bfseries file extension}\\
+{\bfseries file extension}\\ \hypertarget{h:reference_file_extension}{}
 This defines the extension used for Reference status logs.\\
 \textit{Example:}
 \begin{lstlisting}
 file extension = .rb
 \end{lstlisting}
 
-{\bfseries logging interval}\\
+{\bfseries logging interval}\\ \hypertarget{h:reference_logging_interval}{}
 This defines the interval between status file updates. The units are seconds.\\
 \textit{Example:}
 \begin{lstlisting}
 logging interval = 60
 \end{lstlisting}
 
-{\bfseries log path}\\
+{\bfseries log path}\\ \hypertarget{h:reference_log_path}{}
 This defines where status logs are written to.\\
 \textit{Example:}
 \begin{lstlisting}
 log path = raw
 \end{lstlisting}
 
-{\bfseries log status}\\
+{\bfseries log status}\\ \hypertarget{h:reference_log_status}{}
 This enables status logging of the Reference.\\
 \textit{Example:}
 \begin{lstlisting}
@@ -762,7 +789,7 @@ This identifies the installed oscillator, so that device-specific handling can b
 oscillator = PRS10
 \end{lstlisting}
 
-{\bfseries power flag}\\
+{\bfseries power flag}\\ \hypertarget{h:reference_power_flag}{}
 This defines the file used to flag that the Reference has lost power, and needs rephasing.
 Currently, this only has meaning for the PRS10. It is used ntpd to disable the refclock
 corresponding to the PRs10's 1 pps.\\
@@ -771,7 +798,7 @@ corresponding to the PRs10's 1 pps.\\
 power flag = logs/prs10.pwr
 \end{lstlisting}
 
-{\bfseries status file}\\
+{\bfseries status file}\\ \hypertarget{h:reference_status_file}{}
 In the case of the PRS10, this consists of the six status bytes and sixteen ADC values.\\
 \textit{Example:}
 \begin{lstlisting}

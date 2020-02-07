@@ -2,7 +2,61 @@
 
 \subsection{jnslog.pl}
 \hypertarget{h:jnslog}{}
-There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
+
+\cc{jnslog.pl} is used to configure and log Javad GRIL receivers.
+
+It doesn't produce a log file.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+jnslog.pl [option] $\ldots$ configurationFile
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+ \item[-h] print help and exit
+ \item[-d] run in debugging mode
+ \item[-r] suppress the rest of the receiver on startup
+ \item[-v] print version information and exit
+\end{description*}
+
+\subsubsection{configuration}
+
+The file \cc{receiver.conf} lists the commands used to configure the receiver.
+For example, to configure a single frequency receiver:
+\begin{lstlisting}
+    set,out/elm/dev/ser/a,$Init{receiver:elevation mask}
+    set,pos/iono,off  
+    set,pos/tropo,off 
+    set,dev/pps/a/time,gps
+    set,dev/pps/a/offs/ns,$Init{receiver:pps offset}
+    set,dev/pps/a/per/ms,1000
+    set,dev/pps/a/out,on
+    
+    # Receiver messages to turn on
+    RT                  # Receiver time
+    TO                  # Receiver base time to receiver time offset
+    ZA                  # PPS offset (sawtooth)
+    YA                  # Extra time offset 
+    SI                  # Satellite index
+    EL                  # Satellite elevation
+    AZ                  # Satellite azimuth
+    SS                  # Satellite navigation status
+    FC                  # C/A lock loop status bits
+    F1 
+    F2 
+    RC                  # Full pseudorange C/A
+    R1                  # Full pseudorange P/L1
+    R2                  # Full pseudorange P/L2
+    P1                  # For RINEX Obs
+    P2                  # For RINEX Obs
+    RD                  # For RINEX
+    NP                  # Navigation Position text message
+    UO:{3600,14400,0,2} # UTC parameters, when changes or every 4 hrs
+    IO:{3600,14400,0,2} # Ionospheric parameters
+    GE:{1,3600,0,2}     # GPS ephemeris data
+\end{lstlisting}
 
 Configuration commands in \cc{gpscv.conf} specific to this receiver are:
 
@@ -14,7 +68,7 @@ JNS receivers have a number of specific configuration entries in \cc{gpscv.conf}
 \item \hyperlink{h:rinex_l1l2}{paths::rinex l1l2}
 \end{itemize}
 
-\subsection{jnsextract.pl}
+\subsubsection{jnsextract.pl}
 \hypertarget{h:jnsextract}{}
 
-\subsection{runrinexobstc.pl}
+\subsubsection{runrinexobstc.pl}

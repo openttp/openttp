@@ -39,7 +39,7 @@ import re
 import sys
 import time
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 AUTHORS = "Michael Wouters"
 
 BEIDOU='C'
@@ -93,7 +93,7 @@ def ParseRINEXFileName(fname):
 		ver=3
 		return (p,ver,st,doy,yy,yyyy,ext,dataSource,hhmm,filePeriod,dataFrequency,ft)
 	
-	return (p,ver,'',0,0,'') 
+	ErrorExit(fname + ' is not a standard RINEX file name')
 	
 # ------------------------------------------
 def ReadHeader(fin):
@@ -415,8 +415,12 @@ def FixMissing(infiles):
 
 progName = os.path.basename(sys.argv[0])+ ' ' + VERSION
 
+examples =  'Usage examples\n'
+examples += '1. Add observations missing from the beginning of a file, to the next day\'s file.\n'
+examples += '  \n'
+
 parser = argparse.ArgumentParser(description='Edit a RINEX observation file',
-	formatter_class=argparse.RawDescriptionHelpFormatter)
+	formatter_class=argparse.RawDescriptionHelpFormatter,epilog = examples)
 
 parser.add_argument('infile',nargs='+',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
@@ -428,13 +432,18 @@ parser.add_argument('--system',help='satellite system (BeiDou,Galileo,GPS,GLONAS
 parser.add_argument('--obstype',help='observation type (C2I,L2I,...)')
 parser.add_argument('--fixms',help='fix ms ambiguities (ref RINEX file required)',action='store_true')
 parser.add_argument('--fixmissing',help='add observations missing at the beginning of the day',action='store_true')
-parser.add_argument('--sequence','-s',help='interpret input files as a sequence',action='store_true')
+parser.add_argument('--nosequence',help='do not interpret (two) input files as a sequence',action='store_true')
 parser.add_argument('--refrinex',help='reference RINEX file for fixing ms ambiguities (name of first file if multiple input files are specified)')
 parser.add_argument('--version','-v',action='version',version =  progName + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
 debug = args.debug
+
+# Check arguments
+if not(args.fixmissing or args.fixms):
+	sys.stderr.write('Nothing to do!\n')
+	sys.exit()
 
 fixms = False
 if (args.fixms):
@@ -446,8 +455,10 @@ if (args.fixms):
 infiles = []
 reffiles = []
 
-if (args.sequence or args.fixmissing): # determine whether the file names form a valid sequence
-	if (2==len(args.infile)):
+if (2==len(args.infile)):
+	if (args.nosequence and not args.fixmissing): 
+		infiles = args.infile
+	else:
 		(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
 		(path2,ver2,st2,doy2,yy2,yyyy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
 		if not(path1 == path2):
@@ -498,10 +509,6 @@ if (args.sequence or args.fixmissing): # determine whether the file names form a
 				doystr= ddate.strftime('%j')
 				fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(refst,refdataSource,yystr,int(doystr),refhhmm,reffilePeriod,refdataFrequency,refft,refext) 
 				reffiles.append(os.path.join(refpath,fname))
-				
-	else:
-		sys.stderr.write('Only two file names are allowed with the --sequence option\n')
-		exit()
 else:
 	if (1==len(args.infile)):
 		infiles.append(args.infile[0])
@@ -514,10 +521,6 @@ if (args.output and len(args.infile) >1):
 	if not(os.path.isdir(args.output)):
 		sys.stderr.write('The --output option must specify a directory  when there is more than one input file\n')
 		exit()
-
-if not(args.fixmissing or args.fixms):
-	sys.stderr.write('Nothing to do!\n')
-	sys.exit()
 
 # Preliminary stuff done. 
 # Now do stuff!
@@ -569,7 +572,6 @@ for f in infiles:
 			print('Unknown GNSS system')
 			exit()
 
-	
 	if (fixms):
 		try:
 			fref = open(reffiles[fi],'r')
@@ -714,11 +716,8 @@ for f in infiles:
 							fout.write(meas[m]) # echo other GNSS
 					break
 				
-			
 	fin.close()
 	fout.close()
-
-
 
 	if (args.replace):
 		os.remove(finName)

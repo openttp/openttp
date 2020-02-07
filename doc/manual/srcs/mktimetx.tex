@@ -17,17 +17,18 @@ When run with no arguments, \cc{mktimetx} uses the default GPSCV processing conf
 
 The command line options are
 \begin{description*}
-	\item[-{}-configuration FILE] specify the configuration file
-	\item[-{}-debug FILE]	turn on debugging to \cc{file}. To debug to \cc{stderr}, just use `stderr'.
+	\item[-{}-configuration \textless{file}\textgreater] specify the configuration file
+	\item[-{}-debug \textless{file}\textgreater]	turn on debugging to \cc{file}. To debug to \cc{stderr}, just use `stderr'.
 	\item[-{}-disable-tic] disable the use of sawtooth-corrected counter/timer measurements 
 	\item[-{}-help] show help
-	\item[-m MJD] specify the mjd
-	\item[-{}-start] HH:MM:SS/HHMMSS  set the start time
-	\item[-{}-stop]  HH:MM:SS/HHMMSS  set the stop time
+	\item[-m \textless{MJD}\textgreater] specify the mjd
+	\item[-{}-start \textless{hh:hh:ss/hhmmss}\textgreater]  set the start time
+	\item[-{}-stop  \textless{hh:hh:ss/hhmmss}\textgreater]  set the stop time
 	\item[-{}-short-debug-message] print out shorter debugging messages
 	\item[-{}-sv-diagnostics] save raw measurements for each SV in a file. Each SV is in a separate file.
 	\item[-{}-timing-diagnostics] save timing diagnostics in a file
-	\item[-{}-verbosity VERBOSITY] set the debugging verbosity. Valid valuse are 1 to 4. A verbosity of 4 will create a file several  hundred MB in size.
+	\item[-{}-verbosity \textless{n}\textgreater] set the level of debugging verbosity. 
+		Valid values are 1 to 4. A verbosity of 4 will create a file several  hundred MB in size.
 	\item[-{}-version] print version information	and exit
 \end{description*}
 Example:

@@ -3,6 +3,20 @@
 \hypertarget{h:hp5313xlog}{HP and Agilent} 53131 and 53132 counters are supported, in combination
 with the IOTech GPIB to RS232 converter.
 
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+hp5313xlog.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+
 \subsection{configuration file}
 
 There is a file \cc{hp5313x.cmds} which lists the SCPI commands used to configure the counter.
@@ -20,3 +34,11 @@ For example:
 :INP1:IMP 50                    # impedance 50 ohms
 :INP2:IMP 50
 \end{lstlisting}
+
+It has the following specific configuration file entries in \cc{gpscv.conf}:
+\begin{itemize}
+	\item \hyperlink{h:counter_configuration}{counter:configuration}
+	\item \hyperlink{h:counter_gpib_address}{counter:gpib address}
+	\item \hyperlink{h:counter_gpib_converter}{counter:gpib converter}
+\end{itemize}
+

@@ -1,0 +1,24 @@
+\section{okxemlog.pl}
+
+\hypertarget{h:okxemlog}{}
+The OpenTTP reference platform includes a multi-channel TIC and this script communicates with the daemon
+\cc{okcounterd} via a local TCP/IP socket. The script will exit if no data are returned for more than two minutes.
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+okxemlog.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+
+It has the following specific configuration file entries in \cc{gpscv.conf}:
+\begin{itemize}
+	\item \hyperlink{h:counter_okxem_channel}{counter::okxem channel}.
+\end{itemize}

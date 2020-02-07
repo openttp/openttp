@@ -1,16 +1,28 @@
 \section{ticclog.py}
 \hypertarget{h:ticclog}{}
 
-\cc{ticclog.py} is used to log data from a TAPR Timestamping/TIme Interval Counter (TICC).
+\cc{ticclog.py} is used to log time interval measurements from a TAPR Timestamping/TIme Interval Counter (TICC).
 See \cc{https://www.tapr.org/kits\_ticc.html} for more information about this counter.
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+hp5313xlog.pl [option] $\ldots$ 
+\end{lstlisting}
 
 The command line options are:
 \begin{description*}
- \item[-h, -{}-help] print help and exit
- \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
+ \item[-{}-help, -h] print help and exit
+ \item[-{}-config, -c  \textless{file}\textgreater] use the specified configuration file
  \item[-{}-debug, -d]           run in debugging mode
  \item[-{}-settings, -s]        print the counter settings
   \item[-{}-version, -v]        print version information and exit
 \end{description*}
 
-There are no specific configuration file entries for this script.
+It has the following specific configuration file entries in \cc{gpscv.conf}:
+\begin{itemize}
+	\item \hyperlink{h:counter_mode}{counter::mode}
+	\item \hyperlink{h:counter_timestamp_format}{counter::timestamp format}
+\end{itemize}
+
+When the TICC is in timestamp mode, measurements are split into two files.
