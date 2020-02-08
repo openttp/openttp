@@ -1,8 +1,6 @@
 \section{ublox receivers}
 
-\subsection{ublox9log.py}
-
-\hypertarget{h:ublox9log}{}
+\subsection{ublox9log.py} \hypertarget{h:ublox9log}{}
 
 This \cc{python3} script is used with ublox series 9 receivers like the ZED-F9P and ZED-F9T.
 The following messages are enabled for 1 Hz output:
@@ -14,28 +12,112 @@ The following messages are enabled for 1 Hz output:
 	\item NAV-CLOCK
 \end{itemize}
 
-The command line options are:
-\begin{description*}
- \item[-h, -{}-help] print help and exit
- \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
- \item[-{}-debug, -d]           run in debugging mode
- \item[-{}-reset, -r]           reset the receiver
-  \item[-{}-version, -v]        print version information and exit
-\end{description*}
-
-A status file is written once per minute, containing the SV identifiers of  tracked satellites with
+A status file is written once per minute, containing the SV identifiers of tracked satellites with
 code and time synchronization flags set.
 
-\subsection{ubloxlog.pl}
+\subsubsection{usage}
 
-\hypertarget{h:ubloxlog}{}
+\begin{lstlisting}[mathescape=true]
+ublox9log.py [option] $\ldots$ 
+\end{lstlisting}
 
-The ublox receiver is entirely configured using the script.
+The command line options are:
+\begin{description*}
+	\item[-{}-help, -h] print help and exit
+	\item[-{}-config, -c \textless file\textgreater] use the specified configuration file
+	\item[-{}-debug, -d] run in debugging mode
+	\item[-{}-reset, -r]  reset the receiver before configuration
+	\item[-{}-version, -v] print version information and exit
+\end{description*}
 
-\subsection{ubloxextract.py}
 
-\hypertarget{h:ubloxextract}{}
+\subsubsection{configuration}
 
-\subsection{ubloxmkdev.py}
+\cc{ublox9log.pl} respects the \cc{receiver::model} configuration option.
+The valid values are:
+\begin{enumerate}
+	\item ZED-F9
+\end{enumerate}
 
-\hypertarget{h:ubloxmkdev}{}
+\subsection{ubloxlog.pl} \hypertarget{h:ubloxlog}{}
+
+This script used to configure and log series 8 receivers like the NEO-M8T.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+ubloxlog.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-h] print help and exit
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d] run in debugging mode
+	\item[-r]  reset the receiver before configuration
+	\item[-v] print version information and exit
+\end{description*}
+
+\subsection{ubloxextract.py} \hypertarget{h:ubloxextract}{}
+
+\cc{ubloxextract.py} is used to decode and extract information from ublox receiver log files 
+written in OpenTTP format. It will decompress the file if necessary.
+
+It uses \cc{gpscv.conf} to construct receiver log file names if the file is not explicitly given.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+ubloxextract.py [option] $\ldots$ [file]
+\end{lstlisting}
+
+Given an MJD via a command line option, it will construct a file name using the information in \cc{gpscv.conf}. If no MJD or file is given, it assumes the current MJD for the file. 
+
+The command line options are:
+\begin{description*}
+	\item[-{}-help, -h] print help and exit
+	\item[-{}-config, -c \textless file\textgreater] use the specified configuration file
+	\item[-{}-debug, -d] run in debugging mode
+	\item[-{}-version, -v] print version information and exit
+	\item[-{}-mjd, -m \textless{MJD}\textgreater]  MJD of the file to process
+  \item[-{}-uniqid]  show chip id
+  \item[-{}-monver]  show hardware and software versions
+  \item[-{}-navclock] extract nav-clock message
+  \item[-{}-navsat] extract nav-sat message
+  \item[-{}-navtimeutc] extract nav-timeutc message
+  \item[-{}-rawx] extract raw measurement data
+  \item[-{}-timtp] extract sawtooth correction
+\end{description*}
+
+\subsection{ubloxmkdev.py} \hypertarget{h:ubloxmkdev}{}
+
+\cc{ubloxmkdev.py} is used for creating a device name for a connected 
+receiver. It is useful, for example, when multiple receivers are connected
+and unique USB device identification is not possible. It works by 
+connecting to the receiver and querying its serial number. A configuration
+file defines the device name for that serial number. 
+
+The script is typically called by udev.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+ubloxmkdev.py [option] $\ldots$ dev
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-{}-help, -h] print help and exit
+	\item[-{}-debug, -d] run in debugging mode
+	\item[-{}-version, -v] print version information and exit
+\end{description*}
+
+\subsubsection{configuration}
+
+The configuration file is \cc{/usr/local/etc/ublox.conf}. It looks like:
+\begin{lstlisting}
+ce92fa1422 ublox1
+77435b1763 ublox2
+\end{lstlisting}
+Each line consists of the receiver's serial number and the device name to be
+associated with it.

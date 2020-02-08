@@ -9,6 +9,7 @@
 \begin{lstlisting}[mathescape=true]
 cmpcggtts.py [OPTION] $\ldots$ refDir calDir firstMJD lastMJD
 \end{lstlisting}
+
 The command line options are:
 \begin{description*}
  \item[-{}-help]            show this help message and exit
@@ -18,7 +19,7 @@ The command line options are:
  \item[-{}-mintracklength MINTRACKLENGTH] minimum track length (in s, default 750)
  \item[-{}-maxdsg MAXDSG]       maximum DSG (in ns, default 20.0)
  \item[-{}-matchephemeris ]     match on ephemeris (default no)
-  \item[-{}-cv]                  compare in common view (default)
+ \item[-{}-cv]                  compare in common view (default)
   \item[-{}-aiv]                 compare in all-in-view
   \item[-{}-acceptdelays]        accept the delays (no prompts in delay calibration mode)
   \item[-{}-delaycal]            delay calibration mode
@@ -36,21 +37,7 @@ The command line options are:
   \item[-{}-version, -v]         show version and exit
 \end{description*}
 
-\subsubsection{examples}
-
-Basic common-view time transfer with CGGTTS files in the folders \cc{refrx} and \cc{remrx}:
-\begin{lstlisting}[mathescape=true]
-cmpcggtts.py refrx remrx 57555 57556
-\end{lstlisting}
-
-Delay calibration with filenames according to the CGGTTS V2E specification:
-\begin{lstlisting}[mathescape=true]
-cmpcggtts.py --delaycal --refprefix GZAU01 --calprefix GZAU99 refrx remrx 57555 57556
-\end{lstlisting}
-
-\subsubsection{}
-
-The default is time-transfer. In this mode, a linear fit to the time-transfer data is made and the 
+The default mode is time-transfer. In this mode, a linear fit to the time-transfer data is made and the 
 fractional frequency error and REFSYS (evaluated at the midpoint of the data set) are outputted. 
 The uncertainties are estimated from the linear fit.
 
@@ -62,9 +49,25 @@ changed interactively; prompting for the new delays can be skipped with a comman
 
 Data can be filtered by elevation, track length and DSG.
 
-Matching on ephemeris (IODE) can reduce time-transfer noise.
+Matching on ephemeris (IODE) can also be enforced. This can reduce time-transfer noise in
+some circumstances.
 
 Three text files are produced:
+
+\subsubsection{examples}
+
+Basic common-view time transfer with CGGTTS files in the folders \cc{refrx} and \cc{remrx}:
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py refrx remrx 57555 57556
+\end{lstlisting}
+
+Delay calibration with filenames according to the CGGTTS V2E specification:
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py --delaycal --refprefix GZAU01 --calprefix GZAU99 refrx remrx 57555 57556
+\end{lstlisting}
+s
+
+
 
 
 
