@@ -47,7 +47,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -202,6 +202,7 @@ mjd = ottplib.MJD(tt) - 1 # previous day
 compress=False
 
 parser = argparse.ArgumentParser(description='Extract messages from a ublox data file')
+parser.add_argument('file',nargs='?',help='input file',type=str,default='')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
 parser.add_argument('--mjd','-m',help='mjd',default=mjd)
@@ -239,24 +240,36 @@ if (not os.path.isdir(logPath)):
 
 cfg=Initialise(configFile)
 
-dataPath= ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
+if (args.file):
+	if not (os.path.isfile(args.file)):
+		ErrorExit('Unable to open ' + args.file)
+	dataFile = args.file
+	path,ext = os.path.splitext(dataFile)
+	if (ext == '.gz'):
+		gzDataFile = dataFile
+		dataFile = path
+		compress = True
+else:
+	dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
 
-rxExt = cfg['receiver:file extension']
-if (None == re.search(r'\.$',rxExt)):
-	rxExt = '.' + rxExt
+	rxExt = cfg['receiver:file extension']
+	if (None == re.search(r'\.$',rxExt)):
+		rxExt = '.' + rxExt
 
-# File may be compressed so decompress it if required
-dataFile = dataPath + str(mjd) + rxExt
+	# File may be compressed so decompress it if required
+	dataFile = dataPath + str(mjd) + rxExt
 
-if not (os.path.isfile(dataFile)):
-	gzDataFile = dataFile + '.gz'
+	if not (os.path.isfile(dataFile)):
+		gzDataFile = dataFile + '.gz'
 	if not (os.path.isfile(gzDataFile)):
-		ErrorExit('Unable to open'+dataFile+'(.gz)')
+		ErrorExit('Unable to open ' + dataFile + '(.gz)')
 	else:
 		compress=True
-		Debug('Decompressing '+gzDataFile)
-		subprocess.check_output(['gunzip',gzDataFile])
-
+		
+if (compress):
+	Debug('Decompressing '+gzDataFile)
+	subprocess.check_output(['gunzip',gzDataFile])
+		
 lasttstamp='-1'
 
 fdata=open(dataFile,'r')
