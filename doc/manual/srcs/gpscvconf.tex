@@ -60,77 +60,77 @@ Entries used to create the CGGTTS header are:
 \end{itemize}
 
 \hypertarget{h:antenna}{}
-{\bfseries antenna number}\\
+{\bfseries antenna number}\\ \hypertarget{h:antenna_antenna_number}{}
 This appears as ANTNUM in the RINEX header.\\
 \textit{Example:}
 \begin{lstlisting}
 antenna number = A567456
 \end{lstlisting}
 
-{\bfseries antenna type}\\
+{\bfseries antenna type}\\ \hypertarget{h:antenna_antenna_type}{}
 This appears as ANTTYPE in the RINEX header.\\
 \textit{Example:}
 \begin{lstlisting}
 antenna type = Ashtec
 \end{lstlisting}
 
-{\bfseries delta H}\\
+{\bfseries delta H}\\ \hypertarget{h:antenna_delta_h}{}
 This appears as DELTA H in the RINEX header.\\
 \textit{Example:}
 \begin{lstlisting}
 delta H = 0.0
 \end{lstlisting}
 
-{\bfseries delta E}\\
+{\bfseries delta E}\\ \hypertarget{h:antenna_delta_e}{}
 This appears as DELTA E in the RINEX header.\\
 \textit{Example:}
 \begin{lstlisting}
 delta E = 0.0
 \end{lstlisting}
 
-{\bfseries delta N}\\
+{\bfseries delta N}\\ \hypertarget{h:antenna_delta_n}{}
 This appears as DELTA N in the RINEX header.\\
 \textit{Example:}
 \begin{lstlisting}
 delta N = 0.0
 \end{lstlisting}
 
-{\bfseries frame}\\
+{\bfseries frame}\\ \hypertarget{h:antenna_frame}{}
 This appears as FRAME in the CGGTTS header.\\
 \textit{Example:}
 \begin{lstlisting}
 frame = ITRF2010
 \end{lstlisting}
 
-{\bfseries marker name}\\
+{\bfseries marker name}\\ \hypertarget{h:antenna_marker_name}{}
 This appears as MARKER NAME in the RINEX header.\\
 \textit{Example:}
 \begin{lstlisting}
 marker name =
 \end{lstlisting}
 
-{\bfseries marker number}\\
+{\bfseries marker number}\\ \hypertarget{h:antenna_marker_number}{}
 This appears as MARKER NUMBER in the RINEX header.\\
 \textit{Example:}
 \begin{lstlisting}
 marker number =
 \end{lstlisting}
 
-{\bfseries X}\\
+{\bfseries X}\\ \hypertarget{h:antenna_x}{}
 This appears as X in the CGGTTS header and APPROX POSITION XYZ in the RINEXheader.\\
 \textit{Example:}
 \begin{lstlisting}
 X = +4567890.123
 \end{lstlisting}
 
-{\bfseries Y}\\
+{\bfseries Y}\\ \hypertarget{h:antenna_y}{}
 This appears as Y in the CGGTTS header and APPROX POSITION XYZ in the RINEXheader.\\
 \textit{Example:}
 \begin{lstlisting}
 Y = +2345678.90
 \end{lstlisting}
 
-{\bfseries Z}\\
+{\bfseries Z}\\ \hypertarget{h:antenna_z}{}
 This appears as Z in the CGGTTS header and APPROX POSITION XYZ in the RINEXheader.\\
 \textit{Example:}
 \begin{lstlisting}
@@ -599,7 +599,7 @@ but this varies with the operating system and its version so you will need to ch
 uucp lock = /var/run/lock
 \end{lstlisting}
 
-{\bfseries rinex l1l2}\\ \hypertarget{h:rinex_l1l2}{}
+{\bfseries rinex l1l2}\\ \hypertarget{h:paths_rinex_l1l2}{}
 Defines the directory used to write RINEX files with all observations, typically so that precise antenna coordinates
 can be obtained. This is only used with dual frequency Javad receivers.\\
 \textit{Example:}
@@ -612,11 +612,12 @@ rinex l1l2 = rinex/l1l2
 
 \hypertarget{h:receiver}{}
 
-{\bfseries configuration}\\
-\\
+{\bfseries configuration}\\ \hypertarget{h:configuration}{}
+This specfies a file to be used to configure the receiver. Currently, it is only used
+with Javad receivers.\\
 \textit{Example:}
 \begin{lstlisting}
-configuration = etc/rx.conf
+configuration = rx.cfg
 \end{lstlisting}
 
 {\bfseries elevation mask}\\
@@ -625,6 +626,14 @@ are ignored. The units are degrees. This may not be implemented for all receiver
 \textit{Example:}
 \begin{lstlisting}
 elevation mask = 0
+\end{lstlisting}
+
+{\bfseries file format}\\
+Data logged by the receiver can be logged in either OpenTTP format (`ottp`) or its native binary format (`native`).
+However, data logged in native format cannot presently be used by \cc{mktimetx}.\\
+\textit{Example:}
+\begin{lstlisting}
+file format = ottp
 \end{lstlisting}
 
 {\bfseries logger}\\
@@ -694,14 +703,6 @@ The units are ns.\\
 pps offset = 3500
 \end{lstlisting}
 
-{\bfseries configuration}\\ \hypertarget{h:configuration}{}
-This specfies a file to be used to configure the receiver. Currently, it is only used
-with Javad receivers.\\
-\textit{Example:}
-\begin{lstlisting}
-configuration = rx.cfg
-\end{lstlisting}
-
 {\bfseries pps synchronization}\\ \hypertarget{h:pps_synchronization}{}
 This is a Javad-specific option. The logging script will force a synchronization of the receiver's
 internal time scale with the input 1 pps.\\
@@ -732,6 +733,14 @@ The logging script will time out and exit if no messages are received for this p
 \textit{Example:}
 \begin{lstlisting}
 timeout = 60
+\end{lstlisting}
+
+{\bfseries time-transfer}\\
+Receivers can be configured for non-time transfer operation. Typically, in this mode fewer
+messages are enabled and logged.\\
+\textit{Example:}
+\begin{lstlisting}
+time-transfer = yes
 \end{lstlisting}
 
 {\bfseries sawtooth phase}\\
@@ -812,7 +821,7 @@ status file = logs/prs10.status
 RINEX observation and navigation files in version 2 and version 3 formats can be produced.
 RINEX observations 
 
-{\bfseries agency}\\
+{\bfseries agency}\\ \hypertarget{h:rinex_agency}{}
 This specifies the value of the AGENCY field which appears in RINEX observation file headers.\\
 \textit{Example:}
 \begin{lstlisting}
@@ -833,7 +842,7 @@ This forces a V2 name for V3 RINEX output.\\
 force v2 name = no
 \end{lstlisting}
 
-{\bfseries observer}\\
+{\bfseries observations}\\ \hypertarget{h:rinex_observation}{}
 Normally, only code observations are output by mktimetx. 
 To output phase observations, set this to 'all'.\\
 \textit{Example:}
@@ -841,7 +850,7 @@ To output phase observations, set this to 'all'.\\
 observations = code
 \end{lstlisting}
 
-{\bfseries observer}\\
+{\bfseries observer}\\ \hypertarget{h:rinex_observer}{}
 This specifies the value of the OBSERVER field which appears in RINEX observation file headers.
 If the observer is specified as `user' then the environment variable USER is used.\\
 \textit{Example:}
@@ -849,7 +858,7 @@ If the observer is specified as `user' then the environment variable USER is use
 observer = user
 \end{lstlisting}
 
-{\bfseries version}\\
+{\bfseries version}\\ \hypertarget{h:rinex_version}{}
 This  specifies the version of the RINEX output. Valid versions are 2 and 3.\\
 \textit{Example:}
 \begin{lstlisting}

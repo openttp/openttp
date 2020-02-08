@@ -1,14 +1,86 @@
 \section{NVS NV08C receivers}
 
-\subsection{nv08log.pl}
-\hypertarget{h:nvslog}{}
+\subsection{nv08log.pl} \hypertarget{h:nvslog}{}
 
-The NVS receiver is entirely configured using the script.
+\cc{nvo8log.pl} is used to configure and log NVS NV08 receivers.
+It needs the Perl library \cc{NV08C}.
 
-\subsection{nv08extract.pl}
+It doesn't produce a log file.
 
-\hypertarget{h:nv08extract}{}
+There are no NV08-specific configuration commands in \cc{gpscv.conf}
 
-\subsection{nv08info.pl}
+\subsubsection{usage}
 
-\hypertarget{h:nv08info}{}
+\begin{lstlisting}[mathescape=true]
+nv08log.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-h] print help and exit
+	\item[-d] run in debugging mode
+	\item[-r] reset the receiver on startup
+	\item[-v] print version information and exit
+\end{description*}
+
+\subsection{nv08extract.pl} \hypertarget{h:nv08extract}{}
+
+\cc{nv08extract.pl} is used to decode and extract information from NVS NV08 receiver log files. 
+It will decompress the file if necessary.
+
+It uses \cc{gpscv.conf} to construct receiver log file names if the file is not explicitly given.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+nv08extract.pl [option] $\ldots$ [file]
+\end{lstlisting}
+
+Given an MJD via a command line option, it will construct a file name using the information in \cc{gpscv.conf}. If no MJD or file is given, it assumes the current MJD for the file. 
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-h] print help and exit
+	\item[-d] run in debugging mode
+	\item[-v] print version information and exit
+	\item[-m \textless{MJD}\textgreater]  MJD of the file to process
+	\item[-t] extract Time, Date and Time Zone offset
+	\item[-o] extract Receiver Operating Parameters
+	\item[-s] extract Visible Satellites
+	\item[-n] extract Number of Satellites and Dilution Of Precision (DOP)
+	\item[-w] extract Software Version, Device ID and Number of Channels
+	\item[-f] extract 1 PPS 'sawtooth' correction
+	\item[-T] extract Time Synchronisation Operating Mode (antenna cable delay, averaging time)
+	\item[-p] extract PVT Vectors and associated quality factors (including TDOP)
+	\item[-a] extract Additional Operating Parameters
+	\item[-P] extract Port status messages
+	\item[-e] extract Satellite ephemeris
+	\item[-l] extract Time scale parameters
+	\item[-i] extract Ionosphere parameters
+	\item[-g] extract GPS, GLONASS and UTC time scale parameters
+	\item[-r] extract Raw data (pseudoranges, etc)
+	\item[-G] extract Geocentric antenna coordinates in WGS-84 system
+	\item[-u] extract Unknown message (garbage data)
+	\item[-z] less verbose output
+\end{description*}
+
+\subsection{nv08info.pl} \hypertarget{h:nv08info}{}
+
+This actually does nothing useful. If it did, it would query the receiver for its
+serial number and so on. 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+nv08info.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-h] print help and exit
+	\item[-d] run in debugging mode
+	\item[-v] print version information and exit
+\end{description*}

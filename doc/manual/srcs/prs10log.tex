@@ -3,8 +3,8 @@
 \hypertarget{h:prs10log}{}
 
 The Stanford PRS10 rubidium standard has a 1 pps input port that is typically used
-to lock the PRS10 to a GNSS receiver. The PRS10 timetags each input 1 pps and can report
-these measurements. The PRS10 is normally configured to not lock to the input 1 pps 
+to lock the PRS10 to a GNSS receiver. The PRS10 timetags each input 1 pps with respect to its own 1 pps and can report these measurements. It can thus be also be used as a time-interval counter. 
+In this application, the lock to the input 1 pps is disabled 
 (ie the PRS10 is left free-running),
 and the 1 pps measurements are used for time-transfer.
 
