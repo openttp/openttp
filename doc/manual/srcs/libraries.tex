@@ -56,33 +56,62 @@ of the library is that it does not provide support for USB block transfers.
 
 \subsection{ottplib.py}
 
-This library replaces \cc{TFLibrary.pm} for all new development.
+This library replaces \cc{TFLibrary.pm} and should be used for all new development.
 
-\subsubsection{LoadConfig()}
+ottplib.{\bfseries{LoadConfig}}(\textit{path, options=\{\}})
 
-\subsubsection{MJD()}
+Loads the configuration file specified by \cc{path}, returning key/value pairs as
+a dictionary. Two options can be supplied:
+\begin{description*}
+\item[tolower] all keys are converted to lower case if this is \cc{true}
+\item[defaults] a default configuration file is loaded first
+\end{description*}
+Example:
+\begin{lstlisting}
+cfg=ottplib.LoadConfig(configFile,{'tolower':True})
+\end{lstlisting}
 
-\subsubsection{MakeAbsolutePath()}
+ottplib.{\bfseries{MJD}}(\textit{time})
 
-\subsubsection{MakeAbsoluteFilePath()}
+Returns the Modified Julian Date, given the time in seconds since the epoch. It is usually called 
+with \cc{time.time()}
 
-\subsubsection{CreateProcessLock()}
+ottplib.{\bfseries{MakeAbsolutePath}}(\textit{path,root})\\
+Returns a path constructed relative to \cc{root}, unless \cc{path} is already absolute.
+A trailing slash is added if it is absent.
 
-\subsubsection{RemoveProcessLock()}
+ottplib.{\bfseries{MakeAbsoluteFilePath}}(\textit{file,home,defaultPath})
+
+Returns an absolute path to \cc{file} according to the following  rules
+\begin{enumerate}
+	\item If \cc{path} begins with a slash then it is returned unchanged.
+	\item If \cc{path} ends with a slash, then \cc{home} is prepended.
+	\item Otherwise, \cc{defaultPath} is prepended.
+\end{enumerate}
+
+ottplib.{\bfseries{CreateProcessLock}}(\textit{file})
+
+Creates a lock file named \cc{file}. 
+The contents of the file are the process name and its PID.
+When attempting to create a lock, the PID is checked in \cc{proc}.
+Returns \cc{True} if the lock was successfully created.
+
+ottplib.{\bfseries{RemoveProcessLock}}(\textit{file})\\
+Removes the lock file named \cc{file}.
+It returns nothing.
 
 \subsection{cggttslib.py}
 
 This library provides some functions for reading and manipulating CGGTTS files.
 
-\subsubsection{CheckSum()}
+cggttslib.{\bfseries{CheckSum}}(\textit{string})
 
-This computes the checksum of a string using the algorithm described in
-the CGGTTS specification. It takes one argument, the string to be checksummed, and
-returns the checksum as an integer.
+This computes the checksum of \cc{string} using the algorithm described in
+the CGGTTS specification. The checksum is returned as an integer.
 
-\subsubsection{ReadHeader()}
+cggttslib.{\bfseries{ReadHeader}}(\textit{file})
 
-This reads the CGGTTS header and returns the fields in a Python dictionary.
+This reads the CGGTTS header of \cc{file} and returns the fields in a Python dictionary.
 Dictionary keys are the same as in the header. For example, \cc{REV DATE} 
 has the key 'rev date' associated with it. The exceptions to this are the delays
 \cc{INT DLY}, \cc{SYS DLY} and \cc{TOT DLY}. For convenience, these are further
@@ -97,9 +126,9 @@ An empty dictionary is returned if:
 \end{enumerate}
 If the calculated checksum does not match the value in the header, an error message is returned.
 
-\subsubsection{MakeFileSequence()}
+cggttslib.{\bfseries{MakeFileSequence}}(\textit{file1,file2})
 
-\cc{MakeFileSequence} interpolates a sequence of file names between two file names.
+\cc{MakeFileSequence} interpolates a sequence of file names between \cc{file1} and \cc{file2}.
 For example, if the two input file names are \cc{GZAU0158.532} and \cc{GZAU0158.537},
 file names with MJDs ranging from 58532 through to 58537 are generated. The generated file names are 
 returned as a Python list.

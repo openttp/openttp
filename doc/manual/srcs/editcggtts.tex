@@ -8,14 +8,14 @@ The header checksum and the modification time are updated after editing,
 \subsubsection{usage}
 
 \begin{lstlisting}[mathescape=true]
-editcggtts.py [OPTION] $\ldots$ filename [filename $\ldots$]
+editcggtts.py [option] $\ldots$ filename [filename $\ldots$]
 \end{lstlisting}
 The command line options are:
 \begin{description*}
 	\item[-{}-help,-h]	print the help information and exit
 	\item[-{}-debug,-d]	print debugging information to stderr
-	\item[-{}-comments COMMENTS]   set comment
-  \item[-{}-output OUTPUT, -o OUTPUT] output to file/directory OUTPUT
+	\item[-{}-comments \textless{value}\textgreater] set comment
+  \item[-{}-output,-o \textless{value}\textgreater] output to file/directory 
   \item[-{}-tmp]    output is to file(s) with .tmp added to name
   \item[-{}-replace, -r]  replace the edited file(s)
   \item[-{}-nosequence]  do not interpret (two) input file names as a sequence
