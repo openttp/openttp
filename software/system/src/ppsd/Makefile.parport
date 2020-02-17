@@ -1,3 +1,4 @@
+SHELL=/bin/bash
 PROGRAM = ppsd
 CC = gcc
 INCLUDE = 
