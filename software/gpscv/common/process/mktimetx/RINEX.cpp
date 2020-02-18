@@ -401,7 +401,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 						{	
 							for (unsigned int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 								bool foundit=false;
-								double freq = rx->glonass.codeToFreq(c);
+								double freq = rx->glonass.codeToFreq(c,0);
 								for (unsigned int svc=0;svc<rm->meas.size();svc++){
 									if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == c){
 										if (c < 0x10000){ // code observations

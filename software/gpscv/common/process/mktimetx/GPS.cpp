@@ -73,7 +73,7 @@ GPS::~GPS()
 
 double GPS::codeToFreq(int c)
 {
-	double f=0.0;
+	double f=1.0;
 	switch(c){
 		case GNSSSystem::C1C: case GNSSSystem::C1P:case GNSSSystem::L1C: case GNSSSystem::L1P:
 			f = GPS::fL1;break;
@@ -82,8 +82,6 @@ double GPS::codeToFreq(int c)
 	}
 	return f;
 }
-
-
 
 // bool GPS::addEphemeris(EphemerisData *ed)
 // {

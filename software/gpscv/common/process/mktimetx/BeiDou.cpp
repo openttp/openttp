@@ -52,7 +52,7 @@ BeiDou::~BeiDou()
 
 double BeiDou::codeToFreq(int c)
 {
-	double f=0.0;
+	double f=1.0;
 	switch (c)
 	{
 		case GNSSSystem::C2I: case GNSSSystem::L2I:// B1I

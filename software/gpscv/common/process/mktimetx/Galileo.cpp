@@ -41,7 +41,7 @@ Galileo::~Galileo()
 
 double Galileo::codeToFreq(int c)
 {
-	double f=0.0;
+	double f=1.0;
 	switch (c)
 	{
 		case GNSSSystem::C1C: case GNSSSystem::C1B:case GNSSSystem::L1C:case GNSSSystem::L1B:

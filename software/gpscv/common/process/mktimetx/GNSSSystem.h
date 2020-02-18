@@ -100,7 +100,7 @@ class GNSSSystem
 		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
 		//virtual Ephemeris *nearestEphemeris(int,int,double);
 		
-		virtual double freqFromCode(int){return 0.0;}
+		virtual double codeToFreq(int){return 0.0;}
 		
 		virtual int maxSVN(){return -1;}
 		std::string oneLetterCode(){return olc;}

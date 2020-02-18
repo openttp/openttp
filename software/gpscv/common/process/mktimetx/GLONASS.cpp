@@ -40,10 +40,20 @@ GLONASS::~GLONASS()
 {
 }
 
-double GLONASS::codeToFreq(int c)
+double GLONASS::codeToFreq(int c,int k)
 {
-	// FIXM totally borked
-	double f=0.0;
+	double f=1.0;
+		// L1OF 1602 MHz + k*562.5 kHz
+										// L2OF 1246 MHz + k*437.5 kHz
+	switch (c)
+	{
+		case GNSSSystem::C1C:case GNSSSystem::L1C:
+			f = 1602000000.0 + k * 562500.0; break; 
+		case GNSSSystem::C2C:case GNSSSystem::L2C:
+			f = 1246000000.0 + k * 437500.0; break; 
+		default:
+			break;
+	}
 	return f;
 }
 

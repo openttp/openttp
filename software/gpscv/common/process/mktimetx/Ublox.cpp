@@ -290,10 +290,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 										double f=1.0; // a fudge for the GNSS for which freqFromCode is not implemented
 										switch (svmeas.at(sv)->constellation)
 										{
-											case GNSSSystem::BEIDOU:  f=beidou.freqFromCode(svmeas.at(sv)->code );break;
-											case GNSSSystem::GALILEO: f=galileo.freqFromCode(svmeas.at(sv)->code );break;
-											case GNSSSystem::GLONASS: f=glonass.freqFromCode(svmeas.at(sv)->code );break;
-											case GNSSSystem::GPS:     f=gps.freqFromCode(svmeas.at(sv)->code );break;
+											case GNSSSystem::BEIDOU:  f=beidou.codeToFreq(svmeas.at(sv)->code );break;
+											case GNSSSystem::GALILEO: f=galileo.codeToFreq(svmeas.at(sv)->code );break;
+											case GNSSSystem::GLONASS: f=glonass.codeToFreq(svmeas.at(sv)->code,0);break;
+											case GNSSSystem::GPS:     f=gps.codeToFreq(svmeas.at(sv)->code );break;
 										}
 										svmeas.at(sv)->meas -= clockBias*1.0E-9*f;
 									}
