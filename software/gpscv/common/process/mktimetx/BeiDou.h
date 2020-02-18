@@ -107,6 +107,7 @@ class BeiDou: public GNSSSystem
 	BeiDou();
 	~BeiDou();
 	
+	virtual double codeToFreq(int);
 	
 	
 	virtual int maxSVN(){return NSATS;}

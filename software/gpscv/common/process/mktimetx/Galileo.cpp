@@ -39,6 +39,21 @@ Galileo::~Galileo()
 {
 }
 
+double Galileo::codeToFreq(int c)
+{
+	double f=0.0;
+	switch (c)
+	{
+		case GNSSSystem::C1C: case GNSSSystem::C1B:case GNSSSystem::L1C:case GNSSSystem::L1B:
+			f = 1575420000.0; break; // E1C and E1B (same as GPS C1)
+		case GNSSSystem::C7I: case GNSSSystem::C7Q:case GNSSSystem::L7I:case GNSSSystem::L7Q:
+			f = 1207140000.0; break; // E5b
+		default:
+			break;
+	}
+	return f;
+}
+
 double Galileo::decodeSISA(unsigned char sisa)
 {
 	

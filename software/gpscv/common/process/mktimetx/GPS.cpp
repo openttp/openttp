@@ -77,7 +77,7 @@ double GPS::codeToFreq(int c)
 	switch(c){
 		case GNSSSystem::C1C: case GNSSSystem::C1P:case GNSSSystem::L1C: case GNSSSystem::L1P:
 			f = GPS::fL1;break;
-		case GNSSSystem::C2C: case GNSSSystem::C2P:case GNSSSystem::C2M:case GNSSSystem::L2C:case GNSSSystem::L2P:
+		case GNSSSystem::C2C: case GNSSSystem::C2P:case GNSSSystem::C2M:case GNSSSystem::L2C:case GNSSSystem::L2P:case GNSSSystem::L2L:
 			f = GPS::fL2;break;
 	}
 	return f;

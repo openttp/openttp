@@ -353,9 +353,15 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 							if (majorVer==V2) continue;
 							for (unsigned int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 								bool foundit=false;
+								double freq = rx->beidou.codeToFreq(c);
 								for (unsigned int svc=0;svc<rm->meas.size();svc++){
 									if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == c){
-										std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+										if (c < 0x10000){ // code observations
+											std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+										}
+										else if (c >= 0x10000 && allObservations){
+											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas+ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+										}
 										foundit=true;
 										break;
 									}
@@ -371,9 +377,15 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 							if (majorVer==V2) continue;
 							for (unsigned int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 								bool foundit=false;
+								double freq = rx->galileo.codeToFreq(c);
 								for (unsigned int svc=0;svc<rm->meas.size();svc++){
 									if (rm->meas[svc]->svn == svns[sv] && rm->meas[svc]->constellation == svsys[sv] &&  rm->meas[svc]->code == c){
-										std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+										if (c < 0x10000){ // code observations
+											std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+										}
+										else if (c >= 0x10000 && allObservations){
+											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas+ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+										}
 										foundit=true;
 										break;
 									}
@@ -395,8 +407,9 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 										if (c < 0x10000){ // code observations
 											std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
-										else if (c >= 0x10000 && allObservations){ // phase observations, which can be masked out
-											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas+ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+										else if (c >= 0x10000 && allObservations){ // phase observations, which might be masked out
+											// commented out because GLONASS frequency is not implemented yet
+											//std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas+ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
 										foundit=true;
 										break;
@@ -421,7 +434,6 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 											std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
 										else if (c >= 0x10000 && allObservations){ // phase observations, which can be masked out
-											
 											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas+ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
 										foundit=true;

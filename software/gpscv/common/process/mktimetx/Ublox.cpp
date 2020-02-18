@@ -284,7 +284,19 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							for (unsigned int sv=0;sv<svmeas.size();sv++){
 								svmeas.at(sv)->dbuf3 = svmeas.at(sv)->meas; // save for debugging
 								if (!app->positioningMode){ // corrections only add noise, in principle
-									svmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
+									if (svmeas.at(sv)->code < GNSSSystem::L1C)
+										svmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
+									else{ // carrier phase, so have to convert the clock bias to cycles
+										double f=1.0; // a fudge for the GNSS for which freqFromCode is not implemented
+										switch (svmeas.at(sv)->constellation)
+										{
+											case GNSSSystem::BEIDOU:  f=beidou.freqFromCode(svmeas.at(sv)->code );break;
+											case GNSSSystem::GALILEO: f=galileo.freqFromCode(svmeas.at(sv)->code );break;
+											case GNSSSystem::GLONASS: f=glonass.freqFromCode(svmeas.at(sv)->code );break;
+											case GNSSSystem::GPS:     f=gps.freqFromCode(svmeas.at(sv)->code );break;
+										}
+										svmeas.at(sv)->meas -= clockBias*1.0E-9*f;
+									}
 									// Now subtract the ms part so that ms ambiguity resolution works:
 									// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
 									// resolution. We could only keep the ms part, but for now only do this for
@@ -368,24 +380,33 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 									int sig=-1;
 									int cpsig=-1;
 									switch (gnssSys){
+										// ublox docs say BeiDou signals are
+										// B1I  1561.098 MHz
+										// B2I  1207.140 MHz
 										case GNSSSystem::BEIDOU:
 											switch (sigID){
-												case 0:sig=GNSSSystem::C2I;break; // D1
-												case 1:sig=GNSSSystem::C2I;break; // D2
-												case 2:sig=GNSSSystem::C7I;break; // D1
-												case 3:sig=GNSSSystem::C7I;break; // D2
+												case 0:sig=GNSSSystem::C2I;cpsig=GNSSSystem::L2I;break; // D1
+												case 1:sig=GNSSSystem::C2I;cpsig=GNSSSystem::L2I;break; // D2
+												case 2:sig=GNSSSystem::C7I;cpsig=GNSSSystem::L7I;break; // D1
+												case 3:sig=GNSSSystem::C7I;cpsig=GNSSSystem::L7I;break; // D2
 												default: break;
 											}
 											break;
+										// ublox docs say Galileo signals  are
+										// E1-B/C 1575.42 MHz
+										// E5b    1207.14
 										case GNSSSystem::GALILEO:
 											switch (sigID){
-												case 0:sig=GNSSSystem::C1C;break; //E1C
-												case 1:sig=GNSSSystem::C1B;break; //E1B
-												case 5:sig=GNSSSystem::C7I;break; //E5Bi
-												case 6:sig=GNSSSystem::C7Q;break; //E5bQ
+												case 0:sig=GNSSSystem::C1C;cpsig=GNSSSystem::L1C;break; //E1C
+												case 1:sig=GNSSSystem::C1B;cpsig=GNSSSystem::L1B;break; //E1B
+												case 5:sig=GNSSSystem::C7I;cpsig=GNSSSystem::L7I;break; //E5Bi
+												case 6:sig=GNSSSystem::C7Q;cpsig=GNSSSystem::L7Q;break; //E5bQ
 												default: break;
 											}
 											break;
+										// ublox docs say GLONASS signals are
+										// L1OF 1602 MHz + k*562.5 kHz
+										// L2OF 1246 MHz + k*437.5 kHz
 										case GNSSSystem::GLONASS:
 											switch (sigID){
 												case 0:sig=GNSSSystem::C1C;cpsig=GNSSSystem::L1C;break;
@@ -393,8 +414,12 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 												default: break;
 											}
 											break;
+										// ublox docs say GPS signals are
+										// L1 C/A 1575.42 MHz
+										// L2 CL  1227.60 MHz
+										// L2 CM
 										case GNSSSystem::GPS:
-											switch (sigID){
+								 			switch (sigID){
 												case 0:sig=GNSSSystem::C1C;cpsig=GNSSSystem::L1C;break;
 												case 3:sig=GNSSSystem::C2L;cpsig=GNSSSystem::L2L;break;
 												//case 4:sig=GNSSSystem::C2M;break;

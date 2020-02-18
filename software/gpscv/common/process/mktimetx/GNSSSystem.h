@@ -79,13 +79,15 @@ class GNSSSystem
 				C7I=0x0100, // Galileo E5bI,BeiDou
 				C7Q=0x0200, // Galileo E5bQ
 				L1C=0x10000, // Boundary for carrier phase obervation
-				L1P=0x20000,
-				L2P=0x40000,
-				L2C=0x80000,
-				L2L=0x100000, 
-				L2I=0x200000,
-				L7I=0x400000,
-				NONE=0x800000
+				L1B=0x20000,
+				L1P=0x40000,
+				L2P=0x80000,
+				L2C=0x100000,
+				L2L=0x200000, 
+				L2I=0x400000,
+				L7I=0x800000,
+				L7Q=0x1000000,
+				NONE=0x2000000
 		}; 
 		
 		GNSSSystem(){};

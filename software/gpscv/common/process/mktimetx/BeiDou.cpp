@@ -50,6 +50,20 @@ BeiDou::~BeiDou()
 {
 }
 
+double BeiDou::codeToFreq(int c)
+{
+	double f=0.0;
+	switch (c)
+	{
+		case GNSSSystem::C2I: case GNSSSystem::L2I:// B1I
+			f = 1561098000.0; break; 
+		case GNSSSystem::C7I: case GNSSSystem::L7I:// B2I
+			f = 1207140000.0; break; 
+		default:
+			break;
+	}
+	return f;
+}
 
 // The ephemeris is sorted on t_OC but searched on t_OE ...
 // Sorting on t_OC gives time-ordered output in the navigation file

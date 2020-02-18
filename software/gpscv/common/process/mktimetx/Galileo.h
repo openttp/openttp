@@ -115,6 +115,7 @@ class Galileo: public GNSSSystem
 	
 	Galileo();
 	~Galileo();
+	virtual double codeToFreq(int);
 	
 	double decodeSISA(unsigned char);
 	
