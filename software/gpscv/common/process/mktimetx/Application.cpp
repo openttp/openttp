@@ -391,8 +391,17 @@ void Application::run()
 		rnx.observer=observer;
 		rnx.allObservations=allObservations;
 		
-		if (generateNavigationFile) 
-			rnx.writeNavigationFile(receiver,receiver->constellations,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
+		if (generateNavigationFile) {
+			if (RINEXmajorVersion == 2){
+				if (receiver->constellations == GNSSSystem::GPS){
+					// FIXME needs rework
+					rnx.writeNavigationFile(receiver,receiver->constellations,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
+				}
+			}
+			else{
+				rnx.writeNavigationFile(receiver,receiver->constellations,RINEXmajorVersion,RINEXminorVersion,RINEXnavFile,MJD);
+			}
+		}
 		rnx.writeObservationFile(antenna,counter,receiver,RINEXmajorVersion,RINEXminorVersion
             ,RINEXobsFile,MJD,interval,mpairs,TICenabled);
 	} // if createRINEX
