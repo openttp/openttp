@@ -239,6 +239,8 @@ def ConfigureReceiver(serport):
 	
 	# Set which signals are tracked for each constellation
 	# The default is dual frequency for all constellations
+	# The docs recommend that GPS+QZSS be both on or both off to
+	# avoid cross-correlation issues
 	
 	GPS_L1CA_ENA = b'\x01\x00\x31\x10' # CFG-SIGNAL-GPS_L1CA_ENA 0x10310001
 	GPS_L2C_ENA  = b'\x03\x00\x31\x10' # CFG-SIGNAL-GPS_L2C_ENA  0x10310003
@@ -327,13 +329,13 @@ def ConfigureReceiver(serport):
 	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x34\x02\x91\x20' + b'\x01' # USB
 	SendCommand(serport,msg)
 	
-	PollVersionInfo(serport)
-	PollChipID(serport)
-	
 	ubxMsgs.add(b'\x05\x00') # ACK-NAK 
 	ubxMsgs.add(b'\x05\x01') # ACK_ACK
 	ubxMsgs.add(b'\x27\x03') # chip ID
 	ubxMsgs.add(b'\x0a\x04') # version info
+	
+	PollVersionInfo(serport)
+	PollChipID(serport)
 	
 	Debug('Done configuring')
 	PollVersionInfo(serport)
@@ -477,7 +479,7 @@ Debug('Opening ' + port)
 
 serport=None # so that this can flag failure to open the port
 try:
-	serport = serial.Serial(port,115200,timeout=0.2)
+	serport = serial.Serial(port,460800,timeout=0.2)
 except:
 	Cleanup()
 	ErrorExit('Failed to open ' + port)
