@@ -46,7 +46,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -189,6 +189,11 @@ def ConfigureReceiver(serport):
 	
 	# Note that all configuration is only done in RAM
 	# It is not saved
+	
+	# Disable NMEA output on the USB interface
+	CFG_USBOUTPROT_NMEA = b'\x02\x00\x78\x10'  
+	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + CFG_USBOUTPROT_NMEA + b'\x00'
+	SendCommand(serport,msg)
 	
 	# GNSS tracking configuration 
 	# First, query the current configuration
