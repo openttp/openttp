@@ -47,7 +47,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -172,8 +172,15 @@ def DecodeUBX_RXM_RAWX(msg):
 		return [0]
 	packed=binascii.unhexlify(msg)
 	nmeas = (len(msg)/2 -18)/32
-	unpacked=struct.unpack_from('d',packed)
-	return unpacked
+	rawx = ''
+	for i in xrange(0,nmeas):
+		rawx += '2df4BH6B'
+	unpacked=struct.unpack_from('dHb5B'+rawx,packed)
+	header = unpacked[0:7]
+	meas=[]
+	for i in xrange(0,nmeas):
+		meas.append(unpacked[8+i*14:8+(i+1)*14])
+	return (header,meas)
 
 # ------------------------------------------
 def DecodeUBX_SEC_UNIQID(msg):
@@ -190,6 +197,43 @@ def DecodeUBX_TIM_TP(msg):
 	packed=binascii.unhexlify(msg)
 	unpacked=struct.unpack('IIiH4B',packed)
 	return unpacked
+
+# ------------------------------------------
+def GNSSSummary(meas):
+	nBDS=0
+	nBDS2=0
+	nGAL=0
+	nGAL2=0
+	nGLO=0
+	nGLO2=0
+	nGPS=0
+	nGPS2=0
+	nQZSS=0
+	nQZSS2=0
+	summary = ''
+	for m in meas:
+		# gnssID (3), svID (4), sigID (5)
+		gnssID = m[3]
+		svID   = m[4]
+		sigID  = m[5]
+		if (gnssID == 0):
+			if (sigID == 0):
+				nGPS += 1
+		elif (gnssID == 2):
+			if (sigID == 0 or sigID == 1):
+				nGAL += 1
+		elif (gnssID == 3):
+			if (sigID == 0 or sigID == 1):
+				nBDS += 1
+		elif (gnssID == 5):
+			if (sigID == 0):
+				nQZSS += 1
+		elif (gnssID == 6):
+			if (sigID == 0):
+				nGLO += 1
+	summary = str(nBDS) + ' ' + str(nGAL) + ' ' + str(nGLO) + ' ' + str(nGPS) + ' ' + str(nQZSS)
+	return summary
+	
 
 # ------------------------------------------
 # Main 
@@ -309,8 +353,9 @@ for line in fdata:
 			print tt,msgf[0],msgf[1],msgf[2],msgf[3]
 	elif (msgid == '0215'):
 		if (args.rawx):
-			msgf=DecodeUBX_RXM_RAWX(msg)
-			print tt,msgf[0]
+			(header,meas)=DecodeUBX_RXM_RAWX(msg)
+			summary = GNSSSummary(meas)
+			print tt,header[0],header[3],summary
 	elif (msgid == '2703'):
 		if (args.uniqid):
 			msgf=DecodeUBX_SEC_UNIQID(msg)
