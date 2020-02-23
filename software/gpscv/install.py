@@ -40,7 +40,7 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 import ottplib
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 AUTHORS = 'Michael Wouters'
 
 # init systems on Linux
@@ -374,6 +374,19 @@ if (not args.install):
 	else:
 		targets.append(receivers[rx][2])
 
+	# PRS10 support is mainly for legacy systems
+	# If it's in gpscv.conf recompile
+	# Otherwise, ask nicely
+	if (usingCfg):
+		if ('counter:logger script' in cfg):
+			if ('prs10log.pl' in cfg['counter:logger script']):
+				targets.append('prs10')
+		else:
+			pass
+	else:
+		if GetYesNo('Do you want to install PRS10 support (y/n)? '):
+			targets.append('prs10')
+	
 	# Create any missing directories
 
 	if (instRoot == dataRoot):
@@ -421,8 +434,8 @@ if ('ublox' in targets):
 	InstallConfigs('ublox',configDir)
 
 if ('prs10' in targets):
-	CompileTarget('prs10','common/prs10c')
-	InstallExecutables('common/prs10c',binDir,os.path.join(archiveDir,'bin'))
+	CompileTarget('prs10','prs10')
+	InstallExecutables('prs10',binDir,os.path.join(archiveDir,'bin'))
 	
 if ('misc scripts' in targets):
 	InstallExecutables('common/bin',binDir,os.path.join(archiveDir,'bin'))
@@ -430,8 +443,6 @@ if ('misc scripts' in targets):
 	
 Log('\nFinished installation :-)')
 
-print '\n!!! Please look at the sample configuration files in ' + configDir
-print ' You will need to remove \'sample\' from their names to use them.'
 print '\n\nA log of the installation has been saved in ./install.log'
 print '\t\t'
 print '\t\t  o'
