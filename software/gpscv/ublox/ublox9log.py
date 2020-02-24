@@ -46,7 +46,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -202,12 +202,13 @@ def ConfigureReceiver(serport):
 	# Set which GNSS are enabled
 	# All GNSS are enabled by default
 	
-	BDS_ENA = b'\x22\x00\x31\x10' # CFG-SIGNAL-BDS_ENA 0x10310022
-	GAL_ENA = b'\x21\x00\x31\x10' # CFG-SIGNAL-GAL_ENA 0x10310021
-	GLO_ENA = b'\x25\x00\x31\x10' # CFG-SIGNAL-GLO_ENA 0x10310025
-	GPS_ENA = b'\x1f\x00\x31\x10' # CFG-SIGNAL-GPS_ENA 0x1031001f
+	BDS_ENA  = b'\x22\x00\x31\x10' # CFG-SIGNAL-BDS_ENA  0x10310022
+	GAL_ENA  = b'\x21\x00\x31\x10' # CFG-SIGNAL-GAL_ENA  0x10310021
+	GLO_ENA  = b'\x25\x00\x31\x10' # CFG-SIGNAL-GLO_ENA  0x10310025
+	GPS_ENA  = b'\x1f\x00\x31\x10' # CFG-SIGNAL-GPS_ENA  0x1031001f
+	QZSS_ENA = b'\x24\x00\x31\x10' # CFG-SIGNAL-QZSS_ENA 0x10310024
 	
-	enabled = [BDS_ENA, GAL_ENA, GLO_ENA , GPS_ENA]
+	enabled = [BDS_ENA, GAL_ENA, GLO_ENA , GPS_ENA, QZSS_ENA]
 	disabled = []
 	
 	if ('receiver:observations' in cfg):
@@ -233,10 +234,15 @@ def ConfigureReceiver(serport):
 			else:
 				disabled.append(GLO_ENA)
 			
+			# The docs recommend that GPS+QZSS be both on or both off to
+			# avoid cross-correlation issues. QZSS is therefore not explicitly
+			# controlled in gpscv.conf
 			if ('gps' in obsv):
 				enabled.append(GPS_ENA) 
+				enabled.append(QZSS_ENA)
 			else:
 				disabled.append(GPS_ENA)
+				disabled.append(QZSS_ENA)
 	
 	if not enabled:
 		Cleanup();
@@ -244,8 +250,6 @@ def ConfigureReceiver(serport):
 	
 	# Set which signals are tracked for each constellation
 	# The default is dual frequency for all constellations
-	# The docs recommend that GPS+QZSS be both on or both off to
-	# avoid cross-correlation issues
 	
 	GPS_L1CA_ENA = b'\x01\x00\x31\x10' # CFG-SIGNAL-GPS_L1CA_ENA 0x10310001
 	GPS_L2C_ENA  = b'\x03\x00\x31\x10' # CFG-SIGNAL-GPS_L2C_ENA  0x10310003
@@ -259,9 +263,20 @@ def ConfigureReceiver(serport):
 	GLO_L1_ENA   = b'\x18\x00\x31\x10' # CFG-SIGNAL-GLO_L1_ENA 0x10310018
 	GLO_L2_ENA   = b'\x1a\x00\x31\x10' # CFG-SIGNAL-GLO_L2_ENA 0x1031001a
 	
+	QZSS_L1CA_ENA = b'\x12\x00\x31\x10' # CFG-SIGNAL-QZSS_L1CA_ENA 0x10310012
+	QZSS_L2_ENA   = b'\x15\x00\x31\x10' # CFG-SIGNAL-QZSS_L2C_ENA  0x10310015
+	
 	enabledSigs = [GPS_L1CA_ENA, GPS_L2C_ENA, GAL_E1_ENA, GAL_E5B_ENA,
-					BDS_B1_ENA, BDS_B2_ENA, GLO_L1_ENA, GLO_L2_ENA]
+								BDS_B1_ENA, BDS_B2_ENA, GLO_L1_ENA, GLO_L2_ENA, QZSS_L1CA_ENA, QZSS_L2_ENA]
 	disabledSigs = []
+	
+	for gnss in enabled:
+		msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00'    + gnss +  b'\x01'
+		SendCommand(serport,msg)
+	
+	for gnss in disabled:
+		msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00'    + gnss +  b'\x00'
+		SendCommand(serport,msg)
 	
 	if ('receiver:beidou' in cfg):
 		sig = cfg['receiver:beidou'].lower()
@@ -287,9 +302,6 @@ def ConfigureReceiver(serport):
 			enabledSigs.remove(GPS_L2C_ENA)
 			disabledSigs.append(GPS_L2C_ENA)
 	
-	# Defaults guarantee that some signals are enabled
-	
-	# FIXME not actually implemented yet
 	
 	# FIXME temporary hack to enable BeiDou dual frequency
 	#    CLASS + ID    BYTE COUNT    VERSION + LAYER + reserved  payload 
