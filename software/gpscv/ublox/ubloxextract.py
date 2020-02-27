@@ -47,7 +47,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.3'
+VERSION = '0.1.4'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -273,17 +273,6 @@ if (args.navsat): # remove all old SV files
 	map(os.unlink,glob.glob(u'./E*.sv.dat'))
 	map(os.unlink,glob.glob(u'./B*.sv.dat'))
 
-configFile = args.config
-
-if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + " not found")
-	
-logPath = os.path.join(home,'logs')
-if (not os.path.isdir(logPath)):
-	ErrorExit(logPath + "not found")
-
-cfg=Initialise(configFile)
-
 if (args.file):
 	if not (os.path.isfile(args.file)):
 		ErrorExit('Unable to open ' + args.file)
@@ -294,6 +283,13 @@ if (args.file):
 		dataFile = path
 		compress = True
 else:
+	configFile = args.config
+
+	if (not os.path.isfile(configFile)):
+		ErrorExit(configFile + " not found")
+	
+	cfg=Initialise(configFile)
+	
 	dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
 
 	rxExt = cfg['receiver:file extension']
@@ -305,10 +301,10 @@ else:
 
 	if not (os.path.isfile(dataFile)):
 		gzDataFile = dataFile + '.gz'
-	if not (os.path.isfile(gzDataFile)):
-		ErrorExit('Unable to open ' + dataFile + '(.gz)')
-	else:
-		compress=True
+		if not (os.path.isfile(gzDataFile)):
+			ErrorExit('Unable to open ' + dataFile + '(.gz)')
+		else:
+			compress=True
 		
 if (compress):
 	Debug('Decompressing '+gzDataFile)
