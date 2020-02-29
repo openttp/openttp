@@ -1,0 +1,37 @@
+\section{cnt9xlog.py}
+
+\hypertarget{h:cnt9xlog}{Pendulum} CNT-90 and CNT-91 counters are supported via USBTMC (in particular, the Python \cc{usbtmc} module).
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+cnt9xlog.py [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+
+There is an optional file \cc{cnt9x.cmds} which lists SCPI commands used to configure the counter.
+This file overrides the default configuration:
+\begin{lstlisting}
+:SENS:TINT:AUTO OFF
+:SENS:FUNC 'TINT 1,2'
+:INP1:COUP DC                   # coupling DC
+:INP2:COUP DC
+:INP1:IMP 50                    # impedance 50 ohms
+:INP2:IMP 50
+:INP1:LEVEL 1.0
+:INP2:LEVEL 1.0
+:INP1:SLOPE POS
+:INP2:SLOPE POS
+\end{lstlisting}
+
+
+
