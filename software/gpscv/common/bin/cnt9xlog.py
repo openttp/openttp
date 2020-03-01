@@ -36,7 +36,7 @@ import usbtmc
 sys.path.append("/usr/local/lib/python3.6/site-packages")
 import ottplib
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 AUTHORS = "Michael Wouters"
 
 # Globals
@@ -77,6 +77,15 @@ def Initialise(configFile):
 # ------------------------------------------
 # The main 
 # ------------------------------------------
+
+defaultCntrCfg = [':SENS:TINT:AUTO OFF',
+		':SENS:FUNC \'TINT 1,2\'',
+		':INIT:CONT ON',
+		':TRIG:SOUR IMM',  # disable pacing (defined trigger rate)
+		':INP1:COUP DC',':INP2:COUP DC',
+		':INP1:IMP MAX',':INP2:IMP 50',
+		':INP1:LEVEL 1.0',':INP2:LEVEL 1.0',
+		':INP1:SLOPE POS',':INP2:SLOPE POS']
 
 maxTimeouts = 5
 
@@ -140,19 +149,27 @@ except:
 id = instr.ask("*IDN?")
 Debug('Opened ' + id)
 
-instr.write(':SENS:TINT:AUTO OFF') # it will trigger every 2s if you use 'Smart' mode
-instr.write(':SENS:FUNC \'TINT 1,2\'')
-instr.write(':INIT:CONT ON')
-instr.write(':TRIG:SOUR IMM') # disable pacing (defined trigger rate)
+cntrCfg = defaultCntrCfg
 
-instr.write(':INP1:COUP DC')
-instr.write(':INP2:COUP DC')
-instr.write(':INP1:IMP MAX') # doesn't seem to recognize 1M
-instr.write(':INP2:IMP 50')
-instr.write(':INP1:LEVEL 1.0')
-instr.write(':INP2:LEVEL 1.0')
-instr.write(':INP1:SLOPE POS')
-instr.write(':INP2:SLOPE POS')
+if ('counter:configuration' in cfg):
+	cntrCfgFile = ottplib.MakeAbsoluteFilePath(cfg['counter:configuration'],home,home+'/etc')
+	if (os.path.isfile(cntrCfgFile)):
+		cntrCfg = []
+		fin = open(cntrCfgFile,'r')
+		for l in fin:
+			l = l.strip() # trim leading and trailing whitespace
+			if (0==len(l)):
+				continue
+			if (not None == re.match('#',l)): 
+				continue
+			l = re.sub('#.*$','',l)
+			Debug('Read command: ' + l)
+			cntrCfg.append(l)
+	else:
+		ErrorExit('Can\'t open ' + cntrCfgFile)
+
+for c in cntrCfg:
+	instr.write(c)
 
 errcode,errtxt = instr.ask(':SYST:ERR?').split(',')
 if not('0'==errcode):
@@ -187,6 +204,7 @@ while (not killed):
 		tstr = time.strftime('%H:%M:%S',time.gmtime())
 		fout.write(tstr + ' ' + str(rdg) + '\n')
 		Debug(tstr + ' ' + str(rdg))
+		nTimeouts = 0 # reset the count 
 	except:
 		Debug('Timeout')
 		nTimeouts += 1
