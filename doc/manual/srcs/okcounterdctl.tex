@@ -19,8 +19,26 @@ The command line options are:
 	\item[-d]	run in debugging mode
 	\item[-g \textless $0|1$\textgreater] disable/enable the system GPIO
 	\item[-h]	print help and exit
-	\item[-c \textless $1\ldots6$\textgreater] set the PPS OUT source
+	\item[-p \textless $1\ldots6$\textgreater] set the PPS OUT source
 	\item[-q] query the counter configuration
 	\item[-v]	print version information and exit
 \end{description*}
+
+\begin{centering}
+\begin{table}[h]
+\begin{tabular}{ll}
+channel & PPS signal \\ \hline
+1 & NavSpark\\
+2 & SMT360\\
+3 & NV08C\\
+4 & external pps\\
+5 & system time pps\\
+6 & GPIO\\
+default & GPSDO
+\end{tabular}
+\caption{PPS OUT channels for the \cc{-p} option}
+\end{table}
+\end{centering}
+
+Note that the default state is to output the GPSDO 1 pps.
 
