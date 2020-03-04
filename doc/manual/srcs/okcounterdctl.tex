@@ -15,17 +15,18 @@ okcounterdctl.pl [OPTION] $\ldots$
 \end{lstlisting}
 The command line options are:
 \begin{description*}
-	\item[-c \textless file\textgreater] use the specified gpscv configuration file
 	\item[-d]	run in debugging mode
 	\item[-g \textless $0|1$\textgreater] disable/enable the system GPIO
 	\item[-h]	print help and exit
-	\item[-p \textless $1\ldots6$\textgreater] set the PPS OUT source
+	\item[-o \textless $1\ldots6$\textgreater] set the PPS OUT source
+	\item[-p PORT]  set the port to connect to \cc{okcounterd} (default is 21577)
 	\item[-q] query the counter configuration
 	\item[-v]	print version information and exit
 \end{description*}
 
-\begin{centering}
+
 \begin{table}[h]
+\begin{centering}
 \begin{tabular}{ll}
 channel & PPS signal \\ \hline
 1 & NavSpark\\
@@ -37,8 +38,9 @@ channel & PPS signal \\ \hline
 default & GPSDO
 \end{tabular}
 \caption{PPS OUT channels for the \cc{-p} option}
-\end{table}
 \end{centering}
+\end{table}
 
-Note that the default state is to output the GPSDO 1 pps.
+
+The default state is to output the GPSDO 1 pps.
 
