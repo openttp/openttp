@@ -45,7 +45,7 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import cggttslib
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -660,6 +660,15 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			ok,intDelay = GetDelay(refHeaders,'int dly')
 			newIntDelay = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode,intDelay),intDelay)
 			
+			# Dual frequency
+			if ('int dly 2' in refHeaders[0]):
+				dlyCode2 = ''
+				if ('int dly code 2' in refHeaders[0]):
+					dlyCode2=refHeaders[0]['int dly code 2']
+				ok,intDelay2 = GetDelay(refHeaders,'int dly 2') 
+				newIntDelay2 = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode2,intDelay2),intDelay2)
+				print 'WARNING! P3 delay changes will not be used!'
+				
 			ok,cabDelay = GetDelay(refHeaders,'cab dly') 
 			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
 			
@@ -668,7 +677,10 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			
 			refCorrection = (intDelay + cabDelay - refDelay) - (newIntDelay + newCabDelay - newRefDelay)
 			
-			Info('Reported INT DLY={} CAB DLY={} INT DLY={}'.format(newIntDelay,newCabDelay,newRefDelay))
+			if ('int dly 2' in calHeaders[0]):
+				Info('Reported INT DLY ({})={} INT DLY ({})={} CAB DLY={} REF DLY={}'.format(dlyCode,newIntDelay,dlyCode2,newIntDelay2,newCabDelay,newRefDelay)) 
+			else:
+				Info('Reported INT DLY ({})={} CAB DLY={} REF DLY={}'.format(newIntDelay,dlyCode,newCabDelay,newRefDelay))
 			
 	Info('Delay delta = {}'.format(refCorrection))	
 	
@@ -714,8 +726,10 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			newRefDelay = GetFloat('New REF DLY [{} ns]: '.format(refDelay),refDelay)
 			
 			calCorrection = (intDelay + cabDelay - refDelay) - (newIntDelay + newCabDelay - newRefDelay)
-			
-			Info('Reported INT DLY={} CAB DLY={} INT DLY={}'.format(newIntDelay,newCabDelay,newRefDelay))
+			if ('int dly 2' in calHeaders[0]):
+				Info('Reported INT DLY ({})={} INT DLY ({})={} CAB DLY={} REF DLY={}'.format(dlyCode,newIntDelay,dlyCode2,newIntDelay2,newCabDelay,newRefDelay)) 
+			else:
+				Info('Reported INT DLY ({})={} CAB DLY={} REF DLY={}'.format(newIntDelay,dlyCode,newCabDelay,newRefDelay))
 			
 	Info('Delay delta = {}'.format(calCorrection))	
 	
