@@ -3,7 +3,8 @@ Description=OpenTTP counter/timer
 ConditionPathExists=/usr/local/lib/bitfiles/counter.bit
 
 [Service]
-ExecStart=/usr/local/sbin/okcounterd -b /usr/local/lib/bitfiles/counter.bit
+ExecStart=/usr/local/sbin/okcounterd -b /usr/local/lib/bitfiles/counter.bit 
+ExecStartPost=/usr/local/sbin/okcounterdctrl.pl -o 3
 
 [Install]
 WantedBy=multi-user.target
