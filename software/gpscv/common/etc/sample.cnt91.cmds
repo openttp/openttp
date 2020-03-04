@@ -5,7 +5,7 @@
 :TRIG:SOUR IMM  # disable pacing (defined trigger rate)
 :INP1:COUP DC
 :INP2:COUP DC
-:INP1:IMP MAX
+:INP1:IMP 50
 :INP2:IMP 50
 :INP1:LEVEL 1.0
 :INP2:LEVEL 1.0

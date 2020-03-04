@@ -83,7 +83,7 @@ defaultCntrCfg = [':SENS:TINT:AUTO OFF',
 		':INIT:CONT ON',
 		':TRIG:SOUR IMM',  # disable pacing (defined trigger rate)
 		':INP1:COUP DC',':INP2:COUP DC',
-		':INP1:IMP MAX',':INP2:IMP 50',
+		':INP1:IMP 50',':INP2:IMP 50',
 		':INP1:LEVEL 1.0',':INP2:LEVEL 1.0',
 		':INP1:SLOPE POS',':INP2:SLOPE POS']
 
@@ -193,9 +193,10 @@ while (not killed):
 			if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
 				header=subprocess.check_output([headerGen,'-c',configFile])
 				fout.write(header.rstrip()+'\n') # make sure there is just one linefeed
-			#fout.write(ctrcfg) # Configuration after the header
 			fout.write('# ' + id + '\n')
-			
+			for c in cntrCfg:
+				fout.write('# ' + c + '\n')
+			fout.flush()
 		else:
 			fout = open(fnout,'a')
 		Debug('Opened ' + fnout)
