@@ -38,7 +38,7 @@ import time
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -284,11 +284,12 @@ examples += '    mkcggtts.py 58418 58419\n'
 parser = argparse.ArgumentParser(description='Generate CGGTTS files from RINEX observations',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
 
-parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD]')
+parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, the MJD of the previous day is used)')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
 parser.add_argument('--leapsecs',help='manually set the number of leap seconds')
+parser.add_argument('--previousmjd',help='when no MJD (or one MJD) is given, MJD-1 is added to the MJDs to be processed',action='store_true')
 
 args = parser.parse_args()
 
@@ -326,6 +327,9 @@ if (args.mjd):
 			ErrorExit('Stop MJD is before start MJD')
 	else:
 		ErrorExit('Too many MJDs')
+
+if (startMJD == stopMJD and args.previousmjd):
+	startMJD -= 1
 
 paramFile = os.path.join(home,'etc','paramCGGTTS.dat')
 if (cfg.has_key('cggtts:parameter file')):
