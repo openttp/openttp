@@ -392,12 +392,12 @@ sub CompileTarget
 sub InstallFromSource
 {
 	CompileTarget('mktimetx','common/process/mktimetx');
-	CompileTarget('prs10c','common/prs10c');
+	CompileTarget('prs10c','prs10');
 	
 	Log("\nInstalling executables in $BIN\n",$ECHO);
 	
 	Install("common/process/mktimetx/*",$BIN);
-	Install("common/prs10c/*",$BIN);
+	Install("prs10/*",$BIN);
 	Install("common/bin/*",$BIN);
 	Install("gpsdo/*.pl",$BIN);
 	Install("javad/*.pl",$BIN);
