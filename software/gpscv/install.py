@@ -29,6 +29,7 @@ import argparse
 import datetime
 import distro
 import glob
+import multiprocessing
 import os
 import platform
 import re
@@ -40,7 +41,7 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 import ottplib
 
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 AUTHORS = 'Michael Wouters'
 
 # init systems on Linux
@@ -123,7 +124,8 @@ def DetectOS():
 	(dist,distrover,_)=distro.linux_distribution()
 	Log('Detected ' + dist + ',ver ' + distrover)
 	dist=dist.lower()
-	(majorVer,)=distrover.split('.')
+	ver=distrover.split('.')
+	majorVer = ver[0]
 	
 	for os in osinfo:
 		if (dist == os[DISTNAME].lower() and majorVer == os[DISTVER]):
@@ -200,7 +202,7 @@ def InstallExecutables(srcDir,dstDir,archiveDir):
 		MakeDirectory(archiveDir)
 	files = glob.glob(os.path.join(srcDir,'*'))
 	for f in files:
-		if (os.access(f, os.X_OK)):
+		if (os.access(f, os.X_OK) and not os.path.isdir(f)):
 			# backup the old one
 			fold = os.path.join(dstDir,os.path.basename(f))
 			if (os.path.exists(fold)): # may not be there yet
@@ -329,6 +331,13 @@ if not thisos:
 
 (_,_,_,_,_,processor)=platform.uname()
 
+
+try:
+	ncpus = multiprocessing.cpu_count()
+except:
+	ncpus = 1
+makeArgs = '-j '+str(ncpus)
+
 usingCfg = False
 
 instRoot = home
@@ -414,7 +423,7 @@ MakeDirectory(archiveDir)
 # Installation targets
 
 if ('mktimetx' in targets):
-	CompileTarget('mktimetx','common/process/mktimetx')
+	CompileTarget('mktimetx','common/process/mktimetx',makeArgs)
 	InstallExecutables('common/process/mktimetx',binDir,os.path.join(archiveDir,'bin'))
 	
 if ('javad' in targets):

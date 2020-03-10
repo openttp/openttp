@@ -34,7 +34,7 @@ import shutil
 import subprocess
 import sys
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 AUTHORS = 'Michael Wouters'
 
 # init systems on Linux
@@ -113,7 +113,8 @@ def DetectOS():
 	(dist,distrover,_)=distro.linux_distribution()
 	Debug('Detected ' + dist + ' ' + distrover)
 	dist=dist.lower()
-	(majorVer,minorVer)=distrover.split('.')
+	ver=distrover.split('.')
+	majorVer = ver[0]
 	
 	for os in osinfo:
 		if (dist == os[DISTNAME].lower() and majorVer == os[DISTVER]):
