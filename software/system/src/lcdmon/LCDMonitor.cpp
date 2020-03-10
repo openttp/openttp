@@ -29,6 +29,7 @@
 
 #include "Debug.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <glob.h>
 #include <stdio.h>
@@ -75,7 +76,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "2.0.0"
+#define LCDMONITOR_VERSION "2.0.1"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -1287,7 +1288,7 @@ void LCDMonitor::showStatus()
 				snprintf(buf,20,"Leap second now");
 				break;
 			case TIME_WAIT:
-				snprintf(buf,20,"Leap second occurred");
+				snprintf(buf,20,"Leap sec occurred");
 				break;
 			case TIME_BAD:
 				snprintf(buf,20,"Unsynchronized");
@@ -1558,11 +1559,28 @@ void LCDMonitor::init()
 	if ((fd=fopen(lockFile.c_str(),"r"))){
 		fscanf(fd,"%i",&oldpid);
 		fclose(fd);
-		/* this doesn't send a signal - just error checks */
-		if (!kill(oldpid,0) || errno == EPERM){ /* still running */
-			cerr << "lcdmonitor with pid " << oldpid << " is still running" << endl;
-			exit(EXIT_FAILURE);
+		// If the process has not exited properly, there will be a stale lock file
+		// If the system has rebooted there may a new process with the PID in the lock file
+		// so we check /proc
+		ostringstream sbuf;
+		sbuf << "/proc/" << oldpid;
+		DIR* dir  = opendir(sbuf.str().c_str());
+		if (dir){ // it's in /proc
+			// check cmdline
+			sbuf << "/cmdline";
+			std::ifstream fin(sbuf.str().c_str());
+			if (fin.good()){
+				std::string cmdline;
+				fin >> cmdline;
+				fin.close();
+				std::size_t found = cmdline.find("lcdmonitor");
+				if (found!=std::string::npos){
+					std::cerr << "lcdmonitor with pid " << oldpid << " is still running" << endl;
+					exit(EXIT_FAILURE);
+				}
+			}
 		}
+		// otherwise, good to go.
 	}
 
 	log(PRETTIFIER);
