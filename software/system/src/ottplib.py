@@ -26,6 +26,14 @@ import os
 import re
 import sys
 
+ 
+LIBVERSION = '0.0.1'
+
+# ------------------------------------------
+# Return the library version
+#
+def LibVersion():
+	return LIBVERSION
 
 # ------------------------------------------
 # Read a text file to set up a dictionary for configuration information
@@ -83,12 +91,11 @@ def MakeAbsoluteFilePath(fname,rootPath,defaultPath):
 # Make a lock file for a process
 #
 def CreateProcessLock(lockFile):
-	
 	if (not TestProcessLock(lockFile)):
 		return False;
 	flock=open(lockFile,'w')
 	flock.write(os.path.basename(sys.argv[0]) + ' ' + str(os.getpid()))
-	flock.close();
+	flock.close()
 	
 	return True
 
@@ -98,16 +105,33 @@ def CreateProcessLock(lockFile):
 def RemoveProcessLock(lockFile):
 	if (os.path.isfile(lockFile)):
 		os.unlink(lockFile)
-	
+
+# ------------------------------------------
+# Test whether a lock can be obtained
+#
 def TestProcessLock(lockFile):
 	if (os.path.isfile(lockFile)):
 		flock=open(lockFile,'r')
 		info = flock.readline().split()
 		flock.close()
 		if (len(info)==2):
-			if (os.path.exists('/proc/'+str(info[1]))):
-				return False;
-	return True;
+			procDir = '/proc/'+str(info[1])
+			if (os.path.exists(procDir)):
+				fcmd = open(procDir + '/cmdline')
+				cmdline = fcmd.readline().split('\0') # null-separated
+				fcmd.close()
+				# If the system has rebooted, the pid in the lock file
+				# may reference an unrelated process with a command line 
+				# that has less than two arguments.
+				if len(cmdline) >= 2:
+					# The first argument will be the python interpreter
+					# The second will be the script, including the path 
+					# Compare script names - guards against script name being same as a directory
+					# in its path
+					if os.path.basename(sys.argv[0]) == os.path.basename(cmdline[1]):
+						return False
+				# otherwise, it's an unrelated process
+	return True
 		
 # ------------------------------------------
 # Internals - use these at your own peril
