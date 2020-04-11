@@ -54,7 +54,7 @@ package TFLibrary;
 # 16-08-12 MJW &TFMakeHash2 removes leading whitespace from the token, comments etc
 # 13-01-16  MJW &TFMakeHash2 allows values with multiple lines
 # 24-03-17 MJW Bug fix in TFCreateProcessLock. Remove file if it is corrupted.
-#
+# 12-04-20 MJW More rigorous checking of the lock file.
 
 use Exporter;
 @ISA = qw(Exporter);
@@ -648,19 +648,41 @@ sub TFTestProcessLock{
 	my ($info);
 	
 	if (-e $lockFile){
+		# Check the system boot time
+		# If the lock file was created before the reboot, it's stale (and the
+		# system did not shut down cleanly) and should be ignored. 
+		# This could fail if the system time is not yet set.
+		open(UP,"/proc/uptime");
+		@up = split /\s+/,<UP>;
+		close UP;
+		$now = time();
+		@fstat = stat($lockFile);
+		if ($fstat[9] < $now-$up[0]){
+			return 0;
+		}
+		
 		open(LCK,"<$lockFile");
 		$info = <LCK>;
 		close LCK;
 		if (!defined($info)) {return 0;} # empty file
 		chomp $info;
-		if (($info =~ /.+\s+(\d+)$/)){
-			if (-e "/proc/$1"){
-				return 1; # yes, it's locked
+		if (($info =~ /(.+)\s+(\d+)$/)){
+			$procDir = "/proc/$2"; 
+			$procName = $1;
+			if (-e $procDir){ # there is a process with the same pid
+				# (and we have hopefully detected a stale lock file)
+				# but just to be sure, check the process name
+				open(CMD,"$procDir/cmdline");
+				$cmdline = <CMD>;
+				close(CMD);
+				if ($cmdline =~ /$procName/){
+					return 1; # yes, it's locked
+				}
 			}
 		}
 		# If it didn't parse properly, then it is corrupted (this has happened ..)
-		# Corruption of the file probably mean something bad so we'll assume that
-		# everything is now OK (we rebooted) ao we'll retry
+		# Corruption of the file probably means something bad happened 
+		# so we'll assume that everything is now OK (we rebooted) so we'll retry
 	}
 	return 0;
 }
