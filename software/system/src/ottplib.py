@@ -25,9 +25,9 @@
 import os
 import re
 import sys
-
+import time
  
-LIBVERSION = '0.0.1'
+LIBVERSION = '0.0.2'
 
 # ------------------------------------------
 # Return the library version
@@ -111,6 +111,20 @@ def RemoveProcessLock(lockFile):
 #
 def TestProcessLock(lockFile):
 	if (os.path.isfile(lockFile)):
+		
+		# Check the system boot time
+		# If the lock file was created before the reboot, it's stale (and the
+		# system did not shut down cleanly) and it should be ignored. 
+		# This could fail if the system time was/is unsynchronized.
+		
+		fup = open('/proc/uptime','r')
+		upt = float(fup.readline().split()[0])
+		fup.close();
+		
+		tboot = time.time() - upt;
+		if os.path.getmtime(lockFile) < tboot:
+			return True;
+		
 		flock=open(lockFile,'r')
 		info = flock.readline().split()
 		flock.close()
@@ -118,18 +132,10 @@ def TestProcessLock(lockFile):
 			procDir = '/proc/'+str(info[1])
 			if (os.path.exists(procDir)):
 				fcmd = open(procDir + '/cmdline')
-				cmdline = fcmd.readline().split('\0') # null-separated
+				cmdline = fcmd.readline()
 				fcmd.close()
-				# If the system has rebooted, the pid in the lock file
-				# may reference an unrelated process with a command line 
-				# that has less than two arguments.
-				if len(cmdline) >= 2:
-					# The first argument will be the python interpreter
-					# The second will be the script, including the path 
-					# Compare script names - guards against script name being same as a directory
-					# in its path
-					if os.path.basename(sys.argv[0]) == os.path.basename(cmdline[1]):
-						return False
+				if os.path.basename(sys.argv[0]) in cmdline:
+					return False
 				# otherwise, it's an unrelated process
 	return True
 		
