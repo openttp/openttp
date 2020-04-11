@@ -46,12 +46,22 @@ import time
 
 import ottplib
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
-OPENTTP_FORMAT=0;
-NATIVE_FORMAT=1;
+OPENTTP_FORMAT=0
+NATIVE_FORMAT=1
+
+# Maximum buffer length
+# The longest message that we ask for is UBX-RXM-RAWX
+# the payload of which is 16+32*numMeas
+# numMeas could be as many as 184
+# This is about 6K
+# So take maximum buffer length to be 30 K
+# (this is roughly 10 s of messages 'normally')
+
+MAXBUFLEN = 30000
 
 # Globals
 debug = False
@@ -235,8 +245,8 @@ def ConfigureReceiver(serport):
 				disabled.append(GLO_ENA)
 			
 			# The docs recommend that GPS+QZSS be both on or both off to
-			# avoid cross-correlation issues. QZSS is therefore not explicitly
-			# controlled in gpscv.conf
+			# avoid cross-correlation issues. QZSS is therefore implicitly
+			# controlled by whether or not GPS is enabled
 			if ('gps' in obsv):
 				enabled.append(GPS_ENA) 
 				enabled.append(QZSS_ENA)
@@ -536,6 +546,15 @@ while (not killed):
 	
 	newinp = serport.read(serport.in_waiting)
 	inp = inp + newinp
+	
+	# A reasonable limit on the size of the buffered data needs to be set
+	# Without this, the situation has been observed where the script was using a 
+	# large amount of memory 
+	
+	if len(inp) > MAXBUFLEN:
+		inp=b'' # empty the buffer
+		print ('Buffer too big',len(inp),'bytes') # FIXME remove this one day
+		continue
 	
 	# Header structure for UBX packets is 
 	# Sync char 1 | Sync char 2| Class (1 byte) | ID (1 byte) | payload length (2 bytes) | payload | cksum_a | cksum_b
