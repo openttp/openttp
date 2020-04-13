@@ -34,7 +34,7 @@ import shutil
 import subprocess
 import sys
 
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 AUTHORS = 'Michael Wouters'
 
 # init systems on Linux
@@ -51,8 +51,8 @@ PY3LIBDIR = 6
 
 osinfo = [
 	['RedHat','6','rhel6',UPSTART,'/usr/local/lib/site_perl','',''], 
-	['CentOS','6','centos6',UPSTART,'/usr/local/lib/site_perl','',''],
-	['CentOS','7','centos7',SYSTEMD,'/usr/local/lib64/perl5',
+	['CentOS Linux','6','centos6',UPSTART,'/usr/local/lib/site_perl','',''],
+	['CentOS Linux','7','centos7',SYSTEMD,'/usr/local/lib64/perl5',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
 	['Ubuntu','14','ubuntu14',UPSTART,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',''],
@@ -296,8 +296,8 @@ thisos = DetectOS()
 if not thisos:
 	print 'Your Linux distribution has not been tested against.'
 	print 'The tested distributions are:'
-	for os in osinfo:
-		print os[DISTNAME],os[DISTVER]
+	for o in osinfo:
+		print o[DISTNAME],o[DISTVER]
 	print
 	if (not GetYesNo('Do you want to proceed (y/n)?')):
 		ErrorExit('Unsupported OS')
