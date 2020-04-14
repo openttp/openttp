@@ -46,7 +46,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.3'
+VERSION = '0.1.4'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -68,10 +68,23 @@ debug = False
 killed = False
 ubxMsgs = set() # the set of messages we want to log
 
+# This is not perfect
+# Reboot behaviour seems to vary. You may not get SIGTERM. YMMV
+#
 # ------------------------------------------
 def SignalHandler(signal,frame):
+	#global fdata
+	#msg = '# {} {} killed SIG {}\n'.format( \
+			#time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()), \
+			#os.path.basename(sys.argv[0]),signal)
+	#if (dataFormat == OPENTTP_FORMAT):
+		#fdata.write(msg)
+	#Cleanup()
+	## If you try to print to the console after SIGHUP, is tsops further execution 
+	#print (msg)
+	#sys.exit(0)
 	global killed
-	killed=True
+	killed = True
 	return
 
 # ------------------------------------------
@@ -499,8 +512,9 @@ if (re.match(rb'1',ret)==None):
 	ottplib.RemoveProcessLock(lockFile)
 	ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
 
-signal.signal(signal.SIGINT,SignalHandler)
-signal.signal(signal.SIGTERM,SignalHandler)
+signal.signal(signal.SIGINT,SignalHandler) 
+signal.signal(signal.SIGTERM,SignalHandler) 
+signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY, but handle it anyway
 
 Debug('Opening ' + port)
 
@@ -537,7 +551,8 @@ while (not killed):
 		else:
 			print ('# ' + msg + '\n')
 		break
-
+		killed = True
+    
 	# The guts
 	select.select([serport],[],[],0.2)
 	if (serport.in_waiting == 0):
@@ -617,11 +632,15 @@ while (not killed):
 			
 	
 # Do what you gotta do
-msg = '# {} {} killed\n'.format( \
+msg = '# {} {} timeout/killed\n'.format( \
 			time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()), \
 			os.path.basename(sys.argv[0]))
-print (msg)
+
 if (dataFormat == OPENTTP_FORMAT):
 	fdata.write(msg)
 
 Cleanup()
+
+# This is here because if the process gets SIGHUP
+# and STDOUT is not piped to a file, execution will stop here 
+print (msg)

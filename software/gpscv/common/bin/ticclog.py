@@ -46,7 +46,7 @@ import time
 
 import ottplib
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -173,6 +173,7 @@ if (re.match('1',ret)==None):
 
 signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
+signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY but handle it anyway
 
 Debug("Opening " + port)
 

@@ -36,7 +36,7 @@ import usbtmc
 sys.path.append("/usr/local/lib/python3.6/site-packages")
 import ottplib
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 AUTHORS = "Michael Wouters"
 
 # Globals
@@ -133,6 +133,7 @@ if (not ottplib.CreateProcessLock(lockFile)):
 
 signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
+signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY, but handle it anyway
 
 # Preliminaries over
 
