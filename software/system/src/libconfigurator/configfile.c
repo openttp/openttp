@@ -325,7 +325,7 @@ configfile_issection(
 {
 	#define BUFSIZE 1024
 	regex_t preg;
-	char rbuf[BUFSIZE+1];
+	char rbuf[BUFSIZE+1+12];
 	char lcbuf[BUFSIZE+1];
 	char lcs[BUFSIZE+1];
 	int res;
@@ -335,7 +335,7 @@ configfile_issection(
 	strncpy(lcs,s,BUFSIZE);
 	lowercase(lcbuf);
 	lowercase(lcs);
-	snprintf(rbuf,BUFSIZE,"^ *\\[ *%s *\\]",lcs); 
+	snprintf(rbuf,BUFSIZE+12,"^ *\\[ *%s *\\]",lcs); 
 	if ( 0 != (res = regcomp(&preg,rbuf,REG_EXTENDED | REG_NOSUB)))
 		lastError = InternalError;
 	res = regexec(&preg,lcbuf,0,NULL,0);
