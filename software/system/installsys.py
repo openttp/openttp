@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 #
 
 #
@@ -54,6 +54,8 @@ osinfo = [
 	['CentOS Linux','6','centos6',UPSTART,'/usr/local/lib/site_perl','',''],
 	['CentOS Linux','7','centos7',SYSTEMD,'/usr/local/lib64/perl5',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
+	['CentOS Linux','8','centos8',SYSTEMD,'/usr/local/lib64/perl5',
+                '/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
 	['Ubuntu','14','ubuntu14',UPSTART,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',''],
 	['Ubuntu','16','ubuntu16',UPSTART,
