@@ -35,7 +35,7 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import cggttslib
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -81,12 +81,13 @@ except:
 hdr = ''
 for l in fin:
 	l = l.rstrip()
-	if l.find('CKSUM') >= 0:
+	if l.find('CKSUM = ') >= 0:
+		hdr += 'CKSUM = ' # but this string has a checksum of zero anyway
 		print('CKSUM = ' + str(hex(cggttslib.CheckSum(hdr))))
 		sys.exit()
 	hdr += l
 
-print('Bad header - no CKSUM line')
+print('Bad header - missing/incorrectly formatted CKSUM line')
 	
 
 
