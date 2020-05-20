@@ -34,8 +34,8 @@ import shutil
 import subprocess
 import sys
 
-VERSION = '0.0.3'
-AUTHORS = 'Michael Wouters'
+VERSION = '0.0.4'
+AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
 UPSTART='upstart'
@@ -68,8 +68,9 @@ osinfo = [
 	['Debian GNU/Linux 9 (stretch)','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages',''],
 	['Raspbian GNU/Linux 9 (stretch)','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','']
-]
+		'/usr/local/lib/python2.7/site-packages',''],
+	['Raspbian GNU/Linux 10 (buster)','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','']]
 
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
