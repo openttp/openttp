@@ -37,7 +37,7 @@ import time
 sys.path.append("/usr/local/lib/python3.6/site-packages")
 import ottplib
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 AUTHORS = "Michael Wouters"
 
 # Globals
@@ -85,14 +85,22 @@ def GetResponse(ser,cmd):
 	return ret.decode('utf-8').rstrip()
 
 # -------------------------------------------------------------------------
-def GetStatus(sio):
-	s = GetResponse(sio,'ST?')
+def GetStatus(ser):
+	s = GetResponse(ser,'ST?')
 	
-	# valid response is six comma-separated integers
+	# The valid response is six comma-separated integers
 	m = re.match(r'(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)',s)
 	if m:
 		return [m.group(1),m.group(2),m.group(3),m.group(4),m.group(5),m.group(6)]
-	return []
+	return ['-1','-1','-1','-1','-1','-1']
+	
+# -------------------------------------------------------------------------
+def GetAD(ser,index):
+	rdg = GetResponse(ser,'AD ' + str(index) + '?')
+	m = re.match(r'\d{1}\.\d{3}',rdg)
+	if m:
+		return rdg # don't convert to float since we're just convert to convert back to a string anyway
+	return '-1'
 		
 # ------------------------------------------
 # The main 
@@ -202,12 +210,24 @@ while (not killed):
 	if (tt - lastLog >= logInterval):
 		
 		statusBytes = GetStatus(ser)
-		if (len(statusBytes) == 6):
-			fstatus.write(time.strftime('%H:%M:%S',time.gmtime(tt)))
-			for sb in statusBytes:
-				fstatus.write(' ' + sb )
-			fstatus.write('\n')
+		
+		# Check for power loss
+		if (129 <= int(statusBytes[5])):
+			Debug('Power lost')
 			
+		advals = []
+		for i in range(0,16):
+			advals.append(GetAD(ser,i))
+			
+		fstatus.write(time.strftime('%H:%M:%S',time.gmtime(tt)))
+		for sb in statusBytes:
+			fstatus.write(' ' + sb )
+		
+		for i in range(0,16):
+			fstatus.write(' ' + advals[i])
+			
+		fstatus.write('\n')
+		
 		lastLog = tt
 		fstatus.flush()
 		
