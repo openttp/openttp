@@ -138,10 +138,22 @@ cfg=Initialise(configFile)
 port = cfg['counter:port'] 
 refLogPath= ottplib.MakeAbsolutePath(cfg['reference:log path'], home)
 
-statusExtension = '.rb'
+statusExtension = '.rb' # FIXME bad variable name - should be 'log extension' 
 if 'reference:file extension' in cfg:
 	statusExtension=cfg['reference:file extension']
 
+logInterval = 60
+if 'reference:log interval' in cfg:
+	logInterval=int(cfg['reference:log interval'])
+
+statusFile = 'prs10.status'
+if 'reference:status file' in cfg:
+	statusFile = ottplib.MakeAbsoluteFilePath(cfg['reference:status file'],home,home + 'logs')
+
+powerFlag = 'prs10.pwr'
+if 'reference:power flag' in cfg:
+	powerFlag = ottplib.MakeAbsoluteFilePath(cfg['reference:power flag'],home,home + 'logs')
+	
 # Create the process lock		
 lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
 Debug('Creating lock ' + lockFile)
@@ -152,7 +164,7 @@ signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
 
 # Create UUCP lock for the serial port
-uucpLockPath="/var/lock";
+uucpLockPath='/var/lock'
 if ('paths:uucp lock' in cfg):
 	uucpLockPath = cfg['paths:uucp lock']
 
@@ -188,48 +200,71 @@ lastLog = -1
 
 ser.reset_input_buffer() # eat junk
 
-logInterval = 10
-
 # Preliminaries over
 while (not killed):
 	tt = time.time()
 	mjd = ottplib.MJD(tt)
 	if (not( mjd == oldmjd)):
 		oldmjd = mjd
-		fnstatus = refLogPath + str(mjd) + statusExtension
-		if (not os.path.isfile(fnstatus)):
-			fstatus = open(fnstatus,'w') # unbuffered output is not allowed (but we don't care really)
+		fnlog = refLogPath + str(mjd) + statusExtension
+		if (not os.path.isfile(fnlog)):
+			flog = open(fnlog,'w') # unbuffered output is not allowed (but we don't care really)
 			id = GetResponse(ser,'ID?')
-			fstatus.write('# prs10log.py version %s\n' % VERSION)
-			fstatus.write('# %s\n' % id)
-			fstatus.flush()
+			flog.write('# prs10log.py version %s\n' % VERSION)
+			flog.write('# %s\n' % id)
+			flog.flush()
 		else:
-			fstatus = open(fnstatus,'a')
-		Debug('Opened ' + fnstatus)
+			flog = open(fnlog,'a')
+		Debug('Opened ' + fnlog)
 	
 	if (tt - lastLog >= logInterval):
 		
+		fstatus = open(statusFile,'w')
+		
 		statusBytes = GetStatus(ser)
+		advals = []
+		timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
 		
 		# Check for power loss
 		if (129 <= int(statusBytes[5])):
 			Debug('Power lost')
+			fpwr = open(powerFlag,'w')
+			fpwr.write('%d %s power loss detected\n' % (mjd,timestr))
+			fpwr.close()
 			
-		advals = []
+			for i in range(0,16):
+				advals.append(GetAD(ser,i))
+			
+			# Write the status data to the log so we have a record that power was lost
+			outstr = timestr 
+			for sb in statusBytes:
+				outstr += ' ' + sb
+			for i in range(0,16):
+				outstr += ' ' + advals[i]
+			outstr += '\n'
+			flog.write(outstr)
+		
+			statusBytes = GetStatus(ser) # get the updated status 
+			timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
+		
+		# Get AD values
 		for i in range(0,16):
 			advals.append(GetAD(ser,i))
-			
-		fstatus.write(time.strftime('%H:%M:%S',time.gmtime(tt)))
+		# Write the status data to the log so we have a record that power was lost
+		outstr = timestr 
 		for sb in statusBytes:
-			fstatus.write(' ' + sb )
-		
+			outstr += ' ' + sb
 		for i in range(0,16):
-			fstatus.write(' ' + advals[i])
-			
-		fstatus.write('\n')
+			outstr += ' ' + advals[i]
+		outstr += '\n'
+		
+		flog.write(outstr)
+		flog.flush()
+		
+		fstatus.write(outstr)
+		fstatus.close()
 		
 		lastLog = tt
-		fstatus.flush()
 		
 	# Don't try to be fancy
 	time.sleep(logInterval) 
@@ -240,10 +275,10 @@ while (not killed):
 	#	Debug('Timeout')
 	#	nTimeouts += 1
 	#	if (nTimeouts == maxTimeouts):
-	#		fstatus.close()
+	#		flog.close()
 	#		ottplib.RemoveProcessLock(lockFile)
 	#		ErrorExit('Too many timeouts')
 	
 # All done - cleanup		
-fstatus.close()
+flog.close()
 ottplib.RemoveProcessLock(lockFile)
