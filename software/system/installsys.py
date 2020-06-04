@@ -63,14 +63,14 @@ osinfo = [
 	['Ubuntu','18','ubuntu18',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
 		'/usr/local/lib/python3.6/site-packages'],
-	['BeagleBoard.org Debian','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages',''],
-	['Debian GNU/Linux 9 (stretch)','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages',''],
-	['Raspbian GNU/Linux 9 (stretch)','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages',''],
-	['Raspbian GNU/Linux 10 (buster)','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','']]
+	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
+	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
+	['Raspbian GNU/Linux','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
+	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/']]
 
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
@@ -278,6 +278,9 @@ debug = args.debug
 
 targets = alltargets
 
+if (os.geteuid() > 0):
+	ErrorExit('This script must be run with superuser  privileges')
+
 if args.list:
 	print 'Available targets for installation are:'
 	for t in targets:
@@ -311,9 +314,6 @@ if not thisos:
 (_,_,_,_,_,processor)=platform.uname()
 
 initSys = thisos[INITSYS]
-
-if (os.geteuid() > 0):
-	ErrorExit('This script must be run with superuser  privileges')
 
 # The nuts and bolts of it
 

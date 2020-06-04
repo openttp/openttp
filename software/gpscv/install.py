@@ -41,8 +41,8 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 import ottplib
 
-VERSION = '0.0.4'
-AUTHORS = 'Michael Wouters'
+VERSION = '0.0.5'
+AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
 UPSTART='upstart'
@@ -68,13 +68,14 @@ osinfo = [
 	['Ubuntu','18','ubuntu18',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
 		'/usr/local/lib/python3.6/site-packages'],
-	['BeagleBoard.org Debian','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages',''],
-	['Debian GNU/Linux 9 (stretch)','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages',''],
-	['Raspbian GNU/Linux 9 (stretch)','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','']
-]
+	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
+	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
+	['Raspbian GNU/Linux','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
+	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/']]
 
 # All available installation targets
 basetargets = ['mktimetx','misc scripts']

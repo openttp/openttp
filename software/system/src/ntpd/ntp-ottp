@@ -42,7 +42,9 @@ unlock_ntpdate() {
 RUNASUSER=ntp
 UGID=$(getent passwd $RUNASUSER | cut -f 3,4 -d:) || true
 if test "$(uname -s)" = "Linux"; then
-        NTPD_OPTS="$NTPD_OPTS -u $UGID"
+#        NTPD_OPTS="$NTPD_OPTS -u $UGID"
+# Louis, 2020-06-02: Added -g flag to allow for large offset when starting
+        NTPD_OPTS="$NTPD_OPTS -u $UGID -g"
 fi
 
 case $1 in
