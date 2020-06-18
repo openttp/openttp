@@ -41,7 +41,7 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 import ottplib
 
-VERSION = '0.0.5'
+VERSION = '0.0.6'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -101,6 +101,7 @@ def Debug(msg):
 # ------------------------------------------
 def Log(msg):
 	print msg
+	return
 
 # ------------------------------------------
 def ErrorExit(msg):
@@ -118,6 +119,7 @@ def GetYesNo(msg):
 		val=val.strip().lower()
 		if (val == 'y' or val == 'n' or val == 'yes' or val == 'no'):
 			return (val == 'y' or val == 'yes')
+	return
 
 # ------------------------------------------
 def DetectOS():
@@ -151,7 +153,8 @@ def MakeDirectory(dir):
 			except:
 				ErrorExit('Failed to create ' + dir)
 			# FIXME permissions ?
-			
+	return
+
 #--------------------------------------------
 def CompileTarget(target,targetDir,makeArgs=''):
 	
@@ -191,6 +194,7 @@ def CompileTarget(target,targetDir,makeArgs=''):
 		
 	os.chdir(cwd) # back to the starting directory
 	Debug('... done')
+	return
 
 #--------------------------------------------
 def InstallExecutables(srcDir,dstDir,archiveDir):
@@ -211,6 +215,7 @@ def InstallExecutables(srcDir,dstDir,archiveDir):
 			# install the new one
 			shutil.copy2(f,dstDir) # preserve file attributes
 	Log('Installed executables from ' + srcDir)
+	return
 
 #--------------------------------------------
 def InstallConfigs(srcDir,dstDir):
@@ -221,6 +226,7 @@ def InstallConfigs(srcDir,dstDir):
 	for f in files:
 		shutil.copy2(f,dstDir) # preserve file attributes
 	Log('Installed configs from ' + srcDir)
+	return
 
 #--------------------------------------------
 # This is a kludge to grab config files which do not have the extension .conf
@@ -233,7 +239,8 @@ def InstallAll(srcDir,dstDir):
 	for f in files:
 		shutil.copy2(f,dstDir) # preserve file attributes
 	Log('Installed all from ' + srcDir)
-	
+	return
+
 #--------------------------------------------
 # Returns an index into the receiver list
 def DetectReceiver(cfg):
@@ -250,7 +257,8 @@ def DetectReceiver(cfg):
 	else:
 		Log('A receiver is not defined in gpscv.conf')
 		return -1
-	
+	return
+
 #--------------------------------------------
 # Select the receiver to install software for
 # Returns an index into the receiver list
@@ -272,6 +280,7 @@ def ChooseReceiver():
 					return val-1 # cos it's an index
 			except:
 				pass
+	return
 
 # ------------------------------------------
 # Main
@@ -330,8 +339,9 @@ if not thisos:
 		# FIXME better defaults
 		thisos = ['Unsupported','?','unsupported','/usr/local/lib/site_perl']
 
-(_,_,_,_,_,processor)=platform.uname()
-
+(_,_,_,_,architecture,processor)=platform.uname()
+if architecture.find('arm') == 0:
+	processor = 'arm'
 
 try:
 	ncpus = multiprocessing.cpu_count()
