@@ -264,22 +264,22 @@ def DetectReceiver(cfg):
 # Returns an index into the receiver list
 def ChooseReceiver():
 
-		print 
-		print 'Please select the receiver to install software for:'
-		i=1
-		for r in receivers:
-			print str(i) + '. ' + r[0] + ' ' + r[1]
-			i += 1
-		max = i-1
-		
-		while (True):
-			sval = raw_input('Choose (1-'+str(max)+'): ')
-			try:
-				val=int(sval)
-				if (val >=1 and val <= max): 
-					return val-1 # cos it's an index
-			except:
-				pass
+	print 
+	print 'Please select the receiver to install software for:'
+	i=1
+	for r in receivers:
+		print str(i) + '. ' + r[0] + ' ' + r[1]
+		i += 1
+	max = i-1
+	
+	while (True):
+		sval = raw_input('Choose (1-'+str(max)+'): ')
+		try:
+			val=int(sval)
+			if (val >=1 and val <= max): 
+				return val-1 # cos it's an index
+		except:
+			pass
 	return
 
 # ------------------------------------------
