@@ -436,11 +436,15 @@ MakeDirectory(archiveDir)
 if ('mktimetx' in targets):
 	CompileTarget('mktimetx','common/process/mktimetx',makeArgs)
 	InstallExecutables('common/process/mktimetx',binDir,os.path.join(archiveDir,'bin'))
-	
+
+if ('gpsdo' in targets):
+	InstallExecutables('gpsdo',binDir,os.path.join(archiveDir,'bin'))
+	InstallConfigs('gpsdo',configDir)
+
 if ('javad' in targets):
 	InstallExecutables('javad',binDir,os.path.join(archiveDir,'bin'))
 	InstallConfigs('javad',configDir)
-	
+
 if ('nvs' in targets):
 	InstallExecutables('nvs',binDir,os.path.join(archiveDir,'bin'))
 	InstallConfigs('nvs',configDir)
@@ -448,7 +452,7 @@ if ('nvs' in targets):
 if ('trimble' in targets):
 	InstallExecutables('trimble',binDir,os.path.join(archiveDir,'bin'))
 	InstallConfigs('trimble',configDir)
-	
+
 if ('ublox' in targets):
 	InstallExecutables('ublox',binDir,os.path.join(archiveDir,'bin'))
 	InstallConfigs('ublox',configDir)
@@ -456,11 +460,11 @@ if ('ublox' in targets):
 if ('prs10' in targets):
 	CompileTarget('prs10','prs10')
 	InstallExecutables('prs10',binDir,os.path.join(archiveDir,'bin'))
-	
+
 if ('misc scripts' in targets):
 	InstallExecutables('common/bin',binDir,os.path.join(archiveDir,'bin'))
 	InstallAll('common/etc',configDir)
-	
+
 Log('\nFinished installation :-)')
 
 print '\n\nA log of the installation has been saved in ./install.log'
