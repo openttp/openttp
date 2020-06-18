@@ -230,7 +230,7 @@ while (!$killed)
   {
     @_=gmtime time();
     $sec = $_[0];
-    select(undef,undef,undef,0.1)
+    select(undef,undef,undef,0.1);
     if($killed){ last; }
   }
 }
