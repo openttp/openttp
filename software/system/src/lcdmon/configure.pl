@@ -37,7 +37,8 @@ $SYSTEMD="systemd";
 	["Ubuntu 18.04","debian",$SYSTEMD],
 	["BeagleBoard.org Debian","debian",$SYSTEMD],
 	["Debian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
-	["Raspbian GNU/Linux 9 (stretch)","debian",$SYSTEMD]
+	["Raspbian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
+	["Raspbian GNU/Linux 10 (buster)","debian",$SYSTEMD]
 	);
 
 # Try for /etc/os-release first (systemd systems only)

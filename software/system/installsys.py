@@ -89,8 +89,8 @@ def Debug(msg):
 
 # ------------------------------------------
 def Log(msg):
-	
 	print msg
+	return
 
 # ------------------------------------------
 def ErrorExit(msg):
@@ -108,7 +108,6 @@ def GetYesNo(msg):
 		val=val.strip().lower()
 		if (val == 'y' or val == 'n' or val == 'yes' or val == 'no'):
 			return (val == 'y' or val == 'yes')
-		
 
 # ------------------------------------------
 def DetectOS():
@@ -141,7 +140,8 @@ def MakeDirectory(dir):
 			except:
 				ErrorExit('Failed to create ' + dir)
 			# FIXME permissions ?
-			
+	return
+
 #--------------------------------------------
 def CompileTarget(target,targetDir,makeArgs=''):
 	
@@ -181,6 +181,7 @@ def CompileTarget(target,targetDir,makeArgs=''):
 		
 	os.chdir(cwd) # back to the starting directory
 	Debug('... done')
+	return
 
 #--------------------------------------------
 def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
@@ -235,11 +236,13 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 			Log('Installed ' + modname + ' to ' + py3libdir)
 		else:
 			ErrorExit('Python3 version is ' + str(minorVer) + ': unsupported')
+	return
 
 #--------------------------------------------
 def InstallScript(src,dst):
 	shutil.copy(src,dst)
 	Log('Installed ' +src + ' to ' + dst)
+	return
 
 #--------------------------------------------
 def EnableService(service):
@@ -248,6 +251,8 @@ def EnableService(service):
 		Log('Enabled the service ' + service)
 	except:
 		Log('Failed to enable the service ' + service)
+	return
+
 # ------------------------------------------
 # Main
 # ------------------------------------------
@@ -322,7 +327,6 @@ initSys = thisos[INITSYS]
 if ('udevrules' in targets):
 	InstallScript('udev/60-opalkelly.rules','/etc/udev/rules.d')
 	#FIXME trigger ?
-	
 
 if (not args.install):
 	Log('Creating any miscellaneous directories')
