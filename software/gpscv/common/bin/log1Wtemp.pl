@@ -33,7 +33,8 @@ use strict;
 # 1. The software blocks while waiting for a reading, which can
 #    hold up the system. It is also a pain during testing. I just
 #    built a second testbed based on the Raspberry Pi and I've had
-#    enough of waiting for this script.
+#    enough of waiting for this script. Turned out I had to check
+#    if $killed became True in the waiting loop - simple fix.
 #
 
 # Libraries, etc. to use
