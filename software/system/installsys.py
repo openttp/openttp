@@ -34,7 +34,7 @@ import shutil
 import subprocess
 import sys
 
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -279,7 +279,7 @@ debug = args.debug
 targets = alltargets
 
 if (os.geteuid() > 0):
-	ErrorExit('This script must be run with superuser  privileges')
+	ErrorExit('This script must be run with superuser privileges')
 
 if args.list:
 	print 'Available targets for installation are:'
@@ -311,7 +311,9 @@ if not thisos:
 		# FIXME better defaults
 		thisos = ['Unsupported','?','unsupported','/usr/local/lib/site_perl']
 
-(_,_,_,_,_,processor)=platform.uname()
+(_,_,_,_,architecture,processor)=platform.uname()
+if architecture.find('arm') == 0:
+	processor = 'arm'
 
 initSys = thisos[INITSYS]
 
