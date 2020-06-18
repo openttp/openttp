@@ -340,7 +340,7 @@ if not thisos:
 		thisos = ['Unsupported','?','unsupported','/usr/local/lib/site_perl']
 
 (_,_,_,_,architecture,processor)=platform.uname()
-if architecture.find('arm') == 0:
+if architecture.find('arm') != -1:
 	processor = 'arm'
 
 try:
@@ -406,6 +406,17 @@ if (not args.install):
 	else:
 		if GetYesNo('Do you want to install PRS10 support (y/n)? '):
 			targets.append('prs10')
+	
+	# Detect if a GPSDO is the reference
+	if (usingCfg):
+		if ('reference:oscillator' in cfg):
+			if ('gpsdo' in cfg['reference:oscillator']):
+				targets.append('gpsdo')
+		else:
+			pass
+	else:
+		if GetYesNo('Do you want to install GPSDO support (y/n)? '):
+			targets.append('gpsdo')
 	
 	# Create any missing directories
 
