@@ -1,0 +1,11 @@
+# Check that logging is running every 5 minutes
+*/5 * * * * /usr/local/bin/kickstart.pl  # See ~etc/kickstart.conf
+
+# Run processing of data at 00:15
+15 0 * * * nice $HOME/bin/runmktimetx.pl >/dev/null 2>&1
+
+# Give processing time to complete then compress the files at 00:45
+45 0 * * * /usr/local/bin/gziplogs.pl >/dev/null 2>&1
+
+# Check system status once a day, just before the day rollover
+56 23 * * * $HOME/bin/checkstatus.pl >$HOME/lockStatusCheck/status.dat
