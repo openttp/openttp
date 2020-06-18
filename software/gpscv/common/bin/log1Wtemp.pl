@@ -13,7 +13,7 @@ use strict;
 # Version 1.0 finalised:  2016-12-21
 #
 # Version 1.1 start date: 2017-07-19 (Louis Marais)
-# Version 1.1 finalised:  2017-??-??
+# Version 1.1 finalised:  2017-07-22
 # ~~~~~~~~~~~~~~~~~~~~ Why am I changing it? ~~~~~~~~~~~~~~~~~~~~~~
 # OpenTTP hardware specification finalised. Only one 1W temperature
 # sensor is installed, a surface mount unit, mounted underneath the
@@ -27,7 +27,13 @@ use strict;
 #    directory is a temporary directory for files that are 
 #    frequently written, located in RAM (tmpfs).
 #
-# Last modification date: 2016-12-21
+# Version 1.2 start date: 2020-06-18 (Louis Marais)
+# Version 1.2 finalised:  2020-06-18
+# ~~~~~~~~~~~~~~~~~~~~~~~ Changes made ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 1. The software blocks while waiting for a reading, which can
+#    hold up the system. It is also a pain during testing. I just
+#    built a second testbed based on the Raspberry Pi and I've had
+#    enough of waiting for this script.
 #
 
 # Libraries, etc. to use
@@ -42,7 +48,7 @@ my ($nowstr,%Init,$temp,$logPath,$then,$lockFile,$statusFile,@info,$msg,$sec);
 my ($GPSDO,@dirs,$dir,$sn,$gpsdo_temp);
 
 $AUTHORS = "Louis Marais";
-$VERSION = "1.1";
+$VERSION = "1.2";
 
 # Default debug state is OFF
 $DEBUG = 0;
@@ -224,7 +230,7 @@ while (!$killed)
   {
     @_=gmtime time();
     $sec = $_[0];
-    sleep(1);
+    select(undef,undef,undef,0.05)
   }
 }
 
