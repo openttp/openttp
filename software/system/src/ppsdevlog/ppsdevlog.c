@@ -35,6 +35,7 @@
 #include <sys/stat.h>
 #include <getopt.h>
 #include <signal.h>
+#include <string.h>
 #include <math.h>
 #include <time.h>
 #include <configurator.h>
@@ -42,7 +43,7 @@
 #include <sys/timepps.h>
 
 #define APP_NAME "ppsdevlog"
-#define APP_VERSION "0.1.1"
+#define APP_VERSION "0.1.2"
 #define LAST_MODIFIED ""
 
 #define DEFAULT_CONFIG			"/usr/local/etc/ppsdevlog.conf" 
@@ -52,6 +53,7 @@
 #define DEFAULT_DEV 				"/dev/pps0"
 
 #define TSLEEP  300000       /* sleep to sleep between polls of the PPS device */
+#define DEFAULT_TIMEOUT     60 /* if no data received, bomb out */
 
 #define BUFLEN 1024
 #define PRETTIFIER "*********************************************"
@@ -78,7 +80,7 @@ typedef struct
 	
 	char * lockFileName;
 	
-	struct timespec lastpps;
+	struct timespec lastpps; /* this is tracked so that duplicates can be filtered out */
 	unsigned long   seq; /* pps counter */
 	
 	int MJD; /* to track day rollover */
@@ -142,6 +144,7 @@ ppsdevlog_init(
 	ppsdevlog *pp
 )
 {
+	struct timeval tv;
 	
 	pp->reqCaps = PPS_CAPTURECLEAR;
 	pp->availCaps = 0;
@@ -153,8 +156,9 @@ ppsdevlog_init(
 	pp->logPath=strdup(DEFAULT_LOG_DIR);
 	pp->devName=strdup(DEFAULT_DEV);
 	pp->MJD=-1;
+	gettimeofday(&tv,NULL);
 	pp->lastpps.tv_nsec=0;
-	pp->lastpps.tv_sec=0;
+	pp->lastpps.tv_sec=tv.tv_sec; /* set this so that we can track an initial timeout on the 1 pps */
 }
 
 static int
@@ -384,7 +388,7 @@ ppsdevlog_read(
 		}
 	
 		if (ppsrdg.tv_sec != pp->lastpps.tv_sec || 
-			(ppsrdg.tv_sec == pp->lastpps.tv_sec && ppsrdg.tv_nsec != pp->lastpps.tv_nsec)
+			(ppsrdg.tv_sec == pp->lastpps.tv_sec && ppsrdg.tv_nsec != pp->lastpps.tv_nsec) /* ignore duplicates */
 		){
 			pp->lastpps = ppsrdg;
 			return 0;
@@ -425,6 +429,8 @@ int main(
 	int opt,ret;
 	time_t tt;
 	int mjd;
+	struct timeval tvnow;
+	
 	ppsdevlog pp;
 	
 	ppsdevlog_init(&pp);
@@ -472,6 +478,7 @@ int main(
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGQUIT, &sigact, NULL);
 
+	
 	/* Data capture loop */
 	while (1) {
 		
@@ -500,8 +507,16 @@ int main(
 			break;
 		}
 		
-		if (ret < 0 && errno != ETIMEDOUT)
+		if (ret < 0 && errno != ETIMEDOUT) /* exit on all other errors except a timeout since we tolerate a timeout for a while */
 			break;
+		
+		gettimeofday(&tvnow,NULL);
+		
+		if (tvnow.tv_sec - pp.lastpps.tv_sec > DEFAULT_TIMEOUT){
+			if (debugOn)
+				fprintf(stderr,"timeout\n");
+			break;
+		}
 	}
 	
 	time_pps_destroy(pp.devHandle);
