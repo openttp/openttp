@@ -222,11 +222,18 @@ def ConfigureReceiver(serport):
 	# It is not saved
 	#                 Class + ID      Length      Version+Layers+Reserved
 	UBX_CFG_VAL_SET = b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' # 9 byte payload only
-	UBX_ENA = b'\x01'
+	UBX_ON = b'\x01'
+	UBX_OFF = b'\x00'
 	
-	# Disable NMEA output 
-	CFG_USBOUTPROT_NMEA = b'\x02\x00\x78\x10'  
-	msg=  UBX_CFG_VAL_SET + CFG_USBOUTPROT_NMEA + b'\x00'
+	# Disable NMEA output on interfaces
+	
+	msg=  UBX_CFG_VAL_SET + b'\x02\x00\x74\x10' + UBX_OFF # CFG-UART1OUTPROT-NMEA 0x10740002
+	SendCommand(serport,msg)
+	
+	msg=  UBX_CFG_VAL_SET + b'\x02\x00\x76\x10' + UBX_OFF  # CFG-UART2OUTPROT-NMEA 0x10760002
+	SendCommand(serport,msg)
+	
+	msg=  UBX_CFG_VAL_SET + b'\x02\x00\x78\x10' + UBX_OFF # CFG-USBOUTPROT-NMEA 0x10780002
 	SendCommand(serport,msg)
 	
 	# GNSS tracking configuration 
@@ -305,11 +312,11 @@ def ConfigureReceiver(serport):
 	disabledSigs = []
 	
 	for gnss in enabled:
-		msg = UBX_CFG_VAL_SET + gnss +  UBX_ENA
+		msg = UBX_CFG_VAL_SET + gnss +  UBX_ON
 		SendCommand(serport,msg)
 	
 	for gnss in disabled:
-		msg = UBX_CFG_VAL_SET + gnss +  b'\x00'
+		msg = UBX_CFG_VAL_SET + gnss +  UBX_OFF
 		SendCommand(serport,msg)
 	
 	if ('receiver:beidou' in cfg):
@@ -338,7 +345,7 @@ def ConfigureReceiver(serport):
 	
 	# FIXME temporary hack to enable BeiDou dual frequency
 	#    CLASS + ID    BYTE COUNT    VERSION + LAYER + reserved  payload 
-	msg = UBX_CFG_VAL_SET + BDS_B2_ENA  +  UBX_ENA
+	msg = UBX_CFG_VAL_SET + BDS_B2_ENA  +  UBX_ON
 	SendCommand(serport,msg)
 	
 	# Navigation/measurement rate settings
@@ -360,40 +367,40 @@ def ConfigureReceiver(serport):
 	elif (commInterface == USB):
 		commOffset = 2
 	
-	# CFG-MSGOUT-UBX_RXM_RAWX_ raw data message
+	# CFG-MSGOUT-UBX_RXM_RAWX_ 0x209102a5+x raw data message
 	ubxMsgs.add(b'\x02\x15')
 	cmd = struct.pack('B',0xa5 + commOffset) 
-	msg = UBX_CFG_VAL_SET + cmd + b'\x02\x91\x20' + UBX_ENA 
+	msg = UBX_CFG_VAL_SET + cmd + b'\x02\x91\x20' + UBX_ON 
 	SendCommand(serport,msg);
 	
-	# CFG-MSGOUT-UBX_TIM_TP time pulse message (contains sawtooth error)
+	# CFG-MSGOUT-UBX_TIM_TP 0x2091017e+x time pulse message (contains sawtooth error)
 	ubxMsgs.add(b'\x0d\x01')
 	cmd = struct.pack('B',0x7e + commOffset)
-	msg = UBX_CFG_VAL_SET + cmd + b'\x01\x91\x20' + UBX_ENA # USB
+	msg = UBX_CFG_VAL_SET + cmd + b'\x01\x91\x20' + UBX_ON 
 	SendCommand(serport,msg)
 	
-	# CFG-MSGOUT-UBX_NAV_SAT satellite information
+	# CFG-MSGOUT-UBX_NAV_SAT 0x20910016+x satellite information
 	ubxMsgs.add(b'\x01\x35')
 	cmd = struct.pack('B',0x16 + commOffset)
-	msg = UBX_CFG_VAL_SET + cmd + b'\x00\x91\x20' + UBX_ENA # USB
+	msg = UBX_CFG_VAL_SET + cmd + b'\x00\x91\x20' + UBX_ON
 	SendCommand(serport,msg)
 	
-	# CFG-MSGOUT-UBX_NAV_TIMEUTC UTC time solution 
+	# CFG-MSGOUT-UBX_NAV_TIMEUTC 0x2091005c+x UTC time solution 
 	ubxMsgs.add(b'\x01\x21')
 	cmd = struct.pack('B',0x5c + commOffset)
-	msg = UBX_CFG_VAL_SET + cmd + b'\x00\x91\x20' + UBX_ENA # USB
+	msg = UBX_CFG_VAL_SET + cmd + b'\x00\x91\x20' + UBX_ON 
 	SendCommand(serport,msg)
 	
-	# CFG-MSGOUT-UBX_NAV_CLOCK clock solution (contains clock bias)
+	# CFG-MSGOUT-UBX_NAV_CLOCK 0x20910066+x clock solution (contains clock bias)
 	ubxMsgs.add(b'\x01\x22')
 	cmd = struct.pack('B',0x66 + commOffset)
-	msg = UBX_CFG_VAL_SET  + cmd + b'\x00\x91\x20' + UBX_ENA # USB
+	msg = UBX_CFG_VAL_SET  + cmd + b'\x00\x91\x20' + UBX_ON 
 	SendCommand(serport,msg)
 	
-	# CFG-MSGOUT-UBX__RXM_SFBRX broadcast navigation data subframe
+	# CFG-MSGOUT-UBX_RXM_SFBRX 0x20910232+x broadcast navigation data subframe
 	ubxMsgs.add(b'\x02\x13')
 	cmd = struct.pack('B',0x32 + commOffset)
-	msg = UBX_CFG_VAL_SET  + cmd + b'\x02\x91\x20' + UBX_ENA # USB
+	msg = UBX_CFG_VAL_SET  + cmd + b'\x02\x91\x20' + UBX_ON 
 	SendCommand(serport,msg)
 	
 	ubxMsgs.add(b'\x05\x00') # ACK-NAK 
