@@ -46,12 +46,20 @@ import time
 
 import ottplib
 
-VERSION = '0.1.4'
+VERSION = '0.1.5'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
 OPENTTP_FORMAT=0
 NATIVE_FORMAT=1
+
+# Receiver comm interfaces
+USB = 0
+UART1 = 1
+UART2 = 2
+
+BaudRates = [9600,19200,38400,57600,115200,230400,460800,921600]
+
 
 # Maximum buffer length
 # The longest message that we ask for is UBX-RXM-RAWX
@@ -212,10 +220,13 @@ def ConfigureReceiver(serport):
 	
 	# Note that all configuration is only done in RAM
 	# It is not saved
+	#                 Class + ID      Length      Version+Layers+Reserved
+	UBX_CFG_VAL_SET = b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' # 9 byte payload only
+	UBX_ENA = b'\x01'
 	
-	# Disable NMEA output on the USB interface
+	# Disable NMEA output 
 	CFG_USBOUTPROT_NMEA = b'\x02\x00\x78\x10'  
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + CFG_USBOUTPROT_NMEA + b'\x00'
+	msg=  UBX_CFG_VAL_SET + CFG_USBOUTPROT_NMEA + b'\x00'
 	SendCommand(serport,msg)
 	
 	# GNSS tracking configuration 
@@ -294,11 +305,11 @@ def ConfigureReceiver(serport):
 	disabledSigs = []
 	
 	for gnss in enabled:
-		msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00'    + gnss +  b'\x01'
+		msg = UBX_CFG_VAL_SET + gnss +  UBX_ENA
 		SendCommand(serport,msg)
 	
 	for gnss in disabled:
-		msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00'    + gnss +  b'\x00'
+		msg = UBX_CFG_VAL_SET + gnss +  b'\x00'
 		SendCommand(serport,msg)
 	
 	if ('receiver:beidou' in cfg):
@@ -325,10 +336,9 @@ def ConfigureReceiver(serport):
 			enabledSigs.remove(GPS_L2C_ENA)
 			disabledSigs.append(GPS_L2C_ENA)
 	
-	
 	# FIXME temporary hack to enable BeiDou dual frequency
 	#    CLASS + ID    BYTE COUNT    VERSION + LAYER + reserved  payload 
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00'    +     BDS_B2_ENA  +  b'\x01'
+	msg = UBX_CFG_VAL_SET + BDS_B2_ENA  +  UBX_ENA
 	SendCommand(serport,msg)
 	
 	# Navigation/measurement rate settings
@@ -340,33 +350,50 @@ def ConfigureReceiver(serport):
 	# Note that the configuration database token has its bytes reversed
 	# (wrt what's written in the docs)
 	
-	# RXM-RAWX raw data message
+	# The Key ID for UART1 sets the base key id
+	# UART2 = UART1 + 1
+	# USB   = UART1 + 2
+	
+	commOffset = 0
+	if (commInterface == UART2):
+		commOffset = 1
+	elif (commInterface == USB):
+		commOffset = 2
+	
+	# CFG-MSGOUT-UBX_RXM_RAWX_ raw data message
 	ubxMsgs.add(b'\x02\x15')
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\xa7\x02\x91\x20' + b'\x01' # USB
+	cmd = struct.pack('B',0xa5 + commOffset) 
+	msg = UBX_CFG_VAL_SET + cmd + b'\x02\x91\x20' + UBX_ENA 
 	SendCommand(serport,msg);
 	
-	# TIM-TP time pulse message (contains sawtooth error)
+	# CFG-MSGOUT-UBX_TIM_TP time pulse message (contains sawtooth error)
 	ubxMsgs.add(b'\x0d\x01')
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x80\x01\x91\x20' + b'\x01' # USB
+	cmd = struct.pack('B',0x7e + commOffset)
+	msg = UBX_CFG_VAL_SET + cmd + b'\x01\x91\x20' + UBX_ENA # USB
 	SendCommand(serport,msg)
 	
-	# NAV-SAT satellite information
+	# CFG-MSGOUT-UBX_NAV_SAT satellite information
 	ubxMsgs.add(b'\x01\x35')
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x18\x00\x91\x20' + b'\x01' # USB
+	cmd = struct.pack('B',0x16 + commOffset)
+	msg = UBX_CFG_VAL_SET + cmd + b'\x00\x91\x20' + UBX_ENA # USB
 	SendCommand(serport,msg)
 	
-	# NAV-TIMEUTC UTC time solution 
+	# CFG-MSGOUT-UBX_NAV_TIMEUTC UTC time solution 
 	ubxMsgs.add(b'\x01\x21')
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x5e\x00\x91\x20' + b'\x01' # USB
+	cmd = struct.pack('B',0x5c + commOffset)
+	msg = UBX_CFG_VAL_SET + cmd + b'\x00\x91\x20' + UBX_ENA # USB
 	SendCommand(serport,msg)
 	
-	# NAV-CLOCK clock solution (contains clock bias)
+	# CFG-MSGOUT-UBX_NAV_CLOCK clock solution (contains clock bias)
 	ubxMsgs.add(b'\x01\x22')
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x68\x00\x91\x20' + b'\x01' # USB
+	cmd = struct.pack('B',0x66 + commOffset)
+	msg = UBX_CFG_VAL_SET  + cmd + b'\x00\x91\x20' + UBX_ENA # USB
 	SendCommand(serport,msg)
 	
+	# CFG-MSGOUT-UBX__RXM_SFBRX broadcast navigation data subframe
 	ubxMsgs.add(b'\x02\x13')
-	msg=b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' + b'\x34\x02\x91\x20' + b'\x01' # USB
+	cmd = struct.pack('B',0x32 + commOffset)
+	msg = UBX_CFG_VAL_SET  + cmd + b'\x02\x91\x20' + UBX_ENA # USB
 	SendCommand(serport,msg)
 	
 	ubxMsgs.add(b'\x05\x00') # ACK-NAK 
@@ -472,14 +499,42 @@ cfg=Initialise(configFile)
 
 # Check the receiver model is supported
 rxModel = cfg['receiver:model'].lower()
-if (None == re.search('zed-f9',rxModel)):
+
+if ('zed-f9p' == rxModel):
+	commInterface= USB # Sparkfun board
+elif ('zed-f9t' == rxModel):
+	commInterface = UART1 # ublox board
+else:
 	ErrorExit('Receiver model ' + rxModel + ' is not supported')
 
+# Receiver comms interface now set to defaults 
+if ('receiver:communication interface' in cfg):
+	newCommInterface = cfg['receiver:communication interface'].lower()
+	if ('usb' == newCommInterface):
+		commInterface = USB
+	elif ('uart1'== newCommInterface):
+		commInterface = UART1
+	elif (re.search('uart2',newCommInterface)):
+		commInterface = UART2
+	else:
+		ErrorExit('Invalid communication interface: ' + newCommInterface)
+		
+portSpeed = 460800
+if ('receiver:baud rate' in cfg):
+	newSpeed = cfg['receiver:baud rate']
+	try:
+		portSpeed = int(newSpeed)
+	except:
+		ErrorExit('Invalid baud rate:' + newSpeed)
+	if (not portSpeed in BaudRates):
+		ErrorExit('Invalid baud rate')
+		
 rxTimeout = 600
 if ('receiver:timeout' in cfg):
 	rxTimeout = int(cfg['receiver:timeout'])
 
 port = cfg['receiver:port']
+
 dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
 rxStatus = ottplib.MakeAbsoluteFilePath(cfg['receiver:status file'], home,home + '/log')
 statusUpdateInterval = 30
@@ -520,7 +575,7 @@ Debug('Opening ' + port)
 
 serport=None # so that this can flag failure to open the port
 try:
-	serport = serial.Serial(port,460800,timeout=0.2)
+	serport = serial.Serial(port,portSpeed,timeout=0.2)
 except:
 	Cleanup()
 	ErrorExit('Failed to open ' + port)
@@ -575,7 +630,8 @@ while (not killed):
 	# Sync char 1 | Sync char 2| Class (1 byte) | ID (1 byte) | payload length (2 bytes) | payload | cksum_a | cksum_b
 	
 	matches = ubxre.search(inp)
-	if (matches): # UBX header
+	while (matches): # UBX header
+		
 		inp = inp[matches.start():] # discard the prematch string
 		classid = matches.group(1)
 		payloadLength, = struct.unpack_from('<H',matches.group(2)); # ushort, little endian FIXME what about ARM?
@@ -605,7 +661,7 @@ while (not killed):
 				tThen = tNow
 				tStr = time.strftime('%H:%M:%S',time.gmtime(tNow))
 				
-			# Parse messages
+			# Parse messges
 			if (classid in ubxMsgs):
 				#print(binascii.hexlify(classid),packetLength,inputLength)
 				
@@ -626,9 +682,9 @@ while (not killed):
 				inp=b'' # we ate the lot
 			else:
 				inp = inp[packetLength:] # still some chewy bits 
-			
+			matches = ubxre.search(inp) # have another go
 		else:
-			pass # nuffink to do
+			break # need a bit more 
 			
 	
 # Do what you gotta do
