@@ -27,7 +27,7 @@ import re
 import sys
 import time
  
-LIBVERSION = '0.0.2'
+LIBVERSION = '0.0.3'
 
 # ------------------------------------------
 # Return the library version
@@ -81,7 +81,7 @@ def MakeAbsoluteFilePath(fname,rootPath,defaultPath):
 	
 	if (os.path.isabs(fname)): # absolute path already - nothing to do
 		return ret
-	elif (re.search('^\w+'+sep,fname)): # relative to rootPath
+	elif (re.search(r'^\w+'+sep,fname)): # relative to rootPath
 		ret = rootPath + fname
 	else:
 		ret = defaultPath + fname
@@ -156,10 +156,10 @@ def _LoadConfig(fname,options={}):
 		print('Unable to open '+fname)
 		return cfg
 		
-	comment_re = re.compile('^\s*#')
-	trailing_comment_re = re.compile('#.*$')
-	section_re = re.compile('^\s*\[(.+)\]')
-	keyval_re = re.compile('\s*=\s*')	
+	comment_re = re.compile(r'^\s*#')
+	trailing_comment_re = re.compile(r'#.*$')
+	section_re = re.compile(r'^\s*\[(.+)\]')
+	keyval_re = re.compile(r'\s*=\s*')	
 	
 	section = ''
 	value = ''
