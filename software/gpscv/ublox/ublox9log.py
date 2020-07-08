@@ -28,6 +28,10 @@
 #
 # Modification history
 #
+# 2020-07-07 MJW Extensive modifications to allow USB and UARTs to be used
+#                General cleanups
+# 2020-07-08 ELM Some minor fixups, version number changed to 0.1.6
+#
 
 import argparse
 import binascii
@@ -46,7 +50,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.5'
+VERSION = '0.1.6'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -88,7 +92,7 @@ def SignalHandler(signal,frame):
 	#if (dataFormat == OPENTTP_FORMAT):
 		#fdata.write(msg)
 	#Cleanup()
-	## If you try to print to the console after SIGHUP, is tsops further execution 
+	## If you try to print to the console after SIGHUP, it stops further execution 
 	#print (msg)
 	#sys.exit(0)
 	global killed
@@ -438,6 +442,7 @@ def UpdateStatus(rxStatus,msg):
 	gal = ''
 	glo = ''
 	gps = ''
+	qzss = ''
 	
 	ngood = 0
 	
@@ -455,6 +460,8 @@ def UpdateStatus(rxStatus,msg):
 			gal = gal + str(svID) + ',' 
 		elif (3 == gnssID):
 			bds = bds + str(svID) + ','
+		elif (5 == gnssID):
+			qzss = qzss + str(svID) + ','
 		elif (6 == gnssID):
 			glo = glo + str(svID) + ','
 			
@@ -464,6 +471,8 @@ def UpdateStatus(rxStatus,msg):
 		gal = gal[:-1]
 	if (len(bds) > 0):
 		bds = bds[:-1]
+	if (len(qzss) > 0):
+		qzss = qzss[:-1]
 	if (len(glo) > 0):
 		glo = glo[:-1]
 
@@ -472,6 +481,7 @@ def UpdateStatus(rxStatus,msg):
 	fstat.write('GAL = ' + gal + '\n')
 	fstat.write('GLO = ' + glo + '\n')
 	fstat.write('GPS = ' + gps + '\n')
+	fstat.write('QZSS = ' + qzss + '\n')
 	fstat.close()
 	
 # ------------------------------------------
@@ -527,6 +537,8 @@ if ('receiver:communication interface' in cfg):
 		ErrorExit('Invalid communication interface: ' + newCommInterface)
 		
 portSpeed = 460800
+if ('zed-f9t' == rxModel):
+	portSpeed = 115200
 if ('receiver:baud rate' in cfg):
 	newSpeed = cfg['receiver:baud rate']
 	try:
@@ -609,7 +621,8 @@ while (not killed):
 	if (time.time() - tLastMsg > rxTimeout):
 		msg = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()) + ' no response from receiver'
 		if (dataFormat == OPENTTP_FORMAT):
-			flog.write('# ' + msg + '\n')
+			#flog.write('# ' + msg + '\n') # flog not defined, changed to fdata
+			fdata.write('# ' + msg + '\n')
 		else:
 			print ('# ' + msg + '\n')
 		break
@@ -629,8 +642,8 @@ while (not killed):
 	# large amount of memory 
 	
 	if len(inp) > MAXBUFLEN:
-		inp=b'' # empty the buffer
 		print ('Buffer too big',len(inp),'bytes') # FIXME remove this one day
+		inp=b'' # empty the buffer AFTER reporting its size
 		continue
 	
 	# Header structure for UBX packets is 
