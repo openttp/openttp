@@ -37,6 +37,7 @@ $SYSTEMD="systemd";
 	["Ubuntu 18.04","debian",$SYSTEMD],
 	["BeagleBoard.org Debian","debian",$SYSTEMD],
 	["Debian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
+	["Debian GNU/Linux 10 (buster)","debian",$SYSTEMD],
 	["Raspbian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
 	["Raspbian GNU/Linux 10 (buster)","debian",$SYSTEMD]
 	);

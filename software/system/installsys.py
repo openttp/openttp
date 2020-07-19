@@ -32,9 +32,10 @@ import platform
 import re
 import shutil
 import subprocess
+
 import sys
 
-VERSION = '0.0.5'
+VERSION = '0.0.7'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -50,8 +51,6 @@ PY2LIBDIR = 5
 PY3LIBDIR = 6
 
 osinfo = [
-	['RedHat','6','rhel6',UPSTART,'/usr/local/lib/site_perl','',''], 
-	['CentOS Linux','6','centos6',UPSTART,'/usr/local/lib/site_perl','',''],
 	['CentOS Linux','7','centos7',SYSTEMD,'/usr/local/lib64/perl5',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
 	['CentOS Linux','8','centos8',SYSTEMD,'/usr/local/lib64/perl5',
@@ -67,6 +66,8 @@ osinfo = [
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
+	['Debian GNU/Linux','10','bbdebian10',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/'],
 	['Raspbian GNU/Linux','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
 	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
@@ -187,8 +188,14 @@ def CompileTarget(target,targetDir,makeArgs=''):
 def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 	
 	Debug('--> Installing ' + modname)
-	py2 = subprocess.check_output(['which','python2']).strip();
-	py3 = subprocess.check_output(['which','python3']).strip();
+	try:
+		py2 = subprocess.check_output(['which','python2']).strip()
+	except:
+		py2=''
+	try:
+		py3 = subprocess.check_output(['which','python3']).strip()
+	except:
+		py3=''
 	src = srcdir + '/' + modname + '.py'
 	
 	if ('python2' in py2):
@@ -270,7 +277,7 @@ parser = argparse.ArgumentParser(description='Install the OTTP system software',
 
 # Optional arguments
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
-parser.add_argument('--install','-i',help='list targets for installation (see -i option)')
+parser.add_argument('--install','-i',metavar = 'TARGET',help='install TARGET (see -l option)')
 parser.add_argument('--list','-l',help='list targets for installation (see -i option)',
 	action='store_true')
 parser.add_argument('--minimal','-m',help='do a minimmal installation',action='store_true')
