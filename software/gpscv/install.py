@@ -41,7 +41,7 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 import ottplib
 
-VERSION = '0.0.6'
+VERSION = '0.0.7'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -71,6 +71,8 @@ osinfo = [
 	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
+	['Debian GNU/Linux','10','bbdebian10',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
 	['Raspbian GNU/Linux','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],

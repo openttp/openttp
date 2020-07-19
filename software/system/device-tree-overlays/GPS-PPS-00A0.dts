@@ -27,7 +27,7 @@
                 status = "okay";
                 pinctrl-names = "default";
                 pinctrl-0 = <&bs_pinmode_P9_12_0x27>;
-                gpios = <&gpio2 28 0>;
+                gpios = <&gpio1 28 0>; /* gpio2 for 1 based counting (linux < 4.x) gpio1 for 0 based counting */
                 assert-rising-edge;
             };
         };
