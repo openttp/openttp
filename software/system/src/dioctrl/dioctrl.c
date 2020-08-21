@@ -57,7 +57,7 @@
 #include <sys/mman.h>
 
 #define APP_NAME    "dioctrl"
-#define APP_VERSION "0.1"
+#define APP_VERSION "0.2"
 #define APP_AUTHORS "Michael Wouters"
 
 #define TRUE 1
@@ -72,96 +72,119 @@ static int debugOn=0;
   
 #endif
 
+#ifdef USE_SIO8186x /* Fintek Super I/O chip */
 
-#ifdef USE_SIO8186x
+#define CHIP_ID_81865    0x0704
+#define CHIP_ID_81866    0x1010
+#define VENDOR_ID_8186X  0x1934
 
-#define MASTERREG   0x2E
-#define SLAVEREG    0x4E
-#define CHIPID81865 0x0704
-#define CHIPID81866 0x1010
-#define VENID81865  0x1934
+#define MASTER_REG       0x2e
+#define SLAVE_REG        0x4e
+#define LDN_REG          0x07
+#define GPIO_LDN_REG     0x06
 
-#define RegLDN      0x07
-#define RegGPIO_LDN 0x06
+/* This is for the 81865 */
+#define GPIO0_OER 0xF0  /* GPIO port 0 output enable register, write 0x0F for 50~53 OP and 54~57 IP */
+#define GPIO0_ODR 0xF1  /* GPIO port 0 output data register */
+#define GPIO0_PSR 0xF2  /* GPIO port 0 pin status register */
 
-#define RegGPIO5_OER 0xA0  /* GPIO port 5 output enable register, write 0x0F for 50~53 OP and 54~57 IP */
-#define RegGPIO5_ODR 0xA1  /* GPIO port 5 output data register */
-#define RegGPIO5_PSR 0xA2  /* GPIO port 5 pin status register */
+/* This is for the 81866 */
+#define GPIO8_OER 0x88           /* GPIO port 8 output enable register */
+#define GPIO8_ODR (GPIO8_OER+1)  /* output data register */
+#define GPIO8_PSR (GPIO8_OER+1)  /* pin status register */
 
-#define RegGPIO0_OER 0xF0  /* GPIO port 0 output enable register, write 0x0F for 50~53 OP and 54~57 IP */
-#define RegGPIO0_ODR 0xF1  /* GPIO port 0 output data register */
-#define RegGPIO0_PSR 0xF2  /* GPIO port 0 pin status register */
 
-unsigned char entryKey[2] = {0x87,0x87}; /* SIO Unlock key write twice */
-static unsigned char reg_sio,reg_data; 
+static unsigned char INDEX_PORT,DATA_PORT;
+static unsigned char GPIO_OER,GPIO_ODR,GPIO_PSR;
 
 static unsigned char 
-LpcReadIndirectByte(
+F8186X_read(
   unsigned char index)
 {
-    outb(index,reg_sio);
-    return inb(reg_data);
+    outb(index,INDEX_PORT);
+    return inb(DATA_PORT);
 }
 
 static void 
-LpcWriteIndirectByte(
+F8186X_write(
   unsigned char index,
   unsigned char data)
 {
-    outb(index,reg_sio);
-    outb(data,reg_data);
+    outb(index,INDEX_PORT);
+    outb(data,DATA_PORT);
 }
 
 static void 
-SIOF8186x_select_LDN_GPIO()
+F8186X_select_LDN_GPIO()
 {
-	LpcWriteIndirectByte(RegLDN, RegGPIO_LDN);
+	F8186X_write(LDN_REG, GPIO_LDN_REG);
 }
 
 static void 
-SIOF8186x_unlock() 
+F8186X_unlock() 
 {
-	int i;
-  ioperm(reg_sio,2,1);
-	for (i=0; i<2; i++)                /* write twice to unlock */
-       outb(entryKey[i], reg_sio);
+	
+  ioperm(INDEX_PORT,2,1); /* get permission to write */
+	/* write twice to unlock */
+	outb(0x87, INDEX_PORT);
+	outb(0x87, INDEX_PORT);
 }
 
 static void 
-SIOF8186x_close() 
+F8186X_close()
 {
-   LpcWriteIndirectByte(reg_sio,0xaa);  
-   ioperm(reg_sio,2,0);
+   F8186X_write(INDEX_PORT,0xaa);  /* unlock */
+   ioperm(INDEX_PORT,2,0); /* release write permissions */
 }
 
 static int 
-SIOF8186x_check_ID() 
+F8186X_check()
 {
-  unsigned int chipid, vendorid;
-  //Read SIO Chip ID and Vendor ID
-  chipid = LpcReadIndirectByte(0x20);
-  chipid = (chipid<<8)|LpcReadIndirectByte(0x21);
-  if (chipid != CHIPID81865 && chipid != CHIPID81866)
-    return 1;
+  unsigned int chipID, vendorID;
+  
+	//Verify Chip ID and Vendor ID
+  chipID = F8186X_read(0x20);
+  chipID = (chipID<<8) | F8186X_read(0x21);
+	
+	if (chipID == CHIP_ID_81865){
+		GPIO_OER = GPIO0_OER;
+		GPIO_ODR = GPIO0_ODR;
+		GPIO_PSR = GPIO0_PSR;
+		if (debugOn) fprintf(stderr,"Using GPIO0 for 81865\n");
+	}
+	else if (chipID == CHIP_ID_81866){
+		GPIO_OER = GPIO8_OER;
+		GPIO_ODR = GPIO8_ODR;
+		GPIO_PSR = GPIO8_PSR;
+		if (debugOn) fprintf(stderr,"Using GPIO8 for 81866\n");
+	}
+	else{
+		return FALSE;
+	}
+		
+  if (debugOn) {
+		fprintf(stderr,"Chip ID : 0x%04x\n", chipID);
+  
+		vendorID = F8186X_read(0x23);
+		vendorID = (vendorID << 8) | F8186X_read(0x24);
+		fprintf(stderr,"Vendor ID : 0x%04x\n", vendorID);
+	}
 
-  if (debugOn) fprintf(stderr,"Chip ID : 0x%04x\n", chipid);
-  vendorid = LpcReadIndirectByte(0x23);
-  vendorid = (vendorid<<8)|LpcReadIndirectByte(0x24);
-  if (debugOn) fprintf(stderr,"Vendor ID : 0x%04x\n", vendorid);
-  return 0;
+	return TRUE;
 }
 
+// FIXME logic is wrong!
 static int
-SIOF8186x_init()
+F8186X_init()
 {
-	reg_sio = MASTERREG;
-	reg_data = reg_sio + 1;
-	SIOF8186x_unlock();
-	if (SIOF8186x_check_ID()){
-		reg_sio = SLAVEREG;
-		reg_data = reg_sio + 1;
-		SIOF8186x_unlock();
-		if (SIOF8186x_check_ID()){ // FIXME
+	INDEX_PORT = MASTER_REG;
+	DATA_PORT = INDEX_PORT + 1;
+	F8186X_unlock();
+	if (!F8186X_check()){
+		INDEX_PORT = SLAVE_REG;
+		DATA_PORT = INDEX_PORT + 1;
+		F8186X_unlock();
+		if (!F8186X_check()){ // FIXME
 				fprintf(stderr,"Init fail(1) .. not a F81865 or F81866\n");
 				return FALSE;
 		}
@@ -197,7 +220,8 @@ dioctrl_print_version()
 }
 
 int 
-dioctrl_get_int(char *str){
+dioctrl_get_int(char *str)
+{
 	char *endptr;
 	
 	errno =0;
@@ -274,19 +298,19 @@ main(
 	}
 	
 #ifdef USE_SIO8186x
-	if (!SIOF8186x_init())
+	if (!F8186X_init())
 		exit(EXIT_FAILURE);
 	
-	SIOF8186x_select_LDN_GPIO();
-	currVal = LpcReadIndirectByte(RegGPIO0_PSR);
+	F8186X_select_LDN_GPIO();
+	currVal = F8186X_read(GPIO_PSR);
 	if (debugOn)
-		printf("current GPIO0 value = 0x%02x\n", currVal);
+		printf("old port value = 0x%02x\n", currVal);
 	newVal= (currVal & ~bitmask) | (val & bitmask);
-	LpcWriteIndirectByte(RegGPIO0_ODR, newVal);
-	currVal = LpcReadIndirectByte(RegGPIO0_PSR);
+	F8186X_write(GPIO_ODR, newVal);
+	currVal = F8186X_read(GPIO_PSR);
 	if (debugOn)
-		printf("new GPIO0 value = 0x%02x\n", currVal);
-	SIOF8186x_close();
+		printf("new port value = 0x%02x\n", currVal);
+	F8186X_close();
 	
 #endif
 	
