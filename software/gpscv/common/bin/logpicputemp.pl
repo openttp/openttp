@@ -94,8 +94,13 @@ if (-d "$home/lockStatusCheck")  {
   $lockPath="$home/lockStatusCheck";
   $statusFile=TFMakeAbsoluteFilePath("cputemp",$home,$lockPath);
 }
-else{
-  ErrorExit("No ~/lockStatusCheck directory found!\n");
+elsif (-d "$home/status"){ # added this for NTP auditor application
+  $lockPath="$home/status";
+  $statusFile=TFMakeAbsoluteFilePath("cputemp",$home,$lockPath);
+}
+else
+{
+  ErrorExit("No ~/lockStatusCheck or ~/status directory found!\n");
 }
 
 if (defined $opt_c)
