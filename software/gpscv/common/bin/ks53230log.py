@@ -102,6 +102,7 @@ def _Keysight53230Configure(cfg):
 	defaultCfg = [
 			'CONF:TINT (@1),(@2)',             # set counter to time-interval mode
 			'TRIG:SLOP POS',
+			'SYSTEM:TIMEOUT 3',
 			':INP1:PROB 1',                    # input attenuation x1
 			':INP2:PROB 1',                    # input attenuation x1
 			':INP1:COUP DC',                   # coupling DC
