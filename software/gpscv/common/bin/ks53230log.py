@@ -36,13 +36,16 @@ import usbtmc
 sys.path.append("/usr/local/lib/python3.6/site-packages")
 import ottplib
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 AUTHORS = "Michael Wouters"
 
 # Globals
 debug = False
 killed = False
 cntrCfg = []
+startChan = 1
+stopChan = 2
+rdgSign  = 1
 
 # ------------------------------------------
 def SignalHandler(signal,frame):
@@ -98,7 +101,8 @@ def _Keysight53230Reset():
 	return id
 
 def _Keysight53230Configure(cfg):
-	global cntrCfg
+	global cntrCfg,startChan,stopChan,rdgSign
+	
 	defaultCfg = [
 			'CONF:TINT (@1),(@2)',             # set counter to time-interval mode
 			'TRIG:SLOP POS',
@@ -116,7 +120,9 @@ def _Keysight53230Configure(cfg):
 		]
 	
 	cntrCfg = defaultCfg
-
+	startChan = 1
+	stopChan = 2
+	
 	if ('counter:configuration' in cfg):
 		cntrCfgFile = ottplib.MakeAbsoluteFilePath(cfg['counter:configuration'],home,home+'/etc')
 		if (os.path.isfile(cntrCfgFile)):
@@ -131,6 +137,13 @@ def _Keysight53230Configure(cfg):
 				l = re.sub('#.*$','',l)
 				Debug('Read command: ' + l)
 				cntrCfg.append(l)
+				if 'CONF:TINT' in l or 'CONFIGURE:TINTERVAL'in l:
+					ch1 = l.find('@1')
+					ch2 = l.find('@2')
+					if (ch1 > ch2):
+						startChan= 2
+						stopChan = 1
+						# rdgSign remains +ve because the initial configuration of the counter defines what is START
 		else:
 			ErrorExit('Can\'t open ' + cntrCfgFile)
 
@@ -157,6 +170,26 @@ def _Keysight53230Read():
 		return '-1'
 	return rdg
 
+def _Keysight53230SwapStartStop():
+	global startChan,stopChan,cntrCfg,rdgSign
+	Debug('Swapping start/stop')
+	confTint = ''
+	rdgSign *= -1 # flip the sign
+	if (startChan == 1):
+		startChan = 2
+		stopChan = 1
+		confTint = 'CONF:TINT (@2),(@1)'
+	else:
+		startChan = 1
+		stopChan = 2
+		confTint = 'CONF:TINT (@1),(@2)'
+		
+	ks53230.write('ABORT') # stop any measurement in progress
+	for i,c in enumerate(cntrCfg):
+		if 'CONF:TINT' in c:
+			cntrCfg[i] = confTint
+		ks53230.write(cntrCfg[i])
+	
 def _Keysight53230Close():
 	ks53230.close()
 
@@ -180,6 +213,9 @@ def CounterRead():
 	rdg = _Keysight53230Read()
 	return rdg
 
+def CounterSwapStartStop():
+	_Keysight53230SwapStartStop()
+	
 def CounterClose():
 	_Keysight53230Close()
 		
@@ -216,6 +252,7 @@ if (not os.path.isdir(logPath)):
 
 cfg=Initialise(configFile)
 
+
 dataPath= ottplib.MakeAbsolutePath(cfg['paths:counter data'], home)
 
 ctrExt = cfg['counter:file extension']
@@ -247,6 +284,17 @@ oldmjd=-1
 # instr.timeout = 5*1000 # this stops a hang if the counter stops triggering
 
 nTimeouts = 0
+
+# track the rate at which the counter is being triggered
+# to try to fix the situation where we need to swap the STOP and START triggers
+# Use a ring buffer
+bufSize = 10
+tLast = 0
+tBuffer = []
+curr = 0
+for i in range(bufSize):
+	tBuffer.append(0)
+	
 while (not killed):
 	tt = time.time()
 	mjd = ottplib.MJD(tt)
@@ -271,10 +319,27 @@ while (not killed):
 		CounterArm()
 		rdg = CounterRead() # nb string
 		tt = round(time.time())  # round the timestamp 
+		if (tLast > 0):
+				dt = tt - tLast
+				if (dt > 0): # just in case the time went backwards
+					tBuffer[curr] = dt
+					curr += 1
+					if (curr == bufSize):
+						curr =0
+					avg = 0
+					for i in range(bufSize):
+						avg += tBuffer[i]
+					if (avg > bufSize * 1.8): # more than 80% of readings are every 2 s
+						 CounterSwapStartStop()
+						 for i in range(bufSize): 
+							 tBuffer[i]=0
+						 fout.write('# Swapped START/STOP (now ' + str(startChan) + '/' + str(stopChan) +	')\n')
+		tLast = tt
+		
 		tstamp = time.strftime('%H:%M:%S',time.gmtime(tt))
-		fout.write(tstamp + ' ' + str(rdg) + '\n')
+		fout.write(tstamp + ' ' + str(float(rdg)*rdgSign) + '\n')
 		fout.flush()
-		Debug(tstamp + ' ' + str(rdg))
+		Debug(tstamp + ' ' + str(float(rdg)*rdgSign) + '[' + rdg + ']')
 		nTimeouts = 0 # reset the count 
 	except:
 		Debug('Timeout')
