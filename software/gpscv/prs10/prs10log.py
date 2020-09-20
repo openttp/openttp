@@ -37,7 +37,7 @@ import time
 sys.path.append("/usr/local/lib/python3.6/site-packages")
 import ottplib
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 AUTHORS = "Michael Wouters"
 
 # Globals
@@ -135,10 +135,10 @@ if (not os.path.isdir(logPath)):
 
 cfg=Initialise(configFile)
 
-port = cfg['counter:port'] 
-refLogPath= ottplib.MakeAbsolutePath(cfg['reference:log path'], home)
+port = cfg['counter:port'] # required
+refLogPath= ottplib.MakeAbsolutePath(cfg['reference:log path'], home) # required
 
-statusExtension = '.rb' # FIXME bad variable name - should be 'log extension' 
+statusExtension = '.rb'  
 if 'reference:file extension' in cfg:
 	statusExtension=cfg['reference:file extension']
 
@@ -148,12 +148,14 @@ if 'reference:log interval' in cfg:
 
 statusFile = 'prs10.status'
 if 'reference:status file' in cfg:
-	statusFile = ottplib.MakeAbsoluteFilePath(cfg['reference:status file'],home,home + 'logs')
+	statusFile = cfg['reference:status file']
+statusFile = ottplib.MakeAbsoluteFilePath(statusFile,home,home + 'logs')
 
 powerFlag = 'prs10.pwr'
 if 'reference:power flag' in cfg:
-	powerFlag = ottplib.MakeAbsoluteFilePath(cfg['reference:power flag'],home,home + 'logs')
-	
+	powerFlag = cfg['reference:power flag']
+powerFlag = ottplib.MakeAbsoluteFilePath(powerFlag,home,home + 'logs')
+
 # Create the process lock		
 lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
 Debug('Creating lock ' + lockFile)
