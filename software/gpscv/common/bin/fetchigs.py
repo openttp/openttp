@@ -34,12 +34,13 @@ import re
 import sys
 import time
 import urllib2
+import pycurl
 
 # A fudge
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -135,6 +136,27 @@ def FetchFile(url,destination):
 	fout.close
 	return True
 
+
+# ---------------------------------------------
+def FetchFileWithCurl(url,destination,proxy,port):
+	# curl -v -c cookies.tmp -n -L -f -x lfproxy.in.measurement.gov.au:8080  -O "https://cddis.nasa.gov/archive/gnss/data/daily/2021/brdc/brdc0120.21n.gz"
+	
+	Debug('Downloading '+ url)
+	
+	curl = pycurl.Curl() # Initialize the cURL connection object
+	curl.setopt(curl.PROXY,proxy);
+	curl.setopt(curl.PROXYPORT,port);
+	curl.setopt(curl.URL, url) # Define the url to use
+	curl.setopt(curl.FOLLOWLOCATION, True) # Set curl to follow redirects, needed to allow user login
+	curl.setopt(curl.NETRC,2) # Set the requirement that cURL use a netrc file found in users home directory
+	curl.setopt(curl.COOKIEJAR, '.cddis_cookies') # Set the file used to store cookie
+	
+	with open(destination, 'w') as f: # Clean up and close the cURL object
+		curl.setopt(curl.WRITEFUNCTION, f.write)
+		curl.perform()
+	curl.close()
+	
+
 # ---------------------------------------------
 # Main
 
@@ -150,7 +172,7 @@ parser.add_argument('stop',nargs='?',help='stop (MJD/yyyy-doy/yyyy-mm-dd, defaul
 
 parser.add_argument('--config','-c',help='use this configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
-parser.add_argument('--outputdir',help='set output directory',default='.')
+parser.add_argument('--outputdir',help='set output directory')
 
 parser.add_argument('--ephemeris',help='get broadcast ephemeris',action='store_true')
 parser.add_argument('--clocks',help='get clock products (.clk)',action='store_true')
@@ -175,7 +197,11 @@ args = parser.parse_args()
 
 debug = args.debug
 
-configFile = args.config;
+configFile = args.config
+
+proxy=""
+port=0
+outputdir="./"
 
 if (not os.path.isfile(configFile)):
 	ErrorExit(configFile + " not found")
@@ -200,8 +226,18 @@ elif (args.proxy):
 		urllib2.build_opener(
 			urllib2.ProxyHandler({'http': args.proxy})
 		)
-)
-
+	)
+	(proxy,portstr)=args.proxy.split(':')
+	port = int(portstr)
+elif('main:proxy server' in cfg):
+	proxy = cfg['main:proxy server']
+	port  = int(cfg['main:proxy port'])
+	urllib2.install_opener(
+		urllib2.build_opener(
+			urllib2.ProxyHandler({'http': args.proxy})
+		)
+	)
+	
 dataCentre = args.centre.lower()
 # Check that we've got this
 found = False
@@ -224,8 +260,11 @@ if (args.start):
 if (args.stop):
 	stop = DateToMJD(args.stop)
 
-outputdir = args.outputdir
-
+if (args.outputdir):
+	outputdir = args.outputdir
+elif ('main:output directory' in cfg):
+	outputdir = cfg['main:output directory']
+	
 Debug('start = {},stop = {} '.format(start,stop))
 
 rnxVersion = 2
@@ -299,19 +338,25 @@ for m in range(start,stop+1):
 				brdcName = args.statid
 			fname = '{}{:03d}0.{:02d}n.Z'.format(brdcName,doy,yy)
 			if (dataCentre == 'cddis'):
-				url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
+				if brdcName == 'brdc':
+					fname = '{}{:03d}0.{:02d}n.gz'.format(brdcName,doy,yy)
+					url = '{}/{}/{:04d}/brdc/{}'.format(baseURL,brdcPath,yyyy,fname)
+				else:
+					url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
+				FetchFileWithCurl(url,'{}/{}'.format(outputdir,fname),proxy,port)
 			else:
 				url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,brdcPath,yyyy,doy,fname)
-			FetchFile(url,'{}/{}'.format(outputdir,fname))
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
 		elif (rnxVersion == 3):
 			fname = '{}_R_{:04d}{:03d}0000_01D_{}N.rnx.gz'.format(stationID,yyyy,doy,gnss)
 			if (dataCentre == 'cddis'):
 				yy = yyyy-100*int(yyyy/100)
 				url = '{}/{}/{:04d}/{:03d}/{:02d}{}/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,
 					GNSStoNavDirectory(gnss),fname)
+				FetchFileWithCurl(url,'{}/{}'.format(outputdir,fname),proxy,port)
 			else:
 				url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
-			FetchFile(url,'{}/{}'.format(outputdir,fname))
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
 			
 	if (args.observations):
 		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
