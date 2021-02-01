@@ -45,7 +45,7 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import cggttslib
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -99,6 +99,10 @@ MEASURED_IONOSPHERE=2
 # operating mode
 MODE_TT=1 # default
 MODE_DELAY_CAL=2
+
+# measurement codes
+C1  = 'C1'
+L3P = 'L3P'
 
 # ------------------------------------------
 def Debug(msg):
@@ -202,7 +206,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		Warn('Unknown format - the header is incorrectly formatted')
 		return ([],[],{})
 	
-	dualFrequency = False
+	hasMSIO = False
 	# Eat the header
 	while True:
 		l = fin.readline()
@@ -211,31 +215,31 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 			return ([],[],{})
 		if (re.search('STTIME TRKL ELV AZTH',l)):
 			if (re.search('MSIO',l)):
-				dualFrequency=True
-				Debug('Dual frequency data')
+				hasMSIO=True
+				Debug('MSIO present')
 			continue
 		match = re.match('\s+hhmmss',l)
 		if match:
 			break
 		
-	SetDataColumns(ver,dualFrequency)
-	if (dualFrequency):
-		header['dual frequency'] = 'yes' # A convenient bodge. Sorry Mum.
+	SetDataColumns(ver,hasMSIO)
+	if (hasMSIO):
+		header['MSIO present'] = 'yes' # A convenient bodge. Sorry Mum.
 	else:
-		header['dual frequency'] = 'no'
+		header['MSIO present'] = 'no'
 	
 	if (ver == CGGTTS_V1):
-		if (dualFrequency):
+		if (hasMSIO):
 			cksumend=115
 		else:
 			cksumend=101
 	elif (ver == CGGTTS_V2):
-		if (dualFrequency):
+		if (hasMSIO):
 			cksumend=125
 		else:
 			cksumend=111
 	elif (ver ==CGGTTS_V2E):
-		if (dualFrequency):
+		if (hasMSIO):
 			cksumend=125
 		else:
 			cksumend=111
@@ -296,22 +300,22 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 				if (fields[SRSV] == '99999' or fields[SRSV]=='*****'):
 					nBadSRSV +=1
 					reject=True
-				if (dualFrequency):
+				if (hasMSIO):
 					if (fields[MSIO] == '9999' or fields[MSIO] == '****' or fields[SMSI]=='***' ):
 						nBadMSIO +=1
 						reject=True
 			if (CGGTTS_RAW == ver):
-				if (dualFrequency):
+				if (hasMSIO):
 					if (fields[MSIO] == '9999' or fields[MSIO] == '****'):
 						nBadMSIO +=1
 						reject=True	
 			if (reject):
 				continue
-			frc = 0
+			frc = ''
 			if (ver == CGGTTS_V2 or ver == CGGTTS_V2E):
 				frc=fields[FRC]
 			msio = 0
-			if (dualFrequency):
+			if (hasMSIO):
 				msio = float(fields[MSIO])/10.0
 			if ((tt >= startTime and tt < stopTime and theMJD == mjd) or args.keepall):
 				d.append([fields[PRN],int(fields[MJD]),tt,trklen,elv,float(fields[AZTH])/10.0,float(fields[REFSV])/10.0,float(fields[REFSYS])/10.0,
@@ -343,9 +347,26 @@ def GetDelay(headers,delayName):
 	return False,0.0
 
 # ------------------------------------------
-def IsDualFrequency(headers):
+def GetVersion(headers):
+	ver =''
 	for h in headers:
-		if (h['dual frequency'] == 'no'): # one bad one spoils the bunch
+		ver = h['version']
+	return ver
+	
+# ------------------------------------------
+def GetMeasCode(d,col):
+	frc = d[0][col]
+	Debug('GetMeasCode:' + frc)
+	if (frc == 'C1'):
+		frc = 'L1C'
+		Debug('-->' + frc)
+	return frc
+	
+	
+# ------------------------------------------
+def HasMSIO(headers):
+	for h in headers:
+		if (h['MSIO present'] == 'no'): # one bad one spoils the bunch
 			return False
 	return True
 
@@ -410,6 +431,9 @@ calExt = 'cctf'
 refPrefix=''
 calPrefix=''
 
+refMeasCode = 'L3P'
+calMeasCode = 'L3P'
+
 elevationMask=ELV_MASK
 minTrackLength = MIN_TRACK_LENGTH
 maxDSG=DSG_MAX
@@ -430,6 +454,11 @@ stopTime=86399
 # Switches for the ionosphere correction
 IONO_OFF = 0
 
+# Data column indices
+
+CAL_FRC=12
+REF_FRC=12
+
 examples =  'Usage examples\n'
 examples += '1. Common-view time and frequency transfer\n'
 examples += '    cmpcggtts.py ref cal 58418 58419\n'
@@ -449,6 +478,9 @@ parser.add_argument('lastMJD',help='last mjd');
 parser.add_argument('--starttime',help='start time of day HH:MM:SS for first MJD (default 0)')
 parser.add_argument('--stoptime',help='stop time of day HH:MM:SS for last MJD (default 23:59:00)')
 
+parser.add_argument('--calcode',help='set the reference code (C1,L3P) (default C1 if it can\'t be determined from the FRC column')
+parser.add_argument('--refcode',help='set the calibration code (C1,L3P) (default C1 if it can\'t be determined from the FRC column')
+
 # filtering
 parser.add_argument('--elevationmask',help='elevation mask (in degrees, default '+str(elevationMask)+')')
 parser.add_argument('--mintracklength',help='minimum track length (in s, default '+str(minTrackLength)+')')
@@ -465,7 +497,7 @@ parser.add_argument('--acceptdelays',help='accept the delays (no prompts in dela
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
-parser.add_argument('--useMSIO',help='use the measured ionosphere (mdio is removed from refsys and msio is subtracted) ',action='store_true')
+parser.add_argument('--useMSIO',help='use the measured ionosphere (mdio is removed from refsys and msio is subtracted, useful for V1 CGGTTS) ',action='store_true')
 
 parser.add_argument('--checksum',help='exit on bad checksum (default is to warn only)',action='store_true')
 
@@ -511,6 +543,14 @@ if (args.refprefix):
 	
 if (args.calprefix):
 	calPrefix = args.calprefix
+
+refMeasCode = 'C1'
+if (args.refcode):
+	measCode = args.refcode
+
+calMeasCode = 'C1'
+if (args.calcode):
+	calMeasCode = args.calcode
 	
 if (args.elevationmask):
 	elevationMask = float(args.elevationmask)
@@ -606,6 +646,7 @@ for mjd in range(firstMJD,lastMJD+1):
 	allcal = allcal + d
 	calHeaders.append(header)
 	
+
 reflen = len(allref)
 callen = len(allcal)
 if (reflen==0 or callen == 0):
@@ -613,18 +654,39 @@ if (reflen==0 or callen == 0):
 	exit()
 
 Debug('CAL total tracks= {}'.format(len(allcal)))
-		
+
+refVer = GetVersion(refHeaders)
+refMeasCode = 'C1'  # default
+if (refVer == 'V02' or refVer == 'V2E'): # determine from file
+	refMeasCode = GetMeasCode(allref,REF_FRC)
+if (args.refcode): # option overrides 
+	refMeasCode = args.refcode
+
+calVer = GetVersion(calHeaders)
+calMeasCode = 'C1'
+if (calVer == 'V02' or calVer == 'V2E'): # determine from file
+	calMeasCode = GetMeasCode(allcal,CAL_FRC)
+if (args.calcode):
+	calMeasCode = args.calcode
+
+calHasMSIO = HasMSIO(calHeaders)
+refHasMSIO = HasMSIO(refHeaders)
+
 if (useMSIO):
-	if not(IsDualFrequency(calHeaders)):
+	if not(calHasMSIO):
 		sys.stderr.write('CAL data does not have MSIO');
 		exit()
-	if not(IsDualFrequency(refHeaders)):
+	if not(refHasMSIO):
 		sys.stderr.write('REF data does not have MSIO');
 		exit()
 
-calDualFreq = IsDualFrequency(calHeaders)
-refDualFreq = IsDualFrequency(refHeaders)
-
+# If the ionosphere is off eg for delay cal, this is incompatible with L3P data
+if (IONO_OFF==1):
+	if (calMeasCode == 'L3P' or refMeasCode == 'L3P'):
+		sys.stderr.write('Ionosphere is off but data is L3P\n');
+		sys.stderr.write('Use --ionosphere option with L3P data\n');
+		exit();
+		
 refCorrection = 0 # sign convention: add to REFSYS
 calCorrection = 0 # ditto
 	
@@ -811,15 +873,18 @@ if (cmpMethod == USE_GPSCV):
 					if (matchEphemeris and not(ioe1 == ioe2)):
 						nEphemerisMisMatches += 1
 						break
-					if (calDualFreq and refDualFreq):
+					if (calHasMSIO and refHasMSIO):
 						fmatches.write('{} {} {} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS],allref[iref][REF_MSIO],allcal[jtmp][CAL_MSIO]))
 					else:
 						fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
 					tMatch.append(mjd1-firstMJD+st1/86400.0)  #used in the linear fit
+					
 					if useMSIO:
+						# This makes sense for eg L1C measurements whcih have been corrected using  MDIO and MSIO is available
 						delta = (allref[iref][REFSYS] + allref[iref][REF_IONO] - allref[iref][REF_MSIO]  + refCorrection) - (
 							allcal[jtmp][REFSYS] + allcal[jtmp][CAL_IONO] - allcal[jtmp][REF_MSIO] + calCorrection)
 					else:
+						
 						delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
 							allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
 					refMatch.append(allref[iref][REFSYS])
