@@ -45,7 +45,7 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import cggttslib
 
-VERSION = "0.3.2"
+VERSION = "0.3.3"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -386,7 +386,7 @@ def GetFloat(msg,defaultValue):
 	return fval
 
 # ------------------------------------------
-def AverageTracks(trks):
+def AverageTracks(trks,useMSIO):
 	avs=[]
 	iref = 0
 	mjd1 = trks[iref][MJD]
@@ -440,7 +440,8 @@ maxDSG=DSG_MAX
 cmpMethod=USE_GPSCV
 mode = MODE_TT
 ionosphere=True
-useMSIO=False
+useRefMSIO=False
+useCalMSIO=False
 acceptDelays=False
 matchEphemeris=False
 refIonosphere=MODELED_IONOSPHERE
@@ -448,10 +449,10 @@ calIonosphere=MODELED_IONOSPHERE
 weighting=NO_WEIGHT
 enforceChecksum=False
 
-startTime=0 # in seconds
+startTime=0 # in seconds, from the start of the day
 stopTime=86399
 
-# Switches for the ionosphere correction
+# Switch for the ionosphere correction
 IONO_OFF = 0
 
 # Data column indices
@@ -497,8 +498,8 @@ parser.add_argument('--acceptdelays',help='accept the delays (no prompts in dela
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
-parser.add_argument('--useMSIO',help='use the measured ionosphere (mdio is removed from refsys and msio is subtracted, useful for V1 CGGTTS) ',action='store_true')
-
+parser.add_argument('--useRefMSIO',help='use the measured ionosphere (mdio is removed from refsys and msio is subtracted, useful for V1 CGGTTS) ',action='store_true')
+parser.add_argument('--useCalMSIO',help='use the measured ionosphere (mdio is removed from refsys and msio is subtracted, useful for V1 CGGTTS) ',action='store_true')
 parser.add_argument('--checksum',help='exit on bad checksum (default is to warn only)',action='store_true')
 
 parser.add_argument('--refprefix',help='file prefix for reference receiver (default = MJD)')
@@ -588,8 +589,11 @@ if (args.delaycal):
 		ionosphere=True
 		IONO_OFF=0
 
-if (args.useMSIO):
-	useMSIO=True
+if (args.useRefMSIO):
+	useRefMSIO=True
+
+if (args.useCalMSIO):
+	useCalMSIO=True
 	
 if (args.timetransfer):
 	mode = MODE_TT
@@ -672,13 +676,13 @@ if (args.calcode):
 calHasMSIO = HasMSIO(calHeaders)
 refHasMSIO = HasMSIO(refHeaders)
 
-if (useMSIO):
-	if not(calHasMSIO):
-		sys.stderr.write('CAL data does not have MSIO');
-		exit()
-	if not(refHasMSIO):
-		sys.stderr.write('REF data does not have MSIO');
-		exit()
+if (useRefMSIO and not(refHasMSIO)):
+	sys.stderr.write('REF data does not have MSIO');
+	exit()
+		
+if (useCalMSIO and not(calHasMSIO)):
+	sys.stderr.write('CAL data does not have MSIO');
+	exit()
 
 # If the ionosphere is off eg for delay cal, this is incompatible with L3P data
 if (IONO_OFF==1):
@@ -828,11 +832,27 @@ except:
 	sys.stderr.write('Unable to open ' + foutName +'\n')
 	exit()
 
+if (useRefMSIO):
+	Debug('Using REF MSIO')
+if (useCalMSIO):
+	Debug('Using CAL MSIO')
+
+useMSIO = useRefMSIO or useCalMSIO
+REF_MSIO_ON = 0
+if (useRefMSIO):
+	REF_MSIO_ON = 1
+	
+CAL_MSIO_ON = 0
+if (useCalMSIO):
+	CAL_MSIO_ON = 1
+	
+if (useMSIO): # all ionosphere on
+	ionosphere=True
+	IONO_OFF=0
+
 Debug('Matching tracks ...')
 Debug('Ionosphere '+('removed' if (IONO_OFF==1) else 'included'))
-if (useMSIO):
-	Debug('Using MSIO')
-	
+
 if (cmpMethod == USE_GPSCV):
 	matches = []
 	iref=0
@@ -873,19 +893,18 @@ if (cmpMethod == USE_GPSCV):
 					if (matchEphemeris and not(ioe1 == ioe2)):
 						nEphemerisMisMatches += 1
 						break
-					if (calHasMSIO and refHasMSIO):
-						fmatches.write('{} {} {} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS],allref[iref][REF_MSIO],allcal[jtmp][CAL_MSIO]))
-					else:
-						fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS]))
+					refMSIO =  allref[iref][REF_MSIO] if refHasMSIO else 0 # yes, yes I know but YOU should know that there is no valid MSIO 
+					calMSIO =  allcal[jtmp][CAL_MSIO] if calHasMSIO else 0
+					fmatches.write('{} {} {} {} {} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS],refMSIO,calMSIO,allref[iref][REF_IONO],allcal[jtmp][CAL_IONO]))
+					
 					tMatch.append(mjd1-firstMJD+st1/86400.0)  #used in the linear fit
 					
 					if useMSIO:
-						# This makes sense for eg L1C measurements whcih have been corrected using  MDIO and MSIO is available
-						delta = (allref[iref][REFSYS] + allref[iref][REF_IONO] - allref[iref][REF_MSIO]  + refCorrection) - (
-							allcal[jtmp][REFSYS] + allcal[jtmp][CAL_IONO] - allcal[jtmp][REF_MSIO] + calCorrection)
+						# This makes sense for eg L1C measurements which have been corrected using MDIO,  and MSIO is available
+						delta = (allref[iref][REFSYS] + REF_MSIO_ON *( allref[iref][REF_IONO] - allref[iref][REF_MSIO] )  + refCorrection) - (
+							allcal[jtmp][REFSYS] + CAL_MSIO_ON * (allcal[jtmp][CAL_IONO] - allcal[jtmp][REF_MSIO] ) + calCorrection)
 					else:
-						
-						delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO]  + refCorrection) - (
+						delta = (allref[iref][REFSYS] + IONO_OFF*allref[iref][REF_IONO] + refCorrection) - (
 							allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
 					refMatch.append(allref[iref][REFSYS])
 					calMatch.append(allcal[jtmp][REFSYS])
@@ -914,11 +933,11 @@ if (cmpMethod == USE_GPSCV):
 	lenmatch=len(matches)
 	mjd1=matches[0][MJD]
 	st1=matches[0][STTIME]
-	if (useMSIO):
+	if (useRefMSIO):
 		avref = matches[0][REFSYS]  +  matches[0][REF_IONO] - matches[0][REF_MSIO] + refCorrection
 	else:
 		avref = matches[0][REFSYS]  +  IONO_OFF*matches[0][REF_IONO]  + refCorrection
-	if (useMSIO):
+	if (useCalMSIO):
 		avcal = matches[0][ncols + REFSYS] + matches[0][ncols+CAL_IONO] - matches[0][ncols+CAL_MSIO] + calCorrection
 	else:
 		avcal = matches[0][ncols + REFSYS] + IONO_OFF*matches[0][ncols+CAL_IONO] + calCorrection
@@ -929,11 +948,11 @@ if (cmpMethod == USE_GPSCV):
 		st2  = matches[imatch][STTIME]
 		if (mjd1==mjd2 and st1==st2):
 			nsv += 1
-			if (useMSIO):
-					avref  += matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
+			if (useRefMSIO):
+				avref  += matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
 			else:
 				avref  += matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
-			if (useMSIO):
+			if (useCalMSIO):
 				avcal  += matches[imatch][ncols + REFSYS] + matches[imatch][ncols+CAL_IONO] - matches[imatch][ncols+CAL_MSIO] + calCorrection
 			else:
 				avcal  += matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
@@ -945,11 +964,11 @@ if (cmpMethod == USE_GPSCV):
 			st1  = st2
 			nsv=1
 			
-			if (useMSIO):
-					avref  = matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
+			if (useRefMSIO):
+				avref  = matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
 			else:
 				avref  = matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
-			if (useMSIO):
+			if (useCalMSIO):
 				avcal  = matches[imatch][ncols + REFSYS] + matches[imatch][ncols+CAL_IONO] - matches[imatch][ncols+CAL_MSIO] + calCorrection
 			else:
 				avcal  = matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
@@ -963,8 +982,8 @@ elif (cmpMethod == USE_AIV):
 	# Opposite order here
 	# First average at each time
 	# and then match times
-	refavs = AverageTracks(allref)
-	calavs = AverageTracks(allcal)
+	refavs = AverageTracks(allref,useRefMSIO)
+	calavs = AverageTracks(allcal,useCalMSIO)
 	
 	matches = []
 	iref=0
