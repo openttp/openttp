@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 #
 
 #
@@ -41,7 +41,7 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 import ottplib
 
-VERSION = '0.0.7'
+VERSION = '0.0.8'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -58,6 +58,8 @@ PY3LIBDIR = 6
 
 osinfo = [
 	['RedHat','6','rhel6',UPSTART,'/usr/local/lib/site_perl','',''], 
+	['Red Hat Enterprise Linux','8','rhel8',SYSTEMD,'/usr/local/lib64/perl5',
+                '/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
 	['CentOS','6','centos6',UPSTART,'/usr/local/lib/site_perl','',''],
 	['CentOS Linux','7','centos7',SYSTEMD,'/usr/local/lib64/perl5',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
