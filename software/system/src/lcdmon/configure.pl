@@ -29,7 +29,8 @@ $SYSTEMD="systemd";
 # The first entry is OS-defined string, second is our name for tarballs etc,
 # then init system
 @os =(
-	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel",$UPSTART], 
+	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel",$UPSTART],
+	["Red Hat Enterprise Linux 8","rhel",$SYSTEMD], 
 	["CentOS release 6","rhel",$UPSTART],
 	["CentOS Linux 7","rhel",$SYSTEMD],
 	["Ubuntu 14.04","debian",$UPSTART],

@@ -55,6 +55,8 @@ osinfo = [
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
 	['CentOS Linux','8','centos8',SYSTEMD,'/usr/local/lib64/perl5',
                 '/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
+	['Red Hat Enterprise Linux','8','rhel8',SYSTEMD,'/usr/local/lib64/perl5',
+                '/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
 	['Ubuntu','14','ubuntu14',UPSTART,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',''],
 	['Ubuntu','16','ubuntu16',UPSTART,
