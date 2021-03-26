@@ -85,6 +85,9 @@ while ($l=<IN>){
 			
 			if ($os[$osid][2] eq $SYSTEMD){
 				print OUT " -DSYSTEMD";
+				if (`which nmcli 2>/dev/null`){
+					print OUT " -DNMCLI";
+				}
 			}
 			elsif ($os[$osid][2] eq $UPSTART){
 				print OUT " -DUPSTART";

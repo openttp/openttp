@@ -76,7 +76,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "2.0.1"
+#define LCDMONITOR_VERSION "2.0.2"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -270,7 +270,7 @@ void LCDMonitor::networkConfigDHCP()
 	bool ret = execDialog(dlg);
 	std::string lastError="No error";
 	
-	// A DHCP copnfiguration is created from the existing configuration, removing any 
+	// A DHCP configuration is created from the existing configuration, removing any 
 	// static IP-related configuration
 	if (ret){
 		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
@@ -472,6 +472,9 @@ void LCDMonitor::networkConfigStaticIP4()
 				fout2 << "DNS1=" << quote(ipv4ns) << endl;
 				gotDNS1=true;
 			}
+			else if (string::npos != tmp.find("DNS2")){
+				// scrub it for the moment
+			}
 			else if (string::npos != tmp.find("GATEWAY")){
 				fout2 << "GATEWAY=" << quote(ipv4gw) << endl;
 				gotGW=true;
@@ -604,9 +607,14 @@ bool LCDMonitor::restartNetworking()
 #endif
 
 #ifdef SYSTEMD
+#ifdef NMCLI
+	// note that CentOS7+ have /bin as a symlink to /usr/bin, so all good
+	runSystemCommand("/bin/systemctl restart NetworkManager && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
+	sleep(1);
+#else
 	runSystemCommand("/bin/systemctl restart network","Restarted OK","Restart failed !");
 	sleep(1);
-	
+#endif
 	clearDisplay();
 	updateLine(1,"Trying ssh restart");
 	runSystemCommand("/bin/systemctl try-restart sshd","Restarted OK","Restart failed !");
@@ -617,9 +625,9 @@ bool LCDMonitor::restartNetworking()
 	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
 	
-	clearDisplay();
-	updateLine(1,"Trying httpd restart");
-	runSystemCommand("/bin/systemctl try-restart httpd","Restart OK","Restart failed!");
+	//clearDisplay();
+	//updateLine(1,"Trying httpd restart");
+	//runSystemCommand("/bin/systemctl try-restart httpd","Restart OK","Restart failed!");
 	sleep(1);
 	
 #endif
@@ -1709,7 +1717,7 @@ void LCDMonitor::configure()
 	cvgpsHome="/home/cvgps/";
 	ntpadminHome="/home/ntp-admin/";
 	DNSconf="/etc/resolv.conf";
-	// This is empty in CentOS7
+	// This is empty in CentOS7+
 	networkConf="/etc/sysconfig/network";
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
 #ifdef RHEL
