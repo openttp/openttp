@@ -545,6 +545,9 @@ void LCDMonitor::networkConfigStaticIP4()
 				goto DIE;
 			}
 		}
+		clearDisplay();
+		updateLine(1,"Please wait");			
+		sleep(3);
 		
 		if (restartNetworking())
 			networkProtocol = StaticIPV4;
@@ -609,7 +612,7 @@ bool LCDMonitor::restartNetworking()
 #ifdef SYSTEMD
 #ifdef NMCLI
 	// note that CentOS7+ have /bin as a symlink to /usr/bin, so all good
-	runSystemCommand("/bin/systemctl restart NetworkManager && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
+	runSystemCommand("/bin/nmcli connection reload  && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
 	sleep(1);
 #else
 	runSystemCommand("/bin/systemctl restart network","Restarted OK","Restart failed !");

@@ -111,7 +111,7 @@ bool IPWidget::keyEvent(KeyEvent &ke)
 				std::istringstream iss(quad);
 				int iquad;
 				iss>>iquad;
-				fprintf(stderr,"%i %s %i\n",incr,quad.c_str(),iquad);
+				//fprintf(stderr,"%i %s %i\n",incr,quad.c_str(),iquad);
 				iquad += incr;
 				// Range is 0..255 for a quad
 				// What we do is first get the current quad value, the amount we are
@@ -121,7 +121,7 @@ bool IPWidget::keyEvent(KeyEvent &ke)
 				oss << std::setfill('0') << std::setw(3) << iquad;
 			
 				ip.replace((pos/4)*4,3,oss.str());
-				fprintf(stderr,"%i %s %s\n",iquad,oss.str().c_str(),ip.c_str());
+				//fprintf(stderr,"%i %s %s\n",iquad,oss.str().c_str(),ip.c_str());
 				setDirty(true);
 				return true;
 			}
@@ -188,7 +188,6 @@ std::string IPWidget::ipAddress()
 		unsigned int posdelim=ip.find('.',pos);
 		if (posdelim == std::string::npos) posdelim=ip.length();
 		std::string bs =ip.substr(pos,posdelim-pos);
-		std::cout << bs << std::endl;
 		std::istringstream iss(bs);
 		int b;
 		iss >>b;
