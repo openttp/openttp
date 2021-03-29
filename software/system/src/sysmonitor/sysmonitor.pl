@@ -78,7 +78,7 @@ sub new
 package main;
 
 $AUTHORS="Michael Wouters";
-$VERSION="1.0";
+$VERSION="1.0.1";
 
 #$MAX_FILE_AGE=60; # file can be up to this old before an alarm is raised
 $MAX_FILE_AGE=180; # Increased it to 180 seconds, because GPSDO data is  
@@ -315,7 +315,7 @@ while ($killed == 0){
 	
 	if ($now - $lastNtpq > 128){ # clocks are polled at 16 s typically and it takes 8 polls for reachability to hit zero
 		Debug("Running ntpq");
-		@ntpqOut= split /\n/,`ntpq -pn`;
+		@ntpqOut= split /\n/,`ntpq -pn 2>/dev/null`; # if ntpd is not running get 'Connection refused'
 		if ($#ntpqOut >= 1){
 			shift @ntpqOut; shift @ntpqOut; # first two lines are uninteresting
 			foreach (@ntpqOut){
@@ -567,6 +567,21 @@ sub CheckGPSSignal
 				chomp $line;
 				Debug("$mon->{receiver} $line");
 				if ($line =~ /GPS sats:\s*(\d+)/){
+					return $1>= 4;
+				}
+			}
+			close IN;
+			return 0;
+		}
+		return 1;
+	}
+	elsif ($mon->{receiver} eq "ublox"){
+		if (-e $statusFile){
+			open (IN,"<$statusFile");
+			while ($line=<IN>){
+				chomp $line;
+				Debug("$mon->{receiver} $line");
+				if ($line =~ /GPS\s*=\s*(\d+)/){
 					return $1>= 4;
 				}
 			}
