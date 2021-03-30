@@ -581,8 +581,14 @@ sub CheckGPSSignal
 			while ($line=<IN>){
 				chomp $line;
 				Debug("$mon->{receiver} $line");
-				if ($line =~ /GPS\s*=\s*(\d+)/){
-					return $1>= 4;
+				if ($line =~ /GPS/){
+					@gps = split('=',$line);
+					if ($#gps == 1){
+						@prns = split ',',$gps[1];
+						$ngps = $#prns+1;
+						Debug("$mon->{receiver} $ngps GPS visible");
+						return $ngps >= 4;
+					}
 				}
 			}
 			close IN;
