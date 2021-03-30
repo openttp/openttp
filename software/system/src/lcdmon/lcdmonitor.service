@@ -2,6 +2,8 @@
 Description=OpenTTP LCD status display
 ConditionPathExists=/usr/local/etc/lcdmonitor.conf
 ConditionPathExists=/usr/local/etc/sysinfo.conf
+After = dev-lcd.device
+Requires = dev-lcd.device
 
 # Note: StartLimitInterval must be > StartLimitBurst * RestartSec
 #
