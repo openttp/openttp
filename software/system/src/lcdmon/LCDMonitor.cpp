@@ -233,8 +233,36 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::stri
 			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
 			char addressBuffer[INET_ADDRSTRLEN];
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-			if ((strcmp(ifa->ifa_name,"eth0") == 0) || (strcmp(ifa->ifa_name,"enp2s0") == 0) || (strcmp(ifa->ifa_name,"eno1") == 0)) eth0ip = addressBuffer;
-			if ((strcmp(ifa->ifa_name,"eth1") == 0) || (strcmp(ifa->ifa_name,"enp3s0") == 0)) eth1ip = addressBuffer;
+			
+			if (strncmp(ifa->ifa_name,"eth",3) == 0){ // old style ethx
+				if (strcmp(ifa->ifa_name,"eth0") == 0){
+					eth0ip = addressBuffer;
+				}
+				else if (strcmp(ifa->ifa_name,"eth1") == 0){
+					eth1ip = addressBuffer;
+				}
+			}
+			
+			if (strncmp(ifa->ifa_name,"enp",3) == 0){ 
+				// FIXME Previous code has enp2s0 as a valid for FIRST eth device
+				// TODO  Can handle this by temporarily assigning names and then resolving as more information is obtained
+				if (strcmp(ifa->ifa_name,"enp1s0") == 0){
+					eth0ip = addressBuffer;
+				}
+				else if (strcmp(ifa->ifa_name,"enp2s0") == 0){
+					eth1ip = addressBuffer;
+				}
+			}
+			
+			if (strncmp(ifa->ifa_name,"eno",3) == 0){ // UEFI style ?
+				if (strcmp(ifa->ifa_name,"eno1") == 0){
+					eth0ip = addressBuffer;
+				}
+				else if (strcmp(ifa->ifa_name,"eno2") == 0){
+					eth1ip = addressBuffer;
+				}
+			}
+			cout << eth0ip << " " << eth1ip << std::endl;
 			if (strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
 		}
 	}
@@ -2228,6 +2256,7 @@ bool LCDMonitor::checkAlarms()
 bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 {
 
+	// TODO this should return a vector of PRNs rather than repeating parsing elsewhere 
 	*unexpectedEOF=false;
 	bool ret = checkFile(GPSStatusFile.c_str());
 	if (!ret)
@@ -2263,6 +2292,14 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 		else if (string::npos != tmp.find("prns")){
 			parseConfigEntry(tmp,prns,'=');
 			//cout << "prns = " << prns << endl;
+		}
+		else if (string::npos != tmp.find("GPS")){
+			parseConfigEntry(tmp,prns,'=');
+			std::vector<std::string> tmp;
+			boost::split(tmp,prns,is_any_of(","));
+			*nsats = tmp.size();
+			gotSats = *nsats > 0;
+			DBGMSG(debugStream,TRACE,prns);
 		}
 	}
 	fin.close();
