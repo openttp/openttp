@@ -50,7 +50,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.6'
+VERSION = '0.1.7'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -476,7 +476,7 @@ def UpdateStatus(rxStatus,msg):
 	if (len(glo) > 0):
 		glo = glo[:-1]
 
-	fstat.write('sats = ' + str(ngood) + '\n')
+	fstat.write('nsats = ' + str(ngood) + '\n')
 	fstat.write('BDS = ' + bds + '\n')
 	fstat.write('GAL = ' + gal + '\n')
 	fstat.write('GLO = ' + glo + '\n')
