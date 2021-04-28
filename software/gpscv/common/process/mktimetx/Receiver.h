@@ -65,6 +65,8 @@ class Receiver
 		
 		std::string swversion;
 		
+		int model;
+		
 		bool dualFrequency;
 		virtual void addConstellation(int){}; // needs to be implemented by each erceiver so that signals can be added
 		int constellations;

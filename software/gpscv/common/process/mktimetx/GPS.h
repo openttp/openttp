@@ -78,7 +78,7 @@ class GPSEphemeris:public Ephemeris
 		int tLogged; // TOD the ephemeris message was logged in seconds - used for debugging
 		unsigned char subframes; // used to flag receipt of each subframe
 		
-		GPSEphemeris(){subframes=0;}
+		GPSEphemeris(){subframes=0;IODE=0;IODC=0;}
 		~GPSEphemeris(){};
 		
 		virtual double t0e(){return t_0e;}

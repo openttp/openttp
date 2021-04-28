@@ -1020,7 +1020,8 @@ bool RINEX::readV2NavigationFile(Receiver *rx,int constellation,std::string fnam
 	
 	FILE *fin;
 	char line[SBUFSIZE];
-				 
+	DBGMSG(debugStream,INFO,"Using " << fname);
+			
 	if (NULL == (fin= std::fopen(fname.c_str(),"r"))){
 		app->logMessage("Unable to open the navigation file " + fname);
 		return false;

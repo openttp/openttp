@@ -182,7 +182,7 @@ void GNSSSystem::deleteEphemerides()
 
 bool GNSSSystem::addEphemeris(Ephemeris *ed)
 {
-	// Check whether this is a duplicate
+	// Check whether this is a duplicate by matching on IODE and t_0e
 	int issue;
 	for (issue=0;issue < (int) sortedEphemeris[ed->svn()].size();issue++){
 		if (sortedEphemeris[ed->svn()][issue]->t0e() == ed->t0e()){
@@ -193,7 +193,7 @@ bool GNSSSystem::addEphemeris(Ephemeris *ed)
 	
 	if (ephemeris.size()>0){
 
-		// Update the ephemeris list - this is time-ordered
+		// Update the ephemeris list - this is time-ordered by t_OC
 		
 		std::vector<Ephemeris *>::iterator it;
 		for (it=ephemeris.begin(); it<ephemeris.end(); it++){

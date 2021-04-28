@@ -77,6 +77,8 @@ typedef double         R8;
 #define MSG0D01 0x08
 #define MSG0213 0x10 # ublox9 only
 
+
+
 Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 {
 	modelName=m;
@@ -98,11 +100,18 @@ Ublox::Ublox(Antenna *ant,std::string m):Receiver(ant)
 	}
 	else if (modelName == "NEO-M8T"){
 		// defaults
+		model = UBLOX_NE08MT;
 	}
 	else if (modelName == "ZED-F9P" or modelName == "ZED-F9T"){
+		if (modelName == "ZED-F9P"){
+			model = UBLOX_ZEDF9P;
+		}
+		else{
+			model = UBLOX_ZEDF9T;
+		}
 	  channels=184;
 		constellations=GNSSSystem::GPS | GNSSSystem::GLONASS | GNSSSystem::GALILEO | GNSSSystem::BEIDOU;
-		// Appendix B in the ZED-F9P interfcae descriptiion identifies the GPS signals available as L1 C/A, L2 CL and L2 CM
+		// Appendix B in the ZED-F9P interface description identifies the GPS signals available as L1 C/A, L2 CL and L2 CM
 		gps.codes = GNSSSystem::C1C | GNSSSystem::C2L | GNSSSystem::L1C | GNSSSystem::L2L ;
 		galileo.codes = GNSSSystem::C1C| GNSSSystem::C1B | GNSSSystem::C7I | GNSSSystem::C7Q;
 		beidou.codes = GNSSSystem::C2I | GNSSSystem::C7I;
@@ -301,7 +310,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 									// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
 									// resolution. We could only keep the ms part, but for now only do this for
 									// GPS because we do get the necessary data for GPS from the ublox.
-									if(svmeas.at(sv)->constellation == GNSSSystem::GPS && (modelName != "ZED-F9P")){
+									if(svmeas.at(sv)->constellation == GNSSSystem::GPS){
 										svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
 									}
 								}
@@ -366,7 +375,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								HexToBin((char *) msg.substr((24+32*m)*2,2*sizeof(R8)).c_str(),sizeof(R8),(unsigned char *) &cpmeas); //carrier phase (cycles)
 								HexToBin((char *) msg.substr((37+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //svid
 								int svID=u1buf;
-								if (modelName == "ZED-F9P"){
+								if (model == UBLOX_ZEDF9P || model == UBLOX_ZEDF9T){
 									HexToBin((char *) msg.substr((38+32*m)*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &u1buf); //signal id
 									sigID=u1buf;
 									//DBGMSG(debugStream,INFO,gnssSys << " " << svID << " " << sigID);
@@ -620,8 +629,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 	leapsecs = measLeapSecs;
 	
-	if ((modelName != "ZED-F9P") && !gps.gotUTCdata){ // FIXME temporary until ephemeris polling and decoding is implemented
-		app->logMessage("failed to find ionosphere/UTC parameters - no 0b02 messages");
+	if (!gps.gotUTCdata){ 
+		app->logMessage("failed to find ionosphere/UTC parameters");
 		return false; 
 	}
 	
@@ -661,7 +670,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 		tPrevSawtooth=tTmp;
 	}
 	
-	// The Ublox sometime reports what appears to be an incorrect pseudorange after picking up an SV
+	// The ublox sometime reports what appears to be an incorrect pseudorange after picking up an SV
 	// If you wanted to filter these out, this is where you should do it
 	
 	// Fix 1 ms ambiguities/steps in the pseudorange
@@ -672,69 +681,68 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	for (int i=0;i<=GNSSSystem::GALILEO;i++)
 		nDropped[i]=0;
 	
-	if ((modelName != "ZED-F9P")){ // FIXME can't do this until we've got an ephemeris ...
-		for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
-			if (!(g & constellations)) continue;
-			DBGMSG(debugStream,INFO,"Fixing ms ambiguities for " << g);
-			GNSSSystem *gnss;
-			switch (g){
-				case GNSSSystem::BEIDOU:gnss=&beidou;break;
-				case GNSSSystem::GALILEO:gnss=&galileo;break;
-				case GNSSSystem::GLONASS:gnss=&glonass;break;
-				case GNSSSystem::GPS:gnss=&gps;break;
-				default:break;
-			}
-			for (int svn=1;svn<=gnss->maxSVN();svn++){
-				unsigned int lasttow=99999999,currtow=99999999;
-				double lastmeas=0,currmeas;
-				double corr=0.0;
-				bool first=true;
-				bool ok=false;
-				for (unsigned int i=0;i<measurements.size();i++){
-					unsigned int m=0;
-					while (m < measurements[i]->meas.size()){
-						// This solves the issue of the software confuding GNSS systems (What does this mean? I am a bit confuded)
-						if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1C) && (measurements[i]->meas[m]->constellation ==g )){
-							lasttow=currtow;
-							lastmeas=currmeas;
-							currmeas=measurements[i]->meas[m]->meas;
-							currtow=measurements[i]->gpstow;
-							
-							DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
-							if (first){
-								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-								if (ok){
-									first=false;
-								}
-							}
-							else if (currtow - lasttow > MAX_GAP){
-								DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-							}
-							else if (currtow > lasttow){
-								if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
-									DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-									ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-								}
-							}
-							if (ok){ 
-								measurements[i]->meas[m]->meas += corr;
-								m++;
-							}
-							else{ // ambiguity correction failed, so drop the measurement
-								nDropped[g] += 1;
-								measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
-							}
-							break;
-						}
-						else
-							m++; // skip over other GNSS systems (for now)
+	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
+		if (!(g & constellations)) continue;
+		DBGMSG(debugStream,INFO,"Fixing ms ambiguities for " << g);
+		GNSSSystem *gnss;
+		switch (g){
+			case GNSSSystem::BEIDOU:gnss=&beidou;break;
+			case GNSSSystem::GALILEO:gnss=&galileo;break;
+			case GNSSSystem::GLONASS:gnss=&glonass;break;
+			case GNSSSystem::GPS:gnss=&gps;break;
+			default:break;
+		}
+		for (int svn=1;svn<=gnss->maxSVN();svn++){
+			unsigned int lasttow=99999999,currtow=99999999;
+			double lastmeas=0,currmeas;
+			double corr=0.0;
+			bool first=true;
+			bool ok=false;
+			for (unsigned int i=0;i<measurements.size();i++){
+				unsigned int m=0;
+				while (m < measurements[i]->meas.size()){
+					// This solves the issue of the software confuding GNSS systems (What does this mean? I am a bit confuded)
+					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1C) && (measurements[i]->meas[m]->constellation ==g )){
+						lasttow=currtow;
+						lastmeas=currmeas;
+						currmeas=measurements[i]->meas[m]->meas;
+						currtow=measurements[i]->gpstow;
 						
-					} // 
-				} // for (unsigned int i=0;i<measurements.size();i++){
-			}
+						DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
+						if (first){
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							if (ok){
+								first=false;
+							}
+						}
+						else if (currtow - lasttow > MAX_GAP){
+							DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+						}
+						else if (currtow > lasttow){
+							if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
+								DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							}
+						}
+						if (ok){ 
+							measurements[i]->meas[m]->meas += corr;
+							m++;
+						}
+						else{ // ambiguity correction failed, so drop the measurement
+							nDropped[g] += 1;
+							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
+						}
+						break;
+					}
+					else
+						m++; // skip over other GNSS systems (for now)
+					
+				} // 
+			} // for (unsigned int i=0;i<measurements.size();i++){
 		}
 	}
+	
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
@@ -759,7 +767,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 }
 
 // This catches eg the situation where part of an ephemeris is transmitted
-// and then a new one starts transmitting. We want to scrub the aprtially transmitted ephemeris.
+// and then a new one starts transmitting. We want to scrub the partially transmitted ephemeris.
 //
 bool Ublox::checkGalIODNav(GalEphemeris *ed,int IODnav)
 {
@@ -786,7 +794,7 @@ GPSEphemeris* Ublox::readGPSEphemeris(std::string msg)
 	HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
 	GPSEphemeris* ed= new GPSEphemeris();
 	ed->SVN=u4buf;
-	DBGMSG(debugStream,TRACE,"Ephemeris for SV" << (int) ed->SVN);
+	DBGMSG(debugStream,INFO,"Ephemeris for SV" << (int) ed->SVN);
 	
 	// Data is in bits 0-23, parity bits are discarded by ublox
 	// To translate from ICD numbering b24 (ICD) -> b0 (ublox)
@@ -847,7 +855,7 @@ GPSEphemeris* Ublox::readGPSEphemeris(std::string msg)
 	// C_rs b9-b24 // CHECKED
 	signed short Crs= MID(u4buf,0,15);
 	ed->C_rs= (double) Crs/ (double) 32.0;
-	//fprintf(stderr,"%08x %i %.12e\n",u4buf,ed->IODE,ed->C_rs);
+	// fprintf(stderr,"%08x %i %.12e\n",u4buf,ed->IODE,ed->C_rs);
 	
 	// word 4
 	// deltaN b1-b16 // CHECKED nb this is a SINGLE so differences in 7 or 8th digit in RINEX files
@@ -958,14 +966,17 @@ GPSEphemeris* Ublox::readGPSEphemeris(std::string msg)
 	//fprintf(stderr,"%08x %.12e\n",u4buf,ed->OMEGADOT);
 
 	// word 10
-	// IODE b1-b8 (repeated to facilitate checking for data cutovers) ... but which one should I use ???
-	// IDOT b9-b22 // CHECKED
+	// IODE b1-b8 (repeated to facilitate checking for data cutovers) 
 	HexToBin((char *) msg.substr(100*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf);
+	int iode = MID(u4buf,16,23);
+	// IDOT b9-b22 // CHECKED
 	int idot = (MID(u4buf,2,15)) << 18;
 	idot = idot >> 18;
 	ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
-	//fprintf(stderr,"%08x %.12e\n",u4buf,ed->IDOT);
+	//fprintf(stderr,"\n%08x %d %.12e\n",u4buf,iode,ed->IDOT);
 	
+	// FIXME Now check consistency of IODE
+	// The ICD says that the lower 8 bits of the IOCD must be the same as IODE
 	return ed;
 }
 
@@ -1306,7 +1317,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	
 	ed->SVN = svID;
 	
-	if (id==1){ 
+	if (id==1 && ed->subframes == 0x00 ){ 
 		//std::cerr<< "WN " << (int) ((dwords[2] >> 14) & 1023) << std::endl; // transmission WN bits 1-10 
 		// C/A or P on L2 bits 11-12
 		// URA            bits 13-16
@@ -1345,10 +1356,12 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		ed->a_f0 = (double) tmp /(double) pow(2,31); // signed, scaled by 2^-31
 	
 	}
-	else if (id==2){
+	else if (id==2 && ed->subframes == 0x01 ){
 		ed->subframes |= 0x02;
 		
 		ed->IODE = (UINT8)  ((dwords[2] >> 16) & 0xff); // word 3
+		
+		//fprintf(stderr,"\nf2 %d %d\n",svID,(int)ed->IODE);
 		
 		signed short Crs =  dwords[2] & 0xffff; // word 3
 		ed->C_rs = ((double) Crs )/((double) 32.0);
@@ -1376,7 +1389,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	
 		ed->t_0e = (SINGLE) (16*((dwords[9] >> 8) & 0xffff)); // word 10
 	}
-	else if (id==3){
+	else if (id==3 && ed->subframes == 0x03 ){
 		ed->subframes |= 0x04;
 		
 		signed short Cic = (dwords[2] >> 8) & 0xffff; // word 3, C_ic b1-b16 
@@ -1406,8 +1419,25 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		ed->OMEGADOT = ICD_PI * (double) (odot)/ (double) pow(2,43);
 		
 		// IODE b1-b8 (repeated to facilitate checking for data cutovers)
-		// FIXME POSSIBLY not used
+		UINT8 iode = (UINT8)  ((dwords[9] >> 16) & 0xff);
+		// fprintf(stderr,"f3 %d %d\n",svID,iode);
+		// Check IODE for consistency with IODE in subframe 2 and with the lower 8 bits of IODC
+		// The ICD doth opine:
+		// 20.3.3.4.1 The issue of ephemeris data (IODE) term shall provide the user with a convenient means for
+		// detecting any change in the ephemeris representation parameters. The IODE is provided in both
+		// subframes 2 and 3 for the purpose of comparison with the 8 LSBs of the IODC term in subframe
+		// 1. Whenever these three terms do not match, a data set cutover has occurred and new data must
+		// be collected.
 		
+		if ( (iode != ed->IODE) || ( (ed->IODC & 0x00ff)  != (UINT16) (iode))){
+			//fprintf(stderr,"data cutover %d %d %d %d %d\n",svID, (int) iode , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
+			//memset((void *) ed, 0, sizeof(ed));
+			ed->subframes=0x0; // retain buffer and try again
+			return;
+		}
+		else{
+			//fprintf(stderr," %d %d %d %d %d\n",svID, (int) iode , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
+		}
 		int idot =  ((dwords[9] >> 2) & 0x3fff) << 18;
 		idot = idot >> 18;
 		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
@@ -1476,11 +1506,13 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		}
 		
 	}
-	else if (id==5){
-		// Almanac - don't want
+	else if (id==5 || id == 6){
+		// Almanac, - just ignore
 	}
 	else{
 		// Bad
+		ed->subframes = 0x00;
+		return;
 	}
 	
 	// Now test whether there is a complete ephemeris and

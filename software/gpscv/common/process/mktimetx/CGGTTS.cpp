@@ -262,7 +262,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		if (trackStop >= 86400) trackStop=86400-1;
 		// Now window it
 		if (trackStart < startTime || trackStart > stopTime) continue; // svtrk empty so no need to clear
-		
+	
 		// Matched measurement pairs can be looked up without a search since the index is TOD
 		
 		for (int s=1;s<=MAXSV;s++){
@@ -314,8 +314,8 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		int linFitInterval=30; // length of fitting interval 
 		if (quadFits) linFitInterval=15;
 		
-		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
+			
 			if (0 == svObsCount[sv]) continue;
 			
 			int npts=0;
@@ -431,6 +431,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 					svm1->dbuf2=0.0;
 					ReceiverMeasurement *rxmt = svm1->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
+					
 					if (tmeas==tsearch){
 					
 						if (ed==NULL) // use only one ephemeris for each track
@@ -451,7 +452,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 							mdio[npts]=iono;
 							if (useMSIO){
 								msio[npts]=1.0E9*rx->gps.measIonoDelay(code1,code2,svm1->meas,svm2->meas,0,0,ed);// FIXME calibrated delays ....
-                                //DBGMSG(debugStream,INFO,tmeas << " " <<"G"<<(int) svm1->svn << "G" << (int)svm2->svn <<  " " << (svm2->meas - svm1->meas)*1.0E9 << " " << msio[npts])
+								//DBGMSG(debugStream,INFO,tmeas << " " <<"G"<<(int) svm1->svn << "G" << (int)svm2->svn <<  " " << (svm2->meas - svm1->meas)*1.0E9 << " " << msio[npts])
 							}
 							refpps= useTIC*(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
 							if (isP3){ // ionosphere free so don't use mdio
@@ -466,6 +467,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 							npts++;
 						}
 						else{
+							
 							pseudoRangeFailures++;
 						}
 						tsearch += 30;
@@ -480,7 +482,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 					}
 				}
 			} // else quadfits
-		
+			
 			if (npts*linFitInterval >= minTrackLength){
 				
 				double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
@@ -518,18 +520,18 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				if (useMSIO){
 					Utility::linearFit(tutc,msio,npts,tc,&msiotc,&msioc,&msiom,&msioresid);
 					msiotc=rint(msiotc*10);
-                    if (msiotc < -999)
-                        msiotc=-999;
-                    else if (msiotc > 9999)
-                        msiotc=9999;
+					if (msiotc < -999)
+						msiotc=-999;
+					else if (msiotc > 9999)
+						msiotc=9999;
 					msiom=rint(msiom*10000); // 4 digits
-                    if (msiom < -999) // clamp out of range
-                        msiom=-999;
-                    else if (msiom > 9999)
-                        msiom=9999;
+					if (msiom < -999) // clamp out of range
+						msiom=-999;
+					else if (msiom > 9999)
+						msiom=9999;
 					msioresid=rint(msioresid*10); // 3 digits
-                    if (msioresid > 999)
-                        msioresid=999;
+					if (msioresid > 999)
+						msioresid=999;
 				}
 				
 				// Some range checks on the data - flag bad measurements

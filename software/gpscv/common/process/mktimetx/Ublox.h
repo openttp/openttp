@@ -30,6 +30,9 @@
 
 #include "Receiver.h"
 
+#define UBLOX_NE08MT 1
+#define UBLOX_ZEDF9P 2
+#define UBLOX_ZEDF9T 3
 
 class Ublox:public Receiver
 {
