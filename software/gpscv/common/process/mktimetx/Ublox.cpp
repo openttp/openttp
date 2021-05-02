@@ -741,6 +741,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							m++;
 						}
 						else{ // ambiguity correction failed, so drop the measurement
+							DBGMSG(debugStream,TRACE,"failed!");
 							nDropped[g] += 1;
 							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
 						}
@@ -1382,7 +1383,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf,int towTra
 		int tmp = ((dwords[9] >> 2) << 10);
 		tmp = tmp >> 10;
 		ed->a_f0 = (double) tmp /(double) pow(2,31); // signed, scaled by 2^-31
-		// if (svID==30) fprintf(stderr,"F1 WN %d IODC %d TOC %g (%g)\n",ed->week_number,(int) ed->IODC, ed->t_OC, ed->t_OC - 86400*floor(ed->t_OC/86400)); // REMOVE
+		// fprintf(stderr,"f1 WN %d IODC %d TOC %g (%g)\n",ed->week_number,(int) ed->IODC, ed->t_OC, ed->t_OC - 86400*floor(ed->t_OC/86400)); 
 			
 	}
 	//else if (id==2 && ed->subframes == 0x01 ){
@@ -1391,7 +1392,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf,int towTra
 		
 		ed->IODE = (UINT8)  ((dwords[2] >> 16) & 0xff); // word 3
 		
-		//fprintf(stderr,"\nf2 %d %d\n",svID,(int)ed->IODE);
+		// fprintf(stderr,"\nf2 %d %d\n",svID,(int)ed->IODE);
 		
 		signed short Crs =  dwords[2] & 0xffff; // word 3
 		ed->C_rs = ((double) Crs )/((double) 32.0);
@@ -1452,18 +1453,21 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf,int towTra
 		
 		// IODE b1-b8 (repeated to facilitate checking for data cutovers)
 		ed->f3IODE = (UINT8)  ((dwords[9] >> 16) & 0xff);
-		// fprintf(stderr,"f3 %d %d\n",svID,iode);
+		// fprintf(stderr,"f3 %d %d\n",svID,ed->f3IODE);
 		
 		int idot =  ((dwords[9] >> 2) & 0x3fff) << 18;
 		idot = idot >> 18;
 		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
 		
 	}
-	else if (id==4 && !gps.gotUTCdata ){ // subframe 4 contains ionosphere and UTC parameters
+	else if (id==4){ // subframe 4 contains ionosphere and UTC parameters
 		// The ionosphere model changes less than once per week so no need to continually look for a new one
 		// UTC data is not actually used in any of the processing but it's collected so that we can make a 
 		// valid RINEX navigation file
 		// Get the page ID
+		
+		if (gps.gotUTCdata) return; // test here, not in else if () so that we don't fall through to the catch all else
+		
 		unsigned int svID = (dwords[2] >> 16) & 0x3f;
 		if (svID == 56){ // page 18
 		
@@ -1532,18 +1536,17 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf,int towTra
 		}
 		
 	}
-	else if (id==5 || id == 6){
+	else if (id==5 || id == 6 || id == 7){
 		// Almanac, - just ignore
 	}
 	else{
-		// Bad
-		ed->subframes = 0x00;
 		return;
 	}
 	
 	// Now test whether there is a complete ephemeris and
 	// if so, if we already have it
 	if (ed->subframes == 0x07){
+		
 		//verbosity=4;
 		//DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
 		//	" t_0e " << ed->t_0e << " t_OC " << ed->t_OC << ((ed->t_0e != ed->t_OC)?" XXX ":"") << " " << ed->week_number);
@@ -1558,7 +1561,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf,int towTra
 		
 		// if (svID==30) fprintf(stderr,"F3 IODE %d\n",(int) ed->IODE); // REMOVE
 		if ( (ed->f3IODE != ed->IODE) || ( (ed->IODC & 0x00ff)  != (UINT16) (ed->f3IODE))){
-			//fprintf(stderr,"data cutover %d %d %d %d %d\n",svID, (int) iode , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
+			// fprintf(stderr,"data cutover %d %d %d %d %d\n",svID, (int) ed->f3IODE , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
 			ed->subframes=0x0; // retain buffer and try again
 			return;
 		}
