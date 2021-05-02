@@ -193,7 +193,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 	I4 sawtooth;
 	I4 clockBias;
-	R8 measTOW;
+	R8 measTOW=-1; 
 	U2 measGPSWN;
 	I1 measLeapSecs=0;
 	
@@ -208,6 +208,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	R8 r8buf;
 	
 	float rxTimeOffset; // single
+	
+	time_t tgps; 
 	
 	std::vector<SVMeasurement *> svmeas;
 	
@@ -260,9 +262,9 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						}
 						
 						// GPSTOW is used for pseudorange estimations
-						// note: this is rounded because measurements are interpolated on a 1s grid
+						// Note: this is rounded because measurements are interpolated on a 1s grid
 						rmeas->gpstow=rint(measTOW);  
-						rmeas->gpswn=measGPSWN % 1024; // Converted to truncated WN. Not currently used 
+						rmeas->gpswn=measGPSWN % 1024; // Converted to truncated WN.  
 						
 						// UTC time of measurement
 						// We could use other time information to calculate this eg gpstow,gpswn and leap seconds
@@ -276,7 +278,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						
 						// Calculate GPS time of measurement 
 						// FIXME why do this ? why not just convert from UTC ? and full WN is known anyway
-						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn,app->referenceTime());
+						tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn,app->referenceTime()); // also used to resolve week rollovers
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
@@ -286,7 +288,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						rmeas->tmfracs=0.0;
 						
 						// Need to add some logic here for determining if a measurement is selected...
-						// I removed tha logic for testing, but it may not work if a datafile is mismatched
+						// FIXME I removed tha logic for testing, but it may not work if a datafile is mismatched
 						// the configuration.
 						
 						//if (constellations & GNSSSystem::GPS){
@@ -323,8 +325,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						
 						// KEEP THIS it's useful for debugging measurement-time related problems
 					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%4d %02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
-					//	pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_year+1900,rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
-					//	(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
+						//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_year+1900,rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+						//(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 					
 					//fprintf(stderr,"%02d:%02d:%02d %02d:%02d:%02d %02d:%02d:%02d %d %d %.12lf %g %g\n",
 					//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
@@ -588,10 +590,19 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				HexToBin((char *) msg.substr(5*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &chn);
 				HexToBin((char *) msg.substr(8*2,2*sizeof(U1)*numWords*4).c_str(),sizeof(U1)*40,(unsigned char *) &ubuf);
 				//std::cerr << (int) gnssID << " " << (int) svID << " " << (int) sigID << " " << (int) numWords << std::endl;
+				
 				switch (gnssID)
 				{
-					case 0: readGPSEphemerisLNAVSubframe(svID,ubuf);break; 
-					case 2: readGALEphemerisINAVSubframe(svID,sigID,ubuf);break;
+					case 0:
+					{
+						if (measTOW >=0) {readGPSEphemerisLNAVSubframe(svID,ubuf,(int) measTOW,(int) measGPSWN);}
+						break;
+					}
+					case 2: 
+					{
+						readGALEphemerisINAVSubframe(svID,sigID,ubuf);
+						break;
+					}
 					default:break;
 				}
 			}
@@ -604,10 +615,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				else if (msg.size()==(104+2)*2){
 					GPSEphemeris *ed = readGPSEphemeris(msg);
 					int pchh,pcmm,pcss;
-						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss)))
-							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
-						else
-							ed->tLogged = -1;
+					if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss)))
+						ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
+					else
+						ed->tLogged = -1;
 					gps.addEphemeris(ed); // FIXME memory leak
 				}
 				else{
@@ -742,7 +753,6 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			} // for (unsigned int i=0;i<measurements.size();i++){
 		}
 	}
-	
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
@@ -1297,10 +1307,18 @@ void Ublox::readGALEphemerisINAVSubframe(int svID,int sigID,unsigned char *ubuf)
 	}
 }
 
-void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
+void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf,int towTrans,int wnTrans)
 {
 	// Decode a GPS LNAV subframe
+	// The (approximate) transmission time is used to resolve the week rollover
 	
+	// According to the manual:
+	// UBX-RXM-SFRBX messages are only generated when complete subframes are detected by the
+	// receiver and all appropriate parity checks have passed.
+	// Where the parity checking algorithm requires data to be inverted before it is decoded (e.g. GPS
+	// L1C/A), the receiver carries this out before the message output. Therefore, users can process data
+	// directly and do not need to worry about repeating any parity processing.
+
 	unsigned int dwords[10];
 	unsigned char *p = ubuf;
 	
@@ -1310,14 +1328,24 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	}
 	
 	int id = (dwords[1] >> 2) & 0x07; // Handover Word subframe ID bits 20-22
+	
 	//std::cerr << svID << " " << id << std::endl;
 	
 	GPSEphemeris *ed = gpsEph[svID];
 	ed->t_ephem = (((dwords[1] >> 7) & 0x01ffff ) << 2)*((double) 604799 / (double) 403199.0); // CHECKME
 	
 	ed->SVN = svID;
+
+	//if (id==1 && ed->subframes == 0x00 ){ 
+	// The receiver does not always output subframes in sequential order
+	// (Maybe signal not good and some frames fail parity check so the frames
+	// come out in random order ?)
+	// If you enforce strict order, then you miss some ephemerides and have fewer tracks,
+	// particularly at the beginning of the day
+	// If you're not fussy about order, then IODE/IODC consistency checking is done 
+	// when all required subframes are received
 	
-	if (id==1 && ed->subframes == 0x00 ){ 
+	if (id==1  ){ 
 		//std::cerr<< "WN " << (int) ((dwords[2] >> 14) & 1023) << std::endl; // transmission WN bits 1-10 
 		// C/A or P on L2 bits 11-12
 		// URA            bits 13-16
@@ -1354,9 +1382,11 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		int tmp = ((dwords[9] >> 2) << 10);
 		tmp = tmp >> 10;
 		ed->a_f0 = (double) tmp /(double) pow(2,31); // signed, scaled by 2^-31
-	
+		// if (svID==30) fprintf(stderr,"F1 WN %d IODC %d TOC %g (%g)\n",ed->week_number,(int) ed->IODC, ed->t_OC, ed->t_OC - 86400*floor(ed->t_OC/86400)); // REMOVE
+			
 	}
-	else if (id==2 && ed->subframes == 0x01 ){
+	//else if (id==2 && ed->subframes == 0x01 ){
+	else if (id==2  ){
 		ed->subframes |= 0x02;
 		
 		ed->IODE = (UINT8)  ((dwords[2] >> 16) & 0xff); // word 3
@@ -1388,8 +1418,10 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		ed->sqrtA = ((double) (unsigned int)((hibits | lobits)))/ (double) pow(2,19);
 	
 		ed->t_0e = (SINGLE) (16*((dwords[9] >> 8) & 0xffff)); // word 10
+		
 	}
-	else if (id==3 && ed->subframes == 0x03 ){
+	//else if (id==3 && ed->subframes == 0x03 ){
+	else if (id==3 ){
 		ed->subframes |= 0x04;
 		
 		signed short Cic = (dwords[2] >> 8) & 0xffff; // word 3, C_ic b1-b16 
@@ -1419,35 +1451,22 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 		ed->OMEGADOT = ICD_PI * (double) (odot)/ (double) pow(2,43);
 		
 		// IODE b1-b8 (repeated to facilitate checking for data cutovers)
-		UINT8 iode = (UINT8)  ((dwords[9] >> 16) & 0xff);
+		ed->f3IODE = (UINT8)  ((dwords[9] >> 16) & 0xff);
 		// fprintf(stderr,"f3 %d %d\n",svID,iode);
-		// Check IODE for consistency with IODE in subframe 2 and with the lower 8 bits of IODC
-		// The ICD doth opine:
-		// 20.3.3.4.1 The issue of ephemeris data (IODE) term shall provide the user with a convenient means for
-		// detecting any change in the ephemeris representation parameters. The IODE is provided in both
-		// subframes 2 and 3 for the purpose of comparison with the 8 LSBs of the IODC term in subframe
-		// 1. Whenever these three terms do not match, a data set cutover has occurred and new data must
-		// be collected.
 		
-		if ( (iode != ed->IODE) || ( (ed->IODC & 0x00ff)  != (UINT16) (iode))){
-			//fprintf(stderr,"data cutover %d %d %d %d %d\n",svID, (int) iode , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
-			//memset((void *) ed, 0, sizeof(ed));
-			ed->subframes=0x0; // retain buffer and try again
-			return;
-		}
-		else{
-			//fprintf(stderr," %d %d %d %d %d\n",svID, (int) iode , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
-		}
 		int idot =  ((dwords[9] >> 2) & 0x3fff) << 18;
 		idot = idot >> 18;
 		ed->IDOT = ICD_PI * (double) (idot)/ (double) pow(2,43);
 		
 	}
 	else if (id==4 && !gps.gotUTCdata ){ // subframe 4 contains ionosphere and UTC parameters
+		// The ionosphere model changes less than once per week so no need to continually look for a new one
+		// UTC data is not actually used in any of the processing but it's collected so that we can make a 
+		// valid RINEX navigation file
 		// Get the page ID
 		unsigned int svID = (dwords[2] >> 16) & 0x3f;
 		if (svID == 56){ // page 18
-			
+		
 			GPS::IonosphereData &iono = gps.ionoData;
 			
 			// The 'a' params are all signed
@@ -1480,7 +1499,7 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 			int a1 = (dwords[5] & 0xffffff) << 8;
 			a1 = a1 >> 8;
 			utc.A1 = (double) a1 / (double) pow(2,50);
-			
+			 
 			unsigned int hibits = (dwords[6] & 0xffffff) << 8;
 			unsigned int lobits = (dwords[7] >> 16) & 0xff;
 			utc.A0 =  (double) ((int) (hibits | lobits) ) / (double) pow(2,30);
@@ -1500,6 +1519,13 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 			char dt_LSF = (dwords[9] >> 16) & 0xff; // word 10, signed
 			utc.dt_LSF = dt_LSF;
 			
+			// Insanity check
+			// GPS spec says no more than 1 microsecond offset wrt UTC. In practice it is less than 10 ns
+			// Do a sloppy check (have actually seen A0 reported as 1.5 s : MJD 59100 SVN 5, not correlated with health)
+			if (fabs(utc.A0) > 1.0E-6){
+				//fprintf(stderr,"BAD A0 %d %g %d %02x\n",ed->SVN,utc.A0,ed->SV_health,ed->subframes);
+				return;
+			}
 			gps.gotUTCdata = gps.gotIonoData = true;
 			
 			//fprintf(stderr,"%d %d\n",utc.DN, utc.dtlS);
@@ -1520,14 +1546,66 @@ void Ublox::readGPSEphemerisLNAVSubframe(int svID,unsigned char *ubuf)
 	if (ed->subframes == 0x07){
 		//verbosity=4;
 		//DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
-		//	" t_0e " << ed->t_0e << " t_OC " << ed->t_OC << ((ed->t_0e != ed->t_OC)?"XXX":""));
+		//	" t_0e " << ed->t_0e << " t_OC " << ed->t_OC << ((ed->t_0e != ed->t_OC)?" XXX ":"") << " " << ed->week_number);
+		
+		// Check IODE for consistency with IODE in subframe 2 and with the lower 8 bits of IODC
+		// The ICD sayeth:
+		// 20.3.3.4.1 The issue of ephemeris data (IODE) term shall provide the user with a convenient means for
+		// detecting any change in the ephemeris representation parameters. The IODE is provided in both
+		// subframes 2 and 3 for the purpose of comparison with the 8 LSBs of the IODC term in subframe
+		// 1. Whenever these three terms do not match, a data set cutover has occurred and new data must
+		// be collected.
+		
+		// if (svID==30) fprintf(stderr,"F3 IODE %d\n",(int) ed->IODE); // REMOVE
+		if ( (ed->f3IODE != ed->IODE) || ( (ed->IODC & 0x00ff)  != (UINT16) (ed->f3IODE))){
+			//fprintf(stderr,"data cutover %d %d %d %d %d\n",svID, (int) iode , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
+			ed->subframes=0x0; // retain buffer and try again
+			return;
+		}
+		else{
+			//fprintf(stderr," %d %d %d %d %d\n",svID, (int) iode , (int) ed->IODE, (int) ed->IODC, (int) (ed->IODC & 0xff ));
+		}
+		
+		//DBGMSG(debugStream,INFO,"Ephemeris for SV " << svID << " IODE " << (int) ed->IODE << 
+		//	" t_0e " << ed->t_0e << " t_OC " << ed->t_OC << ((ed->t_0e != ed->t_OC)?" XXX ":"") << " " << ed->week_number);
+		
+		// Fix up any week rollovers before adding the ephemeris
+	
+		// WN is current truncated WN whereas t_oe and T_OC may refer to previous and future weeks
+		// WN in the navigation file refers to t_oe
+		
+		int ttrans = towTrans + wnTrans * 86400 * 7;
+		int truncwnTrans = wnTrans % 1024;
+		int nRollovers = wnTrans/ 1024;
+		
+		int wntoe = ed->week_number + 1024 * nRollovers;
+		// FIXME Has WN rolled over ?
+		
+		// The  resultant WN must be within +/- 1 week of the full transmission week
+		// This filters out the occasional ephemeris with bad WN
+		if (fabs(wntoe - wnTrans) > 1){
+			ed->subframes=0x0;
+			return;
+		}
+		
+		int ttoe   = ed->t_0e + wntoe * 86400 * 7;
+		
+		if (ttrans - ttoe > 302400.0){ // ttoe is in the next week
+			ed->week_number++;
+		}
+		if (ttoe - ttrans > 302400.0){ // ttoe is in the previous week
+			ed->week_number--;
+		}
+		
 		if (!(gps.addEphemeris(ed))){
 			// don't delete it - reuse the buffer
 			ed->subframes=0x0;
+			return;
 		}
 		else{ // data was appended to the SV ephemeris list so create a new buffer for this SV
 			ed = new GPSEphemeris();
 			gpsEph[svID]=ed;
+			return;
 		}
 		//verbosity=1;
 	}

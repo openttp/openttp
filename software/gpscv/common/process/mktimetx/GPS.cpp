@@ -563,7 +563,8 @@ void GPS::UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 // Convert GPS time to UTC time
 // 
 
-
+// FIXME there is an assumption here that the time is AFTER refTime
+// 
 void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLeapSeconds,
 	struct tm *tmUTC,long refTime)
 {
@@ -576,7 +577,7 @@ void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLea
 	
 	// Now fix the truncated week number.
 	// tUTC - ref time must be greater than zero
-	// If not, add  rollovers
+	// If not, add rollovers
 	int nRollovers = 0;
 	while (tUTC - refTime < 0){
 	  tUTC += 1024*7*86400;
@@ -585,6 +586,14 @@ void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLea
 	
 	gmtime_r(&tUTC,tmUTC);
 }
+
+// This doesn't do what it says
+// In particular, leap seconds are not taken into account
+// Used to provide a monotonic timescale for tracking loss of carrier lock 
+// but this could simply be done with untruncated WN and TOW ...
+
+// FIXME there is an assumption here that the time is AFTER refTime
+//
 
  time_t GPS::GPStoUnix(unsigned int tow, unsigned int truncatedWN,long refTime){
 	 

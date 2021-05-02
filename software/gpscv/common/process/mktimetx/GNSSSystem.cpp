@@ -238,6 +238,7 @@ bool GNSSSystem::addEphemeris(Ephemeris *ed)
 	return true;
 }
 
+// FIXME Badly named,  and a bodge, really 
 bool GNSSSystem::fixWeekRollovers()
 {
 	// There are two cases:
@@ -261,6 +262,7 @@ bool GNSSSystem::fixWeekRollovers()
 	int tOClast = ephemeris[0]->t0c();
 	for (unsigned i=1; i < ephemeris.size(); i++){
 		Ephemeris *ed = ephemeris[i];
+		//fprintf(stderr,"%d %d %g %g\n",ed->svn(),ed->iod(),ed->t0c(),ed->t0e());
 		if (ed->t0c() - tOClast > 5*86400){ // Detect the position of the break 
 			DBGMSG(debugStream,INFO,"Week rollover detected in ephemeris");
 			// Have to copy the first "i" entries to the end

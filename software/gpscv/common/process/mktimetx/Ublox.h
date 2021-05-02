@@ -53,7 +53,7 @@ class Ublox:public Receiver
 		
 		GPSEphemeris *readGPSEphemeris(std::string);
 		void readGALEphemerisINAVSubframe(int,int,unsigned char *ubuf);
-		void readGPSEphemerisLNAVSubframe(int,unsigned char *ubuf);
+		void readGPSEphemerisLNAVSubframe(int,unsigned char *ubuf,int,int);
 		
 		GPSEphemeris *gpsEph[32+1]; // FIXME NSATS should be used
 		GalEphemeris *galEph[36+1];
