@@ -45,7 +45,7 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import cggttslib
 
-VERSION = "0.3.3"
+VERSION = "0.3.4"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -630,8 +630,9 @@ for mjd in range(firstMJD,lastMJD+1):
 	else:
 			stopT=86399
 	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT)
-	allref = allref + d
-	refHeaders.append(header)
+	if (header):
+		allref = allref + d
+		refHeaders.append(header)
 
 Debug('REF total tracks= {}'.format(len(allref)))
 			
@@ -647,8 +648,9 @@ for mjd in range(firstMJD,lastMJD+1):
 			stopT=86399
 			
 	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT)
-	allcal = allcal + d
-	calHeaders.append(header)
+	if header:
+		allcal = allcal + d
+		calHeaders.append(header)
 	
 
 reflen = len(allref)
