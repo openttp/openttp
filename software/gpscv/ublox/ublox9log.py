@@ -50,7 +50,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.7'
+VERSION = '0.1.8'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -225,7 +225,7 @@ def ConfigureReceiver(serport):
 	# Note that all configuration is only done in RAM
 	# It is not saved
 	#                 Class + ID      Length      Version+Layers+Reserved
-	UBX_CFG_VAL_SET = b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' # 9 byte payload only
+	UBX_CFG_VAL_SET = b'\x06\x8a' + b'\x09\x00' + b'\x00\x01\x00\x00' # NOTE: 9 byte payload only
 	UBX_ON = b'\x01'
 	UBX_OFF = b'\x00'
 	
@@ -350,6 +350,17 @@ def ConfigureReceiver(serport):
 	# FIXME temporary hack to enable BeiDou dual frequency
 	#    CLASS + ID    BYTE COUNT    VERSION + LAYER + reserved  payload 
 	msg = UBX_CFG_VAL_SET + BDS_B2_ENA  +  UBX_ON
+	SendCommand(serport,msg)
+	
+	# The time scale for the output 1 pps needs to be set to GPS
+	# UTC=0, GPS=1, GLO=2, BDS=3,GAL=4
+	CFG_TP_TIMEGRID_TP1 = b'\x0c\x00\x05\x20'; # CFG-TP-TIMEGRID_TP1 0x2005000c
+	msg = UBX_CFG_VAL_SET + CFG_TP_TIMEGRID_TP1 + b'\x01';
+	SendCommand(serport,msg)
+	
+	# And the other one, just in case
+	CFG_TP_TIMEGRID_TP2 = b'\x17\x00\x05\x20'; # CFG-TP-TIMEGRID_TP1 0x20050017
+	msg = UBX_CFG_VAL_SET + CFG_TP_TIMEGRID_TP2 + b'\x01';
 	SendCommand(serport,msg)
 	
 	# Navigation/measurement rate settings
