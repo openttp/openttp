@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python2
 #
 
 #
@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.0.0'
+VERSION = '0.0.7'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -64,9 +64,6 @@ osinfo = [
 	['Ubuntu','18','ubuntu18',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
 		'/usr/local/lib/python3.6/site-packages'],
-	['Ubuntu','20','ubuntu20',SYSTEMD,
-		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
-		'/usr/local/lib/python3.8/site-packages'],
 	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
@@ -95,14 +92,14 @@ def Debug(msg):
 
 # ------------------------------------------
 def Log(msg):
-	print(msg)
+	print msg
 	return
 
 # ------------------------------------------
 def ErrorExit(msg):
 	
-	print('\nError! ' + msg)
-	print('Exited')
+	print '\nError! ' + msg
+	print 'Exited'
 	sys.exit(1)
 
 # ------------------------------------------
@@ -194,17 +191,17 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 	
 	Debug('--> Installing ' + modname)
 	try:
-		py2 = subprocess.check_output(['which','python2']).strip().decode('utf-8');
+		py2 = subprocess.check_output(['which','python2']).strip()
 	except:
 		py2=''
 	try:
-		py3 = subprocess.check_output(['which','python3']).strip().decode('utf-8');
+		py3 = subprocess.check_output(['which','python3']).strip()
 	except:
 		py3=''
 	src = srcdir + '/' + modname + '.py'
 	
 	if ('python2' in py2):
-		ver = subprocess.check_output([py2,'-V'],stderr=subprocess.STDOUT).strip().decode('utf-8');
+		ver = subprocess.check_output([py2,'-V'],stderr=subprocess.STDOUT).strip()
 		Debug('python2 is ' + ver)
 		match = re.search('^Python\s+(\d+)\.(\d+)',ver)
 		minorVer = -1
@@ -216,7 +213,7 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 			MakeDirectory(py2libdir)
 			try:
 				cmd = 'import py_compile;py_compile.compile(\'' + src + '\')'
-				subprocess.check_output([py2,'-c',cmd],stderr=subprocess.STDOUT).strip().decode('utf-8');
+				subprocess.check_output([py2,'-c',cmd],stderr=subprocess.STDOUT).strip()
 				shutil.copy(src,py2libdir)
 				shutil.copy(srcdir + '/' + modname + '.pyc',py2libdir)
 			except:
@@ -226,7 +223,7 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 			ErrorExit('Python2 version is ' + str(minorVer) + ': unsupported')
 		
 	if ('python3' in py3):
-		ver = subprocess.check_output([py3,'-V'],stderr=subprocess.STDOUT).strip().decode('utf-8');
+		ver = subprocess.check_output([py3,'-V'],stderr=subprocess.STDOUT).strip()
 		Debug('python3 is ' + ver)
 		match = re.search('^Python\s+(\d+)\.(\d+)',ver)
 		minorVer = -1
@@ -239,7 +236,7 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 			MakeDirectory(py3libdir + '/__pycache__')
 			try:
 				cmd = 'import py_compile;py_compile.compile(\'' + src + '\')'
-				subprocess.check_output([py3,'-c',cmd],stderr=subprocess.STDOUT).strip().decode('utf-8');
+				subprocess.check_output([py3,'-c',cmd],stderr=subprocess.STDOUT).strip()
 				shutil.copy(src,py3libdir)
 				shutil.copy(srcdir + '/__pycache__/' + modname + '.cpython-3' + str(minorVer)+ '.pyc',
 					py3libdir + '/__pycache__')
@@ -299,9 +296,9 @@ if (os.geteuid() > 0):
 	ErrorExit('This script must be run with superuser privileges')
 
 if args.list:
-	print('Available targets for installation are:')
+	print 'Available targets for installation are:'
 	for t in targets:
-		print(t)
+		print t
 	sys.exit(0)
 
 if args.install:
@@ -311,17 +308,17 @@ if args.install:
 		ErrorExit(args.install + ' is not a known target')
 elif args.minimal:
 	targets = mintargets
-	print('Minimal installation:')
+	print 'Minimal installation:'
 	for t in targets:
-		print(t)
+		print t
 
 thisos = DetectOS()
 if not thisos:
-	print('Your Linux distribution has not been tested against.')
-	print('The tested distributions are:')
+	print 'Your Linux distribution has not been tested against.'
+	print 'The tested distributions are:'
 	for o in osinfo:
-		print(o[DISTNAME]+' ' + o[DISTVER])
-	print()
+		print o[DISTNAME],o[DISTVER]
+	print
 	if (not GetYesNo('Do you want to proceed (y/n)?')):
 		ErrorExit('Unsupported OS')
 	else:
@@ -436,6 +433,6 @@ if ('sysmonitor' in targets):
 		
 # Print any post-installation hints
 if (not hints == ''):
-	print()
-	print('Post install hints:')
-	print(hints)
+	print
+	print 'Post install hints:'
+	print hints
