@@ -222,12 +222,18 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::stri
 	eth1ip=  "Not assigned";
 	usb0ip = "Not assigned";
 	
-	getifaddrs(&ifAddrStruct);
+	if (-1 == getifaddrs(&ifAddrStruct)){
+		log("Failed to query network interfaces"); 
+		return;
+	}
+	
 	
 	for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
 		if (!ifa->ifa_addr) {
+			//log("skipped"); // REMOVE
 			continue;
 		}
+		//log(ifa->ifa_name); // REMOVE
 		if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
 			// is a valid IP4 Address?
 			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
@@ -262,7 +268,7 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::stri
 					eth1ip = addressBuffer;
 				}
 			}
-			cout << eth0ip << " " << eth1ip << std::endl;
+			
 			if (strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
 		}
 	}
@@ -641,6 +647,11 @@ bool LCDMonitor::restartNetworking()
 #ifdef NMCLI
 	// note that CentOS7+ have /bin as a symlink to /usr/bin, so all good
 	runSystemCommand("/bin/nmcli connection reload  && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
+	//runSystemCommand("/bin/nmcli connection reload","Reloaded OK","Reload failed !");
+	//sleep(1); // so we can see what happened
+	//runSystemCommand("/bin/nmcli networking off","Net off  OK","Net off failed !");
+	//sleep(1);
+	//runSystemCommand("/bin/nmcli networking on","Net on OK","Net on failed !");
 	sleep(1);
 #else
 	runSystemCommand("/bin/systemctl restart network","Restarted OK","Restart failed !");
