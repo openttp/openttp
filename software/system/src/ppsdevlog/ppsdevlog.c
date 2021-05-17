@@ -43,7 +43,7 @@
 #include <sys/timepps.h>
 
 #define APP_NAME "ppsdevlog"
-#define APP_VERSION "0.1.2"
+#define APP_VERSION "0.1.3"
 #define LAST_MODIFIED ""
 
 #define DEFAULT_CONFIG			"/usr/local/etc/ppsdevlog.conf" 
@@ -51,6 +51,7 @@
 #define DEFAULT_LOG_DIR			"/home/ntpadmin/logs/"
 #define DEFAULT_LOCK     		"/home/ntpadmin/logs/ppsdevlog.lock"
 #define DEFAULT_DEV 				"/dev/pps0"
+#define DEFAULT_TRIGGER_LEVEL "clear"
 
 #define TSLEEP  300000       /* sleep to sleep between polls of the PPS device */
 #define DEFAULT_TIMEOUT     60 /* if no data received, bomb out */
@@ -75,10 +76,11 @@ typedef struct
 	FILE *logFile;       /* current data log file */
 	char *logPath;       /* path for log files  */
 	
-	int logyday;      /* yday of current log file */
-	char *statusFileName;      /* status log file name */
+	int logyday;          /* yday of current log file */
+	char *statusFileName; /* status log file name */
 	
 	char * lockFileName;
+	char * triggerLevel;
 	
 	struct timespec lastpps; /* this is tracked so that duplicates can be filtered out */
 	unsigned long   seq; /* pps counter */
@@ -155,6 +157,8 @@ ppsdevlog_init(
 	pp->statusFileName=strdup(DEFAULT_STATUS_FILE);
 	pp->logPath=strdup(DEFAULT_LOG_DIR);
 	pp->devName=strdup(DEFAULT_DEV);
+	pp->triggerLevel=strdup(DEFAULT_TRIGGER_LEVEL);
+	
 	pp->MJD=-1;
 	gettimeofday(&tv,NULL);
 	pp->lastpps.tv_nsec=0;
@@ -215,6 +219,17 @@ ppsdevlog_load_config(
 	ppsdevlog_set_config(last,"main","lock file",&(pp->lockFileName),&configOK,FALSE);
 	ppsdevlog_set_config(last,"main","log path",&(pp->logPath),&configOK,FALSE);
 	ppsdevlog_set_config(last,"main","status file",&(pp->statusFileName),&configOK,TRUE);
+	ppsdevlog_set_config(last,"main","trigger level",&(pp->triggerLevel),&configOK,FALSE);
+	if (0==strncmp(pp->triggerLevel,"clear",5)){
+		pp->reqCaps = PPS_CAPTURECLEAR; // 0x01
+	}
+	else if (0==strncmp(pp->triggerLevel,"assert",6)){
+		pp->reqCaps = PPS_CAPTUREASSERT; // 0x02
+	}
+	else{
+		fprintf(stderr,"Unknown trigger level in the configuration file %s - exiting\n",pp->configurationFile);
+		exit(EXIT_FAILURE);
+	}
 }
 
 static void
