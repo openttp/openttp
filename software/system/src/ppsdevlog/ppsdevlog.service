@@ -2,6 +2,9 @@
 Description=PPS device logger
 ConditionPathExists=/usr/local/bin/ppsdevlog
 ConditionPathExists=/usr/local/etc/ppsdevlog.conf
+# Customise as necessary
+#After = dev-pps3.device
+#Requires = dev-pps3.device
 
 # Note: StartLimitInterval must be > StartLimitBurst * RestartSec
 #
