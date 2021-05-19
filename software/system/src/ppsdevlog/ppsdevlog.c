@@ -43,7 +43,7 @@
 #include <sys/timepps.h>
 
 #define APP_NAME "ppsdevlog"
-#define APP_VERSION "0.1.3"
+#define APP_VERSION "0.1.4"
 #define LAST_MODIFIED ""
 
 #define DEFAULT_CONFIG			"/usr/local/etc/ppsdevlog.conf" 
@@ -80,6 +80,7 @@ typedef struct
 	char *statusFileName; /* status log file name */
 	
 	char * lockFileName;
+	char * hostname;
 	char * triggerLevel;
 	
 	struct timespec lastpps; /* this is tracked so that duplicates can be filtered out */
@@ -146,6 +147,7 @@ ppsdevlog_init(
 	ppsdevlog *pp
 )
 {
+	char hn[BUFLEN];
 	struct timeval tv;
 	
 	pp->reqCaps = PPS_CAPTURECLEAR;
@@ -159,7 +161,11 @@ ppsdevlog_init(
 	pp->devName=strdup(DEFAULT_DEV);
 	pp->triggerLevel=strdup(DEFAULT_TRIGGER_LEVEL);
 	
+	pp->hostname=strdup("localhost");
+	gethostname(hn,BUFLEN);
+	pp->hostname = strdup(hn); /* this will not usually be the FQDN - specify that via config file */
 	pp->MJD=-1;
+	
 	gettimeofday(&tv,NULL);
 	pp->lastpps.tv_nsec=0;
 	pp->lastpps.tv_sec=tv.tv_sec; /* set this so that we can track an initial timeout on the 1 pps */
@@ -220,6 +226,8 @@ ppsdevlog_load_config(
 	ppsdevlog_set_config(last,"main","log path",&(pp->logPath),&configOK,FALSE);
 	ppsdevlog_set_config(last,"main","status file",&(pp->statusFileName),&configOK,TRUE);
 	ppsdevlog_set_config(last,"main","trigger level",&(pp->triggerLevel),&configOK,FALSE);
+	ppsdevlog_set_config(last,"main","host name",&(pp->hostname),&configOK,FALSE);
+	
 	if (0==strncmp(pp->triggerLevel,"clear",5)){
 		pp->reqCaps = PPS_CAPTURECLEAR; // 0x01
 	}
@@ -272,17 +280,15 @@ ppsdevlog_open_log(
 	int mjd
 									)
 {
-	char buf[BUFLEN],hn[BUFLEN];
+	char buf[BUFLEN];
 	time_t tt;
 	struct tm *gmt;
 	struct stat sbuf;
 	
-	
 	/* Open log file for recording time stamps */
 	if (NULL != pp->logFile) fclose(pp->logFile);
 	
-	gethostname(hn,BUFLEN);
-	sprintf(buf,"%s/%i.%s",pp->logPath,mjd,hn);
+	sprintf(buf,"%s/%i.%s",pp->logPath,mjd,pp->hostname);
 
 	if (debugOn)
 		fprintf(stderr,"Opening %s\n",buf);
@@ -298,7 +304,7 @@ ppsdevlog_open_log(
 	else{
 		gmt=gmtime(&tt);
 		pp->logyday=gmt->tm_yday;
-		fprintf(pp->logFile,"# %s system 1 pps log, %s %s\n",hn,APP_NAME,APP_VERSION);
+		fprintf(pp->logFile,"# %s system 1 pps log, %s %s\n",pp->hostname,APP_NAME,APP_VERSION);
 		fprintf(pp->logFile,"# Delay = 0\n");
 		fflush(pp->logFile);
 		return TRUE;
