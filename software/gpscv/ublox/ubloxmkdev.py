@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -47,7 +47,7 @@ import threading
 debug = False
 killed = False
 
-VERSION = '0.1'
+VERSION = '0.2'
 AUTHORS = "Michael Wouters"
 
 NO_MSG=0
@@ -62,14 +62,14 @@ def SignalHandler(signal,frame):
 
 # ------------------------------------------
 def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
+	print( os.path.basename(sys.argv[0])+" "+VERSION)
+	print("Written by" + AUTHORS)
 	return
 
 # ------------------------------------------
 def Debug(msg):
 	if (debug):
-		print msg
+		print(msg)
 	return
 
 # ------------------------------------------
@@ -126,8 +126,8 @@ def ReadResponse(serport,classID,payloadLength):
 	while (waiting):
 		try:
 			l = ser.read(8) # minimum packet length is 8 bytes (no payload)
-		except select.error as (code,msg): # FIXME need to ignore a timeout since this may be OK
-			print msg
+		except select.error as e: # FIXME need to ignore a timeout since this may be OK
+			print(type(e))
 			break;
 		msgbuf += l
 		# print binascii.hexlify(b)
@@ -158,7 +158,7 @@ def ParseInput(inp):
 	msg=''
 	msgType=NO_MSG
 	if (startIndex >= 0): # have a possible message start
-		print 'Hi'
+		print('Hi')
 	return (inp,msg,msgType)
 	
 # ------------------------------------------
@@ -189,13 +189,13 @@ Debug("Opening " + port)
 try:
 	ser = serial.Serial(port,115200,timeout=2)
 except:
-	print 'Error on device ' + port
+	print('Error on device ' + port)
 	sys.exit(1)
 
 try:
 	portfile = open('/usr/local/etc/ublox.conf','r')
 except:
-	print 'Unable to open'
+	print('Unable to open')
 	sys.exit(1)
 
 cfg={}
@@ -207,7 +207,7 @@ for line in portfile:
 	cfg[lfields[0]]=lfields[1];
 	
 if (len(cfg)==0):
-	print 'Empty config file'
+	print('Empty config file')
 	sys.exit(1)
 
 for t in range(1,6): # try five times
