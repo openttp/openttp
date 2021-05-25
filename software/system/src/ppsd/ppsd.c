@@ -69,7 +69,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#define PPSD_VERSION "2.1.0"
+#define PPSD_VERSION "2.1.1"
 #define PID_FILE _PATH_VARRUN "ppsd.pid"
 #define PPSD_CONFIG "/usr/local/etc/ppsd.conf"
 
