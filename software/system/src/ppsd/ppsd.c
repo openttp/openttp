@@ -515,6 +515,7 @@ main(
 	
 	for (;;){
 	
+		
 		/* Get the time */
 		gettimeofday(&tv,NULL);
 		tstart=tv.tv_sec;
@@ -554,6 +555,10 @@ main(
 #endif 
 		
 #ifdef USE_SIO8186x
+		/* Read the current values so we don't tread on anyone's toes */
+		/* This creates a bit of a delay but this gives the best chance of not stomping on something */
+		datagpio0 = F8186X_read(GPIO_PSR);
+		
 		dout= (datagpio0 & ~bitmask) | (0xff & bitmask); /* set pps high */
 		F8186X_write(GPIO_ODR, dout);
 		if (debugOn)
