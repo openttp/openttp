@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 #
 
 #
@@ -35,10 +35,10 @@ import subprocess
 import sys
 import time
 # This is where ottplib is installed
-sys.path.append("/usr/local/lib/python3.8/site-packages")
+sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "1.0.4"
+VERSION = "1.0.3"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -50,7 +50,7 @@ def ShowVersion():
 # ------------------------------------------
 def Debug(msg):
 	if (debug):
-		sys.stderr.write(msg + '\n')
+		sys.stderr.write(msg+'\n')
 	return
 
 # ------------------------------------------
@@ -135,7 +135,7 @@ def SetLeapSeconds(paramsFile,newLeapSecs):
 		if (m):
 			fout.write(l)
 			fout.write(str(newLeapSecs)+'\n')
-			next(fin)
+			fin.next()
 		else:
 			fout.write(l)
 	
@@ -281,7 +281,7 @@ examples =  'Usage examples\n'
 examples += '1. Process data for MJDs 58418 - 58419\n'
 examples += '    mkcggtts.py 58418 58419\n'
 
-parser = argparse.ArgumentParser(description='Generate CGGTTS files from RINEX observations',
+parser = argparse.ArgumentParser(description='DEPRECATED USE THE python3 VERSION! Generate CGGTTS files from RINEX observations',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
 
 parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, the MJD of the previous day is used)')
@@ -310,7 +310,7 @@ toolVersion = float(cfg['tool:version'])
 if (toolVersion < 8):
 	ErrorExit('r2cggtts version is unsupported (>8 only)')
 		
-if 'paths:root' in cfg:
+if cfg.has_key('paths:root'):
 	root = ottplib.MakeAbsolutePath(cfg['paths:root'],home)
 	
 startMJD = ottplib.MJD(time.time()) - 1 # previous day
@@ -332,7 +332,7 @@ if (startMJD == stopMJD and args.previousmjd):
 	startMJD -= 1
 
 paramFile = os.path.join(home,'etc','paramCGGTTS.dat')
-if 'cggtts:parameter file' in cfg:
+if (cfg.has_key('cggtts:parameter file')):
 	paramFile = cfg['cggtts:parameter file']
 	if not('auto' == paramFile):
 		paramFile = ottplib.MakeAbsoluteFilePath(paramFile,root,root + 'etc')
@@ -340,24 +340,24 @@ if (not('auto' == paramFile) and not(os.path.exists(paramFile))):
 	ErrorExit(paramFile + " doesn't exist - check the configuration file")
 
 tmpDir = os.path.join(root,'tmp')
-if 'paths:tmp' in cfg:
+if (cfg.has_key('paths:tmp')):
 	tmpDir = ottplib.MakeAbsolutePath(cfg['paths:tmp'],root)
 if not(os.path.exists(tmpDir)):
 	ErrorExit(tmpDir + " doesn't exist - check the configuration file")
 			
 rnxVersion = 2
-if 'rinex:version' in cfg:
+if (cfg.has_key('rinex:version')):
 	rnxVersion = int(cfg['rinex:version'])
 	
 rnxObsDir = os.path.join(home,'rinex')
-if 'rinex:obs directory' in cfg:
+if cfg.has_key('rinex:obs directory'):
 	rnxObsDir = ottplib.MakeAbsolutePath(cfg['rinex:obs directory'],root)
 if not(os.path.exists(rnxObsDir)):
 	ErrorExit(rnxObsDir + " doesn't exist - check the configuration file")
 Debug('RINEX observation directory is ' + rnxObsDir)
 			
 rnxNavDir = os.path.join(home,'rinex')
-if 'rinex:nav directory' in cfg:
+if cfg.has_key('rinex:nav directory'):
 	rnxNavDir = ottplib.MakeAbsolutePath(cfg['rinex:nav directory'],root)
 if not(os.path.exists(rnxNavDir)):
 	ErrorExit(rnxNavDir + " doesn't exist - check the configuration file")
@@ -366,7 +366,7 @@ Debug('RINEX navigation directory is ' + rnxNavDir)
 rnxObsSta = cfg['rinex:obs sta'] # required
 
 rnxNavSta = rnxObsSta
-if 'rinex:nav sta' in cfg:
+if cfg.has_key('rinex:nav sta'):
 	rnxNavSta = cfg['rinex:nav sta']
 	
 # Temporary files will be created in tmpDir 
@@ -376,7 +376,7 @@ os.chdir(tmpDir)
 outputs = cfg['cggtts:outputs'].split(',')
 for o in outputs:
 	lco = (o.lower()).strip()
-	if not( (lco + ':directory') in cfg):
+	if not(cfg.has_key(lco + ':directory')):
 		ErrorExit('CGGTTS output section [' + lco + '] is missing')
 	cggttsPath = ottplib.MakeAbsolutePath(cfg[lco+':directory'],root)
 	if not(os.path.exists(cggttsPath)):
@@ -466,7 +466,7 @@ for mjd in range(startMJD,stopMJD+1):
 		x = subprocess.check_output([cfg['tool:executable']]) # eat the output
 	except:
 		ErrorExit('Failed to run ' + cfg['tool:executable'])
-	Debug(x.decode('utf-8'))
+	Debug(x)
 		
 	# Copy and rename files
 	outputs = cfg['cggtts:outputs'].split(',')
