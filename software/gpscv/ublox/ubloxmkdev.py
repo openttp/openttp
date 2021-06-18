@@ -47,7 +47,7 @@ import threading
 debug = False
 killed = False
 
-VERSION = '0.2'
+VERSION = '0.2.1'
 AUTHORS = "Michael Wouters"
 
 NO_MSG=0
@@ -75,16 +75,20 @@ def Debug(msg):
 # ------------------------------------------
 # Calculate the checksum of a string (simple XOR)
 # This needs to be the payload for binary messages
+
 def CheckSum(msg):
-	cka=0
-	ckb=0
-	l=len(msg)
-	for i in range(0,l):
-		cka += ord(msg[i])
-		ckb += cka
-		cka &= 0xff
-		ckb &= 0xff
-	return (cka,ckb)
+	ba = bytearray()
+	ba.extend(msg)
+	cka = 0
+	ckb = 0
+	
+	for b in ba:
+		cka = cka + b
+		ckb = ckb + cka
+		cka = cka & 0xff
+		ckb = ckb & 0xff
+		
+	return struct.pack('2B',cka,ckb);
 
 # ------------------------------------------
 # Send a command to the receiver and get the response
@@ -96,10 +100,10 @@ def GetResponse(serport,cmd,classID,payloadLength):
 # ------------------------------------------
 # Write a command to the serial port
 def WriteCmd(serport,cmd):
-	(cka,ckb) = CheckSum(cmd)
-	cmd='\xb5\x62'+cmd+chr(cka)+chr(ckb)
+	cksum = CheckSum(cmd)
+	cmd = b'\xb5\x62' + cmd + cksum
 	serport.write(cmd)
-	Debug('Sent ' + binascii.hexlify(cmd))
+	Debug('Sent ' + cmd.hex())
 
 # -------------------------------------------
 # Read response to command
@@ -115,11 +119,11 @@ def ReadTimeout():
 def ReadResponse(serport,classID,payloadLength):
 	global waiting
 	waiting = True
-	msgbuf = ''
-	msg = ''
-	l=''
+	msgbuf = b''
+	msg = b''
+	l=b''
 
-	Debug('Looking for msg with Class:ID {:02x}:{:02x}'.format(ord(classID[0]),ord(classID[1])))
+	Debug('Looking for msg with Class:ID {:02x}:{:02x}'.format(classID[0],classID[1]))
 	
 	t = threading.Timer(3, ReadTimeout)
 	t.start()
@@ -130,8 +134,7 @@ def ReadResponse(serport,classID,payloadLength):
 			print(type(e))
 			break;
 		msgbuf += l
-		# print binascii.hexlify(b)
-		startIndex = msgbuf.find('\xb5\x62')
+		startIndex = msgbuf.find(b'\xb5\x62')
 		if (startIndex >= 0): # possible UBX message
 			bytesLeft = len(msgbuf)-startIndex-2
 			if (bytesLeft >= 4): # can get the length
@@ -139,8 +142,8 @@ def ReadResponse(serport,classID,payloadLength):
 				if (bytesLeft >= 4+plen+2): # have a full message
 					# Is this the one we want ?
 					if ((msgbuf[startIndex+2] == classID[0]) and (msgbuf[startIndex+3] == classID[1])):
-						(cka,ckb) = CheckSum(msgbuf[startIndex+2:startIndex+6+plen])
-						if (cka == ord(msgbuf[startIndex+6+plen]) and ckb == ord(msgbuf[startIndex+7+plen])):
+						cksum = CheckSum(msgbuf[startIndex+2:startIndex+6+plen])
+						if (cksum[0] == msgbuf[startIndex+6+plen] and cksum[1] == msgbuf[startIndex+7+plen]):
 							t.cancel()
 							return (msgbuf[startIndex+6:startIndex+6+plen],True)
 						else: # bad checksum
@@ -211,11 +214,11 @@ if (len(cfg)==0):
 	sys.exit(1)
 
 for t in range(1,6): # try five times
-	(msg,msgOK) = GetResponse(ser,'\x27\x03\x00\x00','\x27\x03',8)
+	(msg,msgOK) = GetResponse(ser,b'\x27\x03\x00\x00',b'\x27\x03',8)
 	if (msgOK):
-		Debug('Got ' + binascii.hexlify(msg))
+		Debug('Got ' + msg.hex())
 		# The last five bytes are the chip ID
-		chipID = binascii.hexlify(msg[4:])
+		chipID = msg[4:].hex()
 		Debug('Chip ID is ' + chipID)
 		if ( chipID in cfg):
 			Debug("Making /dev/" + cfg[chipID])
