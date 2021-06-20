@@ -46,6 +46,7 @@ import subprocess
 import sys
 # This is where ottplib is installed
 sys.path.append('/usr/local/lib/python3.6/site-packages')
+sys.path.append('/usr/local/lib/python3.8/site-packages')
 import time
 
 import ottplib
