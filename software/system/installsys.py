@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -162,26 +162,26 @@ def CompileTarget(target,targetDir,makeArgs=''):
 		Debug('Configuring ..')
 		try:
 			dbgout = subprocess.check_output(['./configure.py'])
-			Debug(dbgout)
+			Debug(dbgout.decode('utf-8'))
 		except:
 			Log('configure.py failed on ' + target)
 	elif (os.path.exists('configure.pl')):
 		Debug('Configuring ...')
 		try:
 			dbgout = subprocess.check_output(['./configure.pl'])
-			Debug(dbgout)
+			Debug(dbgout.decode('utf-8'))
 		except:
 			Log('configure.pl failed on ' + target)
 	try:
 		Debug('Cleaning ...')
 		compOut = subprocess.check_output(['make','clean'])
-		Debug(compOut)
-	except:
+		Debug(compOut.decode('utf-8'))
+	except subprocess.CalledProcessError as e:
 		Log('Make clean failed on ' + target)
 		
 	try:
 		compOut = subprocess.check_output(['make']+args)
-		Debug(compOut)
+		Debug(compOut.decode('utf-8'))
 	except:
 		Log('Failed to compile ' + target)
 		
@@ -285,7 +285,7 @@ parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--install','-i',metavar = 'TARGET',help='install TARGET (see -l option)')
 parser.add_argument('--list','-l',help='list targets for installation (see -i option)',
 	action='store_true')
-parser.add_argument('--minimal','-m',help='do a minimmal installation',action='store_true')
+parser.add_argument('--minimal','-m',help='do a minimal installation',action='store_true')
 parser.add_argument('--version','-v',action='version',
 	version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
