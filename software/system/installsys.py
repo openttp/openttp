@@ -110,7 +110,7 @@ def GetYesNo(msg):
 	
 	done = False
 	while (not done):
-		val = raw_input(msg)
+		val = input(msg)
 		val=val.strip().lower()
 		if (val == 'y' or val == 'n' or val == 'yes' or val == 'no'):
 			return (val == 'y' or val == 'yes')
