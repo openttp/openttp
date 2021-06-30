@@ -42,7 +42,7 @@ sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
 import ottplib
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -84,7 +84,8 @@ osinfo = [
 
 # All available installation targets
 basetargets = ['mktimetx','misc scripts']
-alltargets = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','prs10','misc scripts']
+alltargets  = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','prs10','misc scripts']
+ttsv5dirs   = ['raw/rest','raw/navspark'] # extra directories for TTS V5
 
 receivers = [
 	['Trimble','Resolution T','trimble'], # manufacturer, model, directory
@@ -306,12 +307,15 @@ parser = argparse.ArgumentParser(
 # Optional arguments
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--install','-i',help='install a target')
+parser.add_argument('--ttsversion','-t',help='tts version (5 only, currently)')
 parser.add_argument('--list','-l',help='list targets for installation',
 	action='store_true')
 parser.add_argument('--version','-v',action='version',
 	version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
+
+ttsver = -1 # undefined
 
 home = os.path.expanduser("~")
 
@@ -331,6 +335,10 @@ if args.install:
 	else:
 		ErrorExit(args.install + ' is not a known target')
 
+if args.ttsversion:
+	ttsver = int(args.ttsversion)
+	if not(ttsver == 5):
+		ErrorExit(args.install + ' only TTS version 5 is supported')
 thisos = DetectOS()
 if not thisos:
 	print('Your Linux distribution has not been tested against.')
@@ -439,6 +447,10 @@ if (not args.install):
 	for dir in dataDirs:
 		MakeDirectory(dir)
 
+	# Make hardware dependent directories
+	if (ttsver == 5):
+		MakeDirector(ttsv5dirs)
+	
 # Make the archival directory
 # Currently, only executables are archived
 archiveRoot = os.path.join(instRoot,'archive')

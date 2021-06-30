@@ -1,4 +1,6 @@
 PROGRAM = dioctrl
+INSTDIR=/usr/local
+BINDIR = $(INSTDIR)/sbin
 CC = gcc
 INCLUDE = 
 LDFLAGS= 
@@ -20,4 +22,17 @@ clean:
 	rm -f *.o $(PROGRAM)
 
 install: $(PROGRAM)
-	cp $(PROGRAM) /usr/local/bin
+	@ install -o root -g root -m 0744 ./$(PROGRAM)  $(BINDIR)
+	@ if [[ `systemctl` =~ -\.mount ]]; then \
+		echo "systemd detected"; \
+		cp dioinit.service /lib/systemd/system; \
+		if [[ -f "\lib\systemd\system\dioinit.service" ]]; then \
+			systemctl stop dioinit.service; \
+			systemctl reload dioinit.service; \
+		else \
+			systemctl enable dioinit.service; \
+		fi \
+	  else\
+		echo "unsupported init system - service not installed";\
+	  fi
+	@ echo "run systemctl start dioinit to enable USB devices!"
