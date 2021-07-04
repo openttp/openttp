@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python2
 #
 
 #
@@ -38,11 +38,10 @@ import subprocess
 import sys
 
 # This is where ottplib is installed
-sys.path.append('/usr/local/lib/python3.6/site-packages')
-sys.path.append('/usr/local/lib/python3.8/site-packages')
+sys.path.append('/usr/local/lib/python2.7/site-packages')
 import ottplib
 
-VERSION = '0.1.0'
+VERSION = '0.0.8'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -60,7 +59,7 @@ PY3LIBDIR = 6
 osinfo = [
 	['RedHat','6','rhel6',UPSTART,'/usr/local/lib/site_perl','',''], 
 	['Red Hat Enterprise Linux','8','rhel8',SYSTEMD,'/usr/local/lib64/perl5',
-		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
+                '/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
 	['CentOS','6','centos6',UPSTART,'/usr/local/lib/site_perl','',''],
 	['CentOS Linux','7','centos7',SYSTEMD,'/usr/local/lib64/perl5',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.6/site-packages'],
@@ -105,14 +104,14 @@ def Debug(msg):
 
 # ------------------------------------------
 def Log(msg):
-	print(msg)
+	print msg
 	return
 
 # ------------------------------------------
 def ErrorExit(msg):
 	
-	print('\nError! ' + msg)
-	print('Exited')
+	print '\nError! ' + msg
+	print 'Exited'
 	sys.exit(1)
 
 # ------------------------------------------
@@ -120,7 +119,7 @@ def GetYesNo(msg):
 	
 	done = False
 	while (not done):
-		val = input(msg)
+		val = raw_input(msg)
 		val=val.strip().lower()
 		if (val == 'y' or val == 'n' or val == 'yes' or val == 'no'):
 			return (val == 'y' or val == 'yes')
@@ -174,26 +173,26 @@ def CompileTarget(target,targetDir,makeArgs=''):
 		Debug('Configuring ..')
 		try:
 			dbgout = subprocess.check_output(['./configure.py'])
-			Debug(dbgout.decode('utf-8'))
+			Debug(dbgout)
 		except:
 			Log('configure.py failed on ' + target)
 	elif (os.path.exists('configure.pl')):
 		Debug('Configuring ...')
 		try:
 			dbgout = subprocess.check_output(['./configure.pl'])
-			Debug(dbgout.decode('utf-8'))
+			Debug(dbgout)
 		except:
 			Log('configure.pl failed on ' + target)
 	try:
 		Debug('Cleaning ...')
 		compOut = subprocess.check_output(['make','clean'])
-		Debug(compOut.decode('utf-8'))
+		Debug(compOut)
 	except:
 		Log('Make clean failed on ' + target)
 		
 	try:
 		compOut = subprocess.check_output(['make']+args)
-		Debug(compOut.decode('utf-8'))
+		Debug(compOut)
 	except:
 		Log('Failed to compile ' + target)
 		
@@ -270,15 +269,15 @@ def DetectReceiver(cfg):
 def ChooseReceiver():
 
 	print 
-	print('Please select the receiver to install software for:')
+	print 'Please select the receiver to install software for:'
 	i=1
 	for r in receivers:
-		print(str(i) + '. ' + r[0] + ' ' + r[1])
+		print str(i) + '. ' + r[0] + ' ' + r[1]
 		i += 1
 	max = i-1
 	
 	while (True):
-		sval = input('Choose (1-'+str(max)+'): ')
+		sval = raw_input('Choose (1-'+str(max)+'): ')
 		try:
 			val=int(sval)
 			if (val >=1 and val <= max): 
@@ -320,9 +319,9 @@ debug = args.debug
 targets = basetargets
 
 if args.list:
-	print('Available targets for installation are:')
+	print 'Available targets for installation are:'
 	for t in alltargets:
-		print(t)
+		print t
 	sys.exit(0)
 
 if args.install:
@@ -333,10 +332,10 @@ if args.install:
 
 thisos = DetectOS()
 if not thisos:
-	print('Your Linux distribution has not been tested against.')
-	print('The tested distributions are:')
+	print 'Your Linux distribution has not been tested against.'
+	print 'The tested distributions are:'
 	for os in osinfo:
-		print(os[DISTNAME],os[DISTVER])
+		print os[DISTNAME],os[DISTVER]
 	print
 	if (not GetYesNo('Do you want to proceed (y/n)? ')):
 		ErrorExit('Unsupported OS')
@@ -483,23 +482,23 @@ if ('misc scripts' in targets):
 
 Log('\nFinished installation :-)')
 
-print('\n\nA log of the installation has been saved in ./install.log')
-print('\t\t')
-print('\t\t  o')
-print('\t\t   o')
-print('\t\t  o')  
-print('\t\t____')
-print('\t\t| o |')
-print('\t\t|   |')  
-print('\t\t|   |')
-print('\t\t\\  /')
-print('\t\t ||')
-print('\t\t ||')
-print('\t\t ||')
-print('\t\t====')
+print '\n\nA log of the installation has been saved in ./install.log'
+print '\t\t'
+print '\t\t  o'
+print '\t\t   o'
+print '\t\t  o'  
+print '\t\t____'
+print '\t\t| o |'
+print '\t\t|   |'  
+print '\t\t|   |'
+print '\t\t\\  /'
+print '\t\t ||'
+print '\t\t ||'
+print '\t\t ||'
+print '\t\t===='
 
 # Print any post-installation hints
 if (not hints == ''):
 	print
-	print('Post install hints:')
-	print(hints)
+	print 'Post install hints:'
+	print hints
