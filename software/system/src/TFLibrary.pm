@@ -302,7 +302,7 @@ sub TFClockList {
   if ($logger eq $host)
     {`cp $TFPath{"logger_table"} $INFILE`;}
   else 
-    {`scp $user$logger:$TFPath{"logger_table"} $INFILE`;}
+    {`scp -q $user$logger:$TFPath{"logger_table"} $INFILE`;}
 
   # see which clocks in the file match against the list
   unless (open INFILE) {
