@@ -27,6 +27,11 @@
 # For configuration and logging of a Septentrio PolaRx or Mosaic-T receiver
 # 
 
+# Extra configuration options
+# receiver:broadcast status        [enable UDP broadacst of SV data for eg gnssview]
+# receiver:communication interface [USB1,COM1,...]
+# gnssview:address                 [UDP broadcast address]
+# gnssview:port                    [UDP broadcast port]
 
 import argparse
 import binascii
@@ -35,6 +40,7 @@ import re
 import select
 import serial
 import signal
+import socket
 import string
 import struct
 import subprocess
@@ -63,10 +69,13 @@ GPS=1
 GALILEO=2
 GLONASS=3
 QZSS=4
-SBAS=5
+SBAS=5 # note that this is the maximum value accepted by gnssview (2021-07-17)
 
 MAXSVID=245  # maximum SVID in SBF as at 2021-07-01
 
+MCAST_GRP = '226.1.1.37'
+MCAST_PORT = 14544
+MULTICAST_TTL = 2
 
 #-----------------------------------------------------------------------------
 # This is adapted from crc.c as used in sbf2asc
@@ -165,6 +174,7 @@ def Cleanup():
 	# Hmm ugly globals
 	ottplib.RemoveProcessLock(lockFile)
 	if (not serport==None):
+		SendCommand('SetSBFoutput,Stream1,' + commInterface + ',none') # turn off output
 		serport.close()
 		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
 
@@ -297,10 +307,10 @@ def SVIDtoGNSSParams(svid):
 		reqsig=6 #L1CA
 		constellation=QZSS
 		prn=svid-180
-	#elif (svid >= 198 and svid <=215): # SBAS
-	#	reqsig=6
-	#	constellation=SBAS
-	#	prn=svid-57
+	elif (svid >= 198 and svid <=215): # SBAS
+		reqsig=24
+		onstellation=SBAS
+		prn=svid-57
 	elif (svid >= 223 and svid <= 245): # Beidou
 		reqsig=28 #B1I
 		constellation=BEIDOU
@@ -392,7 +402,7 @@ def ParseMeasEpoch(d):
 
 		
 # ---------------------------------------------------------------------------
-def UpdateStatus(rxStatus):
+def UpdateStatusFile(rxStatus):
 	try:
 		fstat = open(rxStatus,'w')
 	except:
@@ -455,6 +465,18 @@ def UpdateStatus(rxStatus):
 	fstat.write('SBAS = ' + sbas + '\n')
 	fstat.close()
 
+# ---------------------------------------------------------------------------
+# Multicast satellite information for gnssview
+#
+def BroadcastStatus():
+	msg = b''
+	for sv in GNSS:
+		if (sv[0] >= 0 and sv[4] > 0): # constellation set and C/N > 0
+			svstat = '{:d},{:d},{:d},{:g},{:g},{:g}\n'.format(int(time.time()),sv[0],sv[1],sv[2],sv[3],sv[4])
+			msg = msg + svstat.encode('utf-8')			
+	sock.sendto(msg, (mcastGroup, mcastPort))
+
+	
 # ----------------------------------------------------------------------------
 def ClearGNSS():
 	for sv in GNSS:
@@ -537,6 +559,21 @@ signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler) 
 signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY, but handle it anyway
 
+# If broadcasting status
+broadcast = False
+if ('receiver:broadcast status' in cfg):
+	broadcast = (cfg['receiver:broadcast status'].lower() == 'true' or cfg['receiver:broadcast status'].lower() == 'yes')
+		
+if broadcast:
+	mcastGroup = MCAST_GRP
+	if ('gnssview:address' in cfg):
+		mcastGroup = cfg['gnssview:address']
+	mcastPort = MCAST_PORT
+	if ('gnssview:port' in cfg):
+		mcastPort = cfg['gnssview:port']
+	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+	sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
+	
 # Create UUCP lock for the serial port
 uucpLockPath = '/var/lock';
 if ('paths:uucp lock' in cfg):
@@ -577,7 +614,7 @@ inp = b''
 
 sbfre = re.compile(rb'\x24\x40(..)(..)(..)([\s\S]*)') 
 killed = False
-broadcast = True
+
 
 # The list GNSS contains current SVs 
 GNSS=[]
@@ -692,10 +729,10 @@ while (not killed):
 				Debug('N BAD CRC = ' + str(nBadCRC))
 				tt = time.time()
 				if (tt - tLastStatusUpdate > STATUS_LOGGING_INTERVAL):
-					UpdateStatus(rxStatus)
+					UpdateStatusFile(rxStatus)
 					tLastStatusUpdate = tt
 			if broadcast and gotVis:
-				pass
+				BroadcastStatus()
 			ClearGNSS()
 			gotVis, gotCN0 = 0,0
 					
