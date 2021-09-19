@@ -38,7 +38,7 @@ import time
 sys.path.append("/usr/local/lib/python3.8/site-packages")
 import ottplib
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -236,6 +236,13 @@ def FindRINEXNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 		(found,ext) = FindFile(bname1,['.gz'])
 		if (found):
 			return (bname1,ext)
+		
+		# Try version 2 name (typically produced by sbf2rin)
+		yy = yyyy - int(yyyy/100)*100
+		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}P'.format(staname,doy,yy))
+		(found,ext) = FindFile(bname2,['.gz'])
+		if (found):
+			return (bname2,ext)
 		
 		if (reqd):	
 			ErrorExit("Can't find nav file:\n\t" + bname1)
