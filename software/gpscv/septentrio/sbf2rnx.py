@@ -86,7 +86,8 @@ home =os.environ['HOME']
 root = home
 tmpDir = os.path.join(home,'tmp')
 rawDir = os.path.join(home,'raw')
-rnxDir = os.path.join(home,'RINEX')
+rnxObsDir = os.path.join(home,'RINEX')
+rnxNavDir = os.path.join(home,'RINEX')
 
 rnxVersion = '3' # as a string
 rnxObsInterval = '30'
@@ -162,6 +163,12 @@ rnxFiles = ' -nO'
 if createNav:
 	rnxFiles += 'P'
 
+if 'rinex:obs directory' in cfg:
+	rnxObsDir = ottplib.MakeAbsolutePath(cfg['rinex:obs directory'],root)
+
+if 'rinex:nav directory' in cfg:
+	rnxNavDir = ottplib.MakeAbsolutePath(cfg['rinex:nav directory'],root)
+	
 rnxObsStation = cfg['rinex:obs sta']
 rnxNavStation = cfg['rinex:nav sta']
 
@@ -237,8 +244,8 @@ for mjd in range(firstMJD,lastMJD+1):
 					fout.write(l)
 			fin.close()
 			fout.close()
-			Debug('Moving ' + fObs + '.tmp' + ' to ' + os.path.join(rnxDir,fObs))
-			shutil.move(fObs + '.tmp',os.path.join(rnxDir,fObs))
+			Debug('Moving ' + fObs + '.tmp' + ' to ' + os.path.join(rnxObsDir,fObs))
+			shutil.move(fObs + '.tmp',os.path.join(rnxObsDir,fObs))
 			os.unlink(fObs)
 	else:
 			pass
@@ -247,8 +254,8 @@ for mjd in range(firstMJD,lastMJD+1):
 	fNav = '{}{:03d}0.{:02d}P'.format(rnxNavStation,doy,yy)
 	
 	if os.path.exists(oldFNav):
-		Debug('Moving ' + oldFNav + ' to ' + os.path.join(rnxDir,fNav))
-		shutil.move(oldFNav,os.path.join(rnxDir,fNav))
+		Debug('Moving ' + oldFNav + ' to ' + os.path.join(rnxNavDir,fNav))
+		shutil.move(oldFNav,os.path.join(rnxNavDir,fNav))
 		
 	if recompress:
 		CompressFile(fin,'.gz')
