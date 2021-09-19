@@ -196,21 +196,21 @@ if fixHeader:
 for mjd in range(firstMJD,lastMJD+1):
 	(yyyy,doy) = MJDtoYYYYDOY(mjd)
 	yy = yyyy-int(yyyy/100)*100
-	fin = os.path.join(rawDir,str(mjd) + '.' + rxExtension)
+	frx = os.path.join(rawDir,str(mjd) + '.' + rxExtension)
 	recompress  = False
-	if not(os.path.exists(fin)):
-		if (os.path.exists(fin + '.gz')):
-			DecompressFile(fin,'.gz')
+	if not(os.path.exists(frx)):
+		if (os.path.exists(frx + '.gz')):
+			DecompressFile(frx,'.gz')
 			recompress = True
 		else:
-			sys.stderr.write(fin + ' is missing\n')
+			sys.stderr.write(frx + ' is missing\n')
 			continue
 	
 	# sbf2rin defaults to file names in V2 format
 	
 	fObs = '{}{:03d}0.{:02d}O'.format(defRnxStation,doy,yy)
 	fNav = '{}{:03d}0.{:02d}P'.format(defRnxStation,doy,yy) # mixed navigation file
-	cmd = SBF2RIN + ' -f ' + fin  + ' -R' + rnxVersion + ' -i' + rnxObsInterval + rnxFiles + ' -x' + rnxExclusions
+	cmd = SBF2RIN + ' -f ' + frx  + ' -R' + rnxVersion + ' -i' + rnxObsInterval + rnxFiles + ' -x' + rnxExclusions
 	Debug('Running: ' + cmd)
 	subprocess.check_call(cmd,shell=True)
 	
@@ -258,6 +258,6 @@ for mjd in range(firstMJD,lastMJD+1):
 		shutil.move(oldFNav,os.path.join(rnxNavDir,fNav))
 		
 	if recompress:
-		CompressFile(fin,'.gz')
+		CompressFile(frx,'.gz')
 		
 os.chdir(cwd) # back to starting directory
