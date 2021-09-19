@@ -509,7 +509,7 @@ for mjd in range(startMJD,stopMJD+1):
 				X='C'
 				if ('B1' == code):
 					F='M'
-			elif ('GAL'==co9nstelation):
+			elif ('GAL'==constellation):
 				X='E'
 				if ('E1' == code ):
 					F='M'
