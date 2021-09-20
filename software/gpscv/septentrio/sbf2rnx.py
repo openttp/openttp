@@ -20,7 +20,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -92,7 +92,7 @@ rnxNavDir = os.path.join(home,'RINEX')
 rnxVersion = '3' # as a string
 rnxObsInterval = '30'
 rnxExclusions = 'ISJ'
-defRnxStation = 'SEPT' # deulat station name used by sbf2rin
+defRnxStation = 'SEPT' # default station name used by sbf2rin
 fixHeader = False
 
 configFile = os.path.join(home,'etc','sbf2rnx.conf')
@@ -152,6 +152,9 @@ if 'rinex:version' in cfg:
 
 if 'main:exec' in cfg:
 	SBF2RIN = cfg['main:exec']
+
+if 'main:sbf station name' in cfg:
+	defRnxStation = cfg['main:sbf station name']
 
 createNav = False
 if 'rinex:create nav file' in cfg:
