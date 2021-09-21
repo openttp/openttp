@@ -4,6 +4,9 @@
 # Processing script for Septentrio receivers
 # 
 
+# NOTE: a header replacement will be ignored if the value is empty
+# 
+
 import argparse
 import binascii
 import os
@@ -20,7 +23,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -80,7 +83,6 @@ def CompressFile(basename,ext):
 
 # ---------------------------------------------
 # Main
-
 
 home =os.environ['HOME'] 
 root = home
@@ -215,7 +217,7 @@ for mjd in range(firstMJD,lastMJD+1):
 	fNav = '{}{:03d}0.{:02d}P'.format(defRnxStation,doy,yy) # mixed navigation file
 	cmd = SBF2RIN + ' -f ' + frx  + ' -R' + rnxVersion + ' -i' + rnxObsInterval + rnxFiles + ' -x' + rnxExclusions
 	Debug('Running: ' + cmd)
-	subprocess.check_call(cmd,shell=True)
+	subprocess.check_call(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,shell=True)
 	
 	# Rename the files
 	oldFObs = fObs
@@ -229,7 +231,7 @@ for mjd in range(firstMJD,lastMJD+1):
 		if fixHeader:
 			Debug('Fixing header')
 			fout = open(fObs + '.tmp','w')
-			fin =  open(fObs,'r')
+			fin =  open(fObs,'r',errors='replace')
 			readingHeader = True
 			for l in fin:
 				if readingHeader:
