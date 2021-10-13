@@ -170,7 +170,7 @@ if createNav:
 	rnxFiles += 'P'
 
 if 'rinex:exclusions' in cfg:
-	rnxExclusions = cfg[rinex:exclusions]
+	rnxExclusions = cfg['rinex:exclusions']
 	
 if 'rinex:obs directory' in cfg:
 	rnxObsDir = ottplib.MakeAbsolutePath(cfg['rinex:obs directory'],root)
