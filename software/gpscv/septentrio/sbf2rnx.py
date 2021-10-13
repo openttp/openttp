@@ -23,7 +23,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -96,6 +96,7 @@ rnxObsInterval = '30'
 rnxExclusions = 'ISJ'
 defRnxStation = 'SEPT' # default station name used by sbf2rin
 fixHeader = False
+bodgeSatCountBug = False
 
 configFile = os.path.join(home,'etc','sbf2rnx.conf')
 
@@ -168,6 +169,9 @@ rnxFiles = ' -nO'
 if createNav:
 	rnxFiles += 'P'
 
+if 'rinex:exclusions' in cfg:
+	rnxExclusions = cfg[rinex:exclusions]
+	
 if 'rinex:obs directory' in cfg:
 	rnxObsDir = ottplib.MakeAbsolutePath(cfg['rinex:obs directory'],root)
 
@@ -181,7 +185,12 @@ if 'rinex:fix header' in cfg:
 	token  = cfg['rinex:fix header'].lower()
 	if ('yes' == token or 'true' == token):
 		fixHeader =True
-		
+
+if 'rinex:fix satellite count' in cfg:
+	token  = cfg['rinex:fix satellite count'].lower()
+	if ('yes' == token or 'true' == token):
+		bodgeSatCountBug =True
+
 # Change to the tmp directory to create files
 cwd = os.getcwd() # save old directory
 os.chdir(tmpDir)
@@ -243,6 +252,12 @@ for mjd in range(firstMJD,lastMJD+1):
 						if key in headerFixes:
 							Debug('Fixing ' + key)
 							fout.write(headerFixes[key]+'\n')
+						elif (key == '# OF SATELLITES'):
+							if bodgeSatCountBug:
+								Debug('Dropping # OF SATELLITES')
+								pass # skip the line since it is optional anyway
+							else:
+								fout.write(l)
 						else:
 							fout.write(l)
 				else:
