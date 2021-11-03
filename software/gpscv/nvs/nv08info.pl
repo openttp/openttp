@@ -40,7 +40,7 @@ use Getopt::Std;
 use NV08C::DecodeMsg;
 
 # declare variables - required because of 'use strict'
-my($home,$configPath,$logPath,$lockFile,$port,$uucpLockPath,$VERSION,$rx,$rxStatus);
+my($home,$configPath,$logPath,$lockPath,$lockFile,$port,$uucpLockPath,$VERSION,$rx,$rxStatus);
 my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
 my(%Init);
