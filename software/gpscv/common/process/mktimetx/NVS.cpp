@@ -242,9 +242,10 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 						// GPSTOW is used for pseudorange estimations
 						// note: this is rounded because measurements are interpolated on a 1s grid
 						rmeas->gpstow=rint((tmeasUTC+dGPSUTC)/1000);  
-						rmeas->gpswn=weekNum; // note: this is truncated. Not currently used FIXME UTC or GPS???
-						
+						rmeas->gpswn=weekNum;
 						// UTC time of measurement
+						DBGMSG(debugStream,INFO, weekNum << rmeas->gpswn);
+				
 						GPS::GPStoUTC(rmeas->gpstow,rmeas->gpswn,(int) rint(dGPSUTC/1000.0),&(rmeas->tmUTC),app->referenceTime());
 						
 						// Calculate GPS time of measurement 
@@ -302,7 +303,10 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 				if (((msg.size()-27*2) % 30*2) == 0){
 					
 					HexToBin((char *) msg.substr(0,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &tmeasUTC); // in ms, since beginning of week
-					HexToBin((char *) msg.substr(8*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &weekNum); // truncated
+					HexToBin((char *) msg.substr(8*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &weekNum);
+					// Note: The reported WN has had 1024 added to it since the rollover in 2019 on at least some FW versions
+					// Since we assume full truncation, the simplest solution is to make sure it's true
+					weekNum = weekNum % 1024;
 					HexToBin((char *) msg.substr(10*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &dGPSUTC); // in ms - current number of leap secs
 					//HexToBin((char *) msg.substr(18*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &dGLONASSUTC); // in ms - just the 3 hour offset
 					HexToBin((char *) msg.substr(26*2,2*sizeof(INT8S)).c_str(),sizeof(INT8S),(unsigned char *) &int8sbuf); // in ms

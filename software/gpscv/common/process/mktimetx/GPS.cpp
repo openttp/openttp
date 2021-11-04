@@ -599,7 +599,7 @@ void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLea
 	 
 	// See above ...
 	if (truncatedWN > 1023){
-		std::cerr << "GPS::GPStoUnix() truncated WN > 1023" << std::endl;
+		std::cerr << "GPS::GPStoUnix() truncated WN > 1023: " << truncatedWN << std::endl;
 		exit(EXIT_FAILURE);
 	}
 	time_t tGPS = 315964800 + tow + truncatedWN*7*86400;
