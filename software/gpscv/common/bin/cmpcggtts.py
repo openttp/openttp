@@ -45,7 +45,7 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import cggttslib
 
-VERSION = "0.3.4"
+VERSION = "0.3.5"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -563,7 +563,7 @@ if (args.matchephemeris):
 	matchEphemeris=True
 	
 if (args.mintracklength):
-	minTrackLength = args.mintracklength
+	minTrackLength = int(args.mintracklength)
 
 #if (args.weighting):
 	#args.weighting = args.weighting.lower()
