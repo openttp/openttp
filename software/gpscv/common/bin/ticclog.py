@@ -32,6 +32,9 @@
 #								 Bug fix. Arguments to subprocess() constructed incorrectly.
 #
 
+# WARNING!!!!
+# Note that TOD timestamps are rounded!
+
 import argparse
 import os
 import re
@@ -47,7 +50,7 @@ import time
 
 import ottplib
 
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -278,13 +281,19 @@ while (not killed):
 		break;
 	
 	lstr = l.decode('utf-8')
+	
+	tt = time.time() # floating point!
+	ttround = round(tt) # round to take care of system time being close to the epoch
+											# of course, if the stop pulse is 0.5 s off, this all falls over
+											
 	Debug(lstr)
+	Debug(str(tt) + ' ' + str(ttround))
 	if (tic_mode == TIC_MODE_TI): 
 		if (lstr.find('TI(A->B)') != -1):
 			if (tsformat == TS_UNIX):
-				foutA.write(str(time.time()) + ' ' + lstr.split()[0]+'\n')
+				foutA.write(str(tt) + ' ' + lstr.split()[0]+'\n')
 			elif (tsformat == TS_TOD):
-				foutA.write(time.strftime('%H:%M:%S',time.gmtime()) + ' ' + lstr.split()[0]+'\n')
+				foutA.write(time.strftime('%H:%M:%S',time.gmtime(ttround)) + ' ' + lstr.split()[0]+'\n')
 			foutA.flush()
 			nbad = nbad - 1
 		else:
@@ -296,9 +305,9 @@ while (not killed):
 				nbad =nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
-					foutA.write(str(time.time()) + ' ' + ts +'\n')
+					foutA.write(str(tt) + ' ' + ts +'\n')
 				elif (tsformat == TS_TOD):
-					foutA.write(time.strftime('%H:%M:%S',time.gmtime()) + ' ' + ts +'\n')
+					foutA.write(time.strftime('%H:%M:%S',time.gmtime(ttround)) + ' ' + ts +'\n')
 				foutA.flush()
 				nbad =nbad -1
 		elif (lstr.find('chB') != -1):
@@ -307,9 +316,9 @@ while (not killed):
 				nbad =nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
-					foutB.write(str(time.time()) + ' ' + ts + '\n')
+					foutB.write(str(tt) + ' ' + ts + '\n')
 				elif (tsformat == TS_TOD):
-					foutB.write(time.strftime('%H:%M:%S',time.gmtime()) + ' ' + ts +'\n')
+					foutB.write(time.strftime('%H:%M:%S',time.gmtime(ttround)) + ' ' + ts +'\n')
 				foutB.flush()
 				nbad =nbad -1
 				
