@@ -38,6 +38,7 @@
 #include <string>
 #include <vector>
 #include <boost/concept_check.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "Antenna.h"
 #include "Application.h"
@@ -244,7 +245,7 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 						rmeas->gpstow=rint((tmeasUTC+dGPSUTC)/1000);  
 						rmeas->gpswn=weekNum;
 						// UTC time of measurement
-						DBGMSG(debugStream,INFO, weekNum << rmeas->gpswn);
+						// DBGMSG(debugStream,INFO, weekNum << rmeas->gpswn);
 				
 						GPS::GPStoUTC(rmeas->gpstow,rmeas->gpswn,(int) rint(dGPSUTC/1000.0),&(rmeas->tmUTC),app->referenceTime());
 						
@@ -406,6 +407,19 @@ bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinex
 				continue;
 				
 			} // raw data (F5)
+			
+			if (msgid=="70"){ // software version - should be two messages in the file
+				if (msg.size()==76*2){
+					INT32U snbuf;
+					HexToBin((char *) msg.substr(22*2,2*sizeof(INT32U)).c_str(),sizeof(INT32U),(unsigned char *) &snbuf);
+					serialNumber = boost::lexical_cast<std::string>(snbuf);
+					DBGMSG(debugStream,INFO,"Rx serial number "<< serialNumber);
+				}
+				else{
+					DBGMSG(debugStream,WARNING,"0x70 msg wrong size at " << linecount << " " << msg.size());
+				}
+				continue;
+			}
 			
 			if(msgid=="72"){ // Time and frequency parameters (sawtooth correction in particular)
 				

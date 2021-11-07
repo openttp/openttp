@@ -1035,6 +1035,9 @@ bool Application::loadConfig()
 	
 	if (setConfig(last,"receiver","version",stmp,&configOK,false))
 		receiver->setVersion(stmp);
+	
+	setConfig(last,"receiver","serial number",receiver->serialNumber,&configOK,false);
+		
 	setConfig(last,"receiver","pps offset",&receiver->ppsOffset,&configOK);
 	setConfig(last,"receiver","file extension",receiverExtension,&configOK,false);
 	setConfig(last,"receiver","sawtooth size",&receiver->sawtooth,&configOK,false);
