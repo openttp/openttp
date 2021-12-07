@@ -69,7 +69,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#define PPSD_VERSION "2.1.1"
+#define PPSD_VERSION "2.1.2"
 #define PID_FILE _PATH_VARRUN "ppsd.pid"
 #define PPSD_CONFIG "/usr/local/etc/ppsd.conf"
 
@@ -93,8 +93,8 @@ static int debugOn=0;
 #define CHIP_ID_81866 0x1010
 #define VENDOR_ID_8186X    0x1934
 
-#define MASTER_REG   0x2E
-#define SLAVE_REG    0x4E
+#define MASTER_REG   0x2E /* the INDEX port */
+#define SLAVE_REG    0x4E /* the DATA port  */
 #define LDN_REG      0x07
 #define GPIO_LDN_REG 0x06
 
@@ -115,7 +115,7 @@ static int debugOn=0;
 /* This is for the 81866 */
 #define GPIO8_OER 0x88           /* GPIO port 8 output enable register */
 #define GPIO8_ODR (GPIO8_OER+1)  /* output data register */
-#define GPIO8_PSR (GPIO8_OER+1)  /* pin status register */
+#define GPIO8_PSR (GPIO8_OER+2)  /* pin status register */
 
 
 unsigned char entryKey[2] = {0x87,0x87}; /* SIO Unlock key write twice */
@@ -151,8 +151,8 @@ static void
 F8186X_unlock() 
 {
 	
-  ioperm(INDEX_PORT,2,1); /* get permission to write */
-	/* write twice to unlock */
+  ioperm(INDEX_PORT,2,1); /* get permission to write to the ports*/
+	/* write twice to unlock/enable configuration */
 	outb(0x87, INDEX_PORT);
 	outb(0x87, INDEX_PORT);
 }
@@ -160,7 +160,7 @@ F8186X_unlock()
 static void 
 F8186X_close()
 {
-   F8186X_write(INDEX_PORT,0xaa);  /* unlock */
+   F8186X_write(INDEX_PORT,0xaa);  /* unlock/disable configuration */
    ioperm(INDEX_PORT,2,0); /* release write permissions */
 }
 
