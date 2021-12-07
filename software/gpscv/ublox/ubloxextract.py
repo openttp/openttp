@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -42,12 +42,13 @@ import sys
 import struct
 
 # This is where ottplib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
-import time
+sys.path.append('/usr/local/lib/python3.6/site-packages') # Ubuntu 18
+sys.path.append('/usr/local/lib/python3.8/site-packages') # Ubuntu 20
 
 import ottplib
+import time
 
-VERSION = '0.1.4'
+VERSION = '0.1.5'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -67,19 +68,19 @@ def SignalHandler(signal,frame):
 
 # ------------------------------------------
 def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
+	print(os.path.basename(sys.argv[0])," ",VERSION)
+	print("Written by",AUTHORS)
 	return
 
 # ------------------------------------------
 def Debug(msg):
 	if (debug):
-		print msg
+		print(msg)
 	return
 
 # ------------------------------------------
 def ErrorExit(msg):
-	print msg
+	print(msg)
 	sys.exit(0)
 	
 # ------------------------------------------
@@ -330,32 +331,32 @@ for line in fdata:
 	if (msgid == '0a04'):
 		if (args.monver):
 			msgf=DecodeUBX_MON_VER(msg)
-			print 'SW:',msgf[0],'HW:',msgf[1]
+			print('SW:',msgf[0],'HW:',msgf[1])
 	elif (msgid == '0d01'):
 		if (args.timtp):
 			msgf=DecodeUBX_TIM_TP(msg)
-			print tt,msgf[2] # in ps
+			print(tt,msgf[2]) # in ps
 	elif (msgid == '0121'):
 		if (args.navtimeutc):
 			msgf=DecodeUBX_NAV_TIMEUTC(msg)
-			print tt,msgf[0],msgf[1],msgf[3],msgf[4]
+			print(tt,msgf[0],msgf[1],msgf[3],msgf[4])
 	elif (msgid == '0122'):
 		if (args.navclock):
 			msgf=DecodeUBX_NAV_CLOCK(msg)
-			print tt,msgf[0],msgf[1],msgf[2],msgf[3],msgf[4]
+			print(tt,msgf[0],msgf[1],msgf[2],msgf[3],msgf[4])
 	elif (msgid == '0135'):
 		if (args.navsat):
 			msgf=DecodeUBX_NAV_SAT(msg)
-			print tt,msgf[0],msgf[1],msgf[2],msgf[3]
+			print(tt,msgf[0],msgf[1],msgf[2],msgf[3])
 	elif (msgid == '0215'):
 		if (args.rawx):
 			(header,meas)=DecodeUBX_RXM_RAWX(msg)
 			summary = GNSSSummary(meas)
-			print tt,header[0],header[3],summary
+			print(tt,header[0],header[3],summary)
 	elif (msgid == '2703'):
 		if (args.uniqid):
 			msgf=DecodeUBX_SEC_UNIQID(msg)
-			print tt,msgf
+			print(tt,msgf)
 			
 fdata.close()
 
