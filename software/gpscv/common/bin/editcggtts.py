@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -34,10 +34,11 @@ import re
 import sys
 
 # This is where cggttslib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
+sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
+sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
 import cggttslib
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
