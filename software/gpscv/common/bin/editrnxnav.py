@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -35,7 +35,7 @@ import argparse
 import os
 import sys
 
-VERSION = "0.1.3"
+VERSION = "0.2.0"
 AUTHORS = "Michael Wouters"
 
 
@@ -47,7 +47,7 @@ def Debug(msg):
 
 # ------------------------------------------
 def ErrorExit(msg):
-	print msg
+	print(msg)
 	sys.exit(0)
 	
 # ------------------------------------------
