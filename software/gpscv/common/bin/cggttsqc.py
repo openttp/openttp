@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -31,11 +31,14 @@ import argparse
 import os
 import re
 import sys
+
 # This is where cggttslib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
+sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
+sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
+
 import cggttslib
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -124,8 +127,8 @@ def CheckFile(fname):
 def CheckHeaderKey(prevFile,prevHeader,currFile,currHeader,key,msg):
 	if ((key in prevHeader) and (key in currHeader)):
 		if (prevHeader[key] != currHeader[key]):
-			print '{}->{}: {}: ({}) -> ({})'.format(prevFile,currFile,msg,
-				prevHeader[key], currHeader[key])
+			print('{}->{}: {}: ({}) -> ({})'.format(prevFile,currFile,msg,
+				prevHeader[key], currHeader[key]))
 		
 # ------------------------------------------
 def CompareHeaders(prevFile,prevHeader,currFile,currHeader):
@@ -136,9 +139,9 @@ def CompareHeaders(prevFile,prevHeader,currFile,currHeader):
 	if ( (prevHeader['x'] != currHeader['x']) or
 		   (prevHeader['y'] != currHeader['y']) or
 		   (prevHeader['z'] != currHeader['z'])):
-		print '{}->{}:coords changed: ({},{},{}) -> ({},{},{})'.format(prevFile,currFile,
+		print('{}->{}:coords changed: ({},{},{}) -> ({},{},{})'.format(prevFile,currFile,
 				prevHeader['x'],prevHeader['y'],prevHeader['z'],
-				currHeader['x'],currHeader['y'],currHeader['z'])
+				currHeader['x'],currHeader['y'],currHeader['z']))
 	
 	# Delays
 	CheckHeaderKey(prevFile,prevHeader,currFile,currHeader,'int dly','INT DLY changed') # INT DLY
@@ -151,8 +154,8 @@ def CompareHeaders(prevFile,prevHeader,currFile,currHeader):
 	
 # ------------------------------------------
 def PrettyPrintStats(fname,stats):
-	print '{:12} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format(fname,stats['ntracks'],stats['shorttracks'],
-		stats['minsats'],stats['maxsats'],stats['highdsg'],stats['lowelv'])
+	print('{:12} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format(fname,stats['ntracks'],stats['shorttracks'],
+		stats['minsats'],stats['maxsats'],stats['highdsg'],stats['lowelv']))
 	
 # ------------------------------------------
 # Main
@@ -201,7 +204,7 @@ prevHeader = {}
 prevFile = ''
 
 if (not args.checkheader):
-	print '{:12} {:6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format('File','Tracks','Short','min SV','max SV','DSG','elv')
+	print('{:12} {:6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format('File','Tracks','Short','min SV','max SV','DSG','elv'))
 
 for f in infiles:
 	(currHeader,stats) = CheckFile(f)
