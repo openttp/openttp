@@ -47,7 +47,7 @@ sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
 
 import cggttslib
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -321,6 +321,9 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 			frc = ''
 			if (ver == CGGTTS_V2 or ver == CGGTTS_V2E):
 				frc=fields[FRC]
+			if (measCode == ''): # Not set so we ignore it
+				frc = ''
+				
 			msio = 0
 			if (hasMSIO):
 				msio = float(fields[MSIO])/10.0
@@ -486,8 +489,8 @@ parser.add_argument('lastMJD',help='last mjd');
 parser.add_argument('--starttime',help='start time of day HH:MM:SS for first MJD (default 0)')
 parser.add_argument('--stoptime',help='stop time of day HH:MM:SS for last MJD (default 23:59:00)')
 
-parser.add_argument('--calcode',help='set the calibration code (L1C,L3P) (default L1C if it can\'t be determined from the FRC column')
-parser.add_argument('--refcode',help='set the reference code (L1C,L3P) (default L1C if it can\'t be determined from the FRC column')
+parser.add_argument('--calfrc',help='set the calibration FRC code (L1C,L3P,...)')
+parser.add_argument('--reffrc',help='set the reference FRC code (L1C,L3P,...)')
 
 # filtering
 parser.add_argument('--elevationmask',help='elevation mask (in degrees, default '+str(elevationMask)+')')
@@ -551,14 +554,6 @@ if (args.refprefix):
 	
 if (args.calprefix):
 	calPrefix = args.calprefix
-
-refMeasCode = 'L1C'
-if (args.refcode):
-	refMeasCode = args.refcode
-
-calMeasCode = 'L1C'
-if (args.calcode):
-	calMeasCode = args.calcode
 	
 if (args.elevationmask):
 	elevationMask = float(args.elevationmask)
@@ -608,11 +603,11 @@ if (args.timetransfer):
 if (args.checksum):
 	enforceChecksum = True
 
-if (args.refcode): 
-	refMeasCode = args.refcode
+if (args.reffrc): 
+	refMeasCode = args.reffrc
 
-if (args.calcode):
-	calMeasCode = args.calcode
+if (args.calfrc):
+	calMeasCode = args.calfrc
 	
 firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
@@ -674,10 +669,7 @@ if (reflen==0 or callen == 0):
 Debug('CAL total tracks= {}'.format(len(allcal)))
 
 refVer = GetVersion(refHeaders)
-
-
 calVer = GetVersion(calHeaders)
-
 
 calHasMSIO = HasMSIO(calHeaders)
 refHasMSIO = HasMSIO(refHeaders)
