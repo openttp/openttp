@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 #
 
 #
@@ -32,10 +32,13 @@ import os
 import sys
 
 # This is where cggttslib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
+# This is where cggttslib is installed
+sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
+sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
+
 import cggttslib
 
-VERSION = "0.0.2"
+VERSION = "0.1.0"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -80,7 +83,7 @@ except:
 # There is no check that the header is correctly formatted	
 hdr = ''
 for l in fin:
-	l = l.rstrip()
+	l = l.rstrip() # note that many CGGTTS files have included line terminations in the checksum ! 
 	if l.find('CKSUM = ') >= 0:
 		hdr += 'CKSUM = ' # but this string has a checksum of zero anyway
 		print('CKSUM = ' + str(hex(cggttslib.CheckSum(hdr))))
