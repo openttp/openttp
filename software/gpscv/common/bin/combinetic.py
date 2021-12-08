@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 #
 # The MIT License (MIT)
@@ -95,9 +95,9 @@ i2 = 0
 while (i1 < len(d1) and i2 < len(d2)):
 	if (d2[i2][0] == d1[i1][0]): # it's a match
 		if (args.add):
-			print d1[i1][1], float(d1[i1][2]) + float(d2[i2][2])
+			print(d1[i1][1], float(d1[i1][2]) + float(d2[i2][2]))
 		else:
-			print d1[i1][1], float(d1[i1][2]) - float(d2[i2][2])
+			print(d1[i1][1], float(d1[i1][2]) - float(d2[i2][2]))
 		i1 = i1 + 1
 		i2 = i2 + 1
 	elif (d1[i1][0] > d2[i2][0] ): # d1 after d2, advance d2
