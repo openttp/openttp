@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -34,7 +34,7 @@
 # 
 
 import argparse
-from datetime import datetime
+from   datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -42,10 +42,12 @@ import re
 import sys
 
 # This is where cggttslib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
+sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
+sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
+
 import cggttslib
 
-VERSION = "0.3.5"
+VERSION = "0.4.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -160,7 +162,7 @@ def SetDataColumns(ver,isdf):
 
 # ------------------------------------------
 
-def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
+def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 	d=[]
 	
 	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
@@ -196,6 +198,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 		header['version']='V1'
 	elif (header['version'] == '02'):	
 		Debug('V02')
+		Warn('The data are treated as GPS')
 		ver=CGGTTS_V2
 		header['version']='V02'
 	elif (header['version'] == '2E'):
@@ -271,6 +274,10 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 			if (ver == CGGTTS_V1):
 				thePRN = int(fields[PRN])
 				fields[PRN]= "G{:02d}".format(thePRN)
+			
+			if (ver == CGGTTS_V2): 
+				thePRN = int(fields[PRN])
+				fields[PRN]= "G{:02d}".format(thePRN) # FIXME works for GPS only
 				
 			theMJD = int(fields[MJD])
 			hh = int(fields[STTIME][0:2])
@@ -317,7 +324,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime):
 			msio = 0
 			if (hasMSIO):
 				msio = float(fields[MSIO])/10.0
-			if ((tt >= startTime and tt < stopTime and theMJD == mjd) or args.keepall):
+			if ((tt >= startTime and tt < stopTime and theMJD == mjd and frc==measCode) or args.keepall):
 				d.append([fields[PRN],int(fields[MJD]),tt,trklen,elv,float(fields[AZTH])/10.0,float(fields[REFSV])/10.0,float(fields[REFSYS])/10.0,
 					dsg,int(fields[IOE]),float(fields[MDIO])/10.0,msio,frc])
 			else:
@@ -357,7 +364,7 @@ def GetVersion(headers):
 def GetMeasCode(d,col):
 	frc = d[0][col]
 	Debug('GetMeasCode:' + frc)
-	if (frc == 'C1'):
+	if (frc == 'L1C'):
 		frc = 'L1C'
 		Debug('-->' + frc)
 	return frc
@@ -374,7 +381,7 @@ def HasMSIO(headers):
 def GetFloat(msg,defaultValue):
 	ok = False
 	while (not ok):
-		val = raw_input(msg)
+		val = input(msg)
 		val=val.strip()
 		if (len(val) == 0):
 			return defaultValue
@@ -431,8 +438,8 @@ calExt = 'cctf'
 refPrefix=''
 calPrefix=''
 
-refMeasCode = 'L3P'
-calMeasCode = 'L3P'
+refMeasCode = ''
+calMeasCode = ''
 
 elevationMask=ELV_MASK
 minTrackLength = MIN_TRACK_LENGTH
@@ -479,8 +486,8 @@ parser.add_argument('lastMJD',help='last mjd');
 parser.add_argument('--starttime',help='start time of day HH:MM:SS for first MJD (default 0)')
 parser.add_argument('--stoptime',help='stop time of day HH:MM:SS for last MJD (default 23:59:00)')
 
-parser.add_argument('--calcode',help='set the reference code (C1,L3P) (default C1 if it can\'t be determined from the FRC column')
-parser.add_argument('--refcode',help='set the calibration code (C1,L3P) (default C1 if it can\'t be determined from the FRC column')
+parser.add_argument('--calcode',help='set the calibration code (L1C,L3P) (default L1C if it can\'t be determined from the FRC column')
+parser.add_argument('--refcode',help='set the reference code (L1C,L3P) (default L1C if it can\'t be determined from the FRC column')
 
 # filtering
 parser.add_argument('--elevationmask',help='elevation mask (in degrees, default '+str(elevationMask)+')')
@@ -545,11 +552,11 @@ if (args.refprefix):
 if (args.calprefix):
 	calPrefix = args.calprefix
 
-refMeasCode = 'C1'
+refMeasCode = 'L1C'
 if (args.refcode):
-	measCode = args.refcode
+	refMeasCode = args.refcode
 
-calMeasCode = 'C1'
+calMeasCode = 'L1C'
 if (args.calcode):
 	calMeasCode = args.calcode
 	
@@ -600,21 +607,27 @@ if (args.timetransfer):
 
 if (args.checksum):
 	enforceChecksum = True
+
+if (args.refcode): 
+	refMeasCode = args.refcode
+
+if (args.calcode):
+	calMeasCode = args.calcode
 	
 firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
 
 # Print the settings
 if (not args.quiet):
-	print
-	print 'Elevation mask = ',elevationMask,'deg'
-	print 'Minimum track length =',minTrackLength,'s'
-	print 'Maximum DSG =', maxDSG,'ns'
+	print('\n')
+	print('Elevation mask = ' + str(elevationMask) + ' deg')
+	print('Minimum track length = ' + str(minTrackLength) + 's')
+	print('Maximum DSG = ' + str(maxDSG) + ' ns')
 	if (weighting == NO_WEIGHT):
-		print 'Weighting = none'
+		print('Weighting = none')
 	elif (weighting == ELV_WEIGHT):
-		print 'Weighting = elevation'
-	print 
+		print('Weighting = elevation')
+	print('\n') 
 	
 allref=[] 
 allcal=[]
@@ -629,7 +642,7 @@ for mjd in range(firstMJD,lastMJD+1):
 			 stopT = stopTime
 	else:
 			stopT=86399
-	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT)
+	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode)
 	if (header):
 		allref = allref + d
 		refHeaders.append(header)
@@ -647,12 +660,11 @@ for mjd in range(firstMJD,lastMJD+1):
 	else:
 			stopT=86399
 			
-	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT)
+	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode)
 	if header:
 		allcal = allcal + d
 		calHeaders.append(header)
 	
-
 reflen = len(allref)
 callen = len(allcal)
 if (reflen==0 or callen == 0):
@@ -662,18 +674,10 @@ if (reflen==0 or callen == 0):
 Debug('CAL total tracks= {}'.format(len(allcal)))
 
 refVer = GetVersion(refHeaders)
-refMeasCode = 'C1'  # default
-if (refVer == 'V02' or refVer == 'V2E'): # determine from file
-	refMeasCode = GetMeasCode(allref,REF_FRC)
-if (args.refcode): # option overrides 
-	refMeasCode = args.refcode
+
 
 calVer = GetVersion(calHeaders)
-calMeasCode = 'C1'
-if (calVer == 'V02' or calVer == 'V2E'): # determine from file
-	calMeasCode = GetMeasCode(allcal,CAL_FRC)
-if (args.calcode):
-	calMeasCode = args.calcode
+
 
 calHasMSIO = HasMSIO(calHeaders)
 refHasMSIO = HasMSIO(refHeaders)
@@ -703,8 +707,8 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 	# INT DLY + CAB DLY + REF DLY
 	# Warning! Delays are assumed not to change
 	
-	print
-	print 'REF/HOST receiver'
+	print('\n')
+	print('REF/HOST receiver')
 	ok,totDelay = GetDelay(refHeaders,'tot dly')
 	if ok:
 		newTotDelay = GetFloat('New TOT DLY [{} ns]: '.format(totDelay),totDelay)
@@ -735,7 +739,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 					dlyCode2=refHeaders[0]['int dly code 2']
 				ok,intDelay2 = GetDelay(refHeaders,'int dly 2') 
 				newIntDelay2 = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode2,intDelay2),intDelay2)
-				print 'WARNING! P3 delay changes will not be used!'
+				print('WARNING! P3 delay changes will not be used!')
 				
 			ok,cabDelay = GetDelay(refHeaders,'cab dly') 
 			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
@@ -752,8 +756,8 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			
 	Info('Delay delta = {}'.format(refCorrection))	
 	
-	print
-	print 'CAL/TRAV receiver'
+	print('\n')
+	print('CAL/TRAV receiver')
 	ok,totDelay = GetDelay(calHeaders,'tot dly')
 	if ok:
 		newTotDelay = GetFloat('New TOT DLY [{} ns]: '.format(totDelay),totDelay)
@@ -785,7 +789,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 					dlyCode2=calHeaders[0]['int dly code 2']
 				ok,intDelay2 = GetDelay(calHeaders,'int dly 2') 
 				newIntDelay2 = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode2,intDelay2),intDelay2)
-				print 'WARNING! P3 delay changes will not be used!'
+				print('WARNING! P3 delay changes will not be used!')
 				
 			ok,cabDelay = GetDelay(calHeaders,'cab dly') 
 			newCabDelay = GetFloat('New CAB DLY [{} ns]: '.format(cabDelay),cabDelay)
@@ -811,6 +815,7 @@ CAL_IONO = 10
 REF_IONO = 10
 CAL_MSIO=11
 REF_MSIO=11
+FRC = 12
 
 # Averaged deltas, in numpy friendly format,for analysis
 tMatch=[]
@@ -868,6 +873,7 @@ if (cmpMethod == USE_GPSCV):
 		prn1=allref[iref][PRN]
 		st1 =allref[iref][STTIME]
 		ioe1 = allref[iref][IOE]
+		
 		while (jcal < callen):
 			mjd2=allcal[jcal][MJD]
 			st2 =allcal[jcal][STTIME]
@@ -887,7 +893,7 @@ if (cmpMethod == USE_GPSCV):
 					st2 =allcal[jtmp][STTIME]
 					prn2=allcal[jtmp][PRN]
 					ioe2=allcal[jtmp][IOE]
-
+					
 					if (prn1 == prn2):
 						break
 					jtmp += 1
@@ -1045,13 +1051,13 @@ if (MODE_DELAY_CAL==mode ):
 	if (not args.quiet):
 		
 		print
-		print 'Offsets (REF - CAL)  [subtract from CAL \'INT DLY\' to correct]'
-		print '  at midpoint {} ns'.format(meanOffset)
-		print '  median  {} ns'.format(np.median(deltaMatch))
-		print '  mean {} ns'.format(np.mean(deltaMatch))
-		print '  std. dev {} ns'.format(np.std(deltaMatch))
-		print 'slope {} ps/day +/- {} ps/day'.format(p[0]*1000,slopeErr*1000)
-		print 'RMS of residuals {} ns'.format(rmsResidual)
+		print('Offsets (REF - CAL)  [subtract from CAL \'INT DLY\' to correct]')
+		print('  at midpoint {} ns'.format(meanOffset))
+		print('  median  {} ns'.format(np.median(deltaMatch)))
+		print('  mean {} ns'.format(np.mean(deltaMatch)))
+		print('  std. dev {} ns'.format(np.std(deltaMatch)))
+		print('slope {} ps/day +/- {} ps/day'.format(p[0]*1000,slopeErr*1000))
+		print('RMS of residuals {} ns'.format(rmsResidual))
 		
 	f,(ax1,ax2,ax3)= plt.subplots(3,sharex=True,figsize=(8,11))
 	f.suptitle('Delay calibration ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
@@ -1078,7 +1084,7 @@ if (MODE_DELAY_CAL==mode ):
 
 elif (MODE_TT == mode):
 	if (not args.quiet):
-		print ' Linear fit to data'
-		print 'Offset (REF - CAL) at midpoint {} ns '.format(meanOffset)
-		print 'ffe = {:.3e} +/- {:.3e}'.format(p[0]*1.0E-9/86400.0,slopeErr*1.0E-9/86400.0)
+		print(' Linear fit to data')
+		print('Offset (REF - CAL) at midpoint {} ns '.format(meanOffset))
+		print('ffe = {:.3e} +/- {:.3e}'.format(p[0]*1.0E-9/86400.0,slopeErr*1.0E-9/86400.0))
 		
