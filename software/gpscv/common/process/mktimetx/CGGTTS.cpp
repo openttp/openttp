@@ -145,6 +145,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 	int shortTrackCnt=0;
 	int goodTrackCnt=0;
 	int ephemerisMisses=0;
+	int badHealth=0;
 	int pseudoRangeFailures=0;
 	int badMeasurementCnt=0;
 	
@@ -201,7 +202,6 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 			FRCcode="L3P";break;
 		default:break;
 	}
-	
 	
 	double aij=0.0; // frequency weight for pseudoranges, as per CGGTTS v2E
 	
@@ -387,7 +387,15 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				for ( unsigned int q=0;q<nqfits;q++){
 					if (ed==NULL) // use only one ephemeris for each track
 							ed = dynamic_cast<GPSEphemeris *>(rx->gps.nearestEphemeris(sv,gpsTOW[q],maxURA));
-					if (NULL == ed) ephemerisMisses++;
+					if (NULL == ed){
+						ephemerisMisses++;
+					}
+					else{
+						if (ed->SV_health > 0){
+							badHealth++;
+							continue;
+						}
+					}
 					
 					double refsyscorr,refsvcorr,iono,tropo,az,el;
 					// FIXME MDIO needs to change for L2
@@ -436,7 +444,19 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 					
 						if (ed==NULL) // use only one ephemeris for each track
 							ed = dynamic_cast<GPSEphemeris *>(rx->gps.nearestEphemeris(sv,rxmt->gpstow,maxURA));
-						if (NULL == ed) ephemerisMisses++;
+						
+						if (NULL == ed){
+							ephemerisMisses++;
+						}
+						else{
+							if (ed->SV_health > 0){
+								badHealth++;
+								tsearch += 30;
+								t++;
+								continue;
+							}
+						}
+					
 						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps,pr;
 						
 						// FIXME MDIO needs to change for L2
@@ -584,7 +604,8 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 	} // for (int i=0;i<ntracks;i++){
 	
 	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<std::string>(ephemerisMisses));
-	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) );
+	app->logMessage("Bad health: " + boost::lexical_cast<std::string>(badHealth) );
+	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) ); // PR calculation skipped if unhealthy
 	app->logMessage("Bad measurements: " + boost::lexical_cast<std::string>(badMeasurementCnt) );
 	
 	app->logMessage(boost::lexical_cast<std::string>(goodTrackCnt) + " good tracks");
