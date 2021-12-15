@@ -53,7 +53,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -238,7 +238,7 @@ def ConfigureReceiver(rxcfg):
 		Cleanup()
 		sys.exit(0)
 	
-	# FIXME This assumes that there is only Stream1 is enabled
+	# FIXME This assumes that there is only Stream1  enabled
 	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',none') # turn off output
 
 	# Set up the Antenna
@@ -623,8 +623,8 @@ for s in range(0,MAXSVID+1):
 
 gotVis = 0
 gotCN0 = 0
-nBadCRC=0
-
+nBadCRC = 0
+nBadLength = 0
 while (not killed):
 	
 	# Check for timeout
@@ -670,6 +670,12 @@ while (not killed):
 		# Any remaining matches are determined within the loop
 		while match:
 			
+			# FIXME this code stays until we are confident all is OK 
+			if (time.time() - tLastMsg > rxTimeout):
+				Cleanup()
+				ErrorExit('BUG! hard loop')
+				break
+	
 			inp = inp[match.start():] # discard the prematch string
 			
 			pktCRC, = struct.unpack_from('<H',match.group(1)); # ushort, little endian
@@ -677,14 +683,15 @@ while (not killed):
 			pktLen, = struct.unpack_from('<H',match.group(3)); # ushort, little endian
 			
 			inpLen=len(inp)
-
+							
 			if (pktLen > inpLen):
 				Debug('SHORT!' + str(pktLen) + ',' + str(inpLen))
 				break # need a bit more 
 			
-			# Check the length - should be a multiple of 4. If it isn't, then the packet is incomplete
-			if (pktLen %4 > 0):
-				Debug('Bad length')
+			# Check the length - should be a multiple of 4 (and at least 8). If it isn't, then the packet is incomplete
+			if (pktLen %4 > 0 or pktLen <8):
+				Debug('Bad length ' + str(pktLen))
+				nBadLength += 1
 				inp = inp[2:] # something's wrong, like lost data, so chop off the bogus sync
 				match = sbfre.search(inp) # have another go
 				continue
@@ -697,10 +704,10 @@ while (not killed):
 				Debug('Bad CRC: ' + str(pktID) + ' ' + str(pktLen) + ' ' + str(inpLen) )
 				if (pktLen == inpLen):
 					inp=b'' # eat the lot 
-					break #and there are no more match
+					break # and there are no more matches
 				else:
 					inp = inp[pktLen:] # still some chewy bits 
-					match = sbfre.search(inp) # and we need to have another go
+					match = sbfre.search(inp) # so we need to take another bite
 					continue
 			
 			# Length OK CRC OK so parse away
@@ -727,6 +734,7 @@ while (not killed):
 		if gotCN0:
 			if logStatus:
 				Debug('N BAD CRC = ' + str(nBadCRC))
+				Debug('N BAD LEN = ' + str(nBadLength))
 				tt = time.time()
 				if (tt - tLastStatusUpdate > STATUS_LOGGING_INTERVAL):
 					UpdateStatusFile(rxStatus)
