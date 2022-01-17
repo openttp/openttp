@@ -1,0 +1,11 @@
+[Unit]
+Description=Email After boot
+DefaultDependencies=no
+After=postfix.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/local/bin/email-on-boot.sh
+
+[Install]
+WantedBy=multi-user.target
