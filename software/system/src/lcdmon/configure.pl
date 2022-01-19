@@ -36,6 +36,7 @@ $SYSTEMD="systemd";
 	["Ubuntu 14.04","debian",$UPSTART],
 	["Ubuntu 16.04","debian",$UPSTART],
 	["Ubuntu 18.04","debian",$SYSTEMD],
+	["Ubuntu 20.04","debian",$SYSTEMD],
 	["BeagleBoard.org Debian","debian",$SYSTEMD],
 	["Debian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
 	["Debian GNU/Linux 10 (buster)","debian",$SYSTEMD],
