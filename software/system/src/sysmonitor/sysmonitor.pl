@@ -78,7 +78,7 @@ sub new
 package main;
 
 $AUTHORS="Michael Wouters";
-$VERSION="1.0.1";
+$VERSION="1.0.2";
 
 #$MAX_FILE_AGE=60; # file can be up to this old before an alarm is raised
 $MAX_FILE_AGE=180; # Increased it to 180 seconds, because GPSDO data is  
@@ -286,7 +286,7 @@ if (-e $MDSTAT){
 	open (IN,"<$MDSTAT");
 	while ($line=<IN>){
 		if ($line =~/Personalities/ && $line =~/raid/ ){
-			DEBUG('RAID detected');
+			Debug('RAID detected');
 			$mon = new Monitored("PC", 'RAID disk failure', 'RAID failure',99,\&CheckRAID);
 			$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
 			push @monitors,$mon;
