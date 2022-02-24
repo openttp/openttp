@@ -285,8 +285,8 @@ push @monitors,$mon;
 if (-e $MDSTAT){
 	open (IN,"<$MDSTAT");
 	while ($line=<IN>){
-		if ($line =~/Personalities/ && $line =~/raid/ ){
-			Debug('RAID detected');
+		if ($line =~/md\d+\s:/ ){
+			Debug('RAID partition(s) detected');
 			$mon = new Monitored("PC", 'RAID disk failure', 'RAID failure',99,\&CheckRAID);
 			$mon->{methods} = $ALARM_LOG | $ALARM_STATUS_FILE | $ALARM_SYSLOG;
 			push @monitors,$mon;
