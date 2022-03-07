@@ -23,9 +23,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  * 
- * Usage: ppsd [-d] [-h] [-v] [-o delay ]
+ * Usage: ppsd [-dhvs] [-o delay ]
  *	-d turn debugging on
  *  -h print help
+ *  -s use soft timing
  *  -v print version number
  *  -o delay offset for pps in us
  *
@@ -43,6 +44,8 @@
  * 11-05-2015 MJW Fixups forchanges in Linux ... (v1.2.0)
  * 12-05-2015 MJW Support for SIO81865/66
  * 22-03-2018 MJW Fixups for time steps (v2.0.1)
+ * 2022-03-04 MJW Soft timing mode, better configuration
+ * 
  */
  	
 /* Compile with gcc -O -Wall -o ppsd ppsd.c */
@@ -69,10 +72,18 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#define PPSD_VERSION "2.1.2"
-#define PID_FILE _PATH_VARRUN "ppsd.pid"
-#define PPSD_CONFIG "/usr/local/etc/ppsd.conf"
+#include <configurator.h>
 
+#define APP_NAME "ppsd"
+#define APP_VERSION "3.0.0"
+#define PID_FILE _PATH_VARRUN "ppsd.pid"
+#define DEFAULT_CONFIG "/usr/local/etc/ppsd.conf"
+#define DEFAULT_LOG_DIR	 "/home/ntp-admin/logs/"
+
+#define BUFLEN 1024
+#define PRETTIFIER "*********************************************"
+
+typedef int BOOL;
 #define TRUE 1
 #define FALSE 0
 
@@ -238,56 +249,255 @@ F8186X_init()
 // 		}
 // 	}
 // 	return TRUE;
-// }
+//}
 
 #endif
-
 
 
 typedef struct _Tppsd
 {
 	uid_t uid;
 	int offset;
+	
+	FILE *logFile;       /* current data log file */
+	char *logPath;       /* path for log files  */
+	
+	BOOL hardTiming;      /* hard/soft timing */
+	
+	int MJD; 
+	char *statusFileName; /* status log file name */
+	char *configurationFile;
+	
+	char *hostname;
+	
 } Tppsd;
 
-static void PPSDPrintHelp();
-static void PPSDReadConfig(Tppsd *ppsd,const char *fname);
-
+static void ppsd_print_help();
+static void ppsd_init(Tppsd *ppsd);
+static void ppsd_load_config(Tppsd *ppsd);
+static int  ppsd_set_config_str(ListEntry *last,const char *section,const char *token,char **val,BOOL *ok,BOOL required);
+static int  ppsd_set_config_int(ListEntry *last,const char *section,const char *token,int   *val,BOOL *ok,BOOL required);
+static int  ppsd_set_config_bool(ListEntry *last,const char *section,const char *token,BOOL  *val,BOOL *ok,BOOL required);
 
 static void
-PPSDPrintHelp()
+ppsd_print_help()
 {
-	printf("\nppsd version %s\n",PPSD_VERSION);
-	printf("Usage: ppsd [-hvd] [-o delay]\n");
+	printf("\nppsd version %s\n",APP_VERSION);
+	printf("Usage: ppsd [-hvds] [-o delay] [-c config]\n");
 	printf("-h print this help message\n");
 	printf("-v print version\n");
 	printf("-d enable debugging\n");
+	printf("-s soft timing (default is hard)\n");
 	printf("-o output delay in us\n");
+	printf("-c <config> set configuration file\n");
 }
 
 static void
-PPSDReadConfig(
-	Tppsd *ppsd,
-	const char *fname
-	)
+ppsd_init(
+	Tppsd *pp
+)
 {
-	FILE *fd;
-	if ((fd=fopen(fname,"r")))
-	{
-		if (1 != fscanf(fd,"%i",&(ppsd->offset)))
-		{
-			fprintf(stderr,"Error in config file %s\n",fname);
-			exit(1);
-		}
-		fclose(fd);
-	}
-	else
-	{
-		fprintf(stderr,"Can't open %s\n",fname);
-		exit(1);
-	}
+	char hn[BUFLEN];
+	
+	pp->MJD=-1;
+	pp->offset=1000;
+	pp->hardTiming = FALSE;
+	
+	pp->configurationFile=strdup(DEFAULT_CONFIG);
+	
+	pp->logFile=NULL;
+	pp->logPath=strdup(DEFAULT_LOG_DIR);
+	
+	pp->hostname=strdup("localhost");
+	gethostname(hn,BUFLEN);
+	pp->hostname = strdup(hn); /* this will not usually be the FQDN - specify that via config file */
+	
 	
 }
+
+static int
+ppsd_set_config_str(
+		ListEntry *last,
+		const char *section,
+		const char *token,
+		char **val,
+		BOOL *ok,
+		BOOL required)
+{
+	char *stmp;
+	if (list_get_string(last,section,token,&stmp)){
+		// ok is not set
+		if (NULL != *val)
+			free(*val);
+		*val=strdup(stmp);
+	}
+	else{
+		int err = config_file_get_last_error(NULL,0);
+		if (err==TokenNotFound && required){
+			fprintf(stderr,"Missing entry for %s::%s\n",section,token);
+			*ok = FALSE;
+			return FALSE;
+		}
+		else if (err==TokenNotFound){
+			// ok is not false
+			return FALSE;
+		}
+		else if (err==ParseFailed){
+			fprintf(stderr,"Syntax error %s::%s\n",section,token);
+			*ok = FALSE;
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+
+static int
+ppsd_set_config_int(
+		ListEntry *last,
+		const char *section,
+		const char *token,
+		int *val,
+		BOOL *ok,
+		BOOL required)
+{
+	int itmp;
+	if (list_get_int(last,section,token,&itmp)){
+		*val=itmp;
+	}
+	else{
+		int err = config_file_get_last_error(NULL,0);
+		if (err==TokenNotFound && required){
+			fprintf(stderr,"Missing entry for %s::%s\n",section,token);
+			*ok = FALSE;
+			return FALSE;
+		}
+		else if (err==TokenNotFound){
+			// ok is not false
+			return FALSE;
+		}
+		else if (err==ParseFailed){
+			fprintf(stderr,"Syntax error %s::%s\n",section,token);
+			*ok = FALSE;
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static int
+ppsd_set_config_bool(
+		ListEntry *last,
+		const char *section,
+		const char *token,
+		BOOL *val,
+		BOOL *ok,
+		BOOL required)
+{
+	char *stmp;
+	if (list_get_string(last,section,token,&stmp)){
+		lowercase(stmp);
+		if ((0==strcmp(stmp,"off")) || (0==strcmp(stmp,"no")) || (0==strcmp(stmp,"false"))|| (0==strcmp(stmp,"0"))){
+			*val = FALSE;
+		}
+		else if ((0==strcmp(stmp,"on")) || (0==strcmp(stmp,"yes")) || (0==strcmp(stmp,"true")) ||(0==strcmp(stmp,"1"))){
+			*val = TRUE;
+		}
+		else{
+			fprintf(stderr,"Syntax error %s::%s\n",section,token);
+			return FALSE;
+		}
+	}
+	else{
+		int err = config_file_get_last_error(NULL,0);
+		if (err==TokenNotFound && required){
+			fprintf(stderr,"Missing entry for %s::%s\n",section,token);
+			*ok = FALSE;
+			return FALSE;
+		}
+		else if (err==TokenNotFound){
+			// ok is not false
+			return FALSE;
+		}
+		else if (err==ParseFailed){
+			fprintf(stderr,"Syntax error %s::%s\n",section,token);
+			*ok = FALSE;
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static void
+ppsd_load_config(
+	Tppsd *pp
+	)
+{
+	int configOK;
+	
+	ListEntry *last;
+	if (!configfile_parse_as_list(&last,pp->configurationFile)){
+		fprintf(stderr,"Unable to open the configuration file %s - exiting\n",pp->configurationFile);
+		exit(EXIT_FAILURE);
+	}
+	
+	ppsd_set_config_str(last,"main","log path",&(pp->logPath),&configOK,FALSE);
+	ppsd_set_config_str(last,"main","host name",&(pp->hostname),&configOK,FALSE);
+	ppsd_set_config_int(last,"main","delay",&(pp->offset),&configOK,FALSE);
+	ppsd_set_config_bool(last,"main","hard timing",&(pp->hardTiming),&configOK,FALSE);
+}
+
+static int
+ppsd_open_log(
+	Tppsd *pp,
+	int mjd
+									)
+{
+	char buf[BUFLEN];
+	struct stat sbuf;
+	
+	/* Open log file for recording time stamps when using soft timing*/
+	if (NULL != pp->logFile) fclose(pp->logFile);
+	
+	sprintf(buf,"%s/%i.%s.ppsd",pp->logPath,mjd,pp->hostname);
+
+	if (debugOn)
+		fprintf(stderr,"Opening %s\n",buf);
+	
+	/* If the file exists then open it for appending */
+	if ((0==stat(buf,&sbuf))){
+		pp->logFile= fopen(buf,"a");
+		return TRUE;
+	}
+	 
+	if (!(pp->logFile = fopen(buf,"a"))){
+		fprintf(stderr,"Unable to open %s\n",buf);
+		exit(EXIT_FAILURE);
+	}
+	else{
+		fprintf(pp->logFile,"# %s system 1 pps offset log, %s %s\n",pp->hostname,APP_NAME,APP_VERSION);
+		fprintf(pp->logFile,"# Delay = %d\n",pp->offset);
+		fflush(pp->logFile);
+		return TRUE;
+	}
+}
+
+static void
+ppsd_log(
+	Tppsd *pp,
+	struct timeval *tv)
+{
+	struct tm *ts;
+	char timestr[64];
+	ts=gmtime((&(tv->tv_sec)));
+	strftime(timestr,63,"%H:%M:%S",ts);
+	fprintf(pp->logFile,"%s %i\n",timestr,(int) tv->tv_usec);
+	fflush(pp->logFile);
+}
+
+/* 
+ * 
+ */
 
 int
 main(
@@ -299,6 +509,10 @@ main(
 	int c;
 	FILE *str;
 	pid_t pid;
+	
+	int offset;
+	int opts=FALSE,opto=FALSE,optc=FALSE;
+	char *configurationFile=NULL;
 	
 	int tstart;
 	struct sched_param	sched;
@@ -313,56 +527,56 @@ main(
 #ifdef USE_SIO8186x
 	unsigned char dout;
 	unsigned char datagpio0;
-	unsigned char bitmask;
+	unsigned char bitmask;strdup(
 #endif
 	
-	ppsd.offset=0;
-	PPSDReadConfig(&ppsd,PPSD_CONFIG);
+	ppsd_init(&ppsd);
 	
 	/* Process the command line options */
-	while ((c=getopt(argc,argv,"dhvo:")) != -1)
-	{
+	while ((c=getopt(argc,argv,"dhsvo:c:")) != -1){
 		switch(c)
 		{
+			case 'c':
+				configurationFile = strdup(optarg);
+				optc=TRUE;
+				break;
 			case 'd':	/* enable debugging */
 				printf("Debugging is ON\n");
 				debugOn=TRUE;
 				break;
 			case 'h': /* print help */
-				PPSDPrintHelp();
-				return 0;
+				ppsd_print_help();
+				return EXIT_SUCCESS;;
+				break;
+			case 's': /* set soft timing */
+				opts = TRUE;
 				break;
 			case 'o': /* output delay */
-				if (optarg)
-				{
-					if (1==sscanf(optarg,"%i",&(ppsd.offset)))
-					{
-						if (abs(ppsd.offset) > 999999)
-						{
+				if (optarg){
+					if (1==sscanf(optarg,"%i",&offset)){
+						if (abs(offset) > 999999){
 							fprintf(stderr,"Error in argument to option -o\n");
-							fprintf(stderr,"Absolute value of delay must be less than "
-									"999999\n");
-							return 0;
+							fprintf(stderr,"Absolute value of delay must be less than 999999\n");
+							return EXIT_FAILURE;
 						}
-						else
-						{
-							
+						else{
+							opto=TRUE;
 						}
 					}
 					else
 					{
 						fprintf(stderr,"Error in argument to option -o\n");
-						return 0;
+						return EXIT_FAILURE;
 					}
 				}
 				else
 				{
 					fprintf(stderr,"Missing argument to option -o\n");
-					return 0;
+					return EXIT_FAILURE;
 				}
 				break;
 			case 'v': /* print version */
-				printf("\n ppsd version %s\n",PPSD_VERSION);
+				printf("\n ppsd version %s\n",APP_VERSION);
 #ifdef USE_PARALLEL_PORT
 				printf("Compiled for the parallel port\n");
 #endif
@@ -370,9 +584,29 @@ main(
 				printf("Compiled for the SIOF8186x\n");
 #endif
 				printf("This ain't no stinkin' Perl script!\n");
-				return 0;
+				return EXIT_SUCCESS;
 				break;
 		}
+	}
+	
+	if (optc){
+		free(ppsd.configurationFile);
+		ppsd.configurationFile = configurationFile;
+	}
+	
+	ppsd_load_config(&ppsd);
+	
+	/* Command line options override */
+	if (opto){
+		ppsd.offset = offset;
+	}
+	
+	if (opts){
+		ppsd.hardTiming = FALSE;
+	}
+	
+	if (debugOn){
+		fprintf(stderr,"Hard timing is %s\n",(ppsd.hardTiming?"ON":"OFF"));
 	}
 	
 	/* Check whether the daemon is already running and exit if it is */ 
@@ -453,7 +687,7 @@ main(
 	}
 
 	syslog(LOG_INFO,"ppsd version %s started with 1 pps offset %i us",
-		PPSD_VERSION, ppsd.offset);
+		APP_VERSION, ppsd.offset);
 
 	
 	/* For convenience, make negative offset positive */
@@ -480,7 +714,7 @@ main(
 	ioperm(PPBASE,1,1);
 	outb(0x00,PPBASE);
 #endif 
-	
+
 	/* Become a low priority real-time process */
 	sched.sched_priority = sched_get_priority_min(SCHED_FIFO);
 	if ( sched_setscheduler(0, SCHED_FIFO, &sched) == -1 )
@@ -519,33 +753,43 @@ main(
 		gettimeofday(&tv,NULL);
 		tstart=tv.tv_sec;
 		twait= ppsd.offset+1000000-tv.tv_usec;
-		if (debugOn) fprintf(stderr,"twait %i\n",(int) twait);
-		/* We have to go into the busy loop 20 ms before the tick 
-		 * to have a decent chance of getting and keeping the time
-		 * slice.
-		 */
-		if (twait > 20000) 
-			twait-=20000;
-	
+		// if (debugOn) fprintf(stderr,"twait %i\n",(int) twait);
+		
+		if (ppsd.hardTiming){
+			/* We have to go into the busy loop 20 ms before the tick 
+			* to have a decent chance of getting and keeping the time
+			* slice.
+			*/
+			if (twait > 20000) 
+				twait-=20000;
+		}
+		
 		/* Wait till just before the tick */
 		usleep(twait);
-		/* Loop till we see the tick */
-		gettimeofday(&tv,NULL);
 		
-		/* Are we too late ? If we are then we will immediately output a pulse*/
-		if ((tv.tv_sec > tstart && tv.tv_usec > ppsd.offset))
-			continue;
-			
-		/* How many us to go ? */
-		if (debugOn)
-			fprintf(stderr,"%i us to go\n",(int)
-				((tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec));
-		tloop = (tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec;
-		/* Guard against the system time going backwards while we are looping by restricting tloop */
-		while ( tloop > 0 && tloop < 20000 ){
+		if (ppsd.hardTiming){
+			/* Loop till we see the tick */
 			gettimeofday(&tv,NULL);
+			
+			/* Are we too late ? If we are then we will immediately output a pulse*/
+			if ((tv.tv_sec > tstart && tv.tv_usec > ppsd.offset))
+				continue;
+				
+			/* How many us to go ? */
+			if (debugOn)
+				fprintf(stderr,"%i us to go\n",(int)
+					((tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec));
 			tloop = (tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec;
-		}		
+			/* Guard against the system time going backwards while we are looping by restricting tloop */
+			while ( tloop > 0 && tloop < 20000 ){
+				gettimeofday(&tv,NULL);
+				tloop = (tstart+1 -tv.tv_sec)*1000000	+ ppsd.offset - tv.tv_usec;
+			}
+		}
+		else{
+			gettimeofday(&tv,NULL); /* BEF timestamp */
+		}
+		
 #ifdef USE_PARALLEL_PORT
 		outb(0xff,PPBASE); /* We go high    */ 
 		for (j=1;j<=10;j++)/* We wait a bit */
@@ -562,6 +806,20 @@ main(
 		dout= (datagpio0 & ~bitmask) | (0x0 & bitmask); /* set pps low */
 		F8186X_write(GPIO_ODR, dout);
 #endif
+		
+		if (!ppsd.hardTiming){/* log the wakeup time */
+			
+			time_t tt = tv.tv_sec;
+			//if ( pp.lastpps.tv_nsec> NSEC_PER_SEC / 2)
+			//	tt++;
+			int mjd = tt/86400 + 40587;
+		
+			if (mjd != ppsd.MJD){
+				if (ppsd_open_log(&ppsd,mjd))
+					ppsd.MJD=mjd;
+			}
+			ppsd_log(&ppsd,&tv);
+		}
 		
 		if (debugOn){
 			fprintf(stderr,"BEF %i\n",(int) tv.tv_usec);

@@ -3,7 +3,7 @@ PROGRAM = ppsd
 CC = gcc
 INCLUDE = 
 LDFLAGS= 
-LIBS= 
+LIBS=-lconfigurator
 CFLAGS= -Wall -O -DUSE_PARALLEL_PORT
 OBJECTS = ppsd.o
 
