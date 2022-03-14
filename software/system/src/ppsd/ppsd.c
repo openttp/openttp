@@ -527,7 +527,7 @@ main(
 #ifdef USE_SIO8186x
 	unsigned char dout;
 	unsigned char datagpio0;
-	unsigned char bitmask;strdup(
+	unsigned char bitmask;
 #endif
 	
 	ppsd_init(&ppsd);
