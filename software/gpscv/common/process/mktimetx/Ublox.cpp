@@ -694,6 +694,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 	
 	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
 		if (!(g & constellations)) continue;
+		if (app->positioningMode)  continue; // measurements as reported by the receiver are untouched
 		DBGMSG(debugStream,INFO,"Fixing ms ambiguities for " << g);
 		GNSSSystem *gnss;
 		switch (g){
