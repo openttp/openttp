@@ -262,8 +262,11 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						}
 						
 						// GPSTOW is used for pseudorange estimations
-						// Note: this is rounded because measurements are interpolated on a 1s grid
-						rmeas->gpstow=rint(measTOW);  
+						// Note: this is rounded because that's what works for time-transfer :-)
+						if (app->positioningMode)
+							rmeas->gpstow = measTOW; // truncate fractional part
+						else
+							rmeas->gpstow = rint(measTOW); 
 						rmeas->gpswn=measGPSWN % 1024; // Converted to truncated WN.  
 						
 						// UTC time of measurement
@@ -285,7 +288,11 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						//rmeas->tmfracs = measTOW - (int)(measTOW); 
 						//if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
 						
-						rmeas->tmfracs=0.0;
+						if (app->positioningMode)
+							rmeas->tmfracs = measTOW - (int)(measTOW); 
+							//if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
+						else
+							rmeas->tmfracs=0.0;
 						
 						// Need to add some logic here for determining if a measurement is selected...
 						// FIXME I removed tha logic for testing, but it may not work if a datafile is mismatched
