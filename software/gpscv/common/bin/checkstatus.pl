@@ -46,6 +46,7 @@
 # 2020-06-16 ELM Added hp5313xlog, LTElog, nv08log, ticclog, log1Wtemp and 
 #                logpicputemp to executable to be checked.
 #                Also changed -107 > -7 in approx. line 123; we only want last 7 days.
+# 2022-05-01 ELM Found another -107, approx line 139
 #
 
 use Sys::Hostname;
@@ -134,8 +135,11 @@ if ($ticpath eq  $rxpath){ # avoid duplicate output
 	push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ");
 }
 else{
+ #push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ;".
+ #"find $rxpath -follow -mtime -107 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ");
+ # Louis Marais, 2022-05-01 Changed -107 to -7; we only want the last 7 days not the last 107 days.
  push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ;".
- "find $rxpath -follow -mtime -107 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ");
+ "find $rxpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ");
 }
 
 
