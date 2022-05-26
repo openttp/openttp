@@ -48,7 +48,7 @@ sys.path.append('/usr/local/lib/python3.8/site-packages') # Ubuntu 20
 import ottplib
 import time
 
-VERSION = '0.1.5'
+VERSION = '0.1.6'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -188,8 +188,8 @@ def DecodeUBX_SEC_UNIQID(msg):
 	if not(len(msg)==(9+2)*2):
 		return ''
 	packed=binascii.unhexlify(msg)
-	unpacked=struct.unpack('B3B5B2B',packed)
-	return [unpacked[0],(unpacked[4] << 32)+(unpacked[5] << 24)+(unpacked[6] << 16)+(unpacked[7] << 8)+unpacked[8]]
+	unpacked=struct.unpack('B3B5s2B',packed)
+	return [unpacked[0],'0x' + msg[4*2:(4+5)*2+1]] # hex string is already in right form for ID
 
 # ------------------------------------------
 def DecodeUBX_TIM_TP(msg):

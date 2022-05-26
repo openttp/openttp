@@ -294,6 +294,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						else
 							rmeas->tmfracs=0.0;
 						
+						// FIXME REMOVE 
+						rmeas->tmfracs = measTOW - (int)(measTOW); 
+						if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
+						
 						// Need to add some logic here for determining if a measurement is selected...
 						// FIXME I removed tha logic for testing, but it may not work if a datafile is mismatched
 						// the configuration.
@@ -533,6 +537,20 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 				continue;
 			}
 			
+			// 0x2703 UBX-SEC-UNIQID unique chip ID
+			if (msgid == "2703"){ // Polled for at the beginning of each day
+				if (msg.size()==(9+2)*2){
+						// This is easy - the hex string is just what we want !
+					  serialNumber = "0x" + msg.substr(4*2,2*5);
+						DBGMSG(debugStream,INFO,"receiver serial number = " << serialNumber);
+				}
+				else{
+					DBGMSG(debugStream,WARNING,"Bad 2703 message size");
+				}
+				continue;
+			}
+			
+			
 			//
 			// Messages needed to contruct the RINEX navigation file
 			//
@@ -762,6 +780,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			} // for (unsigned int i=0;i<measurements.size();i++){
 		}
 	}
+	
+	interpolateMeasurements();
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
