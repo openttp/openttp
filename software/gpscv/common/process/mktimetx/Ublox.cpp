@@ -285,18 +285,11 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
-						//rmeas->tmfracs = measTOW - (int)(measTOW); 
-						//if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
-						
 						if (app->positioningMode)
 							rmeas->tmfracs = measTOW - (int)(measTOW); 
 							//if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
 						else
 							rmeas->tmfracs=0.0;
-						
-						// FIXME REMOVE 
-						rmeas->tmfracs = measTOW - (int)(measTOW); 
-						if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
 						
 						// Need to add some logic here for determining if a measurement is selected...
 						// FIXME I removed tha logic for testing, but it may not work if a datafile is mismatched
