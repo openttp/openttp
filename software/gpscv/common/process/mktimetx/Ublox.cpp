@@ -774,8 +774,6 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 		}
 	}
 	
-	interpolateMeasurements();
-	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
