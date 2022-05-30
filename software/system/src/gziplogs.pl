@@ -27,7 +27,7 @@
 # Modification history
 # 2016-03-30 MJW Replaces zip_data. First version.
 # 2017-12-11 MJW Extended capabilities. More extensible. Compressed files can be moved. 
-#
+# 2022-05-30 MJW Move compressed files
 
 use POSIX;
 use Errno;
@@ -38,7 +38,7 @@ use File::Copy;
 
 use vars qw($opt_c $opt_d $opt_h $opt_m $opt_v);
 
-$VERSION="0.1.1";
+$VERSION="0.1.2";
 $AUTHOR="Michael Wouters";
 
 # Check command line
@@ -125,7 +125,11 @@ elsif (defined $Init{"targets"}){
 						$destination = TFMakeAbsolutePath($Init{"$targets[$t]:destination"},"$home/");
 						move("$files[$i].gz",$destination);
 					}
-				}	
+				}
+				if (-e "$files[$i].gz" && defined ($Init{"$targets[$t]:destination"})){
+					$destination = TFMakeAbsolutePath($Init{"$targets[$t]:destination"},"$home/");
+					move("$files[$i].gz",$destination);
+				}
 			}
 		}
 	}
