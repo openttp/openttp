@@ -47,7 +47,7 @@ sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
 
 import cggttslib
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -70,6 +70,7 @@ SRSV=8
 REFGPS=9
 REFSYS=9
 SRGPS=10
+SRSYS=10
 DSG=11
 IOE=12
 MDTR=13
@@ -86,8 +87,9 @@ FRC=21
 # CK=23  #V2E, ionospheric measurements available
 
 MIN_TRACK_LENGTH=750
-DSG_MAX=20.0
-ELV_MASK=0.0
+DSG_MAX = 20.0 # in ns
+SRSYS_MAX = 9999.9 # in ns
+ELV_MASK = 0.0 # in degrees
 
 NO_WEIGHT = 1
 ELV_WEIGHT = 2
@@ -252,6 +254,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 	
 	nLowElevation=0
 	nHighDSG=0
+	nHighSRSYS=0
 	nShortTracks=0
 	nBadSRSV=0
 	nBadMSIO =0
@@ -285,20 +288,30 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 			ss = int(fields[STTIME][4:6])
 			tt = hh*3600+mm*60+ss
 			dsg=0.0
+			srsys=0.0
 			trklen=999
 			reject=False
 			if (not(CGGTTS_RAW == ver)): # DSG not defined for RAW
-				if (fields[DSG] == '9999' or fields[DSG] == '****'):
-					reject=True;
+				if (fields[DSG] == '9999' or fields[DSG] == '****'): # field is 4 wide so 4 digits (no sign needed)
+					reject=True
+					dsg = 999.9 # so that we count '****' as high DSG
 				else:
 					dsg = int(fields[DSG])/10.0
+				if (fields[SRSYS] == '99999' or fields[SRSYS] == '******'): # field is 6 wide so sign + 5 digits -> max value is 99999
+					reject=True;
+					srsys = 9999.9 # so that we count '******' as high SRSYS
+				else:
+					srsys = int(fields[SRSYS])/10.0
 				trklen = int(fields[TRKL])
 			elv = int(fields[ELV])/10.0
 			if (elv < elevationMask):
 				nLowElevation +=1
 				reject=True
-			if (dsg > DSG_MAX):
+			if (dsg > maxDSG):
 				nHighDSG += 1
+				reject = True
+			if (abs(srsys) > maxSRSYS):
+				nHighSRSYS += 1
 				reject = True
 			if (trklen < minTrackLength):
 				nShortTracks +=1
@@ -341,6 +354,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 	Debug(str(nextday) + ' tracks after end of the day removed')
 	Debug('low elevation = ' + str(nLowElevation))
 	Debug('high DSG = ' + str(nHighDSG))
+	Debug('high SRSYS = ' + str(nHighSRSYS))
 	Debug('short tracks = ' + str(nShortTracks))
 	Debug('bad SRSV = ' + str(nBadSRSV))
 	Debug('bad MSIO = ' + str(nBadMSIO))
@@ -447,6 +461,7 @@ calMeasCode = ''
 elevationMask=ELV_MASK
 minTrackLength = MIN_TRACK_LENGTH
 maxDSG=DSG_MAX
+maxSRSYS = SRSYS_MAX
 cmpMethod=USE_GPSCV
 mode = MODE_TT
 ionosphere=True
@@ -496,6 +511,7 @@ parser.add_argument('--reffrc',help='set the reference FRC code (L1C,L3P,...)')
 parser.add_argument('--elevationmask',help='elevation mask (in degrees, default '+str(elevationMask)+')')
 parser.add_argument('--mintracklength',help='minimum track length (in s, default '+str(minTrackLength)+')')
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
+parser.add_argument('--maxsrsys',help='maximum SRSYS (in ns, default '+str(maxSRSYS)+')')
 parser.add_argument('--matchephemeris',help='match on ephemeris [CV only] (default no)',action='store_true')
 
 # parser.add_argument('--weighting', type=str,help='weighting of tracks (default=none)')
@@ -561,6 +577,9 @@ if (args.elevationmask):
 if (args.maxdsg):
 	maxDSG = float(args.maxdsg)
 
+if (args.maxsrsys):
+	maxSRSYS = float(args.maxsrsys)
+	
 if (args.matchephemeris):
 	matchEphemeris=True
 	
