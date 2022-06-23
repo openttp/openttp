@@ -27,8 +27,11 @@ import ottplib
 # Globals
 debug = False
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 AUTHORS = "Michael Wouters"
+
+MODE_ADD    = 0
+MODE_REMOVE = 1
 
 # ------------------------------------------
 def Debug(msg):
@@ -80,12 +83,24 @@ def MakeSymLink(dev,alias):
 	else:
 		os.symlink(dev,symlink)
 
+# --------------------------------------------
+def RemoveDeadSymLink(alias):
+	symlink = '/dev/' + alias
+	Debug('Checking ' + symlink)
+	if (os.path.islink(symlink) and not(os.path.exists(symlink))): 
+		Debug('Removing dead symlink')
+		os.remove(symlink)
+			
 # ------------------------------------------
 
 configFile = '/usr/local/etc/mosaicmkdev.conf'
+mode = MODE_ADD
 
 parser = argparse.ArgumentParser(description='Detects Septentrio mosaicT and makes a device nodes based on the serial number')
 parser.add_argument('devpath',help='device path',type=str) # supplied by udev
+group = parser.add_mutually_exclusive_group()
+group.add_argument('--add','-a',help='add devices',action='store_true')
+group.add_argument('--remove','-r',help='remove devices',action='store_true')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
@@ -94,6 +109,12 @@ args = parser.parse_args()
 
 debug = args.debug
 
+if args.add:
+	mode = MODE_ADD
+	
+if args.remove:
+	mode = MODE_REMOVE
+	
 configFile = args.config;
 
 if (not os.path.isfile(configFile)):
@@ -108,10 +129,17 @@ for rx in receivers:
 	rx = rx.strip()
 	sernum = cfg[rx + ':serial number']
 	ser2rx[sernum] = rx
+	if mode == MODE_REMOVE: # remove any dead symlinks
+		if rx+':ttyacm0' in cfg:
+			RemoveDeadSymLink(cfg[rx+':ttyacm0'])
+		if rx+':ttyacm1' in cfg:
+			RemoveDeadSymLink(cfg[rx+':ttyacm1'])
 
+if mode == MODE_REMOVE: # all done
+	sys.exit(0)
+	
 # The device path is a USB hub
 devRootPath = '/sys' + args.devpath # full path, two slashes is bad
-
 
 try:
 	context = pyudev.Context()

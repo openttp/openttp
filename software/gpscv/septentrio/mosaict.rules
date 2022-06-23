@@ -1,1 +1,2 @@
-ACTION=="add",SUBSYSTEM=="usb", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",  RUN+="/usr/local/sbin/mosaicmkdev.py '%E{DEVPATH}'"
+ACTION=="add",SUBSYSTEM=="usb", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",  RUN+="/usr/local/sbin/mosaicmkdev.py --add '%E{DEVPATH}'"
+ACTION=="remove",SUBSYSTEM=="usb", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",  RUN+="/usr/local/sbin/mosaicmkdev.py --remove '%E{DEVPATH}'"
