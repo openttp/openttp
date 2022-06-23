@@ -87,6 +87,7 @@ def MakeSymLink(dev,alias):
 def RemoveDeadSymLink(alias):
 	symlink = '/dev/' + alias
 	Debug('Checking ' + symlink)
+	# checkwhether target actaully is a link and whether it points to something
 	if (os.path.islink(symlink) and not(os.path.exists(symlink))): 
 		Debug('Removing dead symlink')
 		os.remove(symlink)
@@ -138,7 +139,7 @@ for rx in receivers:
 if mode == MODE_REMOVE: # all done
 	sys.exit(0)
 	
-# The device path is a USB hub
+# The device is a USB hub
 devRootPath = '/sys' + args.devpath # full path, two slashes is bad
 
 try:
