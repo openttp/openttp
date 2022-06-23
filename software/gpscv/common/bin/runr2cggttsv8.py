@@ -35,14 +35,8 @@ import subprocess
 import sys
 import time
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 AUTHORS = "Michael Wouters"
-
-# ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -174,7 +168,7 @@ parser.add_argument('cggttsout',help='CGGTTS output path',type=str)
 
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--rename','-r',help='rename cggtts output',action='store_true')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 parser.add_argument('--rinexversion',help='set RINEX version for constructing file names')
 parser.add_argument('--leapsecs',help='manually set number of leap seconds')
 
@@ -183,10 +177,6 @@ rnxVersion = 2
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 # Clean up from last run
 files = glob.glob('*.tmp')
