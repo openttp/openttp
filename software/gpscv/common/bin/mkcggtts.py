@@ -38,14 +38,8 @@ import time
 sys.path.append("/usr/local/lib/python3.8/site-packages")
 import ottplib
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 AUTHORS = "Michael Wouters"
-
-# ------------------------------------------
-def ShowVersion():
-	print (os.path.basename(sys.argv[0])+" "+VERSION)
-	print ('Written by ' + AUTHORS)
-	return
 
 # ------------------------------------------
 def Debug(msg):
@@ -294,17 +288,13 @@ parser = argparse.ArgumentParser(description='Generate CGGTTS files from RINEX o
 parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, the MJD of the previous day is used)')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 parser.add_argument('--leapsecs',help='manually set the number of leap seconds')
 parser.add_argument('--previousmjd',help='when no MJD (or one MJD) is given, MJD-1 is added to the MJDs to be processed',action='store_true')
 
 args = parser.parse_args()
 
 debug = args.debug
-
-if (args.version):
-	ShowVersion()
-	exit()
 
 configFile = args.config;
 
