@@ -26,9 +26,12 @@ import ottplib
 
 # Globals
 debug = False
+log   = False
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 AUTHORS = "Michael Wouters"
+
+LOGFILE = '/var/log/mosaicmkdev.log'
 
 MODE_ADD    = 0
 MODE_REMOVE = 1
@@ -36,18 +39,20 @@ MODE_REMOVE = 1
 # ------------------------------------------
 def Debug(msg):
 	if (debug):
-		#fout = open('/tmp/debug.txt','a')
-		#fout.write(time.strftime('%H:%M:%S ',time.gmtime()) + msg+'\n')
-		#fout.close()
 		print(msg)
+	if (log):
+		fout = open(LOGFILE,'a')
+		fout.write(time.strftime('%Y-%m-%d %H:%M:%S ',time.gmtime()) + msg+'\n')
+		fout.close()
 	return
 
 # ------------------------------------------
 def ErrorExit(msg):
 	sys.stderr.write(msg + '\n')
-	#fout = open('/tmp/error.txt','a')
-	#fout.write(time.strftime('%H:%M:%S ',time.gmtime()) + msg+'\n')
-	#fout.close()
+	if (log):
+		fout = open(LOGFILE,'a')
+		fout.write(time.strftime('%Y-%m-%d %H:%M:%S ',time.gmtime()) + msg+'\n')
+		fout.close()
 	sys.exit(1)
 
 # ------------------------------------------
@@ -104,16 +109,21 @@ group.add_argument('--add','-a',help='add devices',action='store_true')
 group.add_argument('--remove','-r',help='remove devices',action='store_true')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
+parser.add_argument('--log','-l',help='create log file',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
 debug = args.debug
+if args.log:
+	log = True
 
 if args.add:
+	Debug('Device plugged ' + args.devpath)
 	mode = MODE_ADD
 	
 if args.remove:
+	Debug('Device unplugged ' + args.devpath)
 	mode = MODE_REMOVE
 	
 configFile = args.config;
