@@ -12,6 +12,9 @@
 
 # Note that when testing, the flash device may take a while to appear so the device won't be available for a while after plugging in
 
+# This is meant to be used top down ie hub is matched bu udev then symlinks are made
+# The other way to do this is bottom up - udev matches eg ttyACM and then the script figures out the device order 
+ 
 # This will be called when plugged and unplugged
 
 import argparse
@@ -92,7 +95,7 @@ def MakeSymLink(dev,alias):
 def RemoveDeadSymLink(alias):
 	symlink = '/dev/' + alias
 	Debug('Checking ' + symlink)
-	# checkwhether target actaully is a link and whether it points to something
+	# check whether target actually is a link and whether it points to something
 	if (os.path.islink(symlink) and not(os.path.exists(symlink))): 
 		Debug('Removing dead symlink')
 		os.remove(symlink)

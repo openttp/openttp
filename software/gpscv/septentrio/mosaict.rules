@@ -1,2 +1,7 @@
-ACTION=="add",SUBSYSTEM=="usb", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",  RUN+="/usr/local/sbin/mosaicmkdev.py --add '%E{DEVPATH}'"
-ACTION=="remove",SUBSYSTEM=="usb", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",  RUN+="/usr/local/sbin/mosaicmkdev.py --remove '%E{DEVPATH}'"
+# Matching on DRIVER=USB means we only get one call to the rule when the receiver is plugged in
+ACTION=="add",DRIVER=="usb", ATTR{idVendor}=="152a", ATTR{idProduct}=="85c0",  RUN+="/usr/local/sbin/mosaicmkdev.py --add '%E{DEVPATH}'"
+# Matching on DRIVER==usb or cdc_acm means not called
+# Matching on SUBSYSTEM==usb means 7 calls, one for each sub-device 
+# If you use SUBSYSTEM==usb and ATTR{idVendor} there is no match
+ACTION=="remove",KERNEL=="ttyACM*", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",  RUN+="/usr/local/sbin/mosaicmkdev.py --remove '%E{DEVPATH}'"
+
