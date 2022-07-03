@@ -3,7 +3,7 @@ CC = gcc
 INCLUDE = 
 LDFLAGS= 
 LIBS= 
-CFLAGS= -Wall -O -DUSE_PARALLEL_PORT
+CFLAGS= -Wall -O -DUSE_SIO8186x
 OBJECTS = dioctrl.o
 
 .SUFFIXES: .o .c

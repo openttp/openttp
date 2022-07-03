@@ -27,7 +27,7 @@
 # Modification history
 # 2016-03-30 MJW Replaces zip_data. First version.
 # 2017-12-11 MJW Extended capabilities. More extensible. Compressed files can be moved. 
-#
+# 2022-05-30 MJW Move compressed files
 
 use POSIX;
 use Errno;
@@ -38,7 +38,7 @@ use File::Copy;
 
 use vars qw($opt_c $opt_d $opt_h $opt_m $opt_v);
 
-$VERSION="0.1.0";
+$VERSION="0.1.2";
 $AUTHOR="Michael Wouters";
 
 # Check command line
@@ -59,14 +59,16 @@ if ($opt_v){
 $tnow = time();
 $mjd =  int($tnow/86400 + 40587-1); # yesterday
 @gmt = gmtime ($tnow - 86400);
-$ymd = strftime("%Y%m%d",@gmt);
 
 if (defined $opt_m){
 	$mjd=$opt_m;
 	$tthen = ($mjd - 40587)*86400;
 	@gmt = gmtime ($tthen);
-	$ymd = strftime("%Y%m%d",@gmt);
 }
+
+$ymd = strftime("%Y%m%d",@gmt);
+$doy = strftime("%j",@gmt); # note, zero padded
+$yy  = strftime("%y",@gmt); # ditto
 
 $home=$ENV{HOME};
 if (-d "$home/etc")  {
@@ -92,9 +94,12 @@ if (defined $Init{"files"}){
 		$files[$i]=~ s/\s+$//;
 		$files[$i]=~ s/{MJD}/$mjd/;
 		$files[$i]=~ s/{YYYYMMDD}/$ymd/;
+		$files[$i]=~ s/{DOY}/$doy/;
+		$files[$i]=~ s/{YY}/$yy/;
 		$files[$i]=TFMakeAbsoluteFilePath($files[$i],$home,$home."/raw");
 		Debug("Checking $files[$i]");
 		if (-e $files[$i]){
+			Debug("Compressing $files[$i]");
 			`gzip $files[$i]`;
 		}
 	}
@@ -120,7 +125,11 @@ elsif (defined $Init{"targets"}){
 						$destination = TFMakeAbsolutePath($Init{"$targets[$t]:destination"},"$home/");
 						move("$files[$i].gz",$destination);
 					}
-				}	
+				}
+				if (-e "$files[$i].gz" && defined ($Init{"$targets[$t]:destination"})){
+					$destination = TFMakeAbsolutePath($Init{"$targets[$t]:destination"},"$home/");
+					move("$files[$i].gz",$destination);
+				}
 			}
 		}
 	}

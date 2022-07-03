@@ -1,0 +1,28 @@
+\section{ticclog.py}
+\hypertarget{h:ticclog}{}
+
+\cc{ticclog.py} is used to log time interval measurements from a TAPR Timestamping/TIme Interval Counter (TICC).
+See \cc{https://www.tapr.org/kits\_ticc.html} for more information about this counter.
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+ticclog.py [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+ \item[-{}-help, -h] print help and exit
+ \item[-{}-config, -c  \textless{file}\textgreater] use the specified configuration file
+ \item[-{}-debug, -d]           run in debugging mode
+ \item[-{}-settings, -s]        print the counter settings
+  \item[-{}-version, -v]        print version information and exit
+\end{description*}
+
+It has the following specific configuration file entries in \cc{gpscv.conf}:
+\begin{itemize}
+	\item \hyperlink{h:counter_mode}{counter::mode}
+	\item \hyperlink{h:counter_timestamp_format}{counter::timestamp format}
+\end{itemize}
+
+When the TICC is in timestamp mode, measurements are split into two files.

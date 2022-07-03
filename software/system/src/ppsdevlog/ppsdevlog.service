@@ -1,0 +1,23 @@
+[Unit]
+Description=PPS device logger
+ConditionPathExists=/usr/local/bin/ppsdevlog
+ConditionPathExists=/usr/local/etc/ppsdevlog.conf
+# Customise as necessary
+#After = dev-pps3.device
+#Requires = dev-pps3.device
+
+# Note: StartLimitInterval must be > StartLimitBurst * RestartSec
+#
+#             120                           5             20
+#
+
+[Service]
+Restart=always
+StartLimitInterval=120
+StartLimitBurst=5
+RestartSec=20
+# Non-forking
+ExecStart=/usr/local/bin/ppsdevlog
+
+[Install]
+WantedBy=multi-user.target

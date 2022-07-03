@@ -34,27 +34,27 @@ use strict;
 use Time::HiRes qw(gettimeofday);
 use POSIX;
 use TFLibrary;
-use vars qw($tmask  $opt_c $opt_d $opt_h $opt_r $opt_v);
+use vars qw($tmask  $opt_c $opt_d $opt_h  $opt_v);
 use Switch;
 use Getopt::Std;
 use NV08C::DecodeMsg;
 
 # declare variables - required because of 'use strict'
-my($home,$configPath,$logPath,$lockFile,$port,$uucpLockPath,$VERSION,$rx,$rxStatus);
+my($home,$configPath,$logPath,$lockPath,$lockFile,$port,$uucpLockPath,$VERSION,$rx,$rxStatus);
 my($now,$mjd,$next,$then,$input,$save,$data,$killed,$tstart,$receiverTimeout);
 my($lastMsg,$msg,$rxmask,$nfound,$first,$msgID,$ret,$nowstr,$sats);
 my(%Init);
 my($AUTHORS,$configFile,@info,@required);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "1.0.1";
+$VERSION = "1.0.2";
 
 $0=~s#.*/##;
 
 $home=$ENV{HOME};
 $configFile="$home/etc/gpscv.conf";
 
-if( !(getopts('c:dhrv')) || ($#ARGV>=1) || $opt_h) {
+if( !(getopts('c:dhv')) || ($#ARGV>=1) || $opt_h) {
   ShowHelp();
   exit;
 }

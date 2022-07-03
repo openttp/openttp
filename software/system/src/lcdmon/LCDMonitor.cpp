@@ -25,9 +25,11 @@
 // Modification history
 //
 // 2018-04-05 MJW Many fixups for networking but still not working for OpenTTP
+// 2018-09-03 ELM More fixups for menu structure and reading GPSDO status
 
 #include "Debug.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <glob.h>
 #include <stdio.h>
@@ -74,7 +76,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "2.0.0"
+#define LCDMONITOR_VERSION "2.0.2"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -93,6 +95,7 @@ using namespace::boost;
 bool LCDMonitor::timeout=false;
 extern LCDMonitor *app;
 bool showHealth = true;
+int statusline = 0;
 #ifdef TTS
 bool showGLOBD = true;
 #endif
@@ -219,19 +222,53 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::stri
 	eth1ip=  "Not assigned";
 	usb0ip = "Not assigned";
 	
-	getifaddrs(&ifAddrStruct);
+	if (-1 == getifaddrs(&ifAddrStruct)){
+		log("Failed to query network interfaces"); 
+		return;
+	}
+	
 	
 	for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
 		if (!ifa->ifa_addr) {
+			//log("skipped"); // REMOVE
 			continue;
 		}
+		//log(ifa->ifa_name); // REMOVE
 		if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
 			// is a valid IP4 Address?
 			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
 			char addressBuffer[INET_ADDRSTRLEN];
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-			if ((strcmp(ifa->ifa_name,"eth0") == 0) || (strcmp(ifa->ifa_name,"enp2s0") == 0)) eth0ip = addressBuffer;
-			if ((strcmp(ifa->ifa_name,"eth1") == 0) || (strcmp(ifa->ifa_name,"enp3s0") == 0)) eth1ip = addressBuffer;
+			
+			if (strncmp(ifa->ifa_name,"eth",3) == 0){ // old style ethx
+				if (strcmp(ifa->ifa_name,"eth0") == 0){
+					eth0ip = addressBuffer;
+				}
+				else if (strcmp(ifa->ifa_name,"eth1") == 0){
+					eth1ip = addressBuffer;
+				}
+			}
+			
+			if (strncmp(ifa->ifa_name,"enp",3) == 0){ 
+				// FIXME Previous code has enp2s0 as a valid for FIRST eth device
+				// TODO  Can handle this by temporarily assigning names and then resolving as more information is obtained
+				if (strcmp(ifa->ifa_name,"enp1s0") == 0){
+					eth0ip = addressBuffer;
+				}
+				else if (strcmp(ifa->ifa_name,"enp2s0") == 0){
+					eth1ip = addressBuffer;
+				}
+			}
+			
+			if (strncmp(ifa->ifa_name,"eno",3) == 0){ // UEFI style ?
+				if (strcmp(ifa->ifa_name,"eno1") == 0){
+					eth0ip = addressBuffer;
+				}
+				else if (strcmp(ifa->ifa_name,"eno2") == 0){
+					eth1ip = addressBuffer;
+				}
+			}
+			
 			if (strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
 		}
 	}
@@ -247,11 +284,11 @@ void LCDMonitor::showIP()
 
 	MessageBox *mb = new MessageBox(" "," "," "," ");
 
-	if(eth0ip != "") mb->setLine(0,"eth0: " + eth0ip);	
+	if(eth0ip != "") mb->setLine(0,"LAN1: " + eth0ip);	
 #ifdef OTTP
 	if(usb0ip != "") mb->setLine(1,"usb0: " + usb0ip);
 #else
-	if(eth1ip != "") mb->setLine(1,"eth1: " + eth1ip);
+	if(eth1ip != "") mb->setLine(1,"LAN2: " + eth1ip);
 #endif
 	execDialog(mb);
 	delete mb;
@@ -260,12 +297,14 @@ void LCDMonitor::showIP()
 void LCDMonitor::networkConfigDHCP()
 {
 
+	int oldNetworkProtocol = networkProtocol;
+	
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
 	bool ret = execDialog(dlg);
 	std::string lastError="No error";
 	
-	// A DHCP copnfiguration is created from the existing configuration, removing any 
+	// A DHCP configuration is created from the existing configuration, removing any 
 	// static IP-related configuration
 	if (ret){
 		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
@@ -317,10 +356,14 @@ void LCDMonitor::networkConfigDHCP()
 	{
 	delete dlg;
 
+	int newNetworkProtocol=DHCP;
+	if (!ret && oldNetworkProtocol != DHCP)
+		newNetworkProtocol = StaticIPV4;
+	
 	MenuItem *mi = protocolM->itemAt(midDHCP);
-	mi->setChecked(ret);
+	mi->setChecked(newNetworkProtocol==DHCP);
 	mi = protocolM->itemAt(midStaticIP4);
-	mi->setChecked(!ret);
+	mi->setChecked(newNetworkProtocol==StaticIPV4);
 
 	return;
 	}
@@ -336,6 +379,8 @@ void LCDMonitor::networkConfigDHCP()
 
 void LCDMonitor::networkConfigStaticIP4()
 {
+	int oldNetworkProtocol = networkProtocol;
+	
 	clearDisplay();
 	Wizard *dlg = new Wizard();
 
@@ -461,6 +506,9 @@ void LCDMonitor::networkConfigStaticIP4()
 				fout2 << "DNS1=" << quote(ipv4ns) << endl;
 				gotDNS1=true;
 			}
+			else if (string::npos != tmp.find("DNS2")){
+				// scrub it for the moment
+			}
 			else if (string::npos != tmp.find("GATEWAY")){
 				fout2 << "GATEWAY=" << quote(ipv4gw) << endl;
 				gotGW=true;
@@ -531,15 +579,28 @@ void LCDMonitor::networkConfigStaticIP4()
 				goto DIE;
 			}
 		}
+		clearDisplay();
+		updateLine(1,"Please wait");			
+		sleep(3);
 		
 		if (restartNetworking())
 			networkProtocol = StaticIPV4;
 		
 	} // if dialog accepted
-
+  {
 	delete dlg;
+	
+	int newNetworkProtocol=StaticIPV4;
+	if (!ret && oldNetworkProtocol != StaticIPV4)
+		newNetworkProtocol = DHCP;
+	
+	MenuItem *mi = protocolM->itemAt(midDHCP);
+	mi->setChecked(newNetworkProtocol==DHCP);
+	mi = protocolM->itemAt(midStaticIP4);
+	mi->setChecked(newNetworkProtocol==StaticIPV4);
+	
 	return;
-
+	}
 	DIE:
 		delete dlg;
 		DBGMSG(debugStream,TRACE, "last error: "<< lastError);
@@ -583,9 +644,19 @@ bool LCDMonitor::restartNetworking()
 #endif
 
 #ifdef SYSTEMD
+#ifdef NMCLI
+	// note that CentOS7+ have /bin as a symlink to /usr/bin, so all good
+	runSystemCommand("/bin/nmcli connection reload  && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
+	//runSystemCommand("/bin/nmcli connection reload","Reloaded OK","Reload failed !");
+	//sleep(1); // so we can see what happened
+	//runSystemCommand("/bin/nmcli networking off","Net off  OK","Net off failed !");
+	//sleep(1);
+	//runSystemCommand("/bin/nmcli networking on","Net on OK","Net on failed !");
+	sleep(1);
+#else
 	runSystemCommand("/bin/systemctl restart network","Restarted OK","Restart failed !");
 	sleep(1);
-	
+#endif
 	clearDisplay();
 	updateLine(1,"Trying ssh restart");
 	runSystemCommand("/bin/systemctl try-restart sshd","Restarted OK","Restart failed !");
@@ -596,9 +667,9 @@ bool LCDMonitor::restartNetworking()
 	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
 	
-	clearDisplay();
-	updateLine(1,"Trying httpd restart");
-	runSystemCommand("/bin/systemctl try-restart httpd","Restart OK","Restart failed!");
+	//clearDisplay();
+	//updateLine(1,"Trying httpd restart");
+	//runSystemCommand("/bin/systemctl try-restart httpd","Restart OK","Restart failed!");
 	sleep(1);
 	
 #endif
@@ -733,6 +804,10 @@ void LCDMonitor::setGPSDisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(false);
+	#ifdef TTS
+	mi = displayModeM->itemAt(midGLOBDDisplayMode);
+	mi->setChecked(false);
+	#endif
 
 	updateConfig("ui","display mode","GPS");
 
@@ -750,6 +825,10 @@ void LCDMonitor::setNTPDisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(false);
+	#ifdef TTS
+	mi = displayModeM->itemAt(midGLOBDDisplayMode);
+	mi->setChecked(false);
+	#endif
 	lastNTPtrafficPoll.tv_sec=0;
 
 	updateConfig("ui","display mode","NTP");
@@ -768,6 +847,10 @@ void LCDMonitor::setGPSDODisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midNTPDisplayMode);
 	mi->setChecked(false);
+	#ifdef TTS
+	mi = displayModeM->itemAt(midGLOBDDisplayMode);
+	mi->setChecked(false);
+	#endif
 
 	updateConfig("ui","display mode","GPSDO");
 
@@ -857,7 +940,6 @@ void LCDMonitor::restartGPS()
 		log("GPS rx restart failed");
 		sleep(2);
 		delete dlg;
-
 }
 
 void LCDMonitor::restartNtpd()
@@ -870,7 +952,6 @@ void LCDMonitor::restartNtpd()
 		runSystemCommand(ntpdRestartCommand,"ntpd restarted","ntpd restart failed");
 	}
 	delete dlg;
-
 }
 
 void LCDMonitor::reboot()
@@ -889,7 +970,6 @@ void LCDMonitor::reboot()
 
 void LCDMonitor::poweroff()
 {
-
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm poweroff");
 	bool ret = execDialog(dlg);
@@ -1099,7 +1179,8 @@ void LCDMonitor::showStatus()
 						DBGMSG(debugStream,TRACE, "Unexpected EOF from checkGPSDO");
 					}
 					else{
-						status = "GPSDO: " + status; //=+ did not work!
+						#ifdef OTTP
+						status = "GPSDO: " + status;
 						if (status.length() > 20) status.resize(20);
 						updateLine(1,status);
 						std::string buf;
@@ -1109,11 +1190,41 @@ void LCDMonitor::showStatus()
 						size_t pos = health.find("-");
 						health.resize(pos);
 						health = "Health: " + health;
+						if (health.length() > 20) health.resize(20);
 						if(showHealth)
 							updateLine(2,health);
 						else
 							updateLine(2,buf);
 						showHealth = !showHealth;
+						#endif
+						#ifdef TTS
+						updateLine(1,"GPSDO:");
+						// The status file structure is very different. A different approach
+						// is used to display GPSDO parameters
+						switch(statusline)
+						{
+							case(0):
+								if(status.length() > 20) status.resize(20);
+								updateLine(2,status);
+								break;
+							case(1):
+								ffe = "FFE: "+ffe;
+								if(ffe.length() > 20) ffe.resize(20);
+								updateLine(2,ffe);
+								break;
+							case(2):
+								EFC = "EFC: "+EFC;
+								if(EFC.length() > 20) EFC.resize(20);
+								updateLine(2,EFC);
+								break;
+							case(3):
+								if(health.length() > 20) health.resize(20);
+								updateLine(2,health);
+								break;
+						}
+						statusline++;						
+						if(statusline >= 4) statusline = 0;
+						#endif
 					}
 				}
 				else // most likely stale file...
@@ -1227,7 +1338,7 @@ void LCDMonitor::showStatus()
 				snprintf(buf,20,"Leap second now");
 				break;
 			case TIME_WAIT:
-				snprintf(buf,20,"Leap second occurred");
+				snprintf(buf,20,"Leap sec occurred");
 				break;
 			case TIME_BAD:
 				snprintf(buf,20,"Unsynchronized");
@@ -1498,11 +1609,28 @@ void LCDMonitor::init()
 	if ((fd=fopen(lockFile.c_str(),"r"))){
 		fscanf(fd,"%i",&oldpid);
 		fclose(fd);
-		/* this doesn't send a signal - just error checks */
-		if (!kill(oldpid,0) || errno == EPERM){ /* still running */
-			cerr << "lcdmonitor with pid " << oldpid << " is still running" << endl;
-			exit(EXIT_FAILURE);
+		// If the process has not exited properly, there will be a stale lock file
+		// If the system has rebooted there may a new process with the PID in the lock file
+		// so we check /proc
+		ostringstream sbuf;
+		sbuf << "/proc/" << oldpid;
+		DIR* dir  = opendir(sbuf.str().c_str());
+		if (dir){ // it's in /proc
+			// check cmdline
+			sbuf << "/cmdline";
+			std::ifstream fin(sbuf.str().c_str());
+			if (fin.good()){
+				std::string cmdline;
+				fin >> cmdline;
+				fin.close();
+				std::size_t found = cmdline.find("lcdmonitor");
+				if (found!=std::string::npos){
+					std::cerr << "lcdmonitor with pid " << oldpid << " is still running" << endl;
+					exit(EXIT_FAILURE);
+				}
+			}
 		}
+		// otherwise, good to go.
 	}
 
 	log(PRETTIFIER);
@@ -1631,7 +1759,7 @@ void LCDMonitor::configure()
 	cvgpsHome="/home/cvgps/";
 	ntpadminHome="/home/ntp-admin/";
 	DNSconf="/etc/resolv.conf";
-	// This is empty in CentOS7
+	// This is empty in CentOS7+
 	networkConf="/etc/sysconfig/network";
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
 #ifdef RHEL
@@ -1827,11 +1955,13 @@ void LCDMonitor::configure()
 
 #ifdef TTS
 	if (list_get_string_value(last,"GNSS","GLONASS status",&stmp))
+	//if (list_get_string_value(last,"gnss","glonass status",&stmp))
 		GLONASSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("GLONASS status not found in gpscv.conf");
 	
 	if (list_get_string_value(last,"GNSS","Beidou status",&stmp))
+	//if (list_get_string_value(last,"gnss","beidou status",&stmp))
 		BeidouStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("Beidou status not found in gpscv.conf");
@@ -2137,6 +2267,7 @@ bool LCDMonitor::checkAlarms()
 bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 {
 
+	// TODO this should return a vector of PRNs rather than repeating parsing elsewhere 
 	*unexpectedEOF=false;
 	bool ret = checkFile(GPSStatusFile.c_str());
 	if (!ret)
@@ -2173,6 +2304,14 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 			parseConfigEntry(tmp,prns,'=');
 			//cout << "prns = " << prns << endl;
 		}
+		else if (string::npos != tmp.find("GPS")){
+			parseConfigEntry(tmp,prns,'=');
+			std::vector<std::string> tmp;
+			boost::split(tmp,prns,is_any_of(","));
+			*nsats = tmp.size();
+			gotSats = *nsats > 0;
+			DBGMSG(debugStream,TRACE,prns);
+		}
 	}
 	fin.close();
 	*unexpectedEOF = !(gotSats || (!prns.empty()));
@@ -2192,6 +2331,7 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 
 	// status file is current so extract useful stuff
 	std::ifstream fin(GPSDOStatusFile.c_str());
+	
 	if (!fin.good()) // not really going to happen
 	{
 		DBGMSG(debugStream,TRACE,"stream error");
@@ -2199,9 +2339,9 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	}
 
 	std::string tmp;
-
 	while (!fin.eof()){
 		getline(fin,tmp);
+		#ifdef OTTP
 		if (string::npos != tmp.find("Lock status                   : ")){
 			parseConfigEntry(tmp,status,'-');
 		}
@@ -2214,7 +2354,24 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 		else if (string::npos != tmp.find("GPSDO health                  : ")){
 			parseConfigEntry(tmp,health,':');
 		}
+		#endif
+	
+		#ifdef TTS
+		if (string::npos != tmp.find("Reported precision ")){
+			parseConfigEntry(tmp,status,'-');
+		}
+		else if (string::npos != tmp.find("EFC voltage: ")){
+			parseConfigEntry(tmp,EFC,':');
+		}
+		else if (string::npos != tmp.find("OCXO frequency error estimate: ")){
+			parseConfigEntry(tmp,ffe,':');
+		}
+		else if (string::npos != tmp.find("GPSDO health: ")){
+			parseConfigEntry(tmp,health,':');
+		}
+		#endif
 	}
+	
 	fin.close();
 	/*
 	if(status.empty())

@@ -56,7 +56,8 @@ $GPSCVUSER=$ENV{USER};
 	["CentOS Linux 7","centos7"],
 	["Ubuntu 14.04","ubuntu14"],
 	["Ubuntu 16.04","ubuntu16"],
-	["BeagleBoard.org Debian","bbdebian8"] # FIXME this may not be set in stone ...
+	["BeagleBoard.org Debian","bbdebian8"], # FIXME this may not be set in stone ...
+	["Raspbian GNU/Linux 9 (stretch)","rpidebian9"]
 	);
 
 @receivers = (
@@ -104,6 +105,7 @@ Log ("+++++++++++++++++++++++++++++++++++++++\n",$ECHO);
 # Try for /etc/os-release first (systemd systems only)
 if ((-e "/etc/os-release")){
         $thisos = `grep '^PRETTY_NAME' /etc/os-release | cut -f 2 -d "="`;
+        chomp $thisos;
         $thisos =~ s/\"//g;
 }
 else{
@@ -114,7 +116,7 @@ else{
 Log ("\nDetected $thisos\n",$ECHO);
 
 for ($i=0;$i<=$#os;$i++){
-	last if ($thisos =~/$os[$i][0]/);
+	last if ($thisos =~/\Q$os[$i][0]\E/);
 }
 
 $osid="linux";
@@ -147,7 +149,7 @@ else {
 
 $INSTALLDIR = $HOME;
 $DATADIR = $HOME;
-if ($os[$i][1] eq "bbdebian8"){
+if ($os[$i][1] eq "bbdebian8" || $os[$i][1] eq "rpidebian9" ){
 	$DATADIR = "/mnt/data/$GPSCVUSER";
 	die "$DATADIR doesn't exist" unless (-e $DATADIR);
 }
@@ -390,12 +392,12 @@ sub CompileTarget
 sub InstallFromSource
 {
 	CompileTarget('mktimetx','common/process/mktimetx');
-	CompileTarget('prs10c','common/prs10c');
+	CompileTarget('prs10c','prs10');
 	
 	Log("\nInstalling executables in $BIN\n",$ECHO);
 	
 	Install("common/process/mktimetx/*",$BIN);
-	Install("common/prs10c/*",$BIN);
+	Install("prs10/*",$BIN);
 	Install("common/bin/*",$BIN);
 	Install("gpsdo/*.pl",$BIN);
 	Install("javad/*.pl",$BIN);

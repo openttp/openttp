@@ -34,19 +34,22 @@ import re
 import sys
 import time
 import urllib2
+import pycurl
 
 # A fudge
 sys.path.append("/usr/local/lib/python2.7/site-packages")
 import ottplib
 
-VERSION = "0.1"
+VERSION = "0.1.4"
 AUTHORS = "Michael Wouters"
 
-# ---------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0]),' ',VERSION
-	print 'Written by',AUTHORS
-	return
+# RINEX V3 constellation identifiers
+BEIDOU='C'
+GALILEO='E'
+GLONASS='R'
+GPS='G'
+MIXED='M'
+
 
 # ------------------------------------------
 def ErrorExit(msg):
@@ -101,6 +104,18 @@ def MJDtoGPSWeekDay(mjd):
 	GPSday = (ttGPS - GPSWn*86400*7)/86400
 	return (GPSWn, GPSday)
 
+def GNSStoNavDirectory(gnss):
+	if (BEIDOU == gnss): # CN in 'f'
+		return 'f'
+	elif (GALILEO == gnss): # EN in 'l'
+		return 'l'
+	elif (GLONASS == gnss): 	# RN in 'g'
+		return 'g'
+	elif (GPS == gnss): # GN in 'n'
+		return 'n'
+	elif (MIXED == gnss): # MN in 'p'
+		return 'p'
+
 # ---------------------------------------------
 def FetchFile(url,destination):
 	Debug('Downloading '+ url)
@@ -121,44 +136,72 @@ def FetchFile(url,destination):
 	fout.close
 	return True
 
+
+# ---------------------------------------------
+def FetchFileWithCurl(url,destination,proxy,port):
+	# curl -v -c cookies.tmp -n -L -f -x lfproxy.in.measurement.gov.au:8080  -O "https://cddis.nasa.gov/archive/gnss/data/daily/2021/brdc/brdc0120.21n.gz"
+	
+	Debug('Downloading '+ url)
+	
+	curl = pycurl.Curl() # Initialize the cURL connection object
+	curl.setopt(curl.PROXY,proxy);
+	curl.setopt(curl.PROXYPORT,port);
+	curl.setopt(curl.URL, url) # Define the url to use
+	curl.setopt(curl.FOLLOWLOCATION, True) # Set curl to follow redirects, needed to allow user login
+	curl.setopt(curl.NETRC,2) # Set the requirement that cURL use a netrc file found in users home directory
+	curl.setopt(curl.COOKIEJAR, '.cddis_cookies') # Set the file used to store cookie
+	
+	with open(destination, 'w') as f: # Clean up and close the cURL object
+		curl.setopt(curl.WRITEFUNCTION, f.write)
+		curl.perform()
+	curl.close()
+	
+
 # ---------------------------------------------
 # Main
+
 
 home =os.environ['HOME'] + '/';
 configFile = os.path.join(home,'etc/fetchigs.conf');
 
-parser = argparse.ArgumentParser(description='Fetches IGS data products')
+parser = argparse.ArgumentParser(description='Fetch IGS products',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
 
 parser.add_argument('start',nargs='?',help='start (MJD/yyyy-doy/yyyy-mm-dd, default = today)',type=str)
 parser.add_argument('stop',nargs='?',help='stop (MJD/yyyy-doy/yyyy-mm-dd, default = start)',type=str)
 
 parser.add_argument('--config','-c',help='use this configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
-parser.add_argument('--outputdir',help='set output directory',default='.')
+parser.add_argument('--outputdir',help='set output directory')
 
 parser.add_argument('--ephemeris',help='get broadcast ephemeris',action='store_true')
 parser.add_argument('--clocks',help='get clock products (.clk)',action='store_true')
 parser.add_argument('--orbits',help='get orbit products (.sp3)',action='store_true')
 
 group = parser.add_mutually_exclusive_group()
-group.add_argument('--rapid',help='fetch rapid products',action='store_true')
-group.add_argument('--final',help='fetch final products',action='store_true')
+group.add_argument('--rapid',help='get rapid products',action='store_true')
+group.add_argument('--final',help='get final products',action='store_true')
 
-parser.add_argument('--centre',help='set data centres',default='cddis')
-parser.add_argument('--listcentres','-l',help='list available data centres',action='store_true')
+parser.add_argument('--centre',help='set the data centre',default='cddis')
+parser.add_argument('--listcentres','-l',help='list the configured data centres',action='store_true')
 
-#parser.add_argument('--proxy','-p',help='proxy server (address:port)',default='')
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
+parser.add_argument('--observations',help='get station observations',action='store_true')
+parser.add_argument('--statid',help='station identifier (eg V3 SYDN00AUS, V2 sydn)')
+parser.add_argument('--rinexversion',help='rinex version of station observation')
+parser.add_argument('--system',help='gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED')
+parser.add_argument('--noproxy',help='disable use of proxy server',action='store_true')
+parser.add_argument('--proxy',help='set the proxy server (server:port)',type=str)
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
-if (args.version):
-	ShowVersion()
-	sys.exit(0)
-
 debug = args.debug
 
-configFile = args.config;
+configFile = args.config
+
+proxy=""
+port=0
+outputdir="./"
 
 if (not os.path.isfile(configFile)):
 	ErrorExit(configFile + " not found")
@@ -173,6 +216,28 @@ if (args.listcentres):
 		print c, cfg[c.lower() + ':base url']
 	sys.exit(0)
 
+# This is possibly a fudge
+if (args.noproxy):
+	proxy_handler = urllib2.ProxyHandler({})
+	opener = urllib2.build_opener(proxy_handler)
+	urllib2.install_opener(opener)
+elif (args.proxy):
+	urllib2.install_opener(
+		urllib2.build_opener(
+			urllib2.ProxyHandler({'http': args.proxy})
+		)
+	)
+	(proxy,portstr)=args.proxy.split(':')
+	port = int(portstr)
+elif('main:proxy server' in cfg):
+	proxy = cfg['main:proxy server']
+	port  = int(cfg['main:proxy port'])
+	urllib2.install_opener(
+		urllib2.build_opener(
+			urllib2.ProxyHandler({'http': args.proxy})
+		)
+	)
+	
 dataCentre = args.centre.lower()
 # Check that we've got this
 found = False
@@ -195,25 +260,58 @@ if (args.start):
 if (args.stop):
 	stop = DateToMJD(args.stop)
 
-outputdir = args.outputdir
-
+if (args.outputdir):
+	outputdir = args.outputdir
+elif ('main:output directory' in cfg):
+	outputdir = cfg['main:output directory']
+	
 Debug('start = {},stop = {} '.format(start,stop))
 
+rnxVersion = 2
+
+if (args.rinexversion):
+	rnxVersion = int(args.rinexversion)
+
+if (args.statid):
+	stationID = args.statid
+		
+if (args.observations): # station observations
+	pass
+
+if (rnxVersion == 2):
+	gnss = GPS
+elif (rnxVersion == 3):
+	gnss = MIXED
+	
+if (args.system):
+	gnss = args.system.lower()
+	if (gnss =='beidou'):
+		gnss =BEIDOU
+	elif (gnss == 'galileo'):
+		gnss = GALILEO
+	elif (gnss == 'glonass'):
+		gnss = GLONASS
+	elif (gnss == 'gps'):
+		gnss = GPS
+	elif (gnss == 'mixed'):
+		gnss = MIXED
+	else:
+		print('Unknown GNSS system')
+		exit()
+		
 # Daily data
 baseURL = cfg[dataCentre + ':base url']
 brdcPath = cfg[dataCentre + ':broadcast ephemeris']
+stationDataPath = cfg[dataCentre + ':station data']
 
 # Products
 prodPath = cfg[dataCentre + ':products']
 
 for m in range(start,stop+1):
+	
 	Debug('fetching files for MJD ' + str(m))
 	(yyyy,doy) = MJDtoYYYYDOY(m)
-	if (args.ephemeris):
-		yy = yyyy-100*int(yyyy/100)
-		fname = 'brdc{:03d}0.{:02d}n.Z'.format(doy,yy)
-		url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
-		FetchFile(url,'{}/{}'.format(outputdir,fname))
+	
 	if (args.clocks):
 		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
 		if (args.rapid):
@@ -222,6 +320,7 @@ for m in range(start,stop+1):
 			fname = 'igs{:04d}{:1d}.clk.Z'.format(GPSWn,GPSday)
 		url = '{}/{}/{:04d}/{}'.format(baseURL,prodPath,GPSWn,fname)
 		FetchFile(url,'{}/{}'.format(outputdir,fname))
+		
 	if (args.orbits):
 		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
 		if (args.rapid):
@@ -230,3 +329,57 @@ for m in range(start,stop+1):
 			fname = 'igs{:04d}{:1d}.sp3.Z'.format(GPSWn,GPSday)
 		url = '{}/{}/{:04d}/{}'.format(baseURL,prodPath,GPSWn,fname)
 		FetchFile(url,'{}/{}'.format(outputdir,fname))
+	
+	if (args.ephemeris):
+		if (rnxVersion == 2):
+			yy = yyyy-100*int(yyyy/100)
+			brdcName = 'brdc'
+			if (args.statid):
+				brdcName = args.statid
+			fname = '{}{:03d}0.{:02d}n.Z'.format(brdcName,doy,yy)
+			if (dataCentre == 'cddis'):
+				if brdcName == 'brdc':
+					fname = '{}{:03d}0.{:02d}n.gz'.format(brdcName,doy,yy)
+					url = '{}/{}/{:04d}/brdc/{}'.format(baseURL,brdcPath,yyyy,fname)
+				else:
+					url = '{}/{}/{:04d}/{:03d}/{:02d}n/{}'.format(baseURL,brdcPath,yyyy,doy,yy,fname)
+				FetchFileWithCurl(url,'{}/{}'.format(outputdir,fname),proxy,port)
+			else:
+				url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,brdcPath,yyyy,doy,fname)
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
+		elif (rnxVersion == 3):
+			fname = '{}_R_{:04d}{:03d}0000_01D_{}N.rnx.gz'.format(stationID,yyyy,doy,gnss)
+			if (dataCentre == 'cddis'):
+				yy = yyyy-100*int(yyyy/100)
+				url = '{}/{}/{:04d}/{:03d}/{:02d}{}/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,
+					GNSStoNavDirectory(gnss),fname)
+				FetchFileWithCurl(url,'{}/{}'.format(outputdir,fname),proxy,port)
+			else:
+				url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
+			
+	if (args.observations):
+		(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
+		if (rnxVersion == 2):
+			if (gnss == MIXED):
+				yy = yyyy-100*int(yyyy/100)
+				fname = '{}{:03d}0.{}o.Z'.format(stationID,doy,yy)
+				if (dataCentre == 'cddis'):
+					url = '{}/{}/{:04d}/{:03d}/{:02d}o/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,fname)
+				else:
+					url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
+			else:
+				print 'Warning: only mixed observation files are downloaded - skipping ...'
+		elif (rnxVersion == 3):
+			if (gnss == MIXED):
+				fname = '{}_R_{:04d}{:03d}0000_01D_30S_{}O.crx.gz'.format(stationID,yyyy,doy,gnss)
+				if (dataCentre == 'cddis'):	
+					# MO in 'd'
+					yy = yyyy-100*int(yyyy/100)
+					url = '{}/{}/{:04d}/{:03d}/{:02d}d/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,fname)
+				else:	
+					url = '{}/{}/{:04d}/{:03d}/{}'.format(baseURL,stationDataPath,yyyy,doy,fname)
+				FetchFile(url,'{}/{}'.format(outputdir,fname))
+			else:
+				print 'Warning: only mixed observation files are downloaded - skipping ...'

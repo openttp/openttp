@@ -1,0 +1,56 @@
+
+\section{runr2cggttsv8.py}
+
+\hypertarget{h:runr2cggttsv8}{}
+
+\cc{runr2cggttsv8.py}  can be used to automate the running of
+\cc{r2cggtts} a program commonly used for generating CGGTTS files from RINEX files.
+In particular, given an MJD, it will copy and rename RINEX observation and navigation files
+to the files needed by \cc{r2cggtts}. CGGTTS output can be optionally renamed and moved.
+The current number of leap seconds is automatically set from the navigation file if this
+information is present. Otherwise, it can be specified on the command line.
+
+Current limitations are that V3 file names assume both mixed observation and navigation files.
+There is also no control over renaming of CGGTTS files. 
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+runr2cggttsv8.py [option] $\ldots$ obsSTA MJD obsPath navSTA navPath paramsFile cggttsPath
+\end{lstlisting}
+
+The required arguments are:
+\begin{description*}
+\item[obsSTA] the station name for RINEX observation files 
+\item[MJD] the MJD to process
+\item[obsPath] the path to RINEX observation files
+\item[navSTA] the station name for RINEX navigation files
+\item[navPath] the path to RINEX navigation files
+\item[paramsFile] the paramCGGTTS file needed by \cc{r2cggtts}
+\item[cggttsPath] the output path for CGGTTS files
+\end{description*}
+
+The command line options are
+\begin{description*}
+	\item[-{}-debug, -d]   enable debugging 
+	\item[-{}-help, -h]    show help
+	\item[-{}-leapsecs \textless n \textgreater ] set the number of leap seconds
+	\item[-{}-rename, -r]  rename CGGTTS output
+	\item[-{}-rinexversion \textless 2,3 \textgreater ]  set the RINEX version for constructing file names
+	\item[-{}-version, -v] print version information	and exit
+\end{description*}
+Example:
+\begin{lstlisting}
+runr2cggttsv8 --version 3 CEDU00AUS_R 58545 ../RINEX  CEDU00AUS_R ../RINEX CEDU.paramCGGTTS.dat cggtts/CEDU 
+\end{lstlisting}
+will attempt to use the RINEX files
+\begin{lstlisting}
+../RINEX/CEDU00AUS_R_20190620000_01D_30S_MO.rnx
+../RINEX/CEDU00AUS_R_20190630000_01D_30S_MO.rnx
+../RINEX/CEDU00AUS_R_20190620000_01D_MN.rnx
+../RINEX/CEDU00AUS_R_20190630000_01D_MN.rnx
+\end{lstlisting}
+
+If RINEX files for the day after the specified MJD are not present, processing will continue.
+
+

@@ -30,8 +30,6 @@
 #include <vector>
 #include <boost/concept_check.hpp>
 
-using namespace std;
-
 class SVMeasurement;
 class CounterMeasurement;
 
@@ -59,7 +57,7 @@ class ReceiverMeasurement
 		// FIXME probably this should be refactored as a vector<vector <SVMeasurements *>>
 		// which will simplify code and be more extensible
 		
-		vector< SVMeasurement * > meas;
+		std::vector< SVMeasurement * > meas;
 		
 		unsigned int memoryUsage();
 		

@@ -5,6 +5,8 @@ Typically, it will be run once per day, after UTC0. It requires
 a configuration file, \cc{gziplogs.conf}, which is expected to be
 in the user's \cc{etc} directory. 
 
+\cc{gziplogs.pl} doesn't produce a log file.
+
 \subsection{usage}
 
 \cc{gziplogs.pl} is normally run as a \cc{cron} job. To run it on the command line, use:
@@ -32,6 +34,4 @@ delimited by parentheses, are recognized: YYYYMMDD; and MJD.\\
 files = raw/{MJD}.rx, raw/{MJD}.tic, raw/{YYYYMMDD}.dat
 \end{lstlisting}
 
-\subsection{log file}
 
-\cc{gziplogs.pl} doesn't produce a log file.

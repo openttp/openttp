@@ -54,7 +54,7 @@
 #include "SVMeasurement.h"
 #include "Timer.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 extern Application *app;
 
 // JAVAD types
@@ -86,18 +86,20 @@ extern Application *app;
 #define YA_MSG 0x2000
 #define ZA_MSG 0x4000
 
-Javad::Javad(Antenna *ant,string m):Receiver(ant)
+Javad::Javad(Antenna *ant,std::string m):Receiver(ant)
 {
   modelName=m;
 	manufacturer="Javad";
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
 	dualFrequency=false;
-	codes=GNSSSystem::C1;
+	gps.codes = GNSSSystem::C1C; 
+	codes=gps.codes;
 	channels=32;
 	if (modelName=="HE_GD"){
 		dualFrequency=true;
-		codes = GNSSSystem::C1 | GNSSSystem::P1 | GNSSSystem::P2;
+		gps.codes = GNSSSystem::C1C | GNSSSystem::C1P | GNSSSystem::C2P;
+		codes = gps.codes;
 	}
 	else{
 		app->logMessage("Unknown receiver model: " + modelName);
@@ -110,7 +112,26 @@ Javad::~Javad()
 {
 }
 
-bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
+void Javad::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::GPS:
+			if (modelName=="HE_GD"){	
+				gps.codes = GNSSSystem::C1C | GNSSSystem::C1P | GNSSSystem::C2P | GNSSSystem::L1P | GNSSSystem::L2P;
+				codes |= gps.codes;
+				break;
+			}
+			else{
+				gps.codes = GNSSSystem::C1C;
+				codes |= gps.codes;
+			}
+			break;
+	}
+}
+
+bool Javad::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	Timer timer;
 	
@@ -119,21 +140,21 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
 	
-	ifstream infile (fname.c_str());
-	string line;
+	std::ifstream infile (fname.c_str());
+	std::string line;
 	int linecount=0;
 	
-	string msgid,currpctime,pctime,msg,gpstime;
+	std::string msgid,currpctime,pctime,msg,gpstime;
 	
 	U4 gpsTOD;
 	F8 rxTimeOffset;
 	F4 sawtooth;  
 	
-	vector<string> rxid;
+	std::vector<std::string> rxid;
 	
-	vector<SVMeasurement *> gpsmeas;
-	gotIonoData = false;
-	gotUTCdata=false;
+	std::vector<SVMeasurement *> gpsmeas;
+	gps.gotIonoData = false;
+	gps.gotUTCdata=false;
 	
 	U1 uint8buf;
 	I1 sint8buf;
@@ -152,12 +173,16 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	unsigned char CAlockFlags[MAX_CHANNELS*2];
 	
 	F8 P1pr[MAX_CHANNELS];
-	F8 relP1pr[MAX_CHANNELS];
+	//F8 relP1pr[MAX_CHANNELS];
 	unsigned char P1lockFlags[MAX_CHANNELS*2];
 	
 	F8 P2pr[MAX_CHANNELS];
-	F8 relP2pr[MAX_CHANNELS];
+	//F8 relP2pr[MAX_CHANNELS];
 	unsigned char P2lockFlags[MAX_CHANNELS*2];
+	
+	F8 cpP1[MAX_CHANNELS];
+	
+	F8 cpP2[MAX_CHANNELS];
 	
 	I2 i2bufarray[MAX_CHANNELS];
 	I4 i4bufarray[MAX_CHANNELS];
@@ -172,9 +197,16 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	U2 RDyyyy;
 	U1 RDmm,RDdd;
 	
+	// In positioning mode, RxTimeOffset is not applied to pseudorange measurements
+	// because that creates clock discontinuities with the carrier phase measurements
+	
+	double useTimeOffset = 1.0;
+	if (app->positioningMode)
+		useTimeOffset=0.0;
+	
 	reqdMsgs = AZ_MSG | EL_MSG | FC_MSG | RC_rc_MSG| RT_MSG | SI_MSG | SS_MSG | TO_MSG | YA_MSG| ZA_MSG;
 	if (dualFrequency)
-		reqdMsgs |= R1_r1_1R_1r_MSG | R2_r2_2R_2r_MSG | F1_MSG | F2_MSG;
+		reqdMsgs |= R1_r1_1R_1r_MSG | R2_r2_2R_2r_MSG | F1_MSG | F2_MSG ; // don't require P1 and P2
 	
 
   if (infile.is_open()){
@@ -187,12 +219,12 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 		
 			if ('@' == line.at(0)){ 
 				size_t pos;
-				if (string::npos != (pos = line.find("RXID",2 )) ){
+				if (std::string::npos != (pos = line.find("RXID",2 )) ){
 					rxid.push_back(line.substr(pos+4,line.size()-pos-4));
 				}
 				continue;
 			}
-			stringstream sstr(line);
+			std::stringstream sstr(line);
 			
 			// Basic check on the format 
 			if ( (line.size() < 16) || // too short
@@ -240,7 +272,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 			
 			if(msgid=="RD"){ // Receiver Date (RD) message 
 				
-				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // save measurements
+				if ((currMsgs == reqdMsgs) && (rcCnt <= 1) && (RCcnt <= 1)){ // save measurements for the current second
 					
 					if ((dualFrequency &&
 						!((R1cnt<=1) && (r1Cnt<=1) && (m1RCnt<=1) && (m1rCnt<=1) &&
@@ -267,7 +299,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 							continue;
 						}
 						
-						if (codes & GNSSSystem::C1){
+						if (codes & GNSSSystem::C1C){
 							bool ok=true;
 							// Check that PLLs are locked for each channel before we use the data
 							if (CAlockFlags[chan*2] != 83){
@@ -278,20 +310,22 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 							
 							// Simple sanity check in case pseudoranges or the receiver time offset are wild
 							if (((CApr[chan]-rxTimeOffset)<0.05) || ((CApr[chan]-rxTimeOffset)>0.10)){
-								DBGMSG(debugStream,WARNING," C/A pseudorange too large at line " << linecount << "(" << CApr[chan]-rxTimeOffset << ")");
+								DBGMSG(debugStream,WARNING," C/A pseudorange too large at line " << linecount << "(" << CApr[chan] - 
+									rxTimeOffset << ")");
 								if (ok) badC1Measurements++; // don't count it twice
 								ok=false;
 							}
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1,CApr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1C,CApr[chan] - 
+									useTimeOffset*rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								svm->dbuf3 = CApr[chan];
 								rmeas->meas.push_back(svm);
 							}
 							
-						} // if codes & C1
+						} // if codes & C1C
 						
-						if (codes & GNSSSystem::P1){
+						if (codes & GNSSSystem::C1P){
 							bool ok=true;
 							if (P1lockFlags[chan*2] != 83){
 								DBGMSG(debugStream,WARNING," P1 unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
@@ -300,16 +334,17 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 							}
 							
 							// FIXME better sanity check
-							ok = ok && !isnan(P1pr[chan]);
+							ok = ok && !std::isnan(P1pr[chan]);
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::P1,P1pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C1P,P1pr[chan] -
+									useTimeOffset*rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								rmeas->meas.push_back(svm);
 							}
 							
-						} // if codes & P1	
+						} // if codes & C1P	
 							
-						if (codes & GNSSSystem::P2){
+						if (codes & GNSSSystem::C2P){
 							bool ok = true;
 							if (P2lockFlags[chan*2] != 83){
 								DBGMSG(debugStream,WARNING," P2 unlocked at line " << linecount << "(prn=" << (int) trackedSVs[chan] << ")");
@@ -318,16 +353,52 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 							}	
 							
 							// FIXME better sanity check
-							ok = ok && !isnan(P2pr[chan]);
+							ok = ok && !std::isnan(P2pr[chan]);
 							
 							if (ok){
-								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::P2,P2pr[chan]-rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
+								SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::C2P,P2pr[chan] -
+									useTimeOffset*rxTimeOffset,rmeas); // pseudorange is corrected for rx offset 
 								rmeas->meas.push_back(svm);
 							}
 							
 
-						} // if codes & P2
+						} // if codes & C2P
 						
+						// Carrier phase measurements
+						
+						if (app->allObservations){ // don't parse if we don't need 'em
+							if (codes & GNSSSystem::L1P){
+								bool ok=true;
+								if (P1lockFlags[chan*2] != 83)
+									ok=false;
+								
+								// FIXME better sanity check
+								ok = ok && !std::isnan(cpP1[chan]);
+								
+								if (ok){
+									SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::L1P,
+										cpP1[chan] - useTimeOffset*rxTimeOffset*GPS::fL1,rmeas); 
+									rmeas->meas.push_back(svm);
+								}
+								
+							} // if codes & L1P	
+								
+							if (codes & GNSSSystem::L2P){
+								bool ok = true;
+								if (P2lockFlags[chan*2] != 83)
+									ok=false;
+								
+								// FIXME better sanity check
+								ok = ok && !std::isnan(cpP2[chan]);
+								
+								if (ok){
+									SVMeasurement *svm = new SVMeasurement(trackedSVs[chan],GNSSSystem::GPS,GNSSSystem::L2P,
+										cpP2[chan] - useTimeOffset*rxTimeOffset*GPS::fL2,rmeas); 
+									rmeas->meas.push_back(svm);
+								}
+								
+							} // if codes & L2P
+						} // if app->allObservations
 					}
 					
 					if (rmeas->meas.size() > 0){ // FIXME check other codes
@@ -352,15 +423,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 								rmeas->tmGPS.tm_isdst=0;
 								mktime(&(rmeas->tmGPS)); // this sets wday (note: TZ=UTC enforced in Main.cpp) so DST stays correct
 								rmeas->gpstow = 86400*rmeas->tmGPS.tm_wday+igpsTOD;
-								rmeas->tmfracs = rxTimeOffset;
-								
-								// The time offset can be negative so have to account for rollovers
-// 								time_t ttGPS = (time_t)(mktime(&(rmeas->tmGPS)) + rxTimeOffset);
-// 								struct tm *tmGPS = gmtime(&ttGPS);
-// 								rmeas->tmGPS=*tmGPS;
-// 								rmeas->tmfracs = rxTimeOffset;
-// 								if (rmeas->tmfracs < 0)
-// 									rmeas->tmfracs += 1.0;
+								rmeas->tmfracs = 0.0; // measurements are apparently on the second ...
 								
 								// YA and TO messages can roll over at different times - handle this case
 								// Typically, the difference between the smoothed and receiver time offsets is <= 1 ns
@@ -368,7 +431,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 								if ((smoothingOffset - rxTimeOffset)<-5e-4) smoothingOffset+=1e-3;
 				
 								rmeas->sawtooth=sawtooth-(smoothingOffset-rxTimeOffset); // added to the counter measurement
-																																				 // the term (moothingOffset-rxTimeOffset) is typically zero
+																																				 // the term (smoothingOffset-rxTimeOffset) is typically zero
 								rmeas->timeOffset = rxTimeOffset; // just used for diagnostics
 								
 								// All OK
@@ -392,7 +455,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 						DBGMSG(debugStream,WARNING,"No useable GPS measurements at " << currpctime);
 						delete rmeas;
 					}
-				}
+				} // end of save measurements for the current second
 				
 				if (msg.size() == 6*2){
 					HexToBin((char *) msg.c_str(),sizeof(U2),(unsigned char *) &RDyyyy);
@@ -633,8 +696,8 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F4));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(F4),(unsigned char *) (f4bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP1pr[i] = (double) f4bufarray[i];
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP1pr[i] = (double) f4bufarray[i];
 						currMsgs |= R1_r1_1R_1r_MSG;
 						m1RCnt++;
 					}
@@ -650,8 +713,8 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I2));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(I2),(unsigned char *) (i2bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP1pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP1pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
 						currMsgs |= R1_r1_1R_1r_MSG;
 						m1rCnt++;
 					}
@@ -699,8 +762,8 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F4));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(F4),(unsigned char *) (f4bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP2pr[i] = (double) f4bufarray[i];
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP2pr[i] = (double) f4bufarray[i];
 						currMsgs |= R2_r2_2R_2r_MSG;
 						m2RCnt++;
 					}
@@ -716,8 +779,8 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(I2));
 					if (msgSats == nSats){
 						HexToBin((char *) msg.c_str(),nSats*sizeof(I2),(unsigned char *) (i2bufarray));
-						for (unsigned int i=0;i<nSats;i++) 
-							relP2pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
+						//for (unsigned int i=0;i<nSats;i++) 
+						//	relP2pr[i] = (double)(i2bufarray[i])*1e-11 + 2.0e-7;
 						currMsgs |= R2_r2_2R_2r_MSG;
 						m2rCnt++;
 					}
@@ -740,7 +803,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					}
 					continue;
 				}
-			
+				
 				if(msgid == "F2"){ // P2 Lock Flags (F2) message
 					unsigned int msgSats = (msg.size() - 2) /(2*sizeof(U2));
 					if (msgSats == nSats){
@@ -754,13 +817,43 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					continue;
 				}
 				
+				if(msgid == "P1"){ // L1 carrier phase message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F8));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F8),(unsigned char *) (f8bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							cpP1[i] = (double) f8bufarray[i];
+						//currMsgs |= ;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," P1 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
+				if(msgid == "P2"){ // L2 carrier phase message
+					unsigned int msgSats = (msg.size() - 2) / (2*sizeof(F8));
+					if (msgSats == nSats){
+						HexToBin((char *) msg.c_str(),nSats*sizeof(F8),(unsigned char *) (f8bufarray));
+						for (unsigned int i=0;i<nSats;i++) 
+							cpP2[i] = (double) f8bufarray[i];
+						//currMsgs |= ;
+					}
+					else{
+						errorCount++;
+						DBGMSG(debugStream,WARNING," P2 msg wrong size at line " << linecount);	
+					}
+					continue;
+				}
+				
 			} // if dualFrequency
 		
 			//
 			// Intermittent  messages - parse last
 			//
 			
-			if (!gotIonoData){
+			if (!gps.gotIonoData){
 				if (msgid=="IO"){
 					if (msg.size()==39*2){
 						HexToBin((char *) msg.substr(6*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.a0));
@@ -771,7 +864,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 						HexToBin((char *) msg.substr(26*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B1));
 						HexToBin((char *) msg.substr(30*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B2));
 						HexToBin((char *) msg.substr(34*2,2*sizeof(F4)).c_str(),sizeof(F4),(unsigned char *) &(gps.ionoData.B3));
-						gotIonoData=true;
+						gps.gotIonoData=true;
 						DBGMSG(debugStream,TRACE,"ionosphere parameters: a0=" << gps.ionoData.a0);
 					}
 					else{
@@ -782,7 +875,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 				}
 			}
 	
-			if (!gotUTCdata){
+			if (!gps.gotUTCdata){
 				if (msgid=="UO"){
 					if (msg.size()==24*2){
 						HexToBin((char *) msg.substr(0*2,2*sizeof(F8)).c_str(),sizeof(F8),(unsigned char *) &(gps.UTCdata.A0));
@@ -791,14 +884,14 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 						gps.UTCdata.t_ot=u4buf;
 						HexToBin((char *) msg.substr(16*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &(gps.UTCdata.WN_t));
 						HexToBin((char *) msg.substr(18*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &(sint8buf));
-						gps.UTCdata.dtlS=sint8buf;
+						gps.UTCdata.dt_LS=sint8buf;
 						HexToBin((char *) msg.substr(19*2,2*sizeof(U1)).c_str(),sizeof(U1),(unsigned char *) &uint8buf);
 						gps.UTCdata.DN=uint8buf;
 						HexToBin((char *) msg.substr(20*2,2*sizeof(U2)).c_str(),sizeof(U2),(unsigned char *) &(gps.UTCdata.WN_LSF));
 						HexToBin((char *) msg.substr(22*2,2*sizeof(I1)).c_str(),sizeof(I1),(unsigned char *) &sint8buf);
 						gps.UTCdata.dt_LSF=sint8buf;
-						DBGMSG(debugStream,TRACE,"UTC parameters: dtLS=" << gps.UTCdata.dtlS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
-						gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
+						DBGMSG(debugStream,TRACE,"UTC parameters: dt_LS=" << gps.UTCdata.dt_LS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
+						gps.gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 					}
 					else{
 						errorCount++;
@@ -810,7 +903,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 
 			if(msgid == "GE"){  // GPS ephemeris
 				if (msg.length() == 123*2){
-					GPS::EphemerisData *ed = new GPS::EphemerisData;
+					GPSEphemeris *ed = new GPSEphemeris;
  					HexToBin((char *) msg.substr(0*2,2*sizeof(UINT8)).c_str(), sizeof(UINT8),  (unsigned char *) &(ed->SVN));
 					HexToBin((char *) msg.substr(1*2,2*sizeof(UINT32)).c_str(),sizeof(UINT32), (unsigned char *) &(u4buf));
  					ed->t_ephem=u4buf;
@@ -831,7 +924,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					HexToBin((char *) msg.substr(24*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->a_f1));
 					HexToBin((char *) msg.substr(28*2,2*sizeof(F4)).c_str(),sizeof(F4), (unsigned char *) &(ed->a_f0));
 					HexToBin((char *) msg.substr(32*2,2*sizeof(SINT32)).c_str(),sizeof(SINT32), (unsigned char *) &sint32buf);
-					ed->t_oe=sint32buf;
+					ed->t_0e=sint32buf;
 					HexToBin((char *) msg.substr(36*2,2*sizeof(SINT16)).c_str(), sizeof(SINT16),  (unsigned char *) &sint16buf);
 					ed->IODE=(UINT8) sint16buf; // WARNING! Truncated
 					HexToBin((char *) msg.substr(38*2,2*sizeof(DOUBLE)).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->sqrtA));
@@ -864,7 +957,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 					else
 						ed->tLogged = -1;
 						
-					DBGMSG(debugStream,TRACE,"Ephemeris: SVN="<< (unsigned int) ed->SVN << ",toe="<< ed->t_oe << ",IODE=" << (int) ed->IODE);
+					DBGMSG(debugStream,TRACE,"Ephemeris: SVN="<< (unsigned int) ed->SVN << ",t0e="<< ed->t_0e << ",IODE=" << (int) ed->IODE);
 					gps.addEphemeris(ed);
 					
 				}
@@ -884,19 +977,19 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	
 	infile.close();
 
-	if (!gotIonoData){
+	if (!gps.gotIonoData){
 		app->logMessage("failed to find ionosphere parameters - no IO messages");
 		return false;
 	}
 	
-	if (!gotUTCdata){
+	if (!gps.gotUTCdata){
 		app->logMessage("failed to find UTC parameters - no U0 messages");
 		return false;
 	}
 	
 	// Post load cleanups 
 	
-	interpolateMeasurements();
+	// Interpolation REMOVED
 	
 	// Calculate UTC time of measurements, now that the number of leap seconds is known
 	for (unsigned int i=0;i<measurements.size();i++){
@@ -910,7 +1003,7 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 	if (rxid.size() !=0) {
 		if ((rxid.size() % 4 == 0)){
 			int idx = (rxid.size() / 4) -1;
-			string rxinfo = rxid.at(idx) + rxid.at(idx+1) + rxid.at(idx+2) + rxid.at(idx+3);
+			std::string rxinfo = rxid.at(idx) + rxid.at(idx+1) + rxid.at(idx+2) + rxid.at(idx+3);
 			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'{'), rxinfo.end());
 			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'}'), rxinfo.end());
 			rxinfo.erase(std::remove(rxinfo.begin(),rxinfo.end(),'\"'), rxinfo.end());
@@ -929,19 +1022,22 @@ bool Javad::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObs
 		}
 	}
 	
+	gps.fixWeekRollovers();
+	gps.setAbsT0c(mjd);  // precompute stuff for ephemeris output
+	
 	timer.stop();
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,errorCount << " errors in input file");
-	if (codes & GNSSSystem::C1){
+	if (codes & GNSSSystem::C1C){
 		DBGMSG(debugStream,INFO,badC1Measurements  << " SV C1 measurements rejected");
 	}
-	if (codes & GNSSSystem::P1){
+	if (codes & GNSSSystem::C1P){
 		DBGMSG(debugStream,INFO,badP1Measurements  << " SV P1 measurements rejected");
 	}
-	if (codes & GNSSSystem::P2){
+	if (codes & GNSSSystem::C2P){
 		DBGMSG(debugStream,INFO,badP2Measurements  << " SV P2 measurements rejected");
 	}
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");

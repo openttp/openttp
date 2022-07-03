@@ -26,4 +26,10 @@ changing the 'CAPE=...' line to include your new overlay, for example:
 
 2016-12-22 Louis Marais
 
+For Debian Stretch it changed again. Although there are workarounds, only uboot overlays are 
+allowed. Compiling the overlay stays the same, but the overlay must be loaded in the
+/boot/uEnv.txt file by adding a line such as the one below:
 
+uboot_overlay_addr0=/lib/firmware/BB-W1-P8.11-00A0.dtbo
+
+2018-09-14 Louis Marais

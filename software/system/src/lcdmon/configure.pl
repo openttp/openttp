@@ -29,12 +29,19 @@ $SYSTEMD="systemd";
 # The first entry is OS-defined string, second is our name for tarballs etc,
 # then init system
 @os =(
-	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel",$UPSTART], 
+	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel",$UPSTART],
+	["Red Hat Enterprise Linux 8","rhel",$SYSTEMD], 
 	["CentOS release 6","rhel",$UPSTART],
 	["CentOS Linux 7","rhel",$SYSTEMD],
 	["Ubuntu 14.04","debian",$UPSTART],
 	["Ubuntu 16.04","debian",$UPSTART],
-	["BeagleBoard.org Debian","debian",$SYSTEMD]
+	["Ubuntu 18.04","debian",$SYSTEMD],
+	["Ubuntu 20.04","debian",$SYSTEMD],
+	["BeagleBoard.org Debian","debian",$SYSTEMD],
+	["Debian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
+	["Debian GNU/Linux 10 (buster)","debian",$SYSTEMD],
+	["Raspbian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
+	["Raspbian GNU/Linux 10 (buster)","debian",$SYSTEMD]
 	);
 
 # Try for /etc/os-release first (systemd systems only)
@@ -48,7 +55,7 @@ else{
 }
 
 for ($i=0;$i<=$#os;$i++){
-	last if ($thisos =~/$os[$i][0]/);
+	last if ($thisos =~/\Q$os[$i][0]\E/);
 }
 $osid = $i;
 if ($osid> $#os){
@@ -56,12 +63,15 @@ if ($osid> $#os){
 	exit;
 }
 
+$arch = `uname -m`;
+chomp $arch;
+
 open(OUT,">Makefile");
 open(IN, "<Makefile.template");
 while ($l=<IN>){
 	if ($l=~/^DEFINES/){
 		print OUT "DEFINES = ";
-		if ($thisos =~ /Beagleboard/){
+		if ($arch  =~ /armv7/){
 			print OUT " -DOTTP -DDEBIAN -DSYSTEMD";
 		}
 		else{
@@ -76,6 +86,9 @@ while ($l=<IN>){
 			
 			if ($os[$osid][2] eq $SYSTEMD){
 				print OUT " -DSYSTEMD";
+				if (`which nmcli 2>/dev/null`){
+					print OUT " -DNMCLI";
+				}
 			}
 			elsif ($os[$osid][2] eq $UPSTART){
 				print OUT " -DUPSTART";

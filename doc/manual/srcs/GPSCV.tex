@@ -1,43 +1,63 @@
 
 This chapter describes software related to GPSCV time-transfer.
 
+
 \section{Software overview}
 
+Time-transfer files are produced by \cc{mktimetx} from the GNSS receiver logs and counter/timer measurements.
+The time-transfer files are in  RINEX observation  and CGGTTS format. 
+Currently, CGGTTS-format files are only produced for GPS. 
+Figure \ref{f:GPSCVProcessing} illustrates the processing chain TODO. 
 
-\begin{table}[h]
+The OpenTTP software suite is catalogued in Table \ref{t:OTTPSoftware}
+\begin{table}
 \begin{tabular}{l|l|l}
 	& program & \\ 
 	\hline
 GPSCV processing  &  & \\
 	& \hyperlink{h:mktimetx}{mktimetx} & core program\\
 	& \hyperlink{h:runmktimetx}{runmktimetx.pl} & \\
+	& \hyperlink{h:runr2cggttsv8}{runr2cggtsv8.py} & \\
 	\hline
 TIC logging & & \\
 	& \hyperlink{h:hp5313xlog}{hp5313xlog.pl} &\\
+	& \hyperlink{h:cnt9xlog}{cnt9xlog.py} &\\
 	& \hyperlink{h:okxemlog}{okxemlog.pl} & \\
 	& \hyperlink{h:prs10log}{prs10log.pl} & \\
 	& \hyperlink{h:ticclog}{ticclog.py} & \\
 	\hline
 GNSS receiver logging & & \\
 	&	\hyperlink{h:jnslog}{jnslog.pl} & Javad\\
-	& \hyperlink{h:nvslog}{nvslog.pl} & NVS\\
+	& \hyperlink{h:nvslog}{nv08log.pl} & NVS\\
 	& \hyperlink{h:restlog}{restlog.pl} & Trimble Resolution T\\
+	& \hyperlink{h:ublox9log}{ublox9log.py} & ublox\\
 	& \hyperlink{h:ubloxlog}{ubloxlog.pl} & ublox\\
 GNSS receiver utilities & & \\
+	& \hyperlink{h:jnsextract}{jnsextract.pl} & \\
+	& \hyperlink{h:nv08extract}{nv08extract.pl} & \\
+	& \hyperlink{h:nv08info}{nv08info.pl} & \\
 	& \hyperlink{h:restextract}{restextract.pl} & \\
+	& \hyperlink{h:restinfo}{restinfo.pl} & \\
+	& \hyperlink{h:ubloxextract}{ubloxextract.py} & \\
+	& \hyperlink{h:ubloxmkdev}{ubloxmkdev.py} & \\
 	\hline
 Analysis tools & & \\
-	& \hyperlink{h:rxdelaycal}{rxdelaycal.pl} & \\
+	& \hyperlink{h:cggttsqc}{cggttsqc.py} & \\
+	& \hyperlink{h:cmpcggtts}{cmpcggtts.py} & \\
+	& \hyperlink{h:editcggtts}{editcggtts.py} & \\
+	& \hyperlink{h:editrnxnav}{editrnxnav.py} & \\
+	& \hyperlink{h:editrnxobs}{editrnxobs.py} & \\
+	& \hyperlink{h:ticqc}{ticqc.py} & \\
 Miscellaneous & & \\
   & \hyperlink{h:log1Wtemp}{log1Wtemp.pl} & \\ 
 	\hline
 \end{tabular}
-\caption{GPSCV software overview}
+\caption{GPSCV software overview \label{t:OTTPSoftware} }
 \end{table}
 
 \section{crontab \label{ss:crontab}}
 
-Automatic logging, processing and archival of data is performed through the user \cc{cvgps}' \cc{crontab}.
+Automatic logging, processing and archival of data is co-ordinated via the user \cc{cvgps}' \cc{crontab}.
 
 A minimal \cc{crontab} for the user \cc{cvgps} looks like this:
 \begin{lstlisting}
@@ -55,8 +75,8 @@ A minimal \cc{crontab} for the user \cc{cvgps} looks like this:
 \end{lstlisting}
 showing the three essential processes of logging, processing and archival of data.
 
-The active crontab can be examined with the command \cc{crontab -l}. A default \cc{crontab} is
-stored in \cc{/home/cvgps/etc/crontab}. 
+The active crontab can be examined with the command \cc{crontab -l}. 
+A default \cc{crontab} is saved in \cc{/home/cvgps/etc/crontab}. 
 
 \section{Configuration file format \label{sConfigFileFormat}}
 
@@ -79,23 +99,46 @@ defines a section \cc{Receiver} and the two keys: \cc{manufacturer} and \cc{mode
 The notation \cc{Section::Key} is used to fully specify keys. For example,
 \cc{Receiver::model} and \cc{Receiver::manufacturer} specify the two keys above.
 
-Keys and section names are not case-sensitive. Comments begin with a `\#'.
+Keys and section names are not case-sensitive. In particular, the python and Perl libraries
+which provide functions for reading the configuration files convert keys and section names to lower case.
+The case of key values is preserved, since this may be signficant eg path names.
 
-Some keys define a list of sections. For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
+Leading and trailing whitespace is removed from keys, key values and section names.
+
+Comments begin with a `\#'. 
+
+Some keys define a list of sections. 
+For example, the comma-separated list of values for \cc{CGGTTS::outputs} 
 \begin{lstlisting}
 [CGGTTS]
-outputs = C1-code,P1-code,P2-code
+outputs = c1-code,p1-code,p2-code
 \end{lstlisting}
-defines three sections: \cc{C1-code}, \cc{P1-code}, and \cc{P2-code}.
+defines three sections: \cc{c1-code}, \cc{p1-code}, and \cc{p2-code}.
+This is a bodge which would be more elegantly addressed using an extensible format like XML, 
+but it has proven to be sufficient for our needs.
+
+\subsection{Paths} \label{s:ConfigFilePaths}
+
+Paths to files  specified in a configuration file are constructed with the following 
+precedence:
+\begin{enumerate}
+\item If the path begins with a leading slash, then it is interpreted as an absolute path
+\item If a non-absolute path is specified, it is interpreted as being relative to 
+	the users's home directory (or where the configuration file allows specification of a different root path eg in \hyperlink{h:rootpath}{gpscv.conf}, relative to that root path) 
+\item Otherwise, the default path is used.
+\end{enumerate}
+Most software in OpenTTP follows these conventions.
 
 \section{Data file formats \label{s:DataFileFormat}}
 
 \subsection{GPS receiver}
 
-This text file records messages from the GPS receiver. The messages can be a mix of ASCII and binary messages.
-Binary messages are hexadecimal-encoded. Some logging scripts record ancillary information, 
-such as commands sent to the receiver. Comments are allowed, prefaced by a `\#' character. 
-The `@' character can be used to tag lines containing special information that needs to be parsed by
+This text file records messages from the GPS receiver. 
+The native format of the messages can be a mix of ASCII and binary messages.
+Binary messages are hexadecimal-encoded for saving in the log file. 
+Some logging scripts record ancillary information, such as commands sent to the receiver. 
+Comments in the log file are allowed, prefaced by a `\#' character. 
+The `@' character is used to tag lines containing special information that needs to be parsed by
 the processing software.
 
 Messages are successive lines of the form:
@@ -123,117 +166,47 @@ where the time difference is in seconds.\\
 00:00:04  +4.0821E-006 
 \end{lstlisting}
 
-
 \input{srcs/gpscvconf}
 
 \input{srcs/mktimetx}
 
 \input{srcs/runmktimetx}
 
+\input{srcs/runr2cggttsv8}
+
+\input{srcs/cnt9xlog}
+
 \input{srcs/hp53131xlog}
 
-\section{okxemlog.pl}
-\hypertarget{h:okxemlog}{}
-The OpenTTP reference platform includes a multi-channel TIC and this script communicates with the daemon
-\cc{okcounterd}. The script will exit if no data is returned for more than two minutes.
+\input{srcs/okxemlog}
 
-The command line options are:
-\begin{description*}
-	\item[-c \textless file\textgreater] use the specified configuration file
-	\item[-d]	run in debugging mode
-	\item[-h]	print help and exit
-	\item[-v]	print version information and exit
-\end{description*}
+\input{srcs/prs10log}
 
-It has the following specific configuration file entries:
-\begin{itemize}
-	\item \hyperlink{h:okxem_channel}{channel::okxem channel}.
-\end{itemize}
+\input{srcs/ticclog}
 
-\section{prs10log.pl}
-\hypertarget{h:prs10log}{}
+\input{srcs/javad}
 
-\section{ticclog.py}
-\hypertarget{h:ticclog}{}
+\input{srcs/nvs}
 
-\cc{ticclog.py} is used to log data from a TAPR Timestamping/TIme Interval Counter (TICC).
-See \cc{https://www.tapr.org/kits\_ticc.html} for more information about this counter.
+\input{srcs/trimble}
 
-The command line options are:
-\begin{description*}
- \item[-h, -{}-help] print help and exit
- \item[-{}-config \textless file\textgreater, -c \textless file\textgreater] use the specified configuration file
- \item[-{}-debug, -d]           run in debugging mode
- \item[-{}-settings, -s]        print the counter settings
-  \item[-{}-version, -v]        print version information and exit
-\end{description*}
+\input{srcs/ublox}
 
-There are no specific configuration file entries for this script.
-
-\section{Javad/Topcon receivers}
-
-\subsection{jnslog.pl}
-\hypertarget{h:jnslog}{}
-There is a file \cc{receiver.conf} which lists the commands used to configure the receiver.
-
-Configuration commands in \cc{gpscv.conf} specific to this receiver are:
-
-JNS receivers have a number of specific configuration entries in \cc{gpscv.conf}:
-\begin{itemize}
-\item \hyperlink{h:configuration}{receiver::configuration}
-\item \hyperlink{h:pps_synchronization}{receiver::pps synchronization}
-\item \hyperlink{h:pps_synchronization_delay}{receiver::pps synchronization delay}
-\item \hyperlink{h:rinex_l1l2}{paths::rinex l1l2}
-\end{itemize}
-
-\subsection{jnsextract.pl}
-
-\subsection{runrinexobstc.pl}
-
-\section{NVS NV08C receivers}
-
-\subsection{nvslog.pl}
-\hypertarget{h:nvslog}{}
-
-The NVS receiver is entirely configured using the script.
-
-\subsection{nv08extract.pl}
-
-\subsection{nv08info.pl}
-
-\section{Trimble Resolution T receivers}
-
-\subsection{restlog.pl}
-
-\hypertarget{h:restlog}{}
-
-The Resolution T receiver is entirely configured using the script.
-
-\subsection{restextract.pl}
-
-\subsection{restinfo.pl}
-
-\subsection{restconfig.pl}
-
-\subsection{restplayer.pl}
-
-\section{ublox NEO-8MT receivers}
-
-\subsection{ubloxlog.pl}
-
-\hypertarget{h:ubloxlog}{}
-
-The ublox receiver is entirely configured using the script.
-
-\subsection{ubloxextract.py}
-
-
-\input{srcs/rxdelaycal}
 
 \section{Miscellaneous tools}
 
-\input{srcs/cggttsqc.tex}
+\input{srcs/cggttsqc}
 
-\subsection{editrnxnav.py}
+\input{srcs/cmpcggtts}
 
-\subsection{fetchigs.py}
+\input{srcs/editcggtts}
+
+\input{srcs/editrnxnav}
+
+\input{srcs/editrnxobs}
+
+\input{srcs/fetchigs}
+
+\input{srcs/mkcggtts}
+
+\input{srcs/ticqc}

@@ -63,6 +63,8 @@ use strict;
 #                                     offset. This feature was missing from the program
 # 2017-12-11         Michael Wouters  Configurable path for UUCP lock files
 # 2018-01-06         Michael Wouters  BINR output for use with 3rd party software
+# 2019-04-04         Louis Marais     Bug fix: logging process does not exit on
+#                                     insufficient satellites
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
@@ -89,7 +91,7 @@ my($lockPath,$statusPath);
 my($fileFormat,$OPENTTP,$NATIVE);
 
 $AUTHORS = "Louis Marais,Michael Wouters";
-$VERSION = "2.0.3";
+$VERSION = "2.0.4";
 
 $OPENTTP=0;
 $NATIVE=1;
@@ -198,8 +200,17 @@ while (!$killed){
   # see if there is text waiting (every 100 ms)
   $nfound=select $tmask=$rxmask,undef,undef,0.1; # ... ,0.1;
   
-  # The $lastMsg variable is updated when msg52h show that there are GPS / GLONASS 
-  # satellites available.
+  # Original comment: The $lastMsg variable is updated when msg52h show that there are
+  # GPS / GLONASS satellites available.
+  # Update (2019-04-02, Louis):
+  # OK, this is not true - the $lastMsg variable was updated when ANY message arrived. It
+  # means that the software will never exit on insufficient satellites because some messages
+  # appear once a second whether the receiver is tracking satellites or not.
+  # The fix (line ~295) was to only update $lastMsg when a 'F5' (raw data) message is
+  # received. The raw data messages only arrive when the receiver is tracking satellites.
+  # Lesson: Test your software properly - I never ran a receiver, removed the antenna (to
+  # simulate a loss of signal) and checked that it actually timed out. I'm doing that now.
+  # OK, all good, it's does exit now.
   if (time()-$lastMsg > $receiverTimeout){
 		@_=gmtime();
 		$msg=sprintf("%04d-%02d-%02d %02d:%02d:%02d no satellites visible - exiting\n",
@@ -280,8 +291,12 @@ while (!$killed){
         $data =~ s/\x10\x10/\x10/g;
         # Check message ID and call appropriate subroutine
         $msgID = substr $data,0,1;
-        $msg = substr $data,1;      
-        $lastMsg=$now;
+        $msg = substr $data,1;
+        # Use F5 message to reset $lastMsg variable - used to check for insufficient
+        # satellites (i.e. none) tracked.
+        if($msgID eq chr(0xF5)){
+          $lastMsg=$now;
+        }
         if ($fileFormat == $OPENTTP){
 					printf OUT "%02X $nowstr %s\n",(ord substr $data,0,1),(unpack "H*",$msg);
 				}
@@ -473,15 +488,17 @@ sub OpenDataFile
 	}
 	
 	$|=1;
+	printf "# %s $0 (version $Init{version}) %s\n",
+		&TFTimeStamp(),($_[1]? "beginning" : "continuing");
+	printf "# %s file $name\n",
+		($old? "Appending to" : "Beginning new");
+	printf "\@ MJD=%d\n",$mjd;
 	
 	if ($fileFormat == $OPENTTP){
-		printf "# %s $0 (version $Init{version}) %s\n",
-			&TFTimeStamp(),($_[1]? "beginning" : "continuing");
-		printf "# %s file $name\n",
-			($old? "Appending to" : "Beginning new");
-		printf "\@ MJD=%d\n",$mjd;
 		select STDOUT;
 	}
+	
+	
 	
 } # OpenDataFile
 
@@ -511,11 +528,26 @@ sub ConfigureReceiver
     # Wait a second
     sleep(1);
   }
+  
   # Set type of messages for COM1 (UART A) - if we are not using it so we may as well turn it off.
   #                                        - If we are using it as a source of time of day for NTP,
   #                                          we need to set it up to send NMEA messages
-  sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Setup for NMEA messages.
-  #sendCmd("\x0B\x01\x00\xC2\x01\x00\x01"); # Setup to turn port off.
+  #                                          This is useful with the storegis software
+  #                                          from NVS.
+  #sendCmd("\x0B\x01\x00\xC2\x01\x00\x04"); # Setup for BINR messages. <- Used for testing 115200 baud
+  #sendCmd("\x0B\x01\x80\x25\x00\x00\x02"); # Setup for NMEA messages. <- Used for testing 9600 baud
+  if (defined($Init{"receiver:enable nmea"})){
+		my $mode = lc $Init{"receiver:enable nmea"};
+		if ($mode =~ /yes/){
+			sendCmd("\x0B\x01\x00\xC2\x01\x00\x02"); # Setup for NMEA messages at 115200 baud
+		}
+		else{
+			sendCmd("\x0B\x01\x00\xC2\x01\x00\x01");
+		}
+	}
+  else{
+		sendCmd("\x0B\x01\x00\xC2\x01\x00\x01"); # Setup to turn port off. <- This is the default
+  }
   #          |   |   |           |   |  
   #          |   |   +-----+-----+   +--- Protocol type: 0 current protocol, 1 no protocol, 2 NMEA protocol, 3 RTCM protocol, 4 BINR protocol, 5 BINR2 protocol  
   #          |   |         +------------- Baud rate: 4800 to 230400 baud, x00 x01 xC2 x00 is 115200 baud
@@ -525,7 +557,7 @@ sub ConfigureReceiver
   #
   # Cancel all transmission requests (turns off transmisson of all messages)
   sendCmd("\x0E");
-  #          | 
+  #          |  
   #          +----------- ID: x0E is the Cancellation of all Transmission Requests control message
   # No response message is sent (which makes sense, as we do NOT want any output!)
   #
@@ -548,7 +580,7 @@ sub ConfigureReceiver
   if (defined($Init{"receiver:observations"})){
 		$observations=lc $Init{"receiver:observations"};
   }
-  
+
   if ($observations=~/gps/){
 		if ($observations =~ /glonass/){
 			if ($observations =~ /sbas/){
@@ -558,8 +590,15 @@ sub ConfigureReceiver
 				sendCmd("\x0D\x02\x00"); # GPS+GLONASS
 			}
 		}
-		else{
+		elsif ($observations =~ /beidou/){ # Maybe add option for GPS+SBAS+Beidou later.
 			if ($observations =~ /sbas/){
+				sendCmd("\x0D\x02\x1f"); # GPS+Beidou+SBAS - not tested yet
+			} else {
+				sendCmd("\x0D\x02\x15"); # GPS+Beidou
+			}
+		}
+		else{
+			if ($observations =~ /sbas/){ 
 				sendCmd("\x0D\x02\x0b"); # GPS+SBAS
 			}
 			else{
@@ -575,8 +614,15 @@ sub ConfigureReceiver
 			sendCmd("\x0D\x02\x02"); # GLONASS
 		}
   }
-  elsif ($observations =~ /galileo/){
+  elsif ($observations =~ /galileo/){ # Not supported yet (as of 2018-12, HW 5.1, FW 5.5)
 		sendCmd("\x0D\x02\x03");
+  }
+  elsif ($observations =~ /beidou/){ # Beidou / Beidou+SBAS not tested yet
+		if ($observations =~ /sbas/){ 
+			sendCmd("\x0D\x02\x20"); # Beidou+SBAS
+		} else {
+			sendCmd("\x0D\x02\x16"); # Beidou
+		}
   }
   
   #sendCmd("\x0D\x02\x01");
@@ -768,16 +814,18 @@ sub writeStatus # $nv08id,$sats,$glosats,$hdop,$vdop,$tdop
 {
   my($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop,$tdop) = (@_);
   #my($nv08id,$sats,$glosats,$gpssats,$hdop,$vdop) = (@_);
- 
-  open  STA, ">$rxStatus";
-  print STA $nv08id,"\n";
-  # Does it still make sense to report GLONASS satellites?
-  print STA "Number of visible GLONASS sats: ",$glosats,"\n";
-  print STA "Number of visible GPS sats: ",$gpssats,"\n";
-  print STA "prns=",$sats,"\n";
-  print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f TDOP: %0.2f\n",$hdop,$vdop,$tdop);
-  #print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f\n",$hdop,$vdop);
-  close STA;
+
+  if(defined $nv08id){
+    open  STA, ">$rxStatus";
+    print STA $nv08id,"\n";
+    # Does it still make sense to report GLONASS satellites?
+    print STA "Number of visible GLONASS sats: ",$glosats,"\n";
+    print STA "Number of visible GPS sats: ",$gpssats,"\n";
+    print STA "prns=",$sats,"\n";
+    print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f TDOP: %0.2f\n",$hdop,$vdop,$tdop);
+    #print STA sprintf("Reported precision - HDOP: %0.1f VDOP: %0.1f\n",$hdop,$vdop);
+    close STA;
+  }
 } # writeStatus
 
 #----------------------------------------------------------------------------
@@ -804,6 +852,21 @@ sub stripDLEandETX
   # return the answer
   return $s;
 } # stripDLEandETX
+
+#----------------------------------------------------------------------------
+sub SendNMEACmd
+{
+  # CRLF terminated
+  # Checksum is XOR of all characters
+  my $cmd = $_[0];
+  my @cmdarr=split "",$cmd; # convert string to array
+  my $cksum =0;
+  for (my $i =0; $i<=$#cmdarr; $i++){
+    $cksum ^= ord($cmdarr[$i]);
+  }
+  print  $rx "\$".$cmd."*".sprintf("%02X\r\n",$cksum);
+  sleep(1);
+}
 
 #----------------------------------------------------------------------------
 # Convert ECEF to WGS84 (lat,lon,h) in (rad,rad,m)

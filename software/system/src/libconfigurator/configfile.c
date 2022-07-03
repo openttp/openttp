@@ -325,17 +325,17 @@ configfile_issection(
 {
 	#define BUFSIZE 1024
 	regex_t preg;
-	char rbuf[BUFSIZE];
-	char lcbuf[BUFSIZE];
-	char lcs[BUFSIZE];
+	char rbuf[BUFSIZE+1+12];
+	char lcbuf[BUFSIZE+1];
+	char lcs[BUFSIZE+1];
 	int res;
 	/* Sections are of the form [SectionName] */
 	/* Case insensitive ! */
-	strncpy(lcbuf,buf,BUFSIZE-1);
-	strncpy(lcs,s,BUFSIZE-1);
+	strncpy(lcbuf,buf,BUFSIZE);
+	strncpy(lcs,s,BUFSIZE);
 	lowercase(lcbuf);
 	lowercase(lcs);
-	sprintf(rbuf,"^ *\\[ *%s *\\]",lcs); 
+	snprintf(rbuf,BUFSIZE+12,"^ *\\[ *%s *\\]",lcs); 
 	if ( 0 != (res = regcomp(&preg,rbuf,REG_EXTENDED | REG_NOSUB)))
 		lastError = InternalError;
 	res = regexec(&preg,lcbuf,0,NULL,0);

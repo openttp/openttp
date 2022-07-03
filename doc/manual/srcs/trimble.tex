@@ -1,0 +1,113 @@
+\section{Trimble Resolution T receivers}
+
+Trimble Resolution T receivers are obsolete and further development of the software
+described here has ceased. The successor to the Resolution T, the SMT 360, 
+cannot currently be used for time-transfer because of changes in the message set.  
+It is possible though that a future TSIP-based receiver may be suitable for time-transfer.
+
+\subsection{restlog.pl} \hypertarget{h:restlog}{}
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+restlog.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-h] print help and exit
+	\item[-d] run in debugging mode
+	\item[-r] reset the receiver on startup
+	\item[-v] print version information and exit
+\end{description*}
+
+\subsubsection{configuration}
+
+\cc{restlog.pl} respects the \cc{receiver::model} configuration option.
+The valid values are:
+\begin{enumerate}
+	\item Resolution T
+	\item Resolution SMT 360 
+\end{enumerate}
+
+\subsection{restextract.pl} \hypertarget{h:restextract}{}
+
+\cc{restextract.pl} is used to decode and extract information from Trimble receiver log files. 
+It will decompress the file if necessary.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+restextract.pl [option] $\ldots$ 
+\end{lstlisting}
+
+Given an MJD via a command line option, it will construct a file name using the information in \cc{gpscv.conf}. If no MJD is given, it assumes the current MJD for the file.
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-h] print help and exit
+	\item[-v] print version information and exit
+  \item[-a] extract S/N for visible satellites 
+	\item[-f] show firmware version
+  \item[-l] leap second warning
+  \item[-L] leap second info )
+  \item[-m \textless{mjd}\textgreater]  MJD of the file to process
+  \item[-p] position fix message
+  \item[-r \textless{svn}\textgreater] pseudoranges for satellite with given SVN 
+			(svn=999 reports all satellites)
+  \item[-s] number of visible satellites
+  \item[-t] temperature 
+  \item[-u] UTC offset 
+  \item[-x] alarms and gps decoding status
+\end{description*}
+
+\subsection{restinfo.pl} \hypertarget{h:restinfo}{}
+
+\cc{restinfo.pl} communicates with the receiver configured in \cc{gpscv.conf},
+polling it for information such as hardware, software and firmware versions.
+The serial port communication speed must be 115200 baud. 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+restinfo.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-h] print help and exit
+	\item[-d] run in debugging mode
+	\item[-v] print version information and exit
+\end{description*}
+
+\subsection{restconfig.pl} \hypertarget{h:restconfig}{}
+
+\cc{restconfig.pl} is used to configure the receiver serial port for 115200 baud and no parity bit.
+The latter is necessary for using the SMT 360 with \cc{ntpd}.
+The new configuration is written to flash memory.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+restconfig.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-h] print help and exit
+	\item[-d] run in debugging mode
+	\item[-v] print version information and exit
+\end{description*}
+
+The serial port device name is read from \cc{gpscv.conf} or the specified file. 
+
+\subsection{restplayer.pl} \hypertarget{h:restplayer}{}
+
+This is used to replay raw data files through a serial port, simulating the 
+operation of the GNSS receiver. This is useful for testing the operation of 
+\cc{ntpd}, for example. This script will have to be modified for individual 
+use because it currently hard codes paths and device names. 

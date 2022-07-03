@@ -30,21 +30,22 @@
 
 #include "Receiver.h"
 
-using namespace std;
-
 class NVS:public Receiver
 {
 	public:
 		
-		NVS(Antenna *,string);
+		NVS(Antenna *,std::string);
 		virtual ~NVS();
-	
-		virtual bool readLog(string,int,int,int,int);
+		virtual void addConstellation(int);
+		virtual bool readLog(std::string,int,int,int,int);
+		
+		virtual void setVersion(std::string);
 		
 	protected:
 	
 	private:
 	
+		int fwVersion;
 	
 };
 

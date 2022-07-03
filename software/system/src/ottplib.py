@@ -25,7 +25,15 @@
 import os
 import re
 import sys
+import time
+ 
+LIBVERSION = '0.0.3'
 
+# ------------------------------------------
+# Return the library version
+#
+def LibVersion():
+	return LIBVERSION
 
 # ------------------------------------------
 # Read a text file to set up a dictionary for configuration information
@@ -51,30 +59,30 @@ def MJD(unixtime):
 	return int(unixtime/86400) + 40587
 
 # ------------------------------------------
-# Make a path relative to root, if needed
+# Make a path relative to root (which must be absolute), if needed
 # If a path starts with a '/' then it is not modified
-#
+# Adds a trailing separator
 def MakeAbsolutePath(path,root):
-	if (re.search(r'^/',path) == None):
-		path = os.path.join(root,path)
-	if (re.search(r'/$',path) == None): # add trailing '/' if needed
-		path = path + '/'
+	if (not os.path.isabs(path)):
+		path = os.path.join(root,path) 
+	path = os.path.join(path,'') # add trailing separator if necessary
 	return path
 
 # ------------------------------------------
 # Make a file path relative to home, if needed
 #
-def MakeAbsoluteFilePath(fname,home,defaultPath):
+def MakeAbsoluteFilePath(fname,rootPath,defaultPath):
+	
 	ret = fname
 	
-	if (re.search(r'/$',defaultPath) == None): # add trailing '/' if needed
-		defaultPath = defaultPath + '/'
-		
-	if (re.search(r'^/',fname)):
-		# absolute path already - nothing to do
+	defaultPath = os.path.join(defaultPath,'') # add separator if necessary
+	rootPath = os.path.join(rootPath,'')	
+	sep=os.sep
+	
+	if (os.path.isabs(fname)): # absolute path already - nothing to do
 		return ret
-	elif (re.search(r"\w+/",fname)): # relative to $HOME
-		ret = home + fname
+	elif (re.search(r'^\w+'+sep,fname)): # relative to rootPath
+		ret = rootPath + fname
 	else:
 		ret = defaultPath + fname
 	return ret
@@ -83,12 +91,11 @@ def MakeAbsoluteFilePath(fname,home,defaultPath):
 # Make a lock file for a process
 #
 def CreateProcessLock(lockFile):
-	
 	if (not TestProcessLock(lockFile)):
 		return False;
 	flock=open(lockFile,'w')
 	flock.write(os.path.basename(sys.argv[0]) + ' ' + str(os.getpid()))
-	flock.close();
+	flock.close()
 	
 	return True
 
@@ -98,16 +105,39 @@ def CreateProcessLock(lockFile):
 def RemoveProcessLock(lockFile):
 	if (os.path.isfile(lockFile)):
 		os.unlink(lockFile)
-	
+
+# ------------------------------------------
+# Test whether a lock can be obtained
+#
 def TestProcessLock(lockFile):
 	if (os.path.isfile(lockFile)):
+		
+		# Check the system boot time
+		# If the lock file was created before the reboot, it's stale (and the
+		# system did not shut down cleanly) and it should be ignored. 
+		# This could fail if the system time was/is unsynchronized.
+		
+		fup = open('/proc/uptime','r')
+		upt = float(fup.readline().split()[0])
+		fup.close();
+		
+		tboot = time.time() - upt;
+		if os.path.getmtime(lockFile) < tboot:
+			return True;
+		
 		flock=open(lockFile,'r')
 		info = flock.readline().split()
 		flock.close()
 		if (len(info)==2):
-			if (os.path.isfile('/proc/'+str(info[1]))):
-				return False;
-	return True;
+			procDir = '/proc/'+str(info[1])
+			if (os.path.exists(procDir)):
+				fcmd = open(procDir + '/cmdline')
+				cmdline = fcmd.readline()
+				fcmd.close()
+				if os.path.basename(sys.argv[0]) in cmdline:
+					return False
+				# otherwise, it's an unrelated process
+	return True
 		
 # ------------------------------------------
 # Internals - use these at your own peril
@@ -126,10 +156,10 @@ def _LoadConfig(fname,options={}):
 		print('Unable to open '+fname)
 		return cfg
 		
-	comment_re = re.compile('^\s*#')
-	trailing_comment_re = re.compile('#.*$')
-	section_re = re.compile('^\s*\[(.+)\]')
-	keyval_re = re.compile('\s*=\s*')	
+	comment_re = re.compile(r'^\s*#')
+	trailing_comment_re = re.compile(r'#.*$')
+	section_re = re.compile(r'^\s*\[(.+)\]')
+	keyval_re = re.compile(r'\s*=\s*')	
 	
 	section = ''
 	value = ''

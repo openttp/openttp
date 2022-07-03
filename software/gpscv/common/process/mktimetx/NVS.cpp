@@ -35,8 +35,10 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <string>
 #include <vector>
 #include <boost/concept_check.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "Antenna.h"
 #include "Application.h"
@@ -47,7 +49,7 @@
 #include "ReceiverMeasurement.h"
 #include "SVMeasurement.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 extern Application *app;
 
 #define MAX_CHANNELS 16 // max channels per constellation
@@ -96,13 +98,13 @@ double FP80toFP64(uint8_t *buf)
 	return sign * pow(2,(int) exponent - 16383) * (normalizeCorrection + (double) mantissa/((uint64_t)1 << 63));
 }
 
-NVS::NVS(Antenna *ant,string m):Receiver(ant)
+NVS::NVS(Antenna *ant,std::string m):Receiver(ant)
 {
 	modelName=m;
 	manufacturer="NVS";
-	swversion="0.1";
-	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1|GNSSSystem::L1;
+	constellations=GNSSSystem::GPS; 
+	gps.codes=GNSSSystem::C1C;
+	codes=gps.codes;                 
 	channels=32;
 	if (modelName == "NV08C-CSM"){
 		// For the future
@@ -111,21 +113,45 @@ NVS::NVS(Antenna *ant,string m):Receiver(ant)
 		app->logMessage("Unknown receiver model: " + modelName);
 		app->logMessage("Assuming NV08C-CSM");
 	}
+	sawtooth=38.0;
+	fwVersion=4;
 }
 
 NVS::~NVS()
 {
 }
 
-bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
+void NVS::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::BEIDOU:
+			beidou.codes =GNSSSystem::C2I;
+			codes |= beidou.codes;
+			break;
+		case GNSSSystem::GALILEO:
+			break;
+		case GNSSSystem::GLONASS:
+			glonass.codes = GNSSSystem::C1C;
+			codes |= glonass.codes;
+			break;
+		case GNSSSystem::GPS:
+			gps.codes = GNSSSystem::C1C;
+			codes |= gps.codes;
+			break;
+	}
+}
+
+bool NVS::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	DBGMSG(debugStream,INFO,"reading " << fname);	
 	
-	ifstream infile (fname.c_str());
-	string line;
+	std::ifstream infile (fname.c_str());
+	std::string line;
 	int linecount=0;
 	
-	string msgid,currpctime,pctime="",msg,gpstime;
+	std::string msgid,currpctime,pctime="",msg,gpstime;
 	
 	float rxTimeOffset; // single
 	FP64 sawtooth;     // units are ns
@@ -135,13 +161,13 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	INT8S int8sbuf;
 	INT8U int8ubuf;
 	
-	vector<SVMeasurement *> gpsmeas;
-	gotIonoData = false;
-	gotUTCdata=false;
+	std::vector<SVMeasurement *> gnssmeas;
+	gps.gotIonoData = false;
+	gps.gotUTCdata=false;
 	
 	INT8U msg46ss,msg46mm,msg46hh,msg46mday,msg46mon;
 	INT16U msg46yyyy;
-	FP64 tmeasUTC,dGPSUTC;
+	FP64 tmeasUTC,dGPSUTC,dGLONASSUTC;
 	INT16U weekNum;
 	FP64 msg72TOW; // this is in ms
 	
@@ -149,9 +175,27 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	unsigned int reqdMsgs = MSG46 | MSG72 | MSG74 | MSGF5;
 	bool duplicateMessages=false;
 	double gpsUTCOffset;
+	double GPSGLONASSOffset;
+	
+	int nGLONASSObs =0;
+	int nGPSObs=0;
+	int nBeiDouObs=0;
+	
+	int numConstellations=0;
+	if (constellations & GNSSSystem::GPS)
+		numConstellations++;
+	if (constellations & GNSSSystem::GLONASS)
+		numConstellations++;
+	if (constellations & GNSSSystem::BEIDOU)
+		numConstellations++;
+	int numCodes=0;
+	if (codes & GNSSSystem::C1C)
+		numCodes++;
+	if (codes & GNSSSystem::L1C)
+		numCodes++;
 	
   if (infile.is_open()){
-    while ( getline (infile,line) ){
+    while ( std::getline (infile,line) ){
 			linecount++;
 			
 			if (line.size()==0) continue; // skip empty line
@@ -159,12 +203,12 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 			if ('%' == line.at(0)) continue;
 			if ('@' == line.at(0)) continue;
 			
-			stringstream sstr(line);
+			std::stringstream sstr(line);
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){ // throw away whatever we have, invalidating the rest of the second's data too
 				DBGMSG(debugStream,WARNING," bad data at line " << linecount);
 				currentMsgs=0;
-				deleteMeasurements(gpsmeas);
+				deleteMeasurements(gnssmeas);
 				duplicateMessages=false;
 				continue;
 			}
@@ -174,7 +218,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 			
 			if (currpctime != pctime){
 				if (currentMsgs == reqdMsgs && !duplicateMessages){ // save the measurements from the previous second
-					if (gpsmeas.size() > 0){
+					if (gnssmeas.size() > 0){
 						ReceiverMeasurement *rmeas = new ReceiverMeasurement();
 						measurements.push_back(rmeas);
 						
@@ -182,7 +226,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						rmeas->timeOffset=rxTimeOffset;
 						if (rxTimeOffset !=0){ // FIXME this is here until we get sufficient experience !
 							// Occur at ms rollovers
-							cerr << "FIXME " << pctime << " rxTimeoffset = " << rxTimeOffset << "\n";
+							// cerr << "FIXME " << pctime << " rxTimeoffset = " << rxTimeOffset << "\n";
 						}
 						int pchh,pcmm,pcss;
 						if ((3==sscanf(pctime.c_str(),"%d:%d:%d",&pchh,&pcmm,&pcss))){
@@ -199,13 +243,14 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						// GPSTOW is used for pseudorange estimations
 						// note: this is rounded because measurements are interpolated on a 1s grid
 						rmeas->gpstow=rint((tmeasUTC+dGPSUTC)/1000);  
-						rmeas->gpswn=weekNum; // note: this is truncated. Not currently used FIXME UTC or GPS???
-						
+						rmeas->gpswn=weekNum;
 						// UTC time of measurement
-						GPS::GPStoUTC(rmeas->gpstow,rmeas->gpswn,(int) rint(dGPSUTC/1000.0),&(rmeas->tmUTC));
+						// DBGMSG(debugStream,INFO, weekNum << rmeas->gpswn);
+				
+						GPS::GPStoUTC(rmeas->gpstow,rmeas->gpswn,(int) rint(dGPSUTC/1000.0),&(rmeas->tmUTC),app->referenceTime());
 						
 						// Calculate GPS time of measurement 
-						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn);
+						time_t tgps = GPS::GPStoUnix(rmeas->gpstow,rmeas->gpswn,app->referenceTime());
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
@@ -218,10 +263,18 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						rmeas->tmfracs = (tmeasUTC/1000.0 - int(tmeasUTC/1000.0)); 
 						if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
 						
-						for (unsigned int i=0;i<gpsmeas.size();i++)
-							gpsmeas.at(i)->rm=rmeas; // code measurements are not reported with ms ambiguities
-						rmeas->meas=gpsmeas;
-						gpsmeas.clear(); // don't delete - we only made a shallow copy!
+						for (unsigned int i=0;i<gnssmeas.size();i++)
+							gnssmeas.at(i)->rm=rmeas; // code measurements are not reported with ms ambiguities
+							
+						// Fix up the GLONASS pseudorange
+						double fGPSGLONASSOffset = GPSGLONASSOffset/1000.0 - (int)GPSGLONASSOffset/1000.0;
+						for (unsigned int i=0;i<gnssmeas.size();i++){
+							if (gnssmeas.at(i)->constellation == GNSSSystem::GLONASS)
+								gnssmeas.at(i)->meas += fGPSGLONASSOffset;
+						}
+						
+						rmeas->meas=gnssmeas;
+						gnssmeas.clear(); // don't delete - we only made a shallow copy!
 				
 						currentMsgs = 0;
 						duplicateMessages=false;
@@ -232,7 +285,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					} // if (gps.size() > 0)
 				}
 				else if (pctime != ""){ // throw away the whole second
-					deleteMeasurements(gpsmeas);
+					deleteMeasurements(gnssmeas);
 					currentMsgs = 0;
 					duplicateMessages=false;
 					DBGMSG(debugStream,INFO," Duplicate/missing messages at " << pctime);
@@ -251,8 +304,12 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 				if (((msg.size()-27*2) % 30*2) == 0){
 					
 					HexToBin((char *) msg.substr(0,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &tmeasUTC); // in ms, since beginning of week
-					HexToBin((char *) msg.substr(8*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &weekNum); // truncated
+					HexToBin((char *) msg.substr(8*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &weekNum);
+					// Note: The reported WN has had 1024 added to it since the rollover in 2019 on at least some FW versions
+					// Since we assume full truncation, the simplest solution is to make sure it's true
+					weekNum = weekNum % 1024;
 					HexToBin((char *) msg.substr(10*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &dGPSUTC); // in ms - current number of leap secs
+					//HexToBin((char *) msg.substr(18*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &dGLONASSUTC); // in ms - just the 3 hour offset
 					HexToBin((char *) msg.substr(26*2,2*sizeof(INT8S)).c_str(),sizeof(INT8S),(unsigned char *) &int8sbuf); // in ms
 		
 					rxTimeOffset = int8sbuf * 1.0E-3; // mostly zero 
@@ -260,45 +317,87 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					int nsats=(msg.size()-27*2) / (30*2);
 					INT8U svn,signal,flags;
 					
-					time_t tgps = GPS::GPStoUnix(rint((tmeasUTC+dGPSUTC)/1000),weekNum); // used for tracking loss of lock
+					time_t tgps = GPS::GPStoUnix(rint((tmeasUTC+dGPSUTC)/1000),weekNum,app->referenceTime()); // used for tracking loss of lock
 					
+					int nGPS=0;
+					int nGLONASS=0;
+					int nBeiDou=0;
 					for (int s=0;s<nsats;s++){
-						HexToBin((char *) msg.substr((27+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&signal); 
-						if (signal &0x02){ // GPS
-							HexToBin((char *) msg.substr((28+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&svn);
-							HexToBin((char *) msg.substr((31+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf); // carrier phase
-							HexToBin((char *) msg.substr((39+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf2); // pseudo-range
-							HexToBin((char *) msg.substr((55+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&flags);
-							// FIXME use flags to filter measurements 
-							DBGMSG(debugStream,TRACE,pctime << " svn "<< (int) svn << " pr " << fp64buf2*1.0E-3 << " flags " << (int) flags);
-							if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
+						HexToBin((char *) msg.substr((27+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&signal);
+						HexToBin((char *) msg.substr((28+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&svn);
+						HexToBin((char *) msg.substr((31+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf); // carrier phase
+						HexToBin((char *) msg.substr((39+s*30)*2,2*sizeof(FP64)).c_str(),sizeof(FP64),(unsigned char *) &fp64buf2); // pseudo-range
+						HexToBin((char *) msg.substr((55+s*30)*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),&flags);
+						// FIXME use flags to filter measurements 
+						DBGMSG(debugStream,TRACE,pctime << " svn "<< (int) svn << " pr " << fp64buf2*1.0E-3 << " flags " << (int) flags);
+						if (flags & (0x01 | 0x02 | 0x04 | 0x10)){ // FIXME determine optimal set of flags
+							if ((constellations & GNSSSystem::GLONASS) && (signal & 0x01)){ // GLONASS
 								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
-								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::C1,svmeas,NULL);
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GLONASS,GNSSSystem::C1C,svmeas,NULL);
 								svm->dbuf3=svmeas;
-								gpsmeas.push_back(svm);
-								if (flags & 0x08){ // carrier phase present
+								gnssmeas.push_back(svm);
+								nGLONASS++;
+								if ((flags & 0x08) && (codes & GNSSSystem::L1C)){ // carrier phase present
 									svmeas = fp64buf;
-									svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1,svmeas,NULL);
-									if (tgps - gps.L1lastunlock[svn] <= rinexObsInterval)
+									svm = new SVMeasurement(svn,GNSSSystem::GLONASS,GNSSSystem::L1C,svmeas,NULL);
+									if (tgps - glonass.L1lastunlock[svn] <= rinexObsInterval)
 										svm->lli=0x01;
-									gpsmeas.push_back(svm);
+									gnssmeas.push_back(svm);
 								}
 								else{ 
-									// Calculate GPS time of measurement so that we can record the last unlock on the L1 measurement
+									glonass.L1lastunlock[svn]=tgps;
+								}
+							}
+							else if ((constellations & GNSSSystem::GPS) && (signal & 0x02)){ // GPS
+								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::C1C,svmeas,NULL);
+								svm->dbuf3=svmeas;
+								gnssmeas.push_back(svm);
+								nGPS++;
+								if ((flags & 0x08) && (codes & GNSSSystem::L1C)){ // carrier phase present
+									svmeas = fp64buf;
+									svm = new SVMeasurement(svn,GNSSSystem::GPS,GNSSSystem::L1C,svmeas,NULL);
+									if (tgps - gps.L1lastunlock[svn] <= rinexObsInterval)
+										svm->lli=0x01;
+									gnssmeas.push_back(svm);
+								}
+								else{ 
 									gps.L1lastunlock[svn]=tgps;
 								}
 							}
-							else{
+							else if ((constellations & GNSSSystem::BEIDOU) && (signal & 0x09)){ // BeiDou
+								double svmeas = fp64buf2*1.0E-3 + (rint(gpsUTCOffset)-gpsUTCOffset)*1.0E-3; // correct for GPS-UTC offset, which steps each day
+								SVMeasurement *svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::C1C,svmeas,NULL);
+								svm->dbuf3=svmeas;
+								gnssmeas.push_back(svm);
+								nBeiDou++;
+								if ((flags & 0x08) && (codes & GNSSSystem::L2I)){ // carrier phase present
+									svmeas = fp64buf;
+									svm = new SVMeasurement(svn,GNSSSystem::BEIDOU,GNSSSystem::L2I,svmeas,NULL);
+									if (tgps - beidou.L1lastunlock[svn] <= rinexObsInterval)
+										svm->lli=0x01;
+									gnssmeas.push_back(svm);
+								}
+								else{ 
+									beidou.L1lastunlock[svn]=tgps;
+								}
 							}
 						}
+						else{ // FIXME 
+						}
+						
 					}
 					
-					if (gpsmeas.size()/2 >= MAX_CHANNELS){ // too much data - something is wrong
-						DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gpsmeas.size() << ")");
-						deleteMeasurements(gpsmeas);
+					//if (gnssmeas.size() >= MAX_CHANNELS*numConstellations*numCodes){ // too much data - something is wrong
+					// Fix for having only one code: Multiplied MAX_CHANNELS by 2 because codes reduced by 1/2 - see line ~ 105
+					if (gnssmeas.size() >= (unsigned) (MAX_CHANNELS*numConstellations*numCodes*2)){ // too much data - something is wrong
+						DBGMSG(debugStream,WARNING,"Too many F5 (raw data) messages at line " << linecount  << " " << currpctime << "(got " << gnssmeas.size() << ")");
+						deleteMeasurements(gnssmeas);
 						continue;
 					}
-					
+					nGLONASSObs += nGLONASS;
+					nGPSObs += nGPS;
+					nBeiDouObs += nBeiDou;
 					currentMsgs |= MSGF5; // All OK
 				}
 				
@@ -308,6 +407,19 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 				continue;
 				
 			} // raw data (F5)
+			
+			if (msgid=="70"){ // software version - should be two messages in the file
+				if (msg.size()==76*2){
+					INT32U snbuf;
+					HexToBin((char *) msg.substr(22*2,2*sizeof(INT32U)).c_str(),sizeof(INT32U),(unsigned char *) &snbuf);
+					serialNumber = boost::lexical_cast<std::string>(snbuf);
+					DBGMSG(debugStream,INFO,"Rx serial number "<< serialNumber);
+				}
+				else{
+					DBGMSG(debugStream,WARNING,"0x70 msg wrong size at " << linecount << " " << msg.size());
+				}
+				continue;
+			}
 			
 			if(msgid=="72"){ // Time and frequency parameters (sawtooth correction in particular)
 				
@@ -379,13 +491,25 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					HexToBin((char *) msg.substr(0*2,2*10).c_str(),10,fp80buf);
 					double gpsRxOffset = FP80toFP64(fp80buf);
 					
+					HexToBin((char *) msg.substr(10*2,2*10).c_str(),10,fp80buf);
+					double GLONASSRxOffset = FP80toFP64(fp80buf);
+					
 					HexToBin((char *) msg.substr(20*2,2*10).c_str(),10,fp80buf);
 					gpsUTCOffset = FP80toFP64(fp80buf);
+					
+					HexToBin((char *) msg.substr(30*2,2*10).c_str(),10,fp80buf);
+					double GLONASSUTCSUOffset = FP80toFP64(fp80buf);
+					
+					HexToBin((char *) msg.substr(40*2,2*10).c_str(),10,fp80buf);
+					GPSGLONASSOffset = FP80toFP64(fp80buf);
+					
+					//DBGMSG(debugStream,INFO,"0x74MSG " <<  setprecision(16) <<  gpsRxOffset << " " << GLONASSRxOffset  << " " << gpsUTCOffset << " " <<
+					//	GLONASSUTCSUOffset << " " << GPSGLONASSOffset);
 					
 					INT8U validity;
 					HexToBin((char *) msg.substr(50*2,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &validity);
 					currentMsgs |= MSG74;
-					DBGMSG(debugStream,TRACE,"0x74 GPS-Rx = " << setprecision(16) << gpsRxOffset << " GPS-UTC = " <<  gpsUTCOffset);
+					DBGMSG(debugStream,TRACE,"0x74 GPS-Rx = " << std::setprecision(16) << gpsRxOffset << " GPS-UTC = " <<  gpsUTCOffset);
 				}
 				else{
 					DBGMSG(debugStream,WARNING,"0x74 msg wrong size at line "<<linecount);
@@ -410,7 +534,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						HexToBin((char *) msg.substr(20*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B1));
 						HexToBin((char *) msg.substr(24*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B2));
 						HexToBin((char *) msg.substr(28*2,2*sizeof(FP32)).c_str(),sizeof(FP32),(unsigned char *) &(gps.ionoData.B3));
-						gotIonoData = true;
+						gps.gotIonoData = true;
 					}
 				}
 				else{
@@ -431,11 +555,11 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						HexToBin((char *) msg.substr(16*2,2*sizeof(INT32U)).c_str(),sizeof(INT32U),(unsigned char *) &int32ubuf);
 						gps.UTCdata.t_ot = int32ubuf;
 						HexToBin((char *) msg.substr(20*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.WN_t));
-						HexToBin((char *) msg.substr(22*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dtlS));
+						HexToBin((char *) msg.substr(22*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dt_LS));
 						HexToBin((char *) msg.substr(24*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.WN_LSF));
 						HexToBin((char *) msg.substr(26*2,2*sizeof(INT16U)).c_str(),sizeof(INT16U),(unsigned char *) &(gps.UTCdata.DN));
 						HexToBin((char *) msg.substr(28*2,2*sizeof(INT16S)).c_str(),sizeof(INT16S),(unsigned char *) &(gps.UTCdata.dt_LSF));
-						gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
+						gps.gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 					}
 				}
 				else{
@@ -450,7 +574,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 					HexToBin((char *) msg.substr(0,sizeof(INT8U)*2).c_str(),sizeof(INT8U),(unsigned char *) &eph);
 					if (eph == 0x01){
 						
-						GPS::EphemerisData *ed = new GPS::EphemerisData;
+						GPSEphemeris *ed = new GPSEphemeris();
 						HexToBin((char *) msg.substr(1*2,2*sizeof(INT8U)).c_str(),sizeof(INT8U),(unsigned char *) &(ed->SVN));
 						HexToBin((char *) msg.substr(2*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_rs));
 						HexToBin((char *) msg.substr(6*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->delta_N));
@@ -461,7 +585,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 						HexToBin((char *) msg.substr(30*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_us));
 						HexToBin((char *) msg.substr(34*2,2*sizeof(FP64)).c_str(),sizeof(FP64), (unsigned char *) &(ed->sqrtA));
 						HexToBin((char *) msg.substr(42*2,2*sizeof(FP64)).c_str(),sizeof(FP64), (unsigned char *) &fp64buf);
-						ed->t_oe = fp64buf*1.0E-3;
+						ed->t_0e = fp64buf*1.0E-3;
 						HexToBin((char *) msg.substr(50*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_ic));
 						HexToBin((char *) msg.substr(54*2,2*sizeof(FP64)).c_str(),sizeof(FP64), (unsigned char *) &(ed->OMEGA_0));
 						HexToBin((char *) msg.substr(62*2,2*sizeof(FP32)).c_str(),sizeof(FP32), (unsigned char *) &(ed->C_is));
@@ -498,7 +622,7 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 							ed->tLogged = pchh*3600 + pcmm*60 + pcss; 
 						else
 							ed->tLogged = -1;
-						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->SV_accuracy_raw);
+						DBGMSG(debugStream,TRACE,"GPS eph  "<< (int) ed->SVN << " " << ed->t_0e << " " << ed->t_OC << " " << (int) ed->SV_accuracy_raw);
 						gps.addEphemeris(ed);
 					
 					}
@@ -522,12 +646,12 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	}
 	infile.close();
 
-	if (!gotIonoData){
+	if (!gps.gotIonoData){
 		app->logMessage("failed to find ionosphere parameters - no 4A messages");
 		return false;
 	}
 	
-	if (!gotUTCdata){
+	if (!gps.gotUTCdata){
 		app->logMessage("failed to find UTC parameters - no 4B messages");
 		return false;
 	}
@@ -560,6 +684,9 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 		}
 	}
 	
+	gps.fixWeekRollovers();
+	gps.setAbsT0c(mjd); // precompute stuff for ephemeris output
+	
 	// The NVS sometime reports what appears to be an incorrect pseudorange after picking up an SV
 	// If you wanted to filter these out, this is where you should do it
 	
@@ -568,8 +695,25 @@ bool NVS::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsIn
 	
 	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
 	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
+	DBGMSG(debugStream,INFO,nGPSObs << " GPS code measurements read");
+	DBGMSG(debugStream,INFO,nGLONASSObs << " GLONASS code measurements read");
 	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
 	DBGMSG(debugStream,INFO,nBadSawtoothCorrections << " bad sawtooth corrections");
+	
 	return true;
 	
+}
+
+void NVS::setVersion(std::string v)
+{
+	Receiver::setVersion(v);
+	char ch = v.at(0);
+	if (ch == '4'){
+		fwVersion = 4;
+		sawtooth = 38.0;
+	}
+	else if (ch=='5'){
+		fwVersion = 5;
+		sawtooth = 38.0; // FIXME
+	}
 }

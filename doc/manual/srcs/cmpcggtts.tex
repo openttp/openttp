@@ -1,0 +1,78 @@
+\subsection{cmpcggtts.py}
+
+\hypertarget{h:cmpcggtts}{}
+
+\cc{cmpcggtts.py} matches tracks in paired CGGTTS files. It can be used for time transfer and delay calibration. 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py [option] $\ldots$ refDir calDir firstMJD lastMJD
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+ \item[-{}-help]            show this help message and exit
+ \item[-{}-starttime \textless{time}\textgreater ] time of day in HH:MM:SS format
+  to start processing (default 00:00:00)
+ \item[-{}-stoptime \textless{time}\textgreater]  time of day in HH:MM:SS format
+  to stop processing (default 23:59:00)
+ \item[-{}-elevationmask \textless{value}\textgreater] elevation mask (in degrees, default 0.0)
+ \item[-{}-mintracklength \textless{value}\textgreater] minimum track length (in s, default 750)
+ \item[-{}-maxdsg \textless{value}\textgreater]       maximum DSG (in ns, default 20.0)
+ \item[-{}-matchephemeris ]     match on ephemeris (default no)
+ \item[-{}-cv]                  compare in common view (default)
+  \item[-{}-aiv]                 compare in all-in-view
+  \item[-{}-acceptdelays]        accept the delays (no prompts in delay calibration mode)
+  \item[-{}-delaycal]            delay calibration mode
+  \item[-{}-timetransfer]        time-transfer mode (default)
+  \item[-{}-ionosphere]          use the ionosphere in delay calibration mode (default = not used)
+   \item[-{}-checksum]           exit on bad checksum (default = warn only)
+  \item[-{}-refprefix \textless{value}\textgreater] file prefix for
+		reference receiver (default = MJD)
+  \item[-{}-calprefix \textless{value}\textgreater] file prefix for calibration
+		receiver (default = MJD)
+  \item[-{}-refext \textless{value}\textgreater]       file extension for reference receiver (default = cctf)
+  \item[-{}-calext \textless{value}\textgreater]       file extension for calibration receiver (default = cctf)
+  \item[-{}-debug, -d]           debug (to stderr)
+  \item[-{}-nowarn]              suppress warnings
+  \item[-{}-quiet]               suppress all output to the terminal
+  \item[-{}-keepall]             keep tracks after the end of the day
+  \item[-{}-version, -v]         show version and exit
+\end{description*}
+
+The default mode is time-transfer. In this mode, a linear fit to the time-transfer data is made and the 
+fractional frequency error and REFSYS (evaluated at the midpoint of the data set) are outputted. 
+The uncertainties are estimated from the linear fit.
+
+In delay calibration mode, the presumption is that the data are for two receivers sharing a
+common clock and operating on a short baseline. The ionosphere correction is removed by default
+but can be retained via a command line option. Delays as reported in the CGGTTS header can be 
+changed interactively; prompting for the new delays can be skipped with a command line option.
+
+
+Data can be filtered by elevation, track length and DSG.
+
+Matching on ephemeris (IODE) can also be enforced. This can reduce time-transfer noise in
+some circumstances.
+
+Three text files are produced:
+
+\subsubsection{examples}
+
+Basic common-view time transfer with CGGTTS files in the folders \cc{refrx} and \cc{remrx}:
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py refrx remrx 57555 57556
+\end{lstlisting}
+
+Delay calibration with filenames according to the CGGTTS V2E specification:
+\begin{lstlisting}[mathescape=true]
+cmpcggtts.py --delaycal --refprefix GZAU01 --calprefix GZAU99 refrx remrx 57555 57556
+\end{lstlisting}
+s
+
+
+
+
+
+

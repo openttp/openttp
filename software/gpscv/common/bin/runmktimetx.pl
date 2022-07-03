@@ -59,11 +59,17 @@ if ($opt_v){
 	exit;
 }
 
-if (-d "$home/bin")  {
-	$binPath="$home/bin";
+# Look for mktimetx
+# Local copy has precedence
+#
+if (-e "$home/bin/mktimetx")  {
+	$MKTIMETX="$home/bin/mktimetx";
+}
+elsif (-e "/usr/local/bin/mktimetx"){
+	$MKTIMETX="/usr/local/bin/mktimetx";
 }
 else{	
-	ErrorExit("No ~/bin directory found!\n");
+	ErrorExit("No mktimetx found!\n");
 } 
 
 $configFile=$configPath."/gpscv.conf";
@@ -103,7 +109,7 @@ else{
 if (!$opt_x){
 	for ($mjd=$mjdStart;$mjd <= $mjdStop;$mjd++){
 		Debug("Processing $mjd");
-		`$binPath/mktimetx --configuration $configFile -m $mjd`;
+		`$MKTIMETX --configuration $configFile -m $mjd`;
 	}
 }
 else{
@@ -183,7 +189,7 @@ else{
 				if (!(-e $cggttsFile)){ # only attempt to regenerate missing files 
 					Debug("\t-->missing");
 					Debug("\t-->processing $mjd");
-					`$binPath/mktimetx --configuration $configFile -m $mjd`;
+					`$MKTIMETX --configuration $configFile -m $mjd`;
 				}
 				else{
 					Debug("\t-->exists");
@@ -206,7 +212,7 @@ else{
 			if (!(-e $rnxFile || -e $rnxFilegzip)){
 				Debug("\t-->missing");
 				Debug("\t-->processing $mjd");
-				`$binPath/mktimetx --configuration $configFile -m $mjd`;
+				`$MKTIMETX --configuration $configFile -m $mjd`;
 			}
 			else{
 				Debug("\t-->exists");

@@ -30,16 +30,15 @@
 #include <fstream>
 #include <string>
 
-using namespace std;
 
 class RIN2CGGTTS
 {
 	public:
 		
 		RIN2CGGTTS();
-		bool read(string);
+		bool read(std::string);
 		
-		string revDate,rcvr,lab,comments,frame,ref;
+		std::string revDate,rcvr,lab,comments,frame,ref;
 		int ch;
 		double antpos[3];
 		double P1delay,P2delay;
@@ -49,9 +48,9 @@ class RIN2CGGTTS
 		
 	private:
 	
-		bool getParam(ifstream &,string &,string,string &);
-		bool getParam(ifstream &,string &,string,double *);
-		bool getParam(ifstream &,string &,string,int *);
+		bool getParam(std::ifstream &,std::string &,std::string,std::string &);
+		bool getParam(std::ifstream &,std::string &,std::string,double *);
+		bool getParam(std::ifstream &,std::string &,std::string,int *);
 		
 };
 #endif

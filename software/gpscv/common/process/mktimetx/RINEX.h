@@ -38,39 +38,39 @@ class EphemerisData;
 class MeasurementPair;
 class Receiver;
 
-using namespace std;
-
 class RINEX
 {
 	
 	public:
 		
-		enum RINEXVERSIONS {V2=0, V3=1}; // used as array indices too ..
+		enum RINEXVERSIONS {V2=2, V3=3};
 		
 		RINEX();
-		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int ver,string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
-		bool writeNavigationFile(Receiver *rx,int constellation,int ver,string fname,int mjd);
+		bool writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd,int interval,MeasurementPair **mpairs,bool TICenabled);
+		bool writeNavigationFile(Receiver *rx,unsigned int constellations,int majorVer,int minorVer, std::string fname,int mjd);
 		
-		bool readNavigationFile(Receiver *rx,int constellation,string fname);
+		bool readNavigationFile(Receiver *rx,int constellation,std::string fname);
 		
-		string makeFileName(string pattern,int mjd);
+		std::string makeFileName(std::string pattern,int mjd);
 		
-		string observer;
-		string agency;
+		std::string observer;
+		std::string agency;
 	
-		bool allObservations;
+		bool allObservations; // output code AND phase if true
 		
 	private:
 		
 		void init();
-		bool readV2NavigationFile(Receiver* rx, int constellation,string fname);
-		bool readV3NavigationFile(Receiver *rx,int constellation,string fname);
+		bool readV2NavigationFile(Receiver* rx, int constellation,std::string fname);
+		bool readV3NavigationFile(Receiver *rx,int constellation,std::string fname);
 		
-		GPS::EphemerisData* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
+		GPSEphemeris* getGPSEphemeris(int ver,FILE *fin,unsigned int *lineCount);
 		BeiDou::EphemerisData* getBeiDouEphemeris(FILE *fin,unsigned int *lineCount);
 		
-		bool writeGPSNavigationFile(Receiver *rx,int ver,string fname,int mjd);
-		bool writeBeiDouNavigationFile(Receiver *rx,int ver,string fname,int mjd);
+		bool writeGPSNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
+		bool writeBeiDouNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
+		bool writeGALNavigationFile(Receiver *rx,int majorVer,int minorVer,std::string fname,int mjd);
+		bool writeMixedNavigationFile(Receiver *rx,unsigned int constellations,int majorVer,int minorVer,std::string fname,int mjd);
 		
 		char * formatFlags(int,int);
 		
@@ -79,6 +79,7 @@ class RINEX
 		void parseParam(char *,int start,int len,double *val);
 		bool get4DParams(FILE *fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
+		std::string makeVerName(int majorVer,int minorVer);
 };
 
 #endif

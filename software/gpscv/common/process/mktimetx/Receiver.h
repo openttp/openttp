@@ -38,8 +38,6 @@
 
 #include "SVMeasurement.h"
 
-using namespace std;
-
 class ReceiverMeasurement;
 class Antenna;
 
@@ -56,17 +54,21 @@ class Receiver
 		
 		virtual unsigned int memoryUsage();
 		
-		string version; // RX version information used to control processing - set in config NOT by information in RX files
+		virtual void setVersion(std::string);
+		std::string version(); // RX version information used to control processing - set in config NOT by information in RX files
 			    
-		string modelName;
-		string manufacturer;
-		string version1;
-		string version2;
-		string serialNumber;
+		std::string modelName;
+		std::string manufacturer;
+		std::string version1;
+		std::string version2;
+		std::string serialNumber;
 		
-		string swversion;
+		std::string swversion;
+		
+		int model;
 		
 		bool dualFrequency;
+		virtual void addConstellation(int){}; // needs to be implemented by each erceiver so that signals can be added
 		int constellations;
 		int codes;
 		int channels;
@@ -75,9 +77,11 @@ class Receiver
 		
 		int ppsOffset; // 1 pps offset, in nanoseconds
 		
-		virtual bool readLog(string,int,int startTime=0,int stopTime=86399,int rinexObsInterval=30){return true;} // must be reimplemented
+		double sawtooth; // sawtooth, peak to peak, in ns;
 		
-		vector<ReceiverMeasurement *> measurements;
+		virtual bool readLog(std::string,int,int startTime=0,int stopTime=86399,int rinexObsInterval=30){return true;} // must be reimplemented
+		
+		std::vector<ReceiverMeasurement *> measurements;
 		
 		int sawtoothPhase; // pps to apply sawtooth correction to
 		
@@ -94,10 +98,11 @@ class Receiver
 		
 		void deleteMeasurements(std::vector<SVMeasurement *> &);
 		void interpolateMeasurements();
-		bool gotUTCdata,gotIonoData;
 		
 	private:
 	
+		std::string version_;
+		
 };
 #endif
 

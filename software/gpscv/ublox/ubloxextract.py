@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -42,12 +42,13 @@ import sys
 import struct
 
 # This is where ottplib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
-import time
+sys.path.append('/usr/local/lib/python3.6/site-packages') # Ubuntu 18
+sys.path.append('/usr/local/lib/python3.8/site-packages') # Ubuntu 20
 
 import ottplib
+import time
 
-VERSION = '0.1.1'
+VERSION = '0.1.6'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -67,19 +68,19 @@ def SignalHandler(signal,frame):
 
 # ------------------------------------------
 def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
+	print(os.path.basename(sys.argv[0])," ",VERSION)
+	print("Written by",AUTHORS)
 	return
 
 # ------------------------------------------
 def Debug(msg):
 	if (debug):
-		print msg
+		print(msg)
 	return
 
 # ------------------------------------------
 def ErrorExit(msg):
-	print msg
+	print(msg)
 	sys.exit(0)
 	
 # ------------------------------------------
@@ -172,16 +173,23 @@ def DecodeUBX_RXM_RAWX(msg):
 		return [0]
 	packed=binascii.unhexlify(msg)
 	nmeas = (len(msg)/2 -18)/32
-	unpacked=struct.unpack_from('d',packed)
-	return unpacked
+	rawx = ''
+	for i in xrange(0,nmeas):
+		rawx += '2df4BH6B'
+	unpacked=struct.unpack_from('dHb5B'+rawx,packed)
+	header = unpacked[0:7]
+	meas=[]
+	for i in xrange(0,nmeas):
+		meas.append(unpacked[8+i*14:8+(i+1)*14])
+	return (header,meas)
 
 # ------------------------------------------
 def DecodeUBX_SEC_UNIQID(msg):
 	if not(len(msg)==(9+2)*2):
 		return ''
 	packed=binascii.unhexlify(msg)
-	unpacked=struct.unpack('B3B5B2B',packed)
-	return [unpacked[0],(unpacked[4] << 32)+(unpacked[5] << 24)+(unpacked[6] << 16)+(unpacked[7] << 8)+unpacked[8]]
+	unpacked=struct.unpack('B3B5s2B',packed)
+	return [unpacked[0],'0x' + msg[4*2:(4+5)*2+1]] # hex string is already in right form for ID
 
 # ------------------------------------------
 def DecodeUBX_TIM_TP(msg):
@@ -190,6 +198,43 @@ def DecodeUBX_TIM_TP(msg):
 	packed=binascii.unhexlify(msg)
 	unpacked=struct.unpack('IIiH4B',packed)
 	return unpacked
+
+# ------------------------------------------
+def GNSSSummary(meas):
+	nBDS=0
+	nBDS2=0
+	nGAL=0
+	nGAL2=0
+	nGLO=0
+	nGLO2=0
+	nGPS=0
+	nGPS2=0
+	nQZSS=0
+	nQZSS2=0
+	summary = ''
+	for m in meas:
+		# gnssID (3), svID (4), sigID (5)
+		gnssID = m[3]
+		svID   = m[4]
+		sigID  = m[5]
+		if (gnssID == 0):
+			if (sigID == 0):
+				nGPS += 1
+		elif (gnssID == 2):
+			if (sigID == 0 or sigID == 1):
+				nGAL += 1
+		elif (gnssID == 3):
+			if (sigID == 0 or sigID == 1):
+				nBDS += 1
+		elif (gnssID == 5):
+			if (sigID == 0):
+				nQZSS += 1
+		elif (gnssID == 6):
+			if (sigID == 0):
+				nGLO += 1
+	summary = str(nBDS) + ' ' + str(nGAL) + ' ' + str(nGLO) + ' ' + str(nGPS) + ' ' + str(nQZSS)
+	return summary
+	
 
 # ------------------------------------------
 # Main 
@@ -202,6 +247,7 @@ mjd = ottplib.MJD(tt) - 1 # previous day
 compress=False
 
 parser = argparse.ArgumentParser(description='Extract messages from a ublox data file')
+parser.add_argument('file',nargs='?',help='input file',type=str,default='')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
 parser.add_argument('--mjd','-m',help='mjd',default=mjd)
@@ -228,35 +274,43 @@ if (args.navsat): # remove all old SV files
 	map(os.unlink,glob.glob(u'./E*.sv.dat'))
 	map(os.unlink,glob.glob(u'./B*.sv.dat'))
 
-configFile = args.config
+if (args.file):
+	if not (os.path.isfile(args.file)):
+		ErrorExit('Unable to open ' + args.file)
+	dataFile = args.file
+	path,ext = os.path.splitext(dataFile)
+	if (ext == '.gz'):
+		gzDataFile = dataFile
+		dataFile = path
+		compress = True
+else:
+	configFile = args.config
 
-if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + " not found")
+	if (not os.path.isfile(configFile)):
+		ErrorExit(configFile + " not found")
 	
-logPath = os.path.join(home,'logs')
-if (not os.path.isdir(logPath)):
-	ErrorExit(logPath + "not found")
+	cfg=Initialise(configFile)
+	
+	dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
 
-cfg=Initialise(configFile)
+	rxExt = cfg['receiver:file extension']
+	if (None == re.search(r'\.$',rxExt)):
+		rxExt = '.' + rxExt
 
-dataPath= ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
+	# File may be compressed so decompress it if required
+	dataFile = dataPath + str(mjd) + rxExt
 
-rxExt = cfg['receiver:file extension']
-if (None == re.search(r'\.$',rxExt)):
-	rxExt = '.' + rxExt
-
-# File may be compressed so decompress it if required
-dataFile = dataPath + str(mjd) + rxExt
-
-if not (os.path.isfile(dataFile)):
-	gzDataFile = dataFile + '.gz'
-	if not (os.path.isfile(gzDataFile)):
-		ErrorExit('Unable to open'+dataFile+'(.gz)')
-	else:
-		compress=True
-		Debug('Decompressing '+gzDataFile)
-		subprocess.check_output(['gunzip',gzDataFile])
-
+	if not (os.path.isfile(dataFile)):
+		gzDataFile = dataFile + '.gz'
+		if not (os.path.isfile(gzDataFile)):
+			ErrorExit('Unable to open ' + dataFile + '(.gz)')
+		else:
+			compress=True
+		
+if (compress):
+	Debug('Decompressing '+gzDataFile)
+	subprocess.check_output(['gunzip',gzDataFile])
+		
 lasttstamp='-1'
 
 fdata=open(dataFile,'r')
@@ -277,31 +331,32 @@ for line in fdata:
 	if (msgid == '0a04'):
 		if (args.monver):
 			msgf=DecodeUBX_MON_VER(msg)
-			print 'SW:',msgf[0],'HW:',msgf[1]
+			print('SW:',msgf[0],'HW:',msgf[1])
 	elif (msgid == '0d01'):
 		if (args.timtp):
 			msgf=DecodeUBX_TIM_TP(msg)
-			print tt,msgf[2] # in ps
+			print(tt,msgf[2]) # in ps
 	elif (msgid == '0121'):
 		if (args.navtimeutc):
 			msgf=DecodeUBX_NAV_TIMEUTC(msg)
-			print tt,msgf[0],msgf[1],msgf[3],msgf[4]
+			print(tt,msgf[0],msgf[1],msgf[3],msgf[4])
 	elif (msgid == '0122'):
 		if (args.navclock):
 			msgf=DecodeUBX_NAV_CLOCK(msg)
-			print tt,msgf[0],msgf[1],msgf[2],msgf[3],msgf[4]
+			print(tt,msgf[0],msgf[1],msgf[2],msgf[3],msgf[4])
 	elif (msgid == '0135'):
 		if (args.navsat):
 			msgf=DecodeUBX_NAV_SAT(msg)
-			print tt,msgf[0],msgf[1],msgf[2],msgf[3]
+			print(tt,msgf[0],msgf[1],msgf[2],msgf[3])
 	elif (msgid == '0215'):
 		if (args.rawx):
-			msgf=DecodeUBX_RXM_RAWX(msg)
-			print tt,msgf[0]
+			(header,meas)=DecodeUBX_RXM_RAWX(msg)
+			summary = GNSSSummary(meas)
+			print(tt,header[0],header[3],summary)
 	elif (msgid == '2703'):
 		if (args.uniqid):
 			msgf=DecodeUBX_SEC_UNIQID(msg)
-			print tt,msgf
+			print(tt,msgf)
 			
 fdata.close()
 

@@ -43,9 +43,9 @@
 #define MAX_ITERATIONS 10 // for solution of the Kepler equation
 
 extern Application *app;
-extern ostream *debugStream;
-extern string   debugFileName;
-extern ofstream debugLog;
+extern std::ostream *debugStream;
+extern std::string   debugFileName;
+extern std::ofstream debugLog;
 extern int verbosity;
 
 #define CLIGHT 299792458.0
@@ -54,11 +54,15 @@ extern int verbosity;
 
 static const double URAvalues[] = {2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
 const double* GPS::URA = URAvalues;
+const double  GPS::fL1 = 1575420000.0; // 154*10.23 MHz
+const double  GPS::fL2 = 1227620000.0; // 120*10.23 MHz
 
 GPS::GPS():GNSSSystem()
 {
 	n="GPS";
 	olc="G";
+	codes = GNSSSystem::C1C;
+	gotUTCdata = gotIonoData = false;
 	for (int i=0;i<=NSATS;i++)
 		memset((void *)(&L1lastunlock[i]),0,sizeof(time_t)); // all good
 }
@@ -67,168 +71,119 @@ GPS::~GPS()
 {
 }
 
-
-void GPS::deleteEphemeris()
+double GPS::codeToFreq(int c)
 {
-	DBGMSG(debugStream,TRACE,"deleting rx ephemeris");
-	
-	while(! ephemeris.empty()){
-		EphemerisData  *tmp= ephemeris.back();
-		delete tmp;
-		ephemeris.pop_back();
+	double f=1.0;
+	switch(c){
+		case GNSSSystem::C1C: case GNSSSystem::C1P:case GNSSSystem::L1C: case GNSSSystem::L1P:
+			f = GPS::fL1;break;
+		case GNSSSystem::C2C: case GNSSSystem::C2P:case GNSSSystem::C2M:case GNSSSystem::L2C:case GNSSSystem::L2P:case GNSSSystem::L2L:
+			f = GPS::fL2;break;
 	}
-	
-	for (unsigned int s=0;s<=NSATS;s++){
-		sortedEphemeris[s].clear(); // nothing left to delete 
-	}
+	return f;
 }
 
+// bool GPS::addEphemeris(EphemerisData *ed)
+// {
+// 	// Check whether this is a duplicate
+// 	int issue;
+// 	for (issue=0;issue < (int) sortedEphemeris[ed->SVN].size();issue++){
+// 		if (sortedEphemeris[ed->SVN][issue]->t_0e == ed->t_0e){
+// 			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_0e);
+// 			return false;
+// 		}
+// 	}
+// 	
+// 	if (ephemeris.size()>0){
+// 
+// 		// Update the ephemeris list - this is time-ordered
+// 		
+// 		std::vector<EphemerisData *>::iterator it;
+// 		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+// 			if (ed->t_OC < (*it)->t_OC){ // RINEX uses t_OC
+// 				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
+// 				ephemeris.insert(it,ed);
+// 				break;
+// 			}
+// 		}
+// 		
+// 		if (it == ephemeris.end()){ // got to end, so append
+// 			DBGMSG(debugStream,4,"appending " << ed->t_OC);
+// 			ephemeris.push_back(ed);
+// 		}
+// 		
+// 		// Update the ephemeris hash - 
+// 		if (sortedEphemeris[ed->SVN].size() > 0){
+// 			std::vector<EphemerisData *>::iterator it;
+// 			for (it=sortedEphemeris[ed->SVN].begin(); it<sortedEphemeris[ed->SVN].end(); it++){
+// 				if (ed->t_OC < (*it)->t_OC){ 
+// 					DBGMSG(debugStream,4,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
+// 					sortedEphemeris[ed->SVN].insert(it,ed);
+// 					break;
+// 				}
+// 			}
+// 			if (it == sortedEphemeris[ed->SVN].end()){ // got to end, so append
+// 				DBGMSG(debugStream,4,"hash appending " << ed->t_OC);
+// 				sortedEphemeris[ed->SVN].push_back(ed);
+// 			}
+// 		}
+// 		else{ // first one for this SVN
+// 			DBGMSG(debugStream,4,"first for svn " << (int) ed->SVN);
+// 			sortedEphemeris[ed->SVN].push_back(ed);
+// 		}
+// 	}
+// 	else{ //first one
+// 		DBGMSG(debugStream,4,"first eph ");
+// 		ephemeris.push_back(ed);
+// 		sortedEphemeris[ed->SVN].push_back(ed);
+// 		return true;
+// 	}
+// 	return true;
+// }
 
-// The ephemeris is sorted so that the RINEX navigation file is written correctly
-// A hash table is alos built for quick ephemeris lookup
-// Note that when the ephemeris is completely read, another fixup must be done for week rollovers
-
-void GPS::addEphemeris(EphemerisData *ed)
+GPSEphemeris* GPS::nearestEphemeris(int svn,int tow,double maxURA)
 {
-	// Check whether this is a duplicate
-	int issue;
-	for (issue=0;issue < (int) sortedEphemeris[ed->SVN].size();issue++){
-		if (sortedEphemeris[ed->SVN][issue]->t_oe == ed->t_oe){
-			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_oe);
-			return;
-		}
-	}
-	
-	if (ephemeris.size()>0){
-
-		// Update the ephemeris list - this is time-ordered
-		
-		std::vector<EphemerisData *>::iterator it;
-		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
-			if (ed->t_OC < (*it)->t_OC){ // RINEX uses TOC
-				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
-				ephemeris.insert(it,ed);
-				break;
-			}
-		}
-		
-		if (it == ephemeris.end()){ // got to end, so append
-			DBGMSG(debugStream,4,"appending " << ed->t_OC);
-			ephemeris.push_back(ed);
-		}
-		
-		// Update the ephemeris hash - 
-		if (sortedEphemeris[ed->SVN].size() > 0){
-			std::vector<EphemerisData *>::iterator it;
-			for (it=sortedEphemeris[ed->SVN].begin(); it<sortedEphemeris[ed->SVN].end(); it++){
-				if (ed->t_OC < (*it)->t_OC){ 
-					DBGMSG(debugStream,4,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
-					sortedEphemeris[ed->SVN].insert(it,ed);
-					break;
-				}
-			}
-			if (it == sortedEphemeris[ed->SVN].end()){ // got to end, so append
-				DBGMSG(debugStream,4,"hash appending " << ed->t_OC);
-				sortedEphemeris[ed->SVN].push_back(ed);
-			}
-		}
-		else{ // first one for this SVN
-			DBGMSG(debugStream,4,"first for svn " << (int) ed->SVN);
-			sortedEphemeris[ed->SVN].push_back(ed);
-		}
-	}
-	else{ //first one
-		DBGMSG(debugStream,4,"first eph ");
-		ephemeris.push_back(ed);
-		sortedEphemeris[ed->SVN].push_back(ed);
-		return;
-	}
-}
-
-GPS::EphemerisData* GPS::nearestEphemeris(int svn,int tow,double maxURA)
-{
-	EphemerisData *ed = NULL;
+	GPSEphemeris *ed = NULL;
 	double dt,tmpdt;
 	
 	if (sortedEphemeris[svn].size()==0)
 		return ed;
 	
-	// This algorithm does not depend one the epemeris being sorted
+	// This algorithm does not depend on the ephemeris being sorted
 	// (and, at present, because week rollovers are not accounted for,it isn't fully sorted)
 	for (unsigned int i=0;i<sortedEphemeris[svn].size();i++){
-		tmpdt=sortedEphemeris[svn][i]->t_oe - tow;
+		GPSEphemeris *ephi = dynamic_cast<GPSEphemeris *>(sortedEphemeris[svn][i]);
+		tmpdt= ephi->t_0e - tow;
 		// handle week rollover
 		if (tmpdt < -5*86400){ 
 			tmpdt += 7*86400;
 		}
 		// algorithm as per previous software
 		// Initially, we pick the first ephemeris after TOW that is close enough 
-		if ((ed==NULL) && (tmpdt >=0) && (fabs(tmpdt) < 0.1*86400) && (sortedEphemeris[svn][i]->SV_accuracy <= maxURA)){ // first time
+		if ((ed==NULL) && (tmpdt >=0) && (fabs(tmpdt) < 0.1*86400) && (ephi->SV_accuracy <= maxURA)){ // first time
 			dt=fabs(tmpdt);
-			ed=sortedEphemeris[svn][i];
+			ed=ephi;
 		}
 		// then we try to find a closer one
-		else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 ) && (fabs(tmpdt) < 0.1*86400) && (sortedEphemeris[svn][i]->SV_accuracy <= maxURA)){
+		else if ((ed!= NULL) && (fabs(tmpdt) < dt) && (tmpdt >=0 ) && (fabs(tmpdt) < 0.1*86400) && (ephi->SV_accuracy <= maxURA)){
 			dt=fabs(tmpdt);
-			ed=sortedEphemeris[svn][i];
+			ed=ephi;
 		}
 	}
 				
-	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_oe="<< ((ed!=NULL)?(int)(ed->t_oe):-1));
+	DBGMSG(debugStream,4,"svn="<<svn << ",tow="<<tow<<",t_0e="<< ((ed!=NULL)?(int)(ed->t_0e):-1));
 	
 	return ed;
 }
 
-bool GPS::fixWeekRollovers()
-{
-	// There are two cases:
-	// (1) We are at the end of the week and get an ephemeris for the next day. Week number can't be used to discriminate.
-	//      In this case, the ephemeris needs to be moved to the end
-	// (2) We are at the beginning of the week and get an ephemeris for the previous day. 
-	//      This ephemeris must move to the beginning of the day
-	// Note that further disambiguation information is available from the time the message was logged
-	
-	if (ephemeris.size() <= 1) return false;
-	
-	std::vector<EphemerisData *>::iterator it;
-	for (it=ephemeris.begin(); it<ephemeris.end(); it++){
-		GPS::EphemerisData *ed = (*it);
-		//cout << (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
-	}
-	
-	// Because the ephemeris has been ordered by t_OC, the misplaced ephemerides can be moved as a block
-	
-	// This handles case (1)
-	int tOClast = ephemeris[0]->t_OC;
-	for (unsigned i=1; i < ephemeris.size(); i++){
-		GPS::EphemerisData *ed = ephemeris[i];
-		if (ed->t_OC - tOClast > 5*86400){ // Detect the position of the break 
-			DBGMSG(debugStream,INFO,"GPS week rollover detected in ephemeris");
-			// Have to copy the first "i" entries to the end
-			for (unsigned int j=0;j<i;j++)
-				ephemeris.push_back(ephemeris[j]);
-			// and then remove the first i entries
-			ephemeris.erase(ephemeris.begin(),ephemeris.begin()+i);
-			std::vector<EphemerisData *>::iterator it;
-			for (it=ephemeris.begin(); it<ephemeris.end(); it++){
-				GPS::EphemerisData *ed = (*it);
-			//	cout << (int) ed->SVN << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
-			}
-			return true;
-		}
-		else
-			tOClast = ed->t_OC;
-	}
-	
-	return false;
-}
+
 
 bool GPS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *rxm,SVMeasurement *svm,double *corr)
 {
 	*corr=0.0;
 	bool ok=false;
 	// find closest ephemeris entry
-	GPS::EphemerisData *ed = nearestEphemeris(svm->svn,rxm->gpstow,3.0); // max URA probably not important
+	GPSEphemeris *ed = nearestEphemeris(svm->svn,rxm->gpstow,3.0); // max URA probably not important
 	if (ed != NULL){
 		double x[3],Ek;
 		
@@ -282,9 +237,64 @@ bool GPS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *rxm,SVMeasure
 	return ok;
 }
 
+void GPS::setAbsT0c(int mjd)
+{
+	// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
+	int gpsWeek=int ((mjd-44244)/7);
+	
+	int lastGPSWeek=-1;
+	int lastToc=-1;
+	int weekRollovers=0;
+	
+	// GPS epoch as a struct tm
+	struct tm tmGPS0;
+	tmGPS0.tm_sec=tmGPS0.tm_min=tmGPS0.tm_hour=0;
+	tmGPS0.tm_mday=6;tmGPS0.tm_mon=0;tmGPS0.tm_year=1980-1900,tmGPS0.tm_isdst=0;
+	time_t tGPS0=std::mktime(&tmGPS0);
+	
+	for (unsigned int i=0;i<ephemeris.size();i++){
+		
+		GPSEphemeris *eph = dynamic_cast<GPSEphemeris *>(ephemeris[i]);
+		
+		// Account for GPS rollover:
+		// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
+		// GPS week 1024 begins midnight 21/22 Aug 1999, MJD 51412
+		// GPS week 2048 begins midnight 6/7 Apr 2019, MJD 58580
+		
+		int tmjd=mjd;
+		int GPSWeek=eph->week_number;
+		
+		while (tmjd>=51412) {
+			GPSWeek+=1024;
+			tmjd-=(7*1024);
+		}
+		if (-1==lastGPSWeek){lastGPSWeek=GPSWeek;}
+		// Convert GPS week + $Toc to epoch as year, month, day, hour, min, sec
+		// Note that the epoch should be specified in GPS time
+		double Toc=eph->t_OC;
+		if (-1==lastToc) {lastToc = Toc;}
+		// If GPS week is unchanged and Toc has gone backwards by more than 2 days, increment GPS week
+		// It is assumed that ephemeris entries have been correctly ordered (using fixWeeKRollovers() prior to writing out
+		if ((GPSWeek == lastGPSWeek) && (Toc-lastToc < -2*86400)){
+			weekRollovers=1;
+		}
+		else if (GPSWeek == lastGPSWeek+1){//OK now 
+			weekRollovers=0; 	
+		}
+		
+		lastGPSWeek=GPSWeek;
+		lastToc=Toc;
+		
+		GPSWeek = GPSWeek + weekRollovers;
+		
+		eph->t0cAbs = tGPS0+GPSWeek*86400*7+Toc;
+		eph->correctedWeek= GPSWeek;
+	}
+}
+
 bool GPS::currentLeapSeconds(int mjd,int *leapsecs)
 {
-	if (!(UTCdata.dtlS == 0 && UTCdata.dt_LSF == 0)){ 
+	if (!(UTCdata.dt_LS == 0 && UTCdata.dt_LSF == 0)){ 
 		// Figure out when the leap second is/was scheduled; we only have the low
 		// 8 bits of the week number in WN_LSF, but we know that "the
 		// absolute value of the difference between the untruncated WN and Wlsf
@@ -295,13 +305,13 @@ bool GPS::currentLeapSeconds(int mjd,int *leapsecs)
 		while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
 		int gpsSchedMJD=44244+7*gpsSchedWeek+UTCdata.DN;
 		// leap seconds is either tls or tlsf depending on past/future schedule
-		(*leapsecs)=(mjd>=gpsSchedMJD? UTCdata.dt_LSF : UTCdata.dtlS);
+		(*leapsecs)=(mjd>=gpsSchedMJD? UTCdata.dt_LSF : UTCdata.dt_LS);
 		return true;
 	}
 	return false;
 }
 
-bool GPS::satXYZ(GPS::EphemerisData *ed,double t,double *Ek,double x[3])
+bool GPS::satXYZ(GPSEphemeris *ed,double t,double *Ek,double x[3])
 {
 	// t is GPS system time at time of transmission
 	
@@ -312,7 +322,7 @@ bool GPS::satXYZ(GPS::EphemerisData *ed,double t,double *Ek,double x[3])
 	double e=ed->e;
 	
 	// as per the ICD 20.3.3.4.3.1, account for beginning/end of week crossovers
-	if ( (tk = t - ed->t_oe) > 302400) tk -= 604800;
+	if ( (tk = t - ed->t_0e) > 302400) tk -= 604800;
 	else if (tk < -302400) tk += 604800; // make (-302400 <= tk <= 302400)
 	
 	// solve Kepler's Equation for the Eccentric Anomaly by iteration
@@ -333,7 +343,7 @@ bool GPS::satXYZ(GPS::EphemerisData *ed,double t,double *Ek,double x[3])
 	double ik = ed->i_0 + ed->IDOT*tk + ed->C_ic*cos(2*phik) + ed->C_is*sin(2*phik);
 	double xkprime = rk*cos(uk);
 	double ykprime = rk*sin(uk);
-	double omegak = ed->OMEGA_0 + (ed->OMEGADOT - OMEGA_E_DOT)*tk - OMEGA_E_DOT*ed->t_oe;
+	double omegak = ed->OMEGA_0 + (ed->OMEGADOT - OMEGA_E_DOT)*tk - OMEGA_E_DOT*ed->t_0e;
 	
 	x[0] = xkprime*cos(omegak) - ykprime*cos(ik)*sin(omegak);
 	x[1] = xkprime*sin(omegak) + ykprime*cos(ik)*cos(omegak);
@@ -342,7 +352,7 @@ bool GPS::satXYZ(GPS::EphemerisData *ed,double t,double *Ek,double x[3])
 	return true;
 }
 
-double GPS::sattime(GPS::EphemerisData *ed,double Ek,double tsv,double toc)
+double GPS::sattime(GPSEphemeris *ed,double Ek,double tsv,double toc)
 {
 	// SV clock correction as per ICD 20.3.3.3.3.1
 	double trel= F*ed->e*ed->sqrtA*sin(Ek);
@@ -402,8 +412,41 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 } // ionnodelay
 
+double GPS::measIonoDelay(unsigned int code1,unsigned int code2,double tpr1,double tpr2,double calDelay1,double calDelay2,GPSEphemeris *ed)
+{
+	// code1 is assumed to be the higher frequency
+	// This returns the measured ionospheric delay for the higher of the two frequencies as per the CGGTTS V2E specification
+	// For GPS, this will typically be the L1 frequency
+	// Pseudoranges must be in seconds
+	
+	double f1,f2,GD=0.0;
+	
+    // FIXME GD is zero when the signal combination matches the broadcast clock ..
+    GD=ed->t_GD;
+	
+	
+	switch (code1){
+		case GNSSSystem::C1C: case GNSSSystem::C1P:
+			f1 = 77.0;
+			break;
+		default:
+			break;
+	}
+	
+	switch (code2){
+		case GNSSSystem::C2P: case GNSSSystem::C2C:
+			f2 = 60.0;
+			break;
+		default:
+			break;
+	}
+    
+	return (1.0 - f1*f1/(f1*f1 - f2*f2))*((tpr1-calDelay1) - (tpr2-calDelay2)) - GD; 
+}
+
+
 bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
-	EphemerisData *ed,int signal,
+	GPSEphemeris *ed,int signal,
 	double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 	double *azimuth,double *elevation,int *ioe){
 	
@@ -413,10 +456,10 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 	// ICD 20.3.3.3.3.2
 	double freqCorr=1.0; 
 	switch (signal){
-		case GNSSSystem::C1: case GNSSSystem::P1:
+		case GNSSSystem::C1C: case GNSSSystem::C1P:
 			freqCorr=1.0;
 			break;
-		case GNSSSystem::P2:
+		case GNSSSystem::C2P: case GNSSSystem::C2C:
 			freqCorr=77.0*77.0/(60.0*60.0);
 			break;
 		default:
@@ -520,38 +563,49 @@ void GPS::UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 // Convert GPS time to UTC time
 // 
 
-// FIXME Make reference time an explicit parameter ?
+// FIXME there is an assumption here that the time is AFTER refTime
+// 
 void GPS::GPStoUTC(unsigned int tow, unsigned int truncatedWN, unsigned int nLeapSeconds,
-	struct tm *tmUTC)
+	struct tm *tmUTC,long refTime)
 {
-	// Now fix the truncated week number.
-	// We'll require that it be later than
-	// 2016-01-01 00:00:00 UTC == 1451606400 Unix time
-	// which means it will bomb after I retire, and will then be Somebody Else's Problem
+	
 	if (truncatedWN > 1023){
-		cerr << "GPS::GPStoUTC() truncated WN > 1023" << endl;
+		std::cerr << "GPS::GPStoUTC() truncated WN > 1023" << std::endl;
 		exit(EXIT_FAILURE);
 	}
-	time_t tUTC = 315964800 + tow + (truncatedWN+1024)*7*86400 - nLeapSeconds; // there's been one rollover, so add it
+	time_t tUTC = 315964800 + tow + truncatedWN*7*86400 - nLeapSeconds; 
 	
+	// Now fix the truncated week number.
 	// tUTC - ref time must be greater than zero
-	// If not, add another rollover
-	if (tUTC-1451606400 < 0)
-		tUTC += 1024*7*86400;
+	// If not, add rollovers
+	int nRollovers = 0;
+	while (tUTC - refTime < 0){
+	  tUTC += 1024*7*86400;
+	  nRollovers++;
+	}
 	
 	gmtime_r(&tUTC,tmUTC);
 }
 
- time_t GPS::GPStoUnix(unsigned int tow, unsigned int truncatedWN){
+// This doesn't do what it says
+// In particular, leap seconds are not taken into account
+// Used to provide a monotonic timescale for tracking loss of carrier lock 
+// but this could simply be done with untruncated WN and TOW ...
+
+// FIXME there is an assumption here that the time is AFTER refTime
+//
+
+ time_t GPS::GPStoUnix(unsigned int tow, unsigned int truncatedWN,long refTime){
 	 
 	// See above ...
 	if (truncatedWN > 1023){
-		cerr << "GPS::GPStoUnix() truncated WN > 1023" << endl;
+		std::cerr << "GPS::GPStoUnix() truncated WN > 1023: " << truncatedWN << std::endl;
 		exit(EXIT_FAILURE);
 	}
-	time_t tGPS = 315964800 + tow + (truncatedWN+1024)*7*86400;
-	if (tGPS-1451606400 < 0)
-		tGPS += 1024*7*86400;
+	time_t tGPS = 315964800 + tow + truncatedWN*7*86400;
+	while (tGPS - refTime < 0){
+	  tGPS += 1024*7*86400;
+	}
 	return tGPS;
 }
 

@@ -49,20 +49,22 @@
 #include "SVMeasurement.h"
 #include "TrimbleResolution.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 extern Application *app;
 
 #define SLOPPINESS 0.99
 #define CLOCKSTEP  0.001
+#define MAX_GAP    3   // maximum permissible gap in observation sequence before ambiguity resolution is triggered
+
 #define MAX_CHANNELS 12 // max channels per constellation
 
 
 // reverse string by twos
-string 
+std::string 
 reversestr (
-	string instring)
+	std::string instring)
 {
-	string outstr;
+	std::string outstr;
 	int len=instring.size();
 
 	for (int i=0;i<len;i+=2){
@@ -77,7 +79,7 @@ reversestr (
 //	public
 //		
 
-TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
+TrimbleResolution::TrimbleResolution(Antenna *ant,std::string m):Receiver(ant)
 {
 	modelName = m;
 	if (modelName=="Resolution T"){
@@ -93,14 +95,15 @@ TrimbleResolution::TrimbleResolution(Antenna *ant,string m):Receiver(ant)
 		channels=32;
 	}
 	else{
-		cerr << "Unknown receiver model: " << modelName << endl;
-		cerr << "Assuming Resolution SMT 360 " << endl;
+		std::cerr << "Unknown receiver model: " << modelName << std::endl;
+		std::cerr << "Assuming Resolution SMT 360 " << std::endl;
 		model=Resolution360;
 	}
 	manufacturer="Trimble";
 	swversion="0.1";
 	constellations=GNSSSystem::GPS;
-	codes=GNSSSystem::C1;
+	gps.codes = GNSSSystem::C1C;
+	codes=gps.codes;
 	// Since we only have 2 systems with old firmware which report the sawtooth
 	// correction in units of seconds
 	// we'll make new firmware the default
@@ -111,7 +114,19 @@ TrimbleResolution::~TrimbleResolution()
 {
 }
 
-bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
+void TrimbleResolution::addConstellation(int constellation)
+{
+	constellations |= constellation;
+	switch (constellation)
+	{
+		case GNSSSystem::GPS:
+			gps.codes = GNSSSystem::C1C;
+			codes |= gps.codes;
+			break;
+	}
+}
+
+bool TrimbleResolution::readLog(std::string fname,int mjd,int startTime,int stopTime,int rinexObsInterval)
 {
 	DBGMSG(debugStream,1,"reading " << fname);	
 	struct stat statbuf;
@@ -121,15 +136,15 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 		return false;
 	}
 	
-	ifstream infile (fname.c_str());
-	string line;
+	std::ifstream infile (fname.c_str());
+	std::string line;
 	int linecount=0;
 	bool useData=true;
 	bool got8FAC=false;
 	bool gotrxid=false;
 	bool gotSWVersion=false;
 	
-	string msgid,currpctime,pctime,msg,gpstime;
+	std::string msgid,currpctime,pctime,msg,gpstime;
 	
 	unsigned int gpstow;
 	UINT16 gpswn;
@@ -137,9 +152,9 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	float sawtooth;     // single
 	unsigned char cbuf;
 	
-	vector<SVMeasurement *> gpsmeas;
-	gotIonoData = false;
-	gotUTCdata=false;
+	std::vector<SVMeasurement *> gpsmeas;
+	gps.gotIonoData = false;
+	gps.gotUTCdata=false;
 	UINT8 fabss,fabmm,fabhh,fabmday,fabmon;
 	UINT16 fabyyyy;
 	
@@ -149,7 +164,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	{
 		case ResolutionT:
 			yearOffset=1900;
-			if (version == "old") sawtoothMultiplier = 1.0;
+			if (version() == "old") sawtoothMultiplier = 1.0;
 			break;
 		case ResolutionSMT:
 			yearOffset=2000;
@@ -170,7 +185,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 			// Format is 
 			// message_id time_stamp message
 			
-			stringstream sstr(line);
+			std::stringstream sstr(line);
 			sstr >> msgid >> currpctime >> msg;
 			if (sstr.fail()){
 				DBGMSG(debugStream,1," bad data at line " << linecount);
@@ -267,7 +282,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 					if (ichan == gpsmeas.size()){
 						float fbuf;
 						HexToBin((char *) reversestr(msg.substr(18+2,4*2)).c_str(),4,(unsigned char *) &fbuf);
-						gpsmeas.push_back(new SVMeasurement(cbuf,GNSSSystem::GPS,GNSSSystem::C1,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
+						gpsmeas.push_back(new SVMeasurement(cbuf,GNSSSystem::GPS,GNSSSystem::C1C,fbuf*61.0948*1.0E-9,NULL));// ReceiverMeasurement not known yet
 					}
 					else{
 						useData=false; 
@@ -302,7 +317,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 						HexToBin((char *) reversestr(msg.substr(1*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &snprefix);
 						HexToBin((char *) reversestr(msg.substr(3*2+2,2*sizeof(unsigned int))).c_str(),sizeof(unsigned int),(unsigned char *) &sn);
 						gotrxid=true;
-						stringstream ss;
+						std::stringstream ss;
 						ss << snprefix << "-" << sn;
 						serialNumber = ss.str();
 						DBGMSG(debugStream,1,"serial number " << serialNumber);
@@ -314,7 +329,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 				}
 			}
 			
-			if (!gotIonoData){
+			if (!gps.gotIonoData){
 				if(strncmp(msg.c_str(),"580204",6)==0){ // ionosphere
 					DBGMSG(debugStream,1,"ionosphere parameters");
 					if (msg.size()==45*2){
@@ -327,7 +342,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 						HexToBin((char *) reversestr(msg.substr(32*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.ionoData.B1));
 						HexToBin((char *) reversestr(msg.substr(36*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.ionoData.B2));
 						HexToBin((char *) reversestr(msg.substr(40*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.ionoData.B3));
-						gotIonoData=true;
+						gps.gotIonoData=true;
 						DBGMSG(debugStream,1,"ionosphere parameters: a0=" << gps.ionoData.a0);
 						continue;
 					}
@@ -337,20 +352,20 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 				}
 			}
 			
-			if (!gotUTCdata){
+			if (!gps.gotUTCdata){
 				if(strncmp(msg.c_str(),"580205",6)==0){ // UTC
 					DBGMSG(debugStream,1,"UTC parameters");
 					if (msg.size()==44*2){
 							HexToBin((char *) reversestr(msg.substr(17*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE),(unsigned char *) &(gps.UTCdata.A0));
 							HexToBin((char *) reversestr(msg.substr(25*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.UTCdata.A1));
-							HexToBin((char *) reversestr(msg.substr(29*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &(gps.UTCdata.dtlS));
+							HexToBin((char *) reversestr(msg.substr(29*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &(gps.UTCdata.dt_LS));
 							HexToBin((char *) reversestr(msg.substr(31*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE),(unsigned char *) &(gps.UTCdata.t_ot));
 							HexToBin((char *) reversestr(msg.substr(35*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &(gps.UTCdata.WN_t));
 							HexToBin((char *) reversestr(msg.substr(37*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &(gps.UTCdata.WN_LSF));
 							HexToBin((char *) reversestr(msg.substr(39*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16),(unsigned char *) &(gps.UTCdata.DN));
 							HexToBin((char *) reversestr(msg.substr(41*2+2,2*sizeof(SINT16))).c_str(),sizeof(SINT16),(unsigned char *) &(gps.UTCdata.dt_LSF));
-							DBGMSG(debugStream,1,"UTC parameters: dtLS=" << gps.UTCdata.dtlS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
-							gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
+							DBGMSG(debugStream,1,"UTC parameters: dt_LS=" << gps.UTCdata.dt_LS << ",dt_LSF=" << gps.UTCdata.dt_LSF);
+							gps.gotUTCdata = gps.currentLeapSeconds(mjd,&leapsecs);
 							continue;
 					}
 					else{
@@ -381,7 +396,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 					coreday=cbuf;
 					HexToBin((char *) msg.substr(18+2,2).c_str(),1,&cbuf);
 					coreyear=cbuf+yearOffset;
-					stringstream ss;
+					std::stringstream ss;
 					ss << appvermajor << "." << appverminor;
 					ss << " " << appyear << "-" << appmonth << "-" << appday;
 					version2=ss.str();
@@ -397,7 +412,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 			
 			if(strncmp(msg.c_str(),"580206",6)==0){ // ephemeris
 				if (msg.size()==172*2){
-					GPS::EphemerisData *ed = new GPS::EphemerisData;
+					GPSEphemeris *ed = new GPSEphemeris;
 					HexToBin((char *) reversestr(msg.substr(4*2+2,2*sizeof(UINT8))).c_str(), sizeof(UINT8),  (unsigned char *) &(ed->SVN));
 					HexToBin((char *) reversestr(msg.substr(5*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->t_ephem));
 					HexToBin((char *) reversestr(msg.substr(9*2+2,2*sizeof(UINT16))).c_str(),sizeof(UINT16), (unsigned char *) &(ed->week_number));
@@ -418,7 +433,7 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 					HexToBin((char *) reversestr(msg.substr(63*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->e));
 					HexToBin((char *) reversestr(msg.substr(71*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->C_us));
 					HexToBin((char *) reversestr(msg.substr(75*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->sqrtA));
-					HexToBin((char *) reversestr(msg.substr(83*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->t_oe));
+					HexToBin((char *) reversestr(msg.substr(83*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->t_0e));
 					HexToBin((char *) reversestr(msg.substr(87*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->C_ic));
 					HexToBin((char *) reversestr(msg.substr(91*2+2,2*sizeof(DOUBLE))).c_str(),sizeof(DOUBLE), (unsigned char *) &(ed->OMEGA_0));
 					HexToBin((char *) reversestr(msg.substr(99*2+2,2*sizeof(SINGLE))).c_str(),sizeof(SINGLE), (unsigned char *) &(ed->C_is));
@@ -454,22 +469,23 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	}
 	infile.close();
 	
-	if (!gotIonoData){
+	if (!gps.gotIonoData){
 		app->logMessage("failed to find ionosphere parameters - no 580204 messages");
 		return false;
 	}
 	
-	if (!gotUTCdata){
+	if (!gps.gotUTCdata){
 		app->logMessage("failed to find UTC parameters - no 580205 messages");
 		return false;
 	}
 	
 	gps.fixWeekRollovers();
+	gps.setAbsT0c(mjd); // precompute stuff for ephemeris output
 	
-	for (int svn=1;svn<=gps.nsats();svn++){
+	for (int svn=1;svn<=gps.maxSVN();svn++){
 		//cout << "SVN" << svn << endl;
 		for (unsigned int e=0;e<gps.sortedEphemeris[svn].size();e++){
-			GPS::EphemerisData *ed = gps.sortedEphemeris[svn].at(e);
+			GPSEphemeris *ed = dynamic_cast<GPSEphemeris *>(gps.sortedEphemeris[svn].at(e));
 			//cout << svn << " " << ed->t_oe << " " << ed->t_OC << " " << (int) ed->IODE << " " <<  (int) ed->tLogged << endl;
 		}
 	}
@@ -490,46 +506,75 @@ bool TrimbleResolution::readLog(string fname,int mjd,int startTime,int stopTime,
 	// Fix 1 ms ambiguities/steps in the pseudo range
 	// Do this initially and then every time a step is detected
 	
-	DBGMSG(debugStream,1,"Fixing ms ambiguities");
-	for (int svn=1;svn<=gps.nsats();svn++){
-		unsigned int lasttow=99999999,currtow=99999999;
-		double lastmeas,currmeas;
-		double corr=0.0;
-		bool first=true;
-		bool ok=false;
-		for (unsigned int i=0;i<measurements.size();i++){
-			for (unsigned int m=0;m < measurements[i]->meas.size();m++){
-				if (svn==measurements[i]->meas[m]->svn){
-					lasttow=currtow;
-					lastmeas=currmeas;
-					currmeas=measurements[i]->meas[m]->meas;
-					currtow=measurements[i]->gpstow;
-					
-					DBGMSG(debugStream,4,svn << " " << currtow << " " << currmeas << " ");
-					if (first){
-						first=false;
-						ok = gps.resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-					}
-					else if (currtow > lasttow){ // FIXME better test of gaps
-						if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
-							DBGMSG(debugStream,3,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-							ok = gps.resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+	DBGMSG(debugStream,TRACE,"Fixing ms ambiguities");
+	int nDropped;
+	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
+		if (!(g & constellations)) continue;
+		GNSSSystem *gnss;
+		switch (g){
+			case GNSSSystem::BEIDOU:gnss=&beidou;break;
+			case GNSSSystem::GALILEO:gnss=&galileo;break;
+			case GNSSSystem::GLONASS:gnss=&glonass;break;
+			case GNSSSystem::GPS:gnss=&gps;break;
+			default:break;
+		}
+		for (int svn=1;svn<=gnss->maxSVN();svn++){
+			unsigned int lasttow=99999999,currtow=99999999;
+			double lastmeas=0,currmeas;
+			double corr=0.0;
+			bool first=true;
+			bool ok=false;
+			for (unsigned int i=0;i<measurements.size();i++){
+				unsigned int m=0;
+				while (m < measurements[i]->meas.size()){
+					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1C)){
+						lasttow=currtow;
+						lastmeas=currmeas;
+						currmeas=measurements[i]->meas[m]->meas;
+						currtow=measurements[i]->gpstow;
+						
+						DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
+						if (first){
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							if (ok){
+								first=false;
+							}
 						}
+						else if (currtow - lasttow > MAX_GAP){
+							DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+						}
+						else if (currtow > lasttow){
+							if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
+								DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+							}
+						}
+						if (ok){ 
+							measurements[i]->meas[m]->meas += corr;
+							m++;
+						}
+						else{ // ambiguity correction failed, so drop the measurement
+							nDropped++;
+							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
+						}
+						break;
 					}
-					if (ok) measurements[i]->meas[m]->meas += corr;
-					break;
-				}
-				
-			}
+					else
+						m++;
+					
+				} // 
+			} // for (unsigned int i=0;i<measurements.size();i++){
 		}
 	}
 
 	interpolateMeasurements();
 	
-	ostringstream ss;
-	ss << measurements.size() << " receiver measurements read";
-	app->logMessage(ss.str());
-	DBGMSG(debugStream,1,gps.ephemeris.size() << " GPS ephemeris entries read");
+	DBGMSG(debugStream,INFO,"done: read " << linecount << " lines");
+	DBGMSG(debugStream,INFO,measurements.size() << " measurements read");
+	DBGMSG(debugStream,INFO,gps.ephemeris.size() << " GPS ephemeris entries read");
+	DBGMSG(debugStream,INFO,"dropped " << nDropped << " SV measurements (ms ambiguity failure)"); 
+	
 	
 	return true;
 }

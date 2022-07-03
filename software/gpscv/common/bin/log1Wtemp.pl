@@ -13,7 +13,7 @@ use strict;
 # Version 1.0 finalised:  2016-12-21
 #
 # Version 1.1 start date: 2017-07-19 (Louis Marais)
-# Version 1.1 finalised:  2017-??-??
+# Version 1.1 finalised:  2017-07-22
 # ~~~~~~~~~~~~~~~~~~~~ Why am I changing it? ~~~~~~~~~~~~~~~~~~~~~~
 # OpenTTP hardware specification finalised. Only one 1W temperature
 # sensor is installed, a surface mount unit, mounted underneath the
@@ -27,7 +27,14 @@ use strict;
 #    directory is a temporary directory for files that are 
 #    frequently written, located in RAM (tmpfs).
 #
-# Last modification date: 2016-12-21
+# Version 1.2 start date: 2020-06-18 (Louis Marais)
+# Version 1.2 finalised:  2020-06-18
+# ~~~~~~~~~~~~~~~~~~~~~~~ Changes made ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 1. The software blocks while waiting for a reading, which can
+#    hold up the system. It is also a pain during testing. I just
+#    built a second testbed based on the Raspberry Pi and I've had
+#    enough of waiting for this script. Turned out I had to check
+#    if $killed became True in the waiting loop - simple fix.
 #
 
 # Libraries, etc. to use
@@ -42,7 +49,7 @@ my ($nowstr,%Init,$temp,$logPath,$then,$lockFile,$statusFile,@info,$msg,$sec);
 my ($GPSDO,@dirs,$dir,$sn,$gpsdo_temp);
 
 $AUTHORS = "Louis Marais";
-$VERSION = "1.1";
+$VERSION = "1.2";
 
 # Default debug state is OFF
 $DEBUG = 0;
@@ -168,7 +175,7 @@ $SIG{INT} = sub {$killed=1};
 
 # Get a list of sensors registered on the system
 opendir(DIR,"/sys/devices/w1_bus_master1/");
-@dirs = grep(/^28-00000/,readdir(DIR));
+@dirs = grep(/^28-0/,readdir(DIR));
 closedir(DIR);
 
 while (!$killed)
@@ -178,11 +185,11 @@ while (!$killed)
   foreach $dir(@dirs)
   {
     $sn = "";
-    if ($dir =~ /^28-00000(.......)/) { $sn = $1; }
+    if ($dir =~ /^28-(............)/) { $sn = $1; }
     $temp = `cat /sys/devices/w1_bus_master1/$dir/w1_slave`;
     if ($temp =~ /crc=.. YES/)
     {
-      if ($temp =~ /t=(\d\d\d\d\d)/) { $temp = $1/1000; }
+      if ($temp =~ /t=(\d*)/) { $temp = $1/1000; }
     } else { $temp = -99.999; }
 
     if ($sn eq $GPSDO) 
@@ -224,7 +231,8 @@ while (!$killed)
   {
     @_=gmtime time();
     $sec = $_[0];
-    sleep(1);
+    select(undef,undef,undef,0.1);
+    if($killed){ last; }
   }
 }
 

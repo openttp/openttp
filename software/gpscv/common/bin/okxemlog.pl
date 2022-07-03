@@ -34,7 +34,9 @@
 #                Added code around $SIG{INT} to exit gracefully when terminating with Ctrl-C.
 #                Fixed typos - $lockFile was $lockfile in several locations.
 # 2017-12-11 MJW Fallback to logPath if lockStatusCheck doesn't exist
-#
+# 2019-03-29 MJW Problem with truncation of timestamp. time() returns a truncated time
+#                so there are problems if a timestamp is collected close to the second rollover.
+#                Version changed to 0.1.3
 
 use POSIX;
 use Errno;
@@ -44,8 +46,10 @@ use TFLibrary;
 
 use vars qw($opt_c $opt_d $opt_h $opt_v);
 
-$VERSION="0.1.2";
+$VERSION="0.1.3";
 $AUTHOR="Michael Wouters";
+
+$OKCOUNTERD_POLL_INTERVAL = 10000; # in microseconds
 
 $alarmTimeout = 120; # SIGAARLM timout 
 
@@ -156,8 +160,6 @@ while (1)
 	# Get MJD and time
 	$tt=time();
 	$mjd=int($tt / 86400)+40587;
-	($sec,$min,$hour)=gmtime($tt);
-
 	# Check for new day and create new filename if necessary
 	if ($mjd!=$oldmjd) {
 		$oldmjd=$mjd;
@@ -190,15 +192,22 @@ while (1)
 	@dfields = split ' ',$msg;
 	if ($#dfields == 3){
 		if ($chan == $dfields[0]){
+			# Use the timestamp from okcounterd
+			$oktvs = $dfields[1];
+			$oktvus = $dfields[2];
+			
+			($sec,$min,$hour)=gmtime($oktvs + int(($oktvus + $OKCOUNTERD_POLL_INTERVAL)/1000000));
 			$time=sprintf("%02d:%02d:%02d",$hour,$min,$sec);
 			$data = $dfields[3];
 			if ($data > 5.0E8) {$data-=1.0E9;}
 			if (open OUT,">>$file_out"){
 				print OUT $time,"  ",$data*1.0E-9,"\n";
+				# print OUT $time,"  ",$data*1.0E-9," ",$oktvus,"\n";
 				close OUT;
 			}
 			if (open $statusFile,">$statusFileName"){
 				print $statusFile $time,"  ",$data*1.0E-9,"\n";
+				# print $statusFile $time,"  ",$data*1.0E-9," ",$oktvus,"\n";
 				close $statusFile;
 			}
 		}

@@ -30,23 +30,36 @@
 
 #include "Receiver.h"
 
-using namespace std;
+#define UBLOX_NE08MT 1
+#define UBLOX_ZEDF9P 2
+#define UBLOX_ZEDF9T 3
 
 class Ublox:public Receiver
 {
 	public:
 		
-		Ublox(Antenna *,string);
+		Ublox(Antenna *,std::string);
 		virtual ~Ublox();
 	
-		virtual bool readLog(string,int,int,int,int);
+		virtual bool readLog(std::string,int,int,int,int);
+		
+		virtual void addConstellation(int);
 		
 	protected:
 	
 	private:
-	
-		GPS::EphemerisData *decodeGPSEphemeris(string);
 		
+		bool checkGalIODNav(GalEphemeris *,int);
+		
+		GPSEphemeris *readGPSEphemeris(std::string);
+		void readGALEphemerisINAVSubframe(int,int,unsigned char *ubuf);
+		void readGPSEphemerisLNAVSubframe(int,unsigned char *ubuf,int,int);
+		
+		GPSEphemeris *gpsEph[32+1]; // FIXME NSATS should be used
+		GalEphemeris *galEph[36+1];
+		
+		// debugging stuff
+		int alertPagesCnt;
 };
 
 #endif

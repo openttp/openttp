@@ -21,6 +21,13 @@
 \usepackage{subcaption}
 \usepackage{hyperref} % wants to be last
 
+\lstset{
+  basicstyle=\ttfamily,
+  columns=fullflexible,
+  breaklines=true,
+  postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space},
+}
+
 \hypersetup{
   colorlinks   = true, % Colours links instead of ugly boxes
   urlcolor     = blue, % Colour for external hyperlinks
@@ -107,6 +114,10 @@ Version 1.0
 
 \begin{center}
 Copyright 2016 E. Louis Marais, Michael Wouters
+\end{center}
+
+\begin{center}
+Generated \today
 \end{center}
 
 \end{titlepage}

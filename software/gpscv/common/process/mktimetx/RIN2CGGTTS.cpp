@@ -29,13 +29,13 @@
 #include "RIN2CGGTTS.h"
 #include "Utility.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 
-bool RIN2CGGTTS::read(string paramsFile)
+bool RIN2CGGTTS::read(std::string paramsFile)
 {
 	DBGMSG(debugStream,1,"reading" << paramsFile);
-	ifstream fin(paramsFile.c_str());
-	string line;
+	std::ifstream fin(paramsFile.c_str());
+	std::string line;
 	
 	if (!fin.good()){
 		DBGMSG(debugStream,1,"unable to open" << paramsFile);
@@ -71,11 +71,11 @@ bool RIN2CGGTTS::read(string paramsFile)
 	return ok;
 }
 
-bool RIN2CGGTTS::getParam(ifstream &fin,string &currParam,string param,string &val)
+bool RIN2CGGTTS::getParam(std::ifstream &fin,std::string &currParam,std::string param,std::string &val)
 {
 	if (currParam == param)
 	{
-		string line;
+		std::string line;
 		if (fin.good()){
 			getline(fin,line);
 			Utility::trim(line);
@@ -90,16 +90,16 @@ bool RIN2CGGTTS::getParam(ifstream &fin,string &currParam,string param,string &v
 	return true;
 }
 
-bool RIN2CGGTTS::getParam(ifstream &fin,string &currParam,string param,double *val)
+bool RIN2CGGTTS::getParam(std::ifstream &fin,std::string &currParam,std::string param,double *val)
 {
 	if (currParam==param)
 	{
-		string line;
+		std::string line;
 		if (fin.good()){
 			getline(fin,line);
-			stringstream ss(line);
+			std::stringstream ss(line);
 			ss >> *val;
-			DBGMSG(debugStream,3,currParam << " = " << fixed << *val);
+			DBGMSG(debugStream,3,currParam << " = " << std::fixed << *val);
 		}
 		else{
 			DBGMSG(debugStream,1,"Missing parameter for " << param);
@@ -109,14 +109,14 @@ bool RIN2CGGTTS::getParam(ifstream &fin,string &currParam,string param,double *v
 	return true;
 }
 
-bool RIN2CGGTTS::getParam(ifstream &fin,string &currParam,string param,int *val)
+bool RIN2CGGTTS::getParam(std::ifstream &fin,std::string &currParam,std::string param,int *val)
 {
 	if (currParam==param)
 	{
-		string line;
+		std::string line;
 		if (fin.good()){
 			getline(fin,line);
-			stringstream ss(line);
+			std::stringstream ss(line);
 			ss >> *val;
 			DBGMSG(debugStream,3,currParam << " = " << *val);
 		}
@@ -126,5 +126,5 @@ bool RIN2CGGTTS::getParam(ifstream &fin,string &currParam,string param,int *val)
 		}
 	}
 	return true;
-}extern ostream *debugStream;
+}
 

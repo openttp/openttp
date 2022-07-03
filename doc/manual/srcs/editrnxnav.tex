@@ -1,0 +1,22 @@
+\subsection{editrnxnav.py}
+
+\hypertarget{h:editrnxnav}{}
+
+\cc{editrnxnav.py} is used to edit RINEX navigation files. Currently, it doesn`t do much
+but it will eventually do much more. 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+cggttsqc.py [option] $\ldots$ file 
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-{}-help,-h]	print the help information and exit
+	\item[-{}-debug,-d]	print debugging information to stderr
+	\item[-{}-output \textless{value}\textgreater] output to file/directory
+  \item[-{}-replace, -r]         replace edited file
+  \item[-{}-ura, -u \textless{value}\textgreater]     remove entries with URA greater than this
+	\item[--version,-v] show the version information and exit
+\end{description*}
+

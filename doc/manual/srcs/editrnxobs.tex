@@ -1,0 +1,27 @@
+\subsection{editrnxobs.py}
+
+\hypertarget{h:editrnxobs}{}
+
+\cc{editrnxobs.py} is used to edit RINEX observation files. 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+editrnxobs.py [option] $\ldots$ file [file $\ldots$] 
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-{}-help, -h]            print the help information and exit
+  \item[-{}-debug, -d]           print debugging information to stderr
+  \item[-{}-output,-o \textless{file}\textgreater]  output to file/directory
+  \item[-{}-keep, -k]            keep intermediate files
+  \item[-{}-replace, -r]         replace edited file
+  \item[-{}-system \textless{system}\textgreater ]      gnss system (BeiDou,Galileo,GPS,GLONASS)
+  \item[-{}-obstype \textless{obstype}\textgreater]     observation type (C2I,L2I,...)
+  \item[-{}-fixms ]              fix ms ambiguities (ref RINEX file required)
+  \item[-{}-fixmissing ]         add observations missing at the beginning of the day
+  \item[-{}-sequence, -s ]       interpret input files as a sequence
+  \item[-{}-refrinex \textless{file}\textgreater ]  reference RINEX file for fixing ms ambiguities (name of first file if multiple input files are specified)
+  \item[-{}-version, -v ]        show the version information and exit
+\end{description*}
+

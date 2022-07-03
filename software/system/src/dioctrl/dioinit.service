@@ -1,0 +1,9 @@
+[Unit]
+Description=Initialise the DIO port to ensure USB devices power up
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/dioctrl 0x00
+
+[Install]
+WantedBy=multi-user.target

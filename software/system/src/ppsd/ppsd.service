@@ -2,6 +2,7 @@
 Description=OpenTTP pps daemon
 ConditionPathExists=/usr/local/etc/ppsd.conf
 ConditionPathExists=/usr/local/etc/sysinfo.conf
+After=dioinit.service ntpd-nmi.service
 
 [Service]
 Type=forking

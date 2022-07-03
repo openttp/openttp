@@ -27,4 +27,23 @@
 
 $Makefile='Makefile.parport';
 
+$arch = `uname -m`;
+chomp $arch;
+
+if ($arch =~ /arm/){
+	$Makefile = 'Makefile.arm';
+}
+else{ # parport or SIO8186x on x86/i386	
+        $mobo = `lspci | grep 'Host bridge'`;	
+	if ($mobo =~ /Intel Corporation Mobile 945GME/){
+		$Makefile='Makefile.parport';
+	}
+	elsif ($mobo =~ /Intel Corporation Atom Processor D4xx\/D5xx\/N4xx\/N5xx/){
+		$Makefile='Makefile.sio8186x';
+	}
+	elsif ($mobo =~ /Intel Corporation Atom Processor Z36xxx\/Z37xxx Series SoC Transaction Register/){
+		$Makefile='Makefile.sio8186x';
+	}
+}
+
 `cp $Makefile Makefile`;

@@ -1,0 +1,30 @@
+\subsection{editcggtts.py}
+
+\hypertarget{h:editcggtts}{}
+
+\cc{editcggtts.py} is used to edit CGGTTS navigation files. 
+The header checksum and the modification time are updated after editing, 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+editcggtts.py [option] $\ldots$ filename [filename $\ldots$]
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-{}-help,-h]	print the help information and exit
+	\item[-{}-debug,-d]	print debugging information to stderr
+	\item[-{}-comments \textless{value}\textgreater] set comment
+  \item[-{}-output,-o \textless{value}\textgreater] output to file/directory 
+  \item[-{}-tmp]    output is to file(s) with .tmp added to name
+  \item[-{}-replace, -r]  replace the edited file(s)
+  \item[-{}-nosequence]  do not interpret (two) input file names as a sequence
+  \item[-{}-nowarn]  suppress warnings
+	\item[--version,-v] show the version information and exit
+\end{description*}
+
+The \cc{--output}, \cc{--tmp} and \cc{--replace} options are mutually exclusive. 
+If none of these options are used, output will be to \cc{stdout}.
+
+If two filenames are given without the \cc{--nosequence} option, they will be
+interpreted as specifying a sequence of files to be processed.

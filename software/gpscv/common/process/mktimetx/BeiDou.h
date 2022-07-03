@@ -47,7 +47,7 @@ typedef unsigned int UINT32;
 class BeiDou: public GNSSSystem
 {
 	private:
-		static const int NSATS=35;
+		static const int NSATS=37;
 		
 	public:
 	
@@ -107,9 +107,10 @@ class BeiDou: public GNSSSystem
 	BeiDou();
 	~BeiDou();
 	
+	virtual double codeToFreq(int);
 	
 	
-	virtual int nsats(){return NSATS;}
+	virtual int maxSVN(){return NSATS;}
 	virtual void deleteEphemeris();
 	
 	virtual bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
@@ -123,7 +124,7 @@ class BeiDou: public GNSSSystem
 		
 	bool currentLeapSeconds(int mjd,int *leapsecs);
 	
-	
+	time_t L1lastunlock[NSATS+1]; // used for tracking loss of carrier-phase lock
 };
 
 #endif

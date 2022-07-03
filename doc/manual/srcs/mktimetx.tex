@@ -13,23 +13,22 @@ is applied ie the raw code measurements are reported with respect to the externa
 \subsection{usage}
 
 When run with no arguments, \cc{mktimetx} uses the default GPSCV processing configuration file 
-\cc{/home/cvgps/etc/gpscv.conf} and processes data from the preceding day.
+\cc{\string~/gpscv.conf} and processes data from the preceding day.
 
 The command line options are
 \begin{description*}
-	\item[-{}-configuration \textless file\textgreater] specify the configuration file
-	\item[-{}-counterpath \textless path\textgreater]	specify the path to the counter/timer measurements
-	\item[-{}-comment \textless string\textgreater] comment for the CGGTTS file	
-	\item[-{}-debug \textless file\textgreater]	turn on debugging to \cc{file}. To debug to \cc{stderr}, just use `stderr'.
+	\item[-{}-configuration \textless{file}\textgreater] specify the configuration file
+	\item[-{}-debug \textless{file}\textgreater]	turn on debugging to \cc{file}. To debug to \cc{stderr}, just use `stderr'.
 	\item[-{}-disable-tic] disable the use of sawtooth-corrected counter/timer measurements 
 	\item[-{}-help] show help
-	\item[-m \textless MJD\textgreater] specify the mjd
-	\item[-{}-no-navigation] disable output of a RINEX navigation file
-	\item[-{}-receiver-path \textless path\textgreater] specify the path to the GNSS raw data
+	\item[-m \textless{MJD}\textgreater] specify the mjd
+	\item[-{}-start \textless{hh:hh:ss/hhmmss}\textgreater]  set the start time
+	\item[-{}-stop  \textless{hh:hh:ss/hhmmss}\textgreater]  set the stop time
 	\item[-{}-short-debug-message] print out shorter debugging messages
 	\item[-{}-sv-diagnostics] save raw measurements for each SV in a file. Each SV is in a separate file.
 	\item[-{}-timing-diagnostics] save timing diagnostics in a file
-	\item[-{}-verbosity \textless 1-4\textgreater] set the debugging verbosity
+	\item[-{}-verbosity \textless{n}\textgreater] set the level of debugging verbosity. 
+		Valid values are 1 to 4. A verbosity of 4 will create a file several  hundred MB in size.
 	\item[-{}-version] print version information	and exit
 \end{description*}
 Example:

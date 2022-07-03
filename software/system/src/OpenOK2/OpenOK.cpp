@@ -1175,15 +1175,18 @@ ErrorCode
 OpenOK::ErrorCode OpenOK::Get_OK_Devices( bool countEnable, int &deviceCount )
 {
     unsigned char countOK_Devices = 0;
+		
+		deviceCount = 0;
+		
+		// Removed this, because as the compiler warns, the pointer cannot be NULL
+    //if ( &deviceCount != NULL ) {
+    //    deviceCount = 0;
+   // } else {
+    //    PrintStdError( "Get_OK_Devices()",
+    //                   "pointer 'deviceCount' is NULL" );
 
-    if ( &deviceCount != NULL ) {
-        deviceCount = 0;
-    } else {
-        PrintStdError( "Get_OK_Devices()",
-                       "pointer 'deviceCount' is NULL" );
-
-        return PointerNULL;
-    }
+    //    return PointerNULL;
+   // }
 
     if ( !m_libusbInitialization ) {
         return LibusbNotInitialization;

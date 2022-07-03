@@ -29,7 +29,7 @@ Antenna::Antenna()
 {
 	markerName="MNAME";
 	markerNumber="MNUM";
-	markerType="MTYPE";
+	markerType="NON_GEODETIC"; // required for V3 RINEX
 	antennaNumber="ANUM";
 	antennaType="ATYPE";
 	x=y=z=0.0;

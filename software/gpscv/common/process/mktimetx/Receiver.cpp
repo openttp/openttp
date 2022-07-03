@@ -32,7 +32,7 @@
 #include "Receiver.h"
 #include "ReceiverMeasurement.h"
 
-extern ostream *debugStream;
+extern std::ostream *debugStream;
 
 static double LagrangeInterpolation(double x,double x1, double y1,double x2,double y2,double x3,double y3){
 	return y1*(x-x2)*(x-x3)/((x1-x2)*(x1-x3)) + 
@@ -58,8 +58,10 @@ Receiver::Receiver(Antenna *ant)
 	ppsOffset=0;
 	commissionYYYY=1999;
 	dualFrequency=false;
-	codes=GNSSSystem::C1;
+	codes=GNSSSystem::C1C;
 	sawtoothPhase=CurrentSecond;
+	sawtooth=0.0;
+	leapsecs=0;
 }
 
 Receiver::~Receiver()
@@ -75,6 +77,16 @@ unsigned int Receiver::memoryUsage()
 	mem += measurements.size()*sizeof(ReceiverMeasurement *);
 	
 	return mem;
+}
+
+void Receiver::setVersion(std::string v)
+{
+	version_=v;
+}
+
+std::string Receiver::version()
+{
+	return version_;
 }
 
 //
@@ -105,34 +117,35 @@ void Receiver::interpolateMeasurements()
 	// FIXME This uses Lagrange interpolation to estimate the pseudorange at tmfracs=0
 	// Possibly, this method can be removed in the future
 	
-	DBGMSG(debugStream,1,"starting");
+	DBGMSG(debugStream,1,"starting " << constellations );
 	
-	vector<SVMeasurement *> track;
+	std::vector<SVMeasurement *> track;
 	
 	// For each SV, build up a list of all measurements for the day
 	// Loop over all constellation+signal combinations
 	
 	for (int g = GNSSSystem::GPS; g<= GNSSSystem::GALILEO; (g<<= 1)){ 
 		
+		
 		if (!(constellations & g)) continue;
 		
 		
 		GNSSSystem *gnss;
 		switch (g){
-			case GNSSSystem::BEIDOU:gnss = &beidou;
-			case GNSSSystem::GALILEO:gnss = &galileo ;
-			case GNSSSystem::GLONASS:gnss = &glonass ;
-			case GNSSSystem::GPS:gnss = &gps ;
+			case GNSSSystem::BEIDOU:gnss = &beidou;break;
+			case GNSSSystem::GALILEO:gnss = &galileo ;break;
+			case GNSSSystem::GLONASS:gnss = &glonass ;break;
+			case GNSSSystem::GPS:gnss = &gps ;break;
 		}
-		DBGMSG(debugStream,1,"GNSS system :" << gnss->name());
+		DBGMSG(debugStream,1,"processing " << gnss->name());
 		
-		for (int code = GNSSSystem::C1;code <=GNSSSystem::L2; (code <<= 1)){
+		for (unsigned int code = GNSSSystem::C1C;code <=GNSSSystem::L7I; (code <<= 1)){
 			
 			if (!(codes & code)) continue;
 			
 			DBGMSG(debugStream,1,"GNSS code " << code);
 			
-			for (int svn=1;svn<=gnss->nsats();svn++){ // loop over all svn for constellation+code combination
+			for (int svn=1;svn<=gnss->maxSVN();svn++){ // loop over all svn for constellation+code combination
 				
 				track.clear();
 				for (unsigned int m=0;m<measurements.size();m++){

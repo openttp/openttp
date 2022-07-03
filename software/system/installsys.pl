@@ -41,7 +41,7 @@ use vars qw($opt_h $opt_i $opt_l $opt_m $opt_t $opt_v);
 
 $0=~s#.*/##;	# strip path
 
-$VERSION = "version 0.1";
+$VERSION = "version 0.1.2";
 $ECHO=1;
 
 $UPSTART="upstart";
@@ -52,18 +52,31 @@ $SYSTEMD="systemd";
 @os =(
 	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel6",$UPSTART,"/usr/local/lib/site_perl"], 
 	["CentOS release 6","centos6",$UPSTART,"/usr/local/lib/site_perl"],
-	["CentOS Linux 7","centos7",$SYSTEMD,"/usr/local/lib64/perl5","/usr/local/lib/python2.7/site-packages"],
+	["CentOS Linux 7","centos7",$SYSTEMD,"/usr/local/lib64/perl5",
+		"/usr/local/lib/python2.7/site-packages","/usr/local/lib/python3.6/site-packages"],
 	["Ubuntu 14.04","ubuntu14",$UPSTART,
 		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
-        ["Ubuntu 16.04","ubuntu16",$UPSTART,
+	["Ubuntu 16.04","ubuntu16",$UPSTART,
 		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages"],
+	["Ubuntu 18.04","ubuntu18",$SYSTEMD,
+		"/usr/local/lib/site_perl","/usr/local/lib/python2.7/site-packages",
+		"/usr/local/lib/python3.6/site-packages"],
 	["BeagleBoard.org Debian","bbdebian8",$SYSTEMD,"/usr/local/lib/site_perl",
-		"/usr/local/lib/python2.7/site-packages",]
+		"/usr/local/lib/python2.7/site-packages"],
+	['Debian GNU/Linux 9 (stretch)',"bbdebian9",$SYSTEMD,"/usr/local/lib/site_perl",
+		"/usr/local/lib/python2.7/site-packages"],
+	['Raspbian GNU/Linux 9 (stretch)',"rpidebian9",$SYSTEMD,"/usr/local/lib/site_perl",
+		"/usr/local/lib/python2.7/site-packages"],
+
 	);
 
 @defaulttargets = ("libconfigurator","dioctrl","lcdmon","ppsd",
-	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib",
+	"sysmonitor","tflibrary","kickstart","gziplogs","misc","ottplib","cggttslib",
 	"okcounterd","okbitloader","udevrules","gpscvperllibs");
+
+@minimaltargets = ("libconfigurator","tflibrary","kickstart","gziplogs","misc","ottplib","cggttslib");
+	
+$hints="";
 
 if (!getopts('hi:lmtv') || $opt_h){
 	ShowHelp();	
@@ -74,7 +87,7 @@ if (!getopts('hi:lmtv') || $opt_h){
 if ($opt_l){
 	print "Available targets:\n";
 	foreach $target (@targets){
-		print "$target\n";
+		print "\t$target\n";
 	}
 	exit;
 }
@@ -84,12 +97,35 @@ if ($opt_v){
 	exit;
 }
 
+if ($opt_m){
+	@targets = @minimaltargets;
+	print "Minimal install:\n";
+	foreach $target (@targets){
+		print "\t$target\n";
+	}
+}
+
 if ($opt_i){
-	@targets = ($opt_i);
+	@targets = ();
+	foreach $target (@defaulttargets){
+		if ($target eq $opt_i){
+			@targets=($opt_i);
+			last;
+		}
+	}
+}
+
+if ($#targets==-1){
+	print "No valid installation targets!\n";
+	print "Available targets:\n";
+	foreach $target (@defaulttargets){
+		print "\t$target\n";
+	}
+	exit;
 }
 	
 if ($EFFECTIVE_USER_ID >0){
-	print "$0 must be run as superuser!\n";
+	print "$0 must be run as superuser! (EUID =$EFFECTIVE_USER_ID) \n";
 	exit;
 }
 
@@ -98,6 +134,7 @@ open (LOG,">./installsys.log");
 # Try for /etc/os-release first (systemd systems only)
 if ((-e "/etc/os-release")){
 	$thisos = `grep '^PRETTY_NAME' /etc/os-release | cut -f 2 -d "="`;
+	chomp $thisos;
 	$thisos =~ s/\"//g;
 }
 else{
@@ -108,15 +145,17 @@ else{
 Log("\n/etc/issue: $thisos\n");
 
 for ($i=0;$i<=$#os;$i++){
-	last if ($thisos =~/$os[$i][0]/);
+	last if ($thisos =~ /\Q$os[$i][0]\E/);
 }
 
-if ($i <= $#os){
+$osindex = $i;
+
+if ($osindex <= $#os){
 	Log("Detected $os[$i][0]\n",$ECHO);
 }
 
 $osid="linux";
-if ($i > $#os){
+if ($osindex > $#os){
 	Log("This does not appear to be a supported operating system\n",$ECHO);
 	print "\nThe supported operating systems are:\n";
 	for ($i=0;$i<=$#os;$i++){
@@ -127,15 +166,22 @@ if ($i > $#os){
 	}
 }
 else{
-	$osid = $os[$i][1];
+	$osid = $os[$osindex][1];
 }
 
-$initsys = $os[$i][2];
+$initsys = $os[$osindex][2];
+
+$arch = `uname -m`;
+chomp $arch;
 
 # Low-level stuff first
 
 if (!(-e '/usr/local/lib/bitfiles')){
 	`mkdir /usr/local/lib/bitfiles`;
+}
+
+if (!(-e $os[$osindex][3])){ # Perl libraries
+	`mkdir $os[$osindex][3]`;
 }
 
 if (grep (/^udevrules/,@targets)){
@@ -175,42 +221,58 @@ if (grep (/^gpscvperllibs/,@targets)){
 
 # Installation of ottplib (Python module)
 if (grep (/^ottplib/,@targets)){
-	# Check the python version
-	$ver = `python -V 2>&1`; # output is to STDERR
-	chomp $ver;
-	$ver =~ /^Python\s+(\d)\.(\d)/;
-	if ($1 == 2){
-		if ($2 >= 7){
-			$dir = $os[$i][4];
-			if (!(-e $dir)){
-				`mkdir -p $dir`;
-				`chmod a+rx $dir`;
-				Log("Created $dir\n",$ECHO);
-			}
-			`python -c "import py_compile;py_compile.compile('src/ottplib.py')"`;
-			`cp src/ottplib.py src/ottplib.pyc $dir`;
-			Log("Installed ottlib.py to $dir\n",$ECHO);
-		}
-		else{
-			Log("Python version is $ver - can't install\n",$ECHO);
-		}
-	}
-	else{
-		Log("Python version is $ver - can't install\n",$ECHO);
-	}
+	InstallPyModule('ottplib');
+}
+
+if (grep (/^cggttslib/,@targets)){
+	InstallPyModule('cggttslib');
 }
 
 if (grep (/^libconfigurator/,@targets)) {CompileTarget('libconfigurator','src/libconfigurator','install')};
-if (grep (/^dioctrl/,@targets)) {CompileTarget('dioctrl','src/dioctrl','install');}
-if (grep (/^lcdmon/,@targets)) {CompileTarget('lcdmon','src/lcdmon','install');}
+
+if (grep (/^dioctrl/,@targets) ) {
+	if ($arch =~ /arm/){
+		Log("dioctrl is not supported on ARM\n",$ECHO);
+	}
+	else{
+		CompileTarget('dioctrl','src/dioctrl','install');
+	}
+}
+if (grep (/^lcdmon/,@targets)) {
+	CompileTarget('lcdmon','src/lcdmon','install');
+	if ($initsys eq $SYSTEMD){
+		$hints .= "To start lcdmon, run: systemctl start lcdmonitor.service\n";
+	}
+	elsif ($initsys eq $UPSTART){
+		$hints .= "To start lcdmon, run: start lcdmonitor\n";
+	}
+	
+}
 if (grep (/^okbitloader/,@targets)) {CompileTarget('okbitloader','src/okbitloader','install');}
 
 if (grep (/^okcounterd/,@targets)) {
 	CompileTarget('okcounterd','src/okcounterd','install'); 
+	if ($initsys eq $SYSTEMD){
+		$hints .= "To start okcounterd, run: systemctl start okcounterd.service\n";
+	}
+	elsif ($initsys eq $UPSTART){
+		$hints .= "To start okcounterd, run: start okcounterd\n";
+	}
 }
 
-if (grep (/^ppsd/,@targets) && !($os[$i][1] eq 'bbdebian8')){ #FIXME disabled temporrarily for ARM
-	CompileTarget('ppsd','src/ppsd','install');
+if (grep (/^ppsd/,@targets) ){ #FIXME disabled temporarily for ARM
+	if ($arch =~ /arm/){
+		Log("ppsd is not supported on ARM\n",$ECHO);
+	}
+	else{
+		CompileTarget('ppsd','src/ppsd','install');
+		if ($initsys eq $SYSTEMD){
+			$hints .= "To start ppsd, run: systemctl start ppsd.service\n";
+		}
+		elsif ($initsys eq $UPSTART){
+			$hints .= "To start ppsd, run: start ppsd\n";
+		}
+	}
 }
 
 if (grep (/^misc/,@targets)) {CompileTarget('misc','src','install');}
@@ -235,26 +297,16 @@ if (grep (/^sysmonitor/,@targets)){
 			InstallScript('src/sysmonitor/sysmonitor.service','/lib/systemd/system');
 			`systemctl enable sysmonitor.service`;
 			#`systemctl start sysmonitor.service`; # seem to need the full name
+			$hints .= "To start sysmonitor, run: systemctl start sysmonitor.service\n";
 		}
 		elsif ($initsys eq $UPSTART){
 			InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf');
+			$hints .= "To start sysmonitor, run: start sysmonitor\n";
 		}
 }
 
-print "\n\nTo start system services, run :\n";
-if ($initsys eq $SYSTEMD){
-	print "systemctl start lcdmonitor.service\n";
-	print "systemctl start okcounterd.service\n";
-	print "systemctl start sysmonitor.service\n";
-}
-elsif ($initsys eq $UPSTART){
-	print "start lcdmonitor\n";
-	print "start okcounterd\n";
-	print "start sysmonitor\n";
-}
-else{
-	print "whatever\n";
-}
+
+print $hints;
 
 close LOG;
 
@@ -342,6 +394,62 @@ sub InstallScript
 	for ($i=0;$i<=$#targets;$i+=2){
 		`cp $targets[$i] $targets[$i+1]`;
 		Log("Copied $targets[$i] to $targets[$i+1]\n",$ECHO);
+	}
+	
+}
+
+# Installation a Python module
+#
+sub InstallPyModule
+{
+	$mod = $_[0];
+	
+	$py2 = `which python2`;
+	$py3 = `which python3`;
+	
+	if ($py2 =~ /python2/){
+		$ver = `python2 -V 2>&1`; # output is to STDERR
+		chomp $ver;
+		$ver =~ /^Python\s+(\d)\.(\d)/;
+		$minorVer = $2;
+		
+		if ($minorVer >= 7){
+			$dir = $os[$i][4];
+			if (!(-e $dir)){
+				`mkdir -p $dir`;
+				`chmod a+rx $dir`;
+				Log("Created $dir\n",$ECHO);
+			}
+			`python -c "import py_compile;py_compile.compile('src/$mod.py')"`;
+			`cp src/$mod.py src/$mod.pyc $dir`;
+			Log("Installed $mod.py to $dir\n",$ECHO);
+		}
+		else{
+			Log("Python version is $ver - can't install\n",$ECHO);
+		}
+		 
+	}
+	
+	if ($py3 =~ /python3/){
+		$ver = `python3 -V 2>&1`; # output is to STDERR
+		chomp $ver;
+		$ver =~ /^Python\s+(\d)\.(\d)/;
+		$minorVer = $2;
+		
+		if ($minorVer >= 6){
+			$dir = $os[$i][5];
+			if (!(-e $dir)){
+				`mkdir -p $dir`;
+				`chmod a+rx $dir`;
+				Log("Created $dir\n",$ECHO);
+			}
+			`python -c "import py_compile;py_compile.compile('src/$mod.py')"`;
+			`cp src/$mod.py src/$mod.pyc $dir`;
+			Log("Installed $mod.py to $dir\n",$ECHO);
+		}
+		else{
+			Log("Python version is $ver - can't install\n",$ECHO);
+		}
 	}
 	
 }

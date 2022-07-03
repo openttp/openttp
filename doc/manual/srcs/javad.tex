@@ -1,0 +1,176 @@
+\section{Javad/Topcon receivers}
+
+\subsection{jnslog.pl}
+\hypertarget{h:jnslog}{}
+
+\cc{jnslog.pl} is used to configure and log Javad 
+GPS Receiver Interface Language (GRIL) receivers.
+
+It doesn't produce a log file.
+
+GRIL receivers are obsolete and further development of the software
+described here has ceased.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+jnslog.pl [option] $\ldots$ configurationFile
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+ \item[-h] print help and exit
+ \item[-d] run in debugging mode
+ \item[-r] suppress the reset of the receiver on startup (NOTE! automatic reset)
+ \item[-v] print version information and exit
+\end{description*}
+
+\subsubsection{configuration}
+
+The file \cc{receiver.conf} lists the commands used to configure the receiver.
+For example, to configure a single frequency receiver:
+\begin{lstlisting}
+		# GRIL commands
+    set,out/elm/dev/ser/a,$Init{receiver:elevation mask}
+    set,pos/iono,off  
+    set,pos/tropo,off 
+    set,dev/pps/a/time,gps
+    set,dev/pps/a/offs/ns,$Init{receiver:pps offset}
+    set,dev/pps/a/per/ms,1000
+    set,dev/pps/a/out,on
+    
+    # Receiver messages to turn on
+    RT                  # Receiver time
+    TO                  # Receiver base time to receiver time offset
+    ZA                  # PPS offset (sawtooth)
+    YA                  # Extra time offset 
+    SI                  # Satellite index
+    EL                  # Satellite elevation
+    AZ                  # Satellite azimuth
+    SS                  # Satellite navigation status
+    FC                  # C/A lock loop status bits
+    F1 
+    F2 
+    RC                  # Full pseudorange C/A
+    R1                  # Full pseudorange P/L1
+    R2                  # Full pseudorange P/L2
+    P1                  # For RINEX Obs
+    P2                  # For RINEX Obs
+    RD                  # For RINEX
+    NP                  # Navigation Position text message
+    UO:{3600,14400,0,2} # UTC parameters, when changes or every 4 hrs
+    IO:{3600,14400,0,2} # Ionospheric parameters
+    GE:{1,3600,0,2}     # GPS ephemeris data
+\end{lstlisting}
+The GRIL commands in the first part of the file are executed verbatim, with subsitution
+of values from the configuration file, written as Perl hash table lookups. 
+Messages to be enabled are then listed, one per line. The message rate can be specified 
+in the GRIL syntax.
+
+Configuration commands in \cc{gpscv.conf} specific to this receiver are:
+
+JNS receivers have a number of specific configuration entries in \cc{gpscv.conf}:
+\begin{itemize}
+\item \hyperlink{h:configuration}{receiver::configuration}
+\item \hyperlink{h:pps_synchronization}{receiver::pps synchronization}
+\item \hyperlink{h:pps_synchronization_delay}{receiver::pps synchronization delay}
+\item \hyperlink{h:paths_rinex_l1l2}{paths::rinex l1l2}
+\end{itemize}
+
+\subsection{jnsextract.pl}
+\hypertarget{h:jnsextract}{}
+
+\cc{jnsextract.pl} is used to decode and extract information from Javda receiver log files. 
+It will decompress the file if necessary.
+It doesn't use \cc{gpscv.conf}. 
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+jnsextract.pl [option] $\ldots$ file
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+
+	\item[-b \textless{value}\textgreater]  start time (s or hh:mm, default 0)
+	\item[-c] compress (eg skip repeat values) if possible
+	\item[-e \textless{value}\textgreater]  stop time (s or hh:mm, default 24:00)
+	\item[-g] select GPS only
+	\item[-i \textless{n}\textgreater]  decimation interval (in seconds, default=1)
+	\item[-k]  keep the uncompressed file, if created
+	\item[-o \textless{mode}\textgreater] output mode:
+		\begin{description*}
+			\item[bp]  receiver sync to reference time (BP message)
+			\item[cn]  carrier-to-noise vs elevation
+			\item[do]  DO derivative of time offset vs time
+			\item[si]  visibility vs time (SI message)
+			\item[np]  visibility vs time (NP message)
+			\item[vt]  visibility vs time (list time for each SV)
+			\item[tv]  visibility vs time (list SV for each time)
+			\item[tr]  satellite tracks (PRN, azimuth, elevation)
+			\item[tn]  satellite tracks (PRN, azimuth, elevation, CN)
+			\item[to]  TO time offset vs time
+			\item[ya]  YA time offset vs time
+			\item[za]  ZA time offset vs time
+			\item[st]  ST solution time tag vs time
+			\item[uo]  UO UTC parameters
+		\end{description*}
+	\item[-r]    select GLONASS only
+
+\end{description*}
+
+\subsection{runrinexobstc.pl}
+
+\hypertarget{h:runrinexobstc}{}
+
+\cc{runrinexobstc.pl} runs the now deprecated \cc{rinexobstc}, which produces a
+RINEX observation file suitable for precise positioning when used with a 
+suitable Javad receiver. \cc{mktimetx} can now be configured to produce suitable output.
+
+\cc{runrinexobstc.pl} doesn't produce a log file.
+	
+\subsubsection{usage}
+\cc{runrinexobstc.pl} is normally run as a \cc{cron} job.
+
+To run \cc{runrinexobstc.pl} on the command line, use
+\begin{lstlisting}[mathescape=true]
+runrinexobstc.pl [option] $\ldots$ [Start MJD  [Stop MJD]]
+\end{lstlisting}
+
+\cc{Start MJD} and \cc{Stop MJD} specify the range of MJDs to process.
+If a single MJD is specified, then data for that day is processed. If no
+MJD is specified, the previous day's data is processed.
+
+The options are:
+\begin{description*}
+	\item[-a \textless{file}\textgreater]  extend check for missed processing back \cc{n} days 
+		(the default is~7)
+	\item[-c \textless{file}\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-x] run missed processing
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsubsection{configuration}
+
+\cc{runrinexobstc.pl} uses \cc{gpscv.conf}. 
+
+It uses the following specific configuration file entries in \cc{gpscv.conf}; most
+relate to writing the RINEX observation file header:
+\begin{itemize}
+	\item \hyperlink{h:antenna_x}{antenna::x}
+	\item \hyperlink{h:antenna_y}{antenna::y}
+	\item \hyperlink{h:antenna_z}{antenna::z}
+	\item \hyperlink{h:antenna_marker_name}{antenna::marker name}
+	\item \hyperlink{h:antenna_marker_number}{antenna::marker number}
+	\item \hyperlink{h:antenna_delta_e}{antenna::delta e}
+	\item \hyperlink{h:antenna_delta_h}{antenna::delta h}
+	\item \hyperlink{h:antenna_delta_n}{antenna::delta n}
+	\item \hyperlink{h:antenna_antenna_number}{antenna::antenna number}
+	\item \hyperlink{h:antenna_antenna_type}{antenna::antenna type}
+	\item \hyperlink{h:rinex_agency}{rinex::agency}
+	\item \hyperlink{h:rinex_observer}{rinex::observer}
+	\item \hyperlink{h:paths_rinex_l1l2}{paths::rinex l1l2}
+\end{itemize}

@@ -1,0 +1,34 @@
+\section{prs10log.pl}
+
+\hypertarget{h:prs10log}{}
+
+The Stanford PRS10 rubidium standard has a 1 pps input port that is typically used
+to lock the PRS10 to a GNSS receiver. The PRS10 timetags each input 1 pps with respect to its own 1 pps and can report these measurements. It can thus be also be used as a time-interval counter. 
+In this application, the lock to the input 1 pps is disabled 
+(ie the PRS10 is left free-running),
+and the 1 pps measurements are used for time-transfer.
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+prs10log.pl [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+
+The PRS10 is also used as the system time reference so it has
+entries in \cc{gpscv.conf} associated with this:
+\begin{itemize}
+	\item \hyperlink{h:reference_log_status}{reference::log status}
+	\item \hyperlink{h:reference_logging_interval}{reference::logging interval}
+	\item \hyperlink{h:reference_log_path}{reference::log path}
+	\item \hyperlink{h:reference_file_extension}{reference::file extension}
+	\item \hyperlink{h:reference_power_flag}{reference::power flag}
+	\item \hyperlink{h:reference_status_file}{reference::status file}
+\end{itemize}

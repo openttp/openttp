@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -39,21 +39,16 @@ import string
 import subprocess
 import sys
 # This is where ottplib is installed
-sys.path.append("/usr/local/lib/python2.7/site-packages")
+sys.path.append('/usr/local/lib/python3.6/site-packages')
+sys.path.append('/usr/local/lib/python3.8/site-packages')
 import ottplib
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
-def ShowVersion():
-	print  os.path.basename(sys.argv[0])," ",VERSION
-	print "Written by",AUTHORS
-	return
-
-# ------------------------------------------
 def ErrorExit(msg):
-	print msg
+	print(msg)
 	sys.exit(0)
 	
 # ------------------------------------------
@@ -65,7 +60,7 @@ def Initialise(configFile):
 	# Check for required arguments
 	reqd = ['counter:logger','receiver:pps offset','delays:reference cable','delays:antenna cable']
 	for k in reqd:
-		if (not cfg.has_key(k)):
+		if (not k in cfg):
 			ErrorExit("The required configuration entry " + k + " is undefined")
 		
 	return cfg	
@@ -77,14 +72,13 @@ home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
 logger = os.path.join(home,'bin','ticclog.py')
 
-parser = argparse.ArgumentParser(description='Output a header for a TIC log file')
-parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
-parser.add_argument('--version','-v',help='show version and exit',action='store_true')
-args = parser.parse_args()
+parser = argparse.ArgumentParser(description='Output a header for a TIC log file',
+	formatter_class=argparse.RawDescriptionHelpFormatter)
 
-if (args.version):
-	ShowVersion()
-	exit()
+parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
+
+args = parser.parse_args()
 
 configFile = args.config;
 
@@ -109,18 +103,18 @@ if not(os.access(logger,os.X_OK)):
 
 # First line is software version
 
-ppsdver=subprocess.check_output([logger,'-v'])
+swver=subprocess.check_output([logger,'-v'],stderr=subprocess.STDOUT)
 logger = os.path.basename(logger) # strip path 
-ppsdver = str(ppsdver).splitlines()
+swver = swver.decode('utf-8').splitlines()
 ver = ''
-for l in ppsdver:
+for l in swver:
 	match = re.search(logger+'\s+(version)?\s*\d',l) # at least one digit for a match
 	if match:
 		ver = l
 		break
 
-print '# TIC log,',ver
+print('# TIC log,',ver)
 
 # Second line is the delay information
-print '# Delays = [','CAB DLY =',cfg['delays:antenna cable'],', REF DLY = ',cfg['delays:reference cable'], \
-			 ', pps offset = ',cfg['receiver:pps offset'],']'
+print('# Delays = [','CAB DLY =',cfg['delays:antenna cable'],', REF DLY = ',cfg['delays:reference cable'], \
+			 ', pps offset = ',cfg['receiver:pps offset'],']')

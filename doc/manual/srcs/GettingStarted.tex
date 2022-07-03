@@ -68,7 +68,7 @@ to showing system status.
 
 The menu structure is shown below:
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \dirtree{%
  .1 Home screen.
  .2 Setup.
@@ -131,6 +131,7 @@ You will be asked to confirm power down or reboot.
 
 \section{The rear panel}
 
+%% FIXME need to group these
 \begin{figure}[h]
 \psfig{file=figures/rearpanel.eps,silent=}
 \caption{Rear panel of the unit}
@@ -230,7 +231,7 @@ The \cc{cvgps} user is the account used to log and process data.
 
 It contains the following standard directories, some of which are mounted on the SSD.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \dirtree{%
 	.1 /home/cvgps.
 	.2 bin\DTcomment{executables}.
@@ -275,9 +276,14 @@ NTP operation can be checked using the command \cc{ntpq -p}. This should display
 \section{Local configuration}
 
 To produce CGGTTS files, the processing software needs accurate antenna coordinates.
-These can be obtained from the \sysname{} receiver, using \cc{navigator}.
+These can be obtained from the \sysname{} receiver, using \cc{nv08extract}.
+More accurate coordinates can be obtained by submitting RINEX observation files to an online
+processing service. In the case of single frequency observations, the NRCAN PPP service can be used.
+\section{Securing the system}
 
-\section{Updating the software}
+\section{Maintenance}
+
+\subsection{Updating the software}
 
 Debian Linux is updated separately from the OpenTTP software.
 
@@ -285,8 +291,9 @@ Updating the kernel is a separate procedure.
 
 Updating the OpenTTP software is most conveniently done via the git repository.
 
+\subsection{Replacing the SD card}
 
-\section{Securing the system}
-
-
+To replace the SD card, remove the screws from the front, remove the front panel and disconnect the cable connected to the LCD unit.
+Remove the screws at the rear and slide the electronics assembly out. You can remove the SD card without fully removing the electronics.
+Insert the new card and reassemble taking care to align the printed circuit boards with the slots in the enclosure.
 

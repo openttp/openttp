@@ -2,6 +2,11 @@
 
 \cc{okcounterdctl.pl} provides a convenient way to send commands to \cc{okcounterd}.
 
+\cc{okcounterdctl.pl} doesn't have a configuration file. It uses
+\cc{gpscv.conf} to determine the port used by \cc{okcounterd}.
+
+\cc{okcounterdctl.pl} doesn't produce a log file.
+
 \subsection{usage}
 
 To run \cc{okcounterdctl.pl} on the command line, use:
@@ -10,20 +15,32 @@ okcounterdctl.pl [OPTION] $\ldots$
 \end{lstlisting}
 The command line options are:
 \begin{description*}
-	\item[-c \textless file\textgreater] use the specified gpscv configuration file
 	\item[-d]	run in debugging mode
 	\item[-g \textless $0|1$\textgreater] disable/enable the system GPIO
 	\item[-h]	print help and exit
-	\item[-c \textless $1\ldots6$\textgreater] set the PPS OUT source
+	\item[-o \textless $1\ldots6$\textgreater] set the PPS OUT source
+	\item[-p PORT]  set the port to connect to \cc{okcounterd} (default is 21577)
 	\item[-q] query the counter configuration
 	\item[-v]	print version information and exit
 \end{description*}
 
-\subsection{configuration file}
 
-\cc{okcounterdctl.pl} does't have a configuration file but uses
-\cc{gpscv.conf} to determine the port used by \cc{okcounterd}.
+\begin{table}[h]
+\begin{centering}
+\begin{tabular}{ll}
+channel & PPS signal \\ \hline
+1 & NavSpark\\
+2 & SMT360\\
+3 & NV08C\\
+4 & external pps\\
+5 & system time pps\\
+6 & GPIO\\
+default & GPSDO
+\end{tabular}
+\caption{PPS OUT channels for the \cc{-p} option}
+\end{centering}
+\end{table}
 
-\subsection{log file}
 
-\cc{okcounterdctl.pl} doesn't produce a log file.
+The default state is to output the GPSDO 1 pps.
+

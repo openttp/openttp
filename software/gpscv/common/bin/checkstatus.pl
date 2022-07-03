@@ -42,6 +42,11 @@
 # 11-03-2008 MJW Import into CVS from topcondf2. Various cleanups. A few more checks.
 # 30-03-2016 MJW Rewrite of check_status. Uses gpscv.conf to determine a few paths etc.
 #								 Closer conformance with our 'standard' Perl script.
+# 2018-09-13 ELM Added ubloxlog to executables to be checked
+# 2020-06-16 ELM Added hp5313xlog, LTElog, nv08log, ticclog, log1Wtemp and 
+#                logpicputemp to executable to be checked.
+#                Also changed -107 > -7 in approx. line 123; we only want last 7 days.
+# 2022-05-01 ELM Found another -107, approx line 139
 #
 
 use Sys::Hostname;
@@ -117,18 +122,24 @@ if (defined $Init{"paths:counter data"}){
  'date',
  'df',
  'uptime',
- "find $cggttspath -mtime -107 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ",
- 'ps x | grep --extended-regexp "jnslog|restlog|prs10log|okxemlog|plrxlog" | grep -v grep',
+# "find $cggttspath -mtime -107 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ",
+ "find $cggttspath -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ",
+# 'ps x | grep --extended-regexp "jnslog|restlog|prs10log|okxemlog|plrxlog" | grep -v grep',
+# 'ps x | grep --extended-regexp "jnslog|restlog|prs10log|okxemlog|plrxlog|ubloxlog" | grep -v grep',
+ 'ps x | grep --extended-regexp "ublox9log|jnslog|restlog|prs10log|okxemlog|plrxlog|ubloxlog|hp5313xlog|LTElog|nv08log|ticclog|log1Wtemp|logpicputemp" | grep -v grep',
  'find . -name "*.check" -printf "%Ab %Ad %AH:%AM %f\n"',
  'ps ax | grep ntpd | grep -v grep & /usr/local/bin/ntpq -p'
  );
  
 if ($ticpath eq  $rxpath){ # avoid duplicate output
-	push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ");
+	push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ");
 }
 else{
- push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ;".
- "find $rxpath -follow -mtime -107 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ");
+ #push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ;".
+ #"find $rxpath -follow -mtime -107 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ");
+ # Louis Marais, 2022-05-01 Changed -107 to -7; we only want the last 7 days not the last 107 days.
+ push (@command,"find $ticpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%p\n\" | sort ;".
+ "find $rxpath -follow -mtime -7 -printf \"%Ab %Ad %AH:%AM %s\t%f\n\" | sort ");
 }
 
 

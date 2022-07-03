@@ -1,7 +1,9 @@
 \subsection{cggttsqc.py}
 
+\hypertarget{h:cggttsqc}{}
+
 \cc{cggttsqc.py} performs various checks on CGGTTS files.
-Running it on a single CGGTTS file with no options will produce the  output like:
+Running it on a single CGGTTS file with no options will produce output like:
 
 \begin{tabular}{lrrrrrr}
 File         & Tracks  & Short & min SV & max SV   &  DSG  &  elv \\
@@ -23,20 +25,28 @@ cggttsqc.py [OPTION] $\ldots$ file [file $ldots$]
 \end{lstlisting}
 The command line options are:
 \begin{description*}
-	\item[--help,-h]	print the help information and exit
-	\item[--debug,-d]	print debugging information to stderr
-	\item[--nowarn]   suppress warnings (eg about missing files, bad formatting in CGGTTS files)
-	\item[--DSG DSG]  set the upper limit for acceptable DSG. The units are ns.
-	\item[--elevation ELEVATION] set the lower limit for acceptable elevation. The units are degrees.
-	\item[--tracklength  ELEVATION] set the lower limit for acceptable track length. The units seconds.
-	\item[--checkheader] show when significant fields in the header change, for example the delays.
-	\item[--sequence, -s] interpret the input files as a sequence.
-	\item[--version,-v] show the version information and exit
+	\item[-{}-help,-h]	print the help information and exit
+	\item[-{}-debug,-d]	print debugging information to stderr
+	\item[-{}-nowarn]   suppress warnings (eg about missing files, bad formatting in CGGTTS files)
+	\item[-{}-dsg \textless{value}\textgreater]  set the upper limit for acceptable DSG. The units are ns.
+	\item[-{}-elevation \textless{value}\textgreater] set the lower limit for acceptable elevation. The units are degrees.
+	\item[-{}-tracklength  \textless{value}\textgreater] set the lower limit for acceptable track length. The units are seconds.
+	\item[-{}-checkheader] show when significant fields in the header change, for example the delays.
+	\item[-{}-nosequence] do not interpret (two) input filenames as a sequence.
+	\item[-{}-version,-v] show the version information and exit
 \end{description*}
-Mutiple files can be checked and a sequence can be specified with two file names and the \cc{--sequence} option.
+
+\subsubsection{examples}
+
+Mutiple files can be checked and a sequence can be specified with two file names.
 For example:
 \begin{lstlisting}
-cggtsqc.py -s --DSG 5 GZAA0157.834 GZAA0157.876
+cggttsqc.py --dsg 5 GZAA0157.834 GZAA0157.876
 \end{lstlisting}
 will report on all files between MJDs 57834 and 57876, indicating in the DSG field the number of tracks with DSG greater
-than 5 ns.
+than 5 ns. For the two file names to be interpreted as a sequence, they must:
+\begin{enumerate}
+	\item have names in v2E CGGTTS recommended format or in the format MJD.xxx
+	\item be in the same directory
+	\item have the same extension, if in the format MJD.xxx
+\end{enumerate}
