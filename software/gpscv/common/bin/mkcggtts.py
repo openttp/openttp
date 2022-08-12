@@ -38,8 +38,9 @@ import time
 sys.path.append("/usr/local/lib/python3.8/site-packages")
 import ottplib
 
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 AUTHORS = "Michael Wouters"
+MAXAGE  = 7 # number of days to look backwards
 
 # ------------------------------------------
 def Debug(msg):
@@ -291,6 +292,7 @@ parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 parser.add_argument('--leapsecs',help='manually set the number of leap seconds')
 parser.add_argument('--previousmjd',help='when no MJD (or one MJD) is given, MJD-1 is added to the MJDs to be processed',action='store_true')
+parser.add_argument('--missing',help='generate missing files',action='store_true')
 
 args = parser.parse_args()
 
@@ -327,7 +329,7 @@ if (args.mjd):
 
 if (startMJD == stopMJD and args.previousmjd):
 	startMJD -= 1
-
+	
 paramFile = os.path.join(home,'etc','paramCGGTTS.dat')
 if 'cggtts:parameter file' in cfg:
 	paramFile = cfg['cggtts:parameter file']
@@ -378,9 +380,55 @@ for o in outputs:
 	cggttsPath = ottplib.MakeAbsolutePath(cfg[lco+':directory'],root)
 	if not(os.path.exists(cggttsPath)):
 		ErrorExit(cggttsPath + " doesn't exist - check the configuration file")
-	
+
+mjdsToDo = [*range(startMJD,stopMJD+1)]
+
+#  --missing overrides everything
+if (args.missing):
+	stopMJD  = ottplib.MJD(time.time()) - 1
+	startMJD = stopMJD - MAXAGE
+	mjdsToDo = []
+	for mjd in range(startMJD,stopMJD+1):
+		outputs = cfg['cggtts:outputs'].split(',')
+		for o in outputs:
+			lco = (o.lower()).strip()
+			constellation = cfg[lco + ':constellation'].upper()
+			code = cfg[lco + ':code'].upper() 
+			cggttsPath = ottplib.MakeAbsolutePath(cfg[lco+':directory'],root)
+			if (cfg['cggtts:naming convention'].lower() == 'plain'):
+				fout = cggttsPath + str(mjd) + '.cctf'
+			elif (cfg['cggtts:naming convention'].upper() == 'BIPM'):
+				X = 'G'
+				F = 'Z' # dual frequency is default
+				if ('GPS'==constellation):
+					X='G'
+					if ('C1' == code or 'P1' == code):
+						F='M'
+				elif ('GLO'==constellation):
+					X='R'
+					if ('C1' == code or 'P1' == code):
+						F='M'
+				elif ('BDS'==constellation):
+					X='C'
+					if ('B1' == code):
+						F='M'
+				elif ('GAL'==constellation):
+					X='E'
+					if ('E1' == code ):
+						F='M'
+				mjdDD = int(mjd/1000)
+				mjdDDD = mjd - 1000*mjdDD
+				fout = cggttsPath + '{}{}{}{}{:02d}.{:03d}'.format(X,F,cfg['cggtts:lab id'].upper(),
+					cfg['cggtts:receiver id'].upper(),mjdDD,mjdDDD)
+			if not(os.path.exists(fout)):
+				Debug(fout + ' is missing')
+				# Don't be too fussy - one missing file means redo the lot
+				mjdsToDo.append(mjd)
+				break
+
 # Main loop
-for mjd in range(startMJD,stopMJD+1):
+for mjd in mjdsToDo:
+	
 	Debug('Processing ' + str(mjd))
 	
 	# Clean up the leftovers
