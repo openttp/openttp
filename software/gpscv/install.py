@@ -25,6 +25,8 @@
 # THE SOFTWARE.
 #
 
+# 2022-08-01 ELM Added path info for Ubuntu 22, version now 0.1.2 (was 0.1.1)
+
 import argparse
 import datetime
 import distro
@@ -40,9 +42,10 @@ import sys
 # This is where ottplib is installed
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
+sys.path.append('/usr/local/lib/python3.10/dist-packages')
 import ottplib
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -71,9 +74,12 @@ osinfo = [
 	['Ubuntu','18','ubuntu18',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
 		'/usr/local/lib/python3.6/site-packages'],
-        ['Ubuntu','20','ubuntu20',SYSTEMD,
-                '/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
-                '/usr/local/lib/python3.8/site-packages'],
+	['Ubuntu','20','ubuntu20',SYSTEMD,
+		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
+		'/usr/local/lib/python3.8/site-packages'],
+	['Ubuntu','22','ubuntu22',SYSTEMD,
+		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
+		'/usr/local/lib/python3.10/dist-packages'],
 	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
