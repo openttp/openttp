@@ -38,9 +38,9 @@ import time
 sys.path.append("/usr/local/lib/python3.8/site-packages")
 import ottplib
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 AUTHORS = "Michael Wouters"
-MAXAGE  = 7 # number of days to look backwards
+NMISSING  = 7 # number of days to look backwards for missing files
 
 # ------------------------------------------
 def Debug(msg):
@@ -276,12 +276,15 @@ def RecompressFile(basename,ext):
 home = os.environ['HOME'] 
 root = home 
 configFile = os.path.join(root,'etc','mkcggtts.conf')
+nMissing = NMISSING
 
 parser = argparse.ArgumentParser(description='')
 
 examples =  'Usage examples\n'
 examples += '1. Process data for MJDs 58418 - 58419\n'
 examples += '    mkcggtts.py 58418 58419\n'
+examples += '2. Process previous day, previous day - 1 (for complete tracks at day end) and look back 7 days for missing files\n'
+examples += '    mkcggtts.py  --previousmjd --missing 7\n'
 
 parser = argparse.ArgumentParser(description='Generate CGGTTS files from RINEX observations',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
@@ -292,7 +295,7 @@ parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 parser.add_argument('--leapsecs',help='manually set the number of leap seconds')
 parser.add_argument('--previousmjd',help='when no MJD (or one MJD) is given, MJD-1 is added to the MJDs to be processed',action='store_true')
-parser.add_argument('--missing',help='generate missing files',action='store_true')
+parser.add_argument('--missing',help='generate missing files')
 
 args = parser.parse_args()
 
@@ -307,7 +310,7 @@ cfg=Initialise(configFile)
 	
 toolVersion = float(cfg['tool:version'])
 if (toolVersion < 8):
-	ErrorExit('r2cggtts version is unsupported (>8 only)')
+	ErrorExit('r2cggtts version is unsupported (>=8 only)')
 		
 if 'paths:root' in cfg:
 	root = ottplib.MakeAbsolutePath(cfg['paths:root'],home)
@@ -327,9 +330,9 @@ if (args.mjd):
 	else:
 		ErrorExit('Too many MJDs')
 
-if (startMJD == stopMJD and args.previousmjd):
+if (startMJD == stopMJD and args.previousmjd): # add the previous day - this is to get both MJDs needed for a CGGTTS file with complete tracks at day end
 	startMJD -= 1
-	
+
 paramFile = os.path.join(home,'etc','paramCGGTTS.dat')
 if 'cggtts:parameter file' in cfg:
 	paramFile = cfg['cggtts:parameter file']
@@ -385,10 +388,14 @@ mjdsToDo = [*range(startMJD,stopMJD+1)]
 
 #  --missing overrides everything
 if (args.missing):
+	nMissing = int(args.missing)
 	stopMJD  = ottplib.MJD(time.time()) - 1
-	startMJD = stopMJD - MAXAGE
-	mjdsToDo = []
+	startMJD = stopMJD - nMissing
+	if not(args.previousmjd): # this is so that we retain the MJD defined by --previousmjd
+		mjdsToDo = []
 	for mjd in range(startMJD,stopMJD+1):
+		if mjd  in mjdsToDo: 
+			continue
 		outputs = cfg['cggtts:outputs'].split(',')
 		for o in outputs:
 			lco = (o.lower()).strip()
