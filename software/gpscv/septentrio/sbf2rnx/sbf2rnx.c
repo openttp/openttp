@@ -115,10 +115,11 @@ main(
 {
 	
 	int c;
-	char *rnxFileName;
+	char *rnxObsFileName;
 	char *sbfLogFileName;
 	
 	int rnxInterval = 30;
+	rnxObsFileName = strdup("test.rnx");
 	
 	/* Process the command line options */
 	while ((c=getopt(argc,argv,"dhvi:o:")) != -1){
@@ -132,7 +133,8 @@ main(
 				return EXIT_SUCCESS;
 				break;
 			case 'o': /* set output file name */
-				rnxFileName = strndup(optarg,MAXSTR-1);
+				free(rnxObsFileName);
+				rnxObsFileName = strndup(optarg,MAXSTR-1);
 				break;
 			case 'v': /* print version */
 				printf("\n %s version %s\n",APP_NAME,APP_VERSION);
@@ -160,9 +162,9 @@ main(
 	}
 	fclose(fd);
 	
-	FILE *obsFile = fopen("test.rnx","w");
+	FILE *obsFile = fopen(rnxObsFileName,"w");
 	if (!obsFile){
-		fprintf(stderr,"Unable to open %s for writing\n","test.rnx");
+		fprintf(stderr,"Unable to open %s for writing\n",rnxObsFileName);
 		return EXIT_FAILURE;
 	}
 	
