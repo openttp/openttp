@@ -40,20 +40,23 @@
 
 #define APP_AUTHORS "Michael Wouters"
 #define APP_NAME    "sbf2rnx"
-#define APP_VERSION "0.1"
+#define APP_VERSION "0.1.0"
 
 #define MAXSTR 1024
 
-#define TRUE 1
-#define FALSE 
+#define TRUE  1
+#define FALSE 0
 
 #define BLANK16 "                "
 
 #define MAX_PRN irMAXPRN // according to sviddef.h
 
+#define RINEX_MAJOR_VER 3
+#define RINEX_MINOR_VER 4
+
 /* globals */
 
-int debugOn = TRUE;
+int debugOn = FALSE;
 
 
 // Candidates for moving to another file
@@ -97,6 +100,38 @@ rinex_format_flags(
 	return flagBuf;
 }
 
+
+char verBuf[17];
+char *
+rinex_make_ver(
+	int majorVer,
+	int minorVer)
+{
+    sprintf(verBuf,"%i.%02d",majorVer,minorVer);
+    return verBuf;
+}
+
+void 
+rinex_write_obs_header
+(
+	FILE *fout,
+	int majorVer, int minorVer,
+	char *agency
+)
+{
+	char buf[81],tmp[81];
+	
+	fprintf(fout,"%9s%11s%-20s%c%-19s%-20s\n",rinex_make_ver(majorVer,minorVer),"","O",'M',"","RINEX VERSION / TYPE");
+	
+	time_t tnow = time(NULL);
+	struct tm *tgmt = gmtime(&tnow);
+	snprintf(buf,81,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
+					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
+	snprintf(tmp,21,"%s-%s",APP_NAME,APP_VERSION);
+	fprintf(fout,"%-20s%-20s%-20s%-20s\n",tmp,agency,buf,"PGM / RUN BY / DATE");
+	fprintf(fout,"%60s%-20s\n","","END OF HEADER");
+}
+
 static void
 sbf2rnx_print_help()
 {
@@ -106,6 +141,7 @@ sbf2rnx_print_help()
 	printf("-v print version\n");
 	printf("-d enable debugging\n");
 	
+	printf("-H FILE  use FILE as template for the RINEX observation file header\n");
 	printf("-i INTERVAL interval in the RINEX file (default is 30 s)\n");
 	printf("-o FILE     set the file name for RINEX output\n");
 }
@@ -148,6 +184,7 @@ main(
 	
 	int c;
 	char *rnxObsFileName;
+	char *rnxObsHeaderFileName = NULL;
 	char *sbfLogFileName;
 	
 	int obsInterval = 30;
@@ -164,6 +201,9 @@ main(
 			case 'h': /* print help */
 				sbf2rnx_print_help();
 				return EXIT_SUCCESS;
+				break;
+			case 'H': /* use as template for RINEX obs header*/
+				rnxObsHeaderFileName = strdup(optarg);
 				break;
 			case 'i': /* observation interval */
 				if (!sbf2rnx_get_int_opt("-i",optarg,&obsInterval)){
@@ -244,7 +284,7 @@ main(
 					 }
 				}
 				
-				// Count sats
+				// Count sats for observation record
 				int nSats = 0;
 				for (i=1;i<=MAX_PRN;i++){
 					int measIndex = prnIDs[i];
@@ -253,7 +293,7 @@ main(
 					}
 				}
 				
-				// Header for the observation record
+				// Output header for the observation record
 				struct tm tmGPS;
 				GPS_to_date(MeasEpoch.TOW_ms/1000,MeasEpoch.WNc,&tmGPS); 
 				
@@ -261,7 +301,8 @@ main(
 				fprintf(obsFile,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f  %1d%3d%6s%15.12lf\n",
 					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec + (double) (MeasEpoch.TOW_ms % 1000)/1000.0,
 					0,nSats," ",0.0);
-								
+				
+				// Output observations 
 				for (i=1;i<=MAX_PRN;i++){
 					int measIndex = prnIDs[i];
 					if ( measIndex != -1){
@@ -321,7 +362,7 @@ main(
 												snprintf(cL2C, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
 											}
 											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-												snprintf(pL2C, 17,"%14.3lf%2s",measSet->L_cycles,\
+												snprintf(pL2C, 17,"%14.3lf%2s",measSet->L_cycles,
 													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
 											}
 											break;
@@ -342,25 +383,42 @@ main(
 		}
 		else
 		//else  switch (SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID)) 
+		// 4002 GALNav
+		// 4004 GLONav
+		// 4007 PVTGeodetic
+		// 4012 SatVisibility
+		// 4031 GalUtc
+		// 4032 GALGstGps
+		// 4081 BDSNav
+		// 4095 QZSNav
+		// 5891 GPSNav
+		// 5893 GPSIon
+		// 5894 GPSUtc
+		// 5896 GEONav
 		{
 			//fprintf(stderr,"%d\n",SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID));
 			switch (SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID))
 			{
 				case sbfnr_GPSNav_1:
+				{
+					//GPSNav_1_0_t *gpsNav = (GPSNav_1_0_t *) SBFBlock;
+					//fprintf(stderr,"%d %d %d %d\n",gpsNav->Eph.TOW/1000,gpsNav->Eph.PRN,gpsNav->Eph.IODE2,gpsNav->Eph.IODE3);
 					break;
+				}
 				case sbfnr_GPSIon_1:
 					break;
 				case sbfnr_GPSUtc_1:
 					break;
 				case sbfnr_ReceiverSetup_1:
-					printf("RX\n");
 					break;
 				default:
 					break;
 			}
 		}
 	}
-	
+
+ rinex_write_obs_header(stderr,RINEX_MAJOR_VER,RINEX_MINOR_VER,"NMIA");
+ 
  return EXIT_SUCCESS;
  
 }
