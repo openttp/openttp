@@ -45,7 +45,7 @@
 #define MAXSTR 1024
 
 #define TRUE 1
-#define FALSE 0
+#define FALSE 
 
 #define BLANK16 "                "
 
@@ -92,6 +92,8 @@ rinex_format_flags(
 		sprintf(flagBuf," %1d",sn);
 	else if (sn == -1)
 		sprintf(flagBuf,"%1d ",lli);
+	else
+		sprintf(flagBuf,"%1d%1d",lli,sn);
 	return flagBuf;
 }
 
@@ -108,6 +110,36 @@ sbf2rnx_print_help()
 	printf("-o FILE     set the file name for RINEX output\n");
 }
 
+static int
+sbf2rnx_set_lli(
+	int lockTime,
+	int obsInterval)
+{
+	if (lockTime/1000 < obsInterval)
+		return 1;
+	return 0; // OK
+}
+
+static int
+sbf2rnx_get_int_opt
+(
+	char *optName,
+	char *optArg,
+	int  * val
+)
+{
+	if (optArg){
+		if (1==sscanf(optarg,"%i",val))
+			return 1;
+		else
+			fprintf(stderr,"Error in argument to option %s\n",optName);
+	}
+	else{
+		fprintf(stderr,"Missing argument to option %s\n",optName);
+	}
+	return 0;
+}
+
 int
 main(
 	int argc,
@@ -118,10 +150,11 @@ main(
 	char *rnxObsFileName;
 	char *sbfLogFileName;
 	
-	int rnxInterval = 30;
+	int obsInterval = 30;
 	rnxObsFileName = strdup("test.rnx");
 	
 	/* Process the command line options */
+	char *strend;
 	while ((c=getopt(argc,argv,"dhvi:o:")) != -1){
 		switch(c){
 			case 'd':	/* enable debugging */
@@ -131,6 +164,12 @@ main(
 			case 'h': /* print help */
 				sbf2rnx_print_help();
 				return EXIT_SUCCESS;
+				break;
+			case 'i': /* observation interval */
+				if (!sbf2rnx_get_int_opt("-i",optarg,&obsInterval)){
+					sbf2rnx_print_help();
+					return EXIT_FAILURE;
+				}
 				break;
 			case 'o': /* set output file name */
 				free(rnxObsFileName);
@@ -150,11 +189,12 @@ main(
 	}
  
 	if (optind >= argc){
+		fprintf(stderr,"Expected SBF file name!");
 		sbf2rnx_print_help();
 		return EXIT_FAILURE;
 	}
 	
-	sbfLogFileName = strdup(argv[1]);
+	sbfLogFileName = strdup(argv[optind]);
 	FILE *fd = fopen(sbfLogFileName,"r");
 	if (!fd){
 		fprintf(stderr,"Unable to open %s for reading\n",sbfLogFileName);
@@ -190,9 +230,10 @@ main(
 			measurement epoch containing all observables from all
 			satellites is provided in the MeasEpoch structure. */
 		if (sbfread_MeasCollectAndDecode(&SBFData, SBFBlock, &MeasEpoch, SBFREAD_ALLMEAS_ENABLED)){
+		//if (0){
 			int i,tow;
 			tow = MeasEpoch.TOW_ms;
-			if (tow/1000 % rnxInterval == 0){
+			if (tow/1000 % obsInterval == 0){
 				
 				// Sort the measurements into ascending PRN
 				for (i = 0; i < MeasEpoch.nbrElements; i++){
@@ -251,8 +292,10 @@ main(
 											/* discard carrier phases with half-cycle ambiguities */
 											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
 												// FIXME truncate phase if it will overflow ! 
-												snprintf(pL1P, 17,"%14.3lf%2s",measSet->L_cycles,rinex_format_flags(-1,sn)); // repeated for L1P to make sure we get it
+												snprintf(pL1P, 17,"%14.3lf%2s",measSet->L_cycles,
+													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn)); // repeated for L1P to make sure we get it
 											}
+											//fprintf(stderr,"L1C %2d %2d %2d SV=%02d %d %d \n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms,measSet->lockCount);
 											break;
 										case SIG_GPSL1P:  // GPS L1 P(Y) 
 											if (measSet->PR_m != F64_NOTVALID){
@@ -260,15 +303,17 @@ main(
 											}
 											// FIXME need this if GPSL1CA is masked out
 											//if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-											//	snprintf(pL1P, 17,"%14.3lf%2s",measSet->L_cycles,rinex_format_flags(-1,sn));
+											//	snprintf(pL1P, 17,"%14.3lf%2s",measSet->L_cycles,rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
 											//}
+											//fprintf(stderr,"L1P %2d %2d %2d SV=%02d %d %d \n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms,measSet->lockCount);
 											break;
 										case SIG_GPSL2P:  // GPS L2 P(Y)
 											if (measSet->PR_m != F64_NOTVALID){
 												snprintf(cL2P, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
 											}
 											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-												snprintf(pL2P, 17,"%14.3lf%2s",measSet->L_cycles,rinex_format_flags(-1,sn));
+												snprintf(pL2P, 17,"%14.3lf%2s",measSet->L_cycles,
+													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
 											}
 											break;
 										case SIG_GPSL2C:  // GPS L2C
@@ -276,7 +321,8 @@ main(
 												snprintf(cL2C, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
 											}
 											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-												snprintf(pL2C, 17,"%14.3lf%2s",measSet->L_cycles,rinex_format_flags(-1,sn));
+												snprintf(pL2C, 17,"%14.3lf%2s",measSet->L_cycles,\
+													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
 											}
 											break;
 										case SIG_GPSL5:   // GPS L5
@@ -294,9 +340,25 @@ main(
 				}
 			}
 		}
-		
+		else
 		//else  switch (SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID)) 
-     // {
+		{
+			//fprintf(stderr,"%d\n",SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID));
+			switch (SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID))
+			{
+				case sbfnr_GPSNav_1:
+					break;
+				case sbfnr_GPSIon_1:
+					break;
+				case sbfnr_GPSUtc_1:
+					break;
+				case sbfnr_ReceiverSetup_1:
+					printf("RX\n");
+					break;
+				default:
+					break;
+			}
+		}
 	}
 	
  return EXIT_SUCCESS;

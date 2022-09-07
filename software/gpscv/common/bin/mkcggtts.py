@@ -38,7 +38,7 @@ import time
 sys.path.append("/usr/local/lib/python3.8/site-packages")
 import ottplib
 
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -470,12 +470,18 @@ for mjd in mjdsToDo:
 	doy2 = tod.tm_yday
 	
 	# Make RINEX file names
-	(rnx1,rnx1ext)=FindRINEXObservationFile(rnxObsDir,rnxObsSta,yyyy1,doy1,rnxVersion,True);
+	(rnx1,rnx1ext)=FindRINEXObservationFile(rnxObsDir,rnxObsSta,yyyy1,doy1,rnxVersion,False);
+	if not(rnx1):
+		Debug('Missing observation file')
+		continue
 	ftmp = 'rinex_obs' 
 	shutil.copy(rnx1 + rnx1ext,ftmp + rnx1ext)
 	DecompressFile(ftmp,rnx1ext)
 	
-	(nav1,nav1ext)=FindRINEXNavigationFile(rnxNavDir,rnxNavSta,yyyy1,doy1,rnxVersion,True);
+	(nav1,nav1ext)=FindRINEXNavigationFile(rnxNavDir,rnxNavSta,yyyy1,doy1,rnxVersion,False);
+	if not(rnx1):
+		Debug('Missing navigation file')
+		continue
 	# Need to copy the file to the current directory, decompress it if necessary and rename it
 	ftmp = 'rinex_nav_gps'  # version 2 is default
 	if (rnxVersion == 3):
@@ -483,14 +489,14 @@ for mjd in mjdsToDo:
 	shutil.copy(nav1 + nav1ext,ftmp + nav1ext)
 	DecompressFile(ftmp,nav1ext)
 	
-	(rnx2,rnx2ext)=FindRINEXObservationFile(rnxObsDir,rnxObsSta,yyyy2,doy2,rnxVersion,False); #don't require next day
-	if not(rnx2 == ''):
+	(rnx2,rnx2ext)=FindRINEXObservationFile(rnxObsDir,rnxObsSta,yyyy2,doy2,rnxVersion,False); 
+	if rnx2: # don't require the next day's data
 		ftmp = 'rinex_obs_p' 
 		shutil.copy(rnx2 + rnx2ext,ftmp + rnx2ext)
 		DecompressFile(ftmp,rnx2ext)
 	
 	(nav2,nav2ext)=FindRINEXNavigationFile(rnxNavDir,rnxNavSta,yyyy2,doy2,rnxVersion,False);
-	if not(nav2 == ''):
+	if nav2:
 		ftmp = 'rinex_nav_p_gps'  # version 2 is default
 		if (rnxVersion == 3):
 			ftmp = 'rinex_nav_p_mix' 
