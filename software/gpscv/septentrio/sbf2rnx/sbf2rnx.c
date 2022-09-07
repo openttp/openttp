@@ -111,10 +111,28 @@ rinex_make_ver(
     return verBuf;
 }
 
+char hdrBuf[81];
+char *
+rinex_header_get
+(
+	FILE *fhdr,
+	char *token
+)
+{
+	rewind(fhdr);
+	char *s;
+	while (fgets(hdrBuf,81,fhdr)){
+		if (strstr(hdrBuf,token))
+			return hdrBuf;
+	}
+	return NULL;
+}
+
 void 
 rinex_write_obs_header
 (
 	FILE *fout,
+  FILE *fhdr,
 	int majorVer, int minorVer,
 	char *agency
 )
@@ -129,6 +147,36 @@ rinex_write_obs_header
 					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
 	snprintf(tmp,21,"%s-%s",APP_NAME,APP_VERSION);
 	fprintf(fout,"%-20s%-20s%-20s%-20s\n",tmp,agency,buf,"PGM / RUN BY / DATE");
+	char *txt=NULL;
+	if (fhdr){
+		if (txt = rinex_header_get(fhdr,"MARKER NAME"))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER NAME");
+	
+	if (fhdr){
+		if (txt = rinex_header_get(fhdr,"MARKER NUMBER")){
+		}
+	}
+	if (!txt)
+		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER NUMBER");
+	
+	if (fhdr){
+		if (txt = rinex_header_get(fhdr,"MARKER TYPE")){
+		}
+	}
+	if (!txt)
+		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER TYPE");
+	
+	if (fhdr){
+		if (txt = rinex_header_get(fhdr,"OBSERVER / AGENCY")){
+		}
+	}
+	if (!txt)
+		fprintf(fout,"%-20s%-40s%-20s\n","UNKNOWN","UNKNOWN","OBSERVER / AGENCY");
+	
+	
 	fprintf(fout,"%60s%-20s\n","","END OF HEADER");
 }
 
@@ -248,6 +296,14 @@ main(
 		return EXIT_FAILURE;
 	}
 	
+	FILE *rnxObsHeaderFile = NULL;
+	if (rnxObsHeaderFileName){
+	 if (!(rnxObsHeaderFile = fopen(rnxObsHeaderFileName,"r"))){
+		fprintf(stderr,"Unable to open %s\n",rnxObsHeaderFileName);
+		return EXIT_FAILURE;
+	 }
+	}
+ 
 	SBFData_t   SBFData;
 	uint8_t     SBFBlock[MAX_SBFSIZE];
 	MeasEpoch_t MeasEpoch;
@@ -417,7 +473,9 @@ main(
 		}
 	}
 
- rinex_write_obs_header(stderr,RINEX_MAJOR_VER,RINEX_MINOR_VER,"NMIA");
+
+ 
+ rinex_write_obs_header(stderr,rnxObsHeaderFile,RINEX_MAJOR_VER,RINEX_MINOR_VER,"NMIA");
  
  return EXIT_SUCCESS;
  
