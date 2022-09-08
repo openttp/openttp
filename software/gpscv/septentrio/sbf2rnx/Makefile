@@ -2,12 +2,15 @@ PROGRAM = sbf2rnx
 CC = gcc
 
 
-FLAGS	= -O -mno-align-double -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNO_DECRYPTION
+CFLAGS	= -Wall -O -mno-align-double -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNO_DECRYPTION
 
 LDFLAGS = -lm 
 
-SBF_OBJS	= sbfread.o sbfread_meas.o sbfsvid.o ssngetop.o crc.o
+SBF_OBJS = sbfread.o sbfread_meas.o sbfsvid.o ssngetop.o crc.o
 
+APP_OBJS = sbf2rnx.o
+
+ALL_OBJS = $(SBF_OBJS) $(APP_OBJS)
 
 sbf2rnx: sbf2rnx.o $(SBF_OBJS)
 	$(CC) $^ -o $@ $(LDFLAGS)

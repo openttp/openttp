@@ -42,7 +42,7 @@
 #define APP_NAME    "sbf2rnx"
 #define APP_VERSION "0.1.0"
 
-#define MAXSTR 1024
+#define MAXSTR 4097 // this is accomodates longest file path on Linux 
 
 #define TRUE  1
 #define FALSE 0
@@ -53,6 +53,7 @@
 
 #define RINEX_MAJOR_VER 3
 #define RINEX_MINOR_VER 4
+
 
 /* globals */
 
@@ -111,74 +112,22 @@ rinex_make_ver(
     return verBuf;
 }
 
-char hdrBuf[81];
+char hdrBuf[83]; // 80 + CRLF + null terminator
 char *
 rinex_header_get
 (
-	FILE *fhdr,
+	FILE *rnxObsHeaderFile,
 	char *token
 )
 {
-	rewind(fhdr);
-	char *s;
-	while (fgets(hdrBuf,81,fhdr)){
+	rewind(rnxObsHeaderFile);
+	while (fgets(hdrBuf,83,rnxObsHeaderFile)){
 		if (strstr(hdrBuf,token))
 			return hdrBuf;
 	}
 	return NULL;
 }
 
-void 
-rinex_write_obs_header
-(
-	FILE *fout,
-  FILE *fhdr,
-	int majorVer, int minorVer,
-	char *agency
-)
-{
-	char buf[81],tmp[81];
-	
-	fprintf(fout,"%9s%11s%-20s%c%-19s%-20s\n",rinex_make_ver(majorVer,minorVer),"","O",'M',"","RINEX VERSION / TYPE");
-	
-	time_t tnow = time(NULL);
-	struct tm *tgmt = gmtime(&tnow);
-	snprintf(buf,81,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
-					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
-	snprintf(tmp,21,"%s-%s",APP_NAME,APP_VERSION);
-	fprintf(fout,"%-20s%-20s%-20s%-20s\n",tmp,agency,buf,"PGM / RUN BY / DATE");
-	char *txt=NULL;
-	if (fhdr){
-		if (txt = rinex_header_get(fhdr,"MARKER NAME"))
-			fprintf(fout,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER NAME");
-	
-	if (fhdr){
-		if (txt = rinex_header_get(fhdr,"MARKER NUMBER")){
-		}
-	}
-	if (!txt)
-		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER NUMBER");
-	
-	if (fhdr){
-		if (txt = rinex_header_get(fhdr,"MARKER TYPE")){
-		}
-	}
-	if (!txt)
-		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER TYPE");
-	
-	if (fhdr){
-		if (txt = rinex_header_get(fhdr,"OBSERVER / AGENCY")){
-		}
-	}
-	if (!txt)
-		fprintf(fout,"%-20s%-40s%-20s\n","UNKNOWN","UNKNOWN","OBSERVER / AGENCY");
-	
-	
-	fprintf(fout,"%60s%-20s\n","","END OF HEADER");
-}
 
 static void
 sbf2rnx_print_help()
@@ -231,45 +180,48 @@ main(
 {
 	
 	int c;
-	char *rnxObsFileName;
+	char rnxObsFileName[MAXSTR];
+	char tmpRnxObsFileName[MAXSTR];
 	char *rnxObsHeaderFileName = NULL;
 	char *sbfLogFileName;
 	
 	int obsInterval = 30;
-	rnxObsFileName = strdup("test.rnx");
+	strncpy(rnxObsFileName,"test.rnx",MAXSTR-1);
+	strncpy(tmpRnxObsFileName,"test.rnx.tmp",MAXSTR-1);
 	
 	/* Process the command line options */
-	char *strend;
-	while ((c=getopt(argc,argv,"dhvi:o:")) != -1){
+
+	while ((c=getopt(argc,argv,"dhH:vi:o:")) != -1){
 		switch(c){
-			case 'd':	/* enable debugging */
+			case 'd':	// enable debugging 
 				printf("Debugging is ON\n");
 				debugOn=TRUE;
 				break;
-			case 'h': /* print help */
+			case 'h': // print help 
 				sbf2rnx_print_help();
 				return EXIT_SUCCESS;
 				break;
-			case 'H': /* use as template for RINEX obs header*/
+			case 'H': // use as template for RINEX obs header
 				rnxObsHeaderFileName = strdup(optarg);
 				break;
-			case 'i': /* observation interval */
+			case 'i': // observation interval
 				if (!sbf2rnx_get_int_opt("-i",optarg,&obsInterval)){
 					sbf2rnx_print_help();
 					return EXIT_FAILURE;
 				}
 				break;
-			case 'o': /* set output file name */
-				free(rnxObsFileName);
-				rnxObsFileName = strndup(optarg,MAXSTR-1);
+			case 'o': // set output file name 
+				strncpy(rnxObsFileName,optarg,MAXSTR-1);
+				strncpy(tmpRnxObsFileName,optarg,MAXSTR-1);
+				strncat(tmpRnxObsFileName,".tmp",MAXSTR-1);
 				break;
-			case 'v': /* print version */
+			case 'v': // print version 
 				printf("\n %s version %s\n",APP_NAME,APP_VERSION);
 				printf(" Written by %s\n",APP_AUTHORS);
 				printf(" This ain't no stinkin' Perl script!\n");
 				return EXIT_SUCCESS;
 				break;
-			case '?': /* WTF */
+			case '?': // WTF 
 				sbf2rnx_print_help();
 				return EXIT_FAILURE;
 				break;
@@ -296,6 +248,12 @@ main(
 		return EXIT_FAILURE;
 	}
 	
+	FILE *tmpObsFile = fopen(tmpRnxObsFileName,"w");
+	if (!obsFile){
+		fprintf(stderr,"Unable to open %s for writing\n",tmpRnxObsFileName);
+		return EXIT_FAILURE;
+	}
+	
 	FILE *rnxObsHeaderFile = NULL;
 	if (rnxObsHeaderFileName){
 	 if (!(rnxObsHeaderFile = fopen(rnxObsHeaderFileName,"r"))){
@@ -304,27 +262,47 @@ main(
 	 }
 	}
  
+	int rxSignals[SIG_LAST+1]; // use this to track what's reported
+	int s;
+	for (s=0;s<=SIG_LAST;s++)
+		rxSignals[s]=0;
+	
 	SBFData_t   SBFData;
 	uint8_t     SBFBlock[MAX_SBFSIZE];
 	MeasEpoch_t MeasEpoch;
 	
-	InitializeSBFDecoding(sbfLogFileName, &SBFData); /* initialize the data containers that will be used to decode the SBF blocks */
+	// Initial pass through the file to determine signals that are being tracked
+	InitializeSBFDecoding(sbfLogFileName, &SBFData);
 
-	//char buf[MEAS3_SAT_MAX][MAX_NR_OF_SIGNALS_PER_SATELLITE*16+3+1];
-
+	while (GetNextBlock(&SBFData, SBFBlock, BLOCKNUMBER_ALL, BLOCKNUMBER_ALL,START_POS_CURRENT | END_POS_AFTER_BLOCK) == 0){
+		if (sbfread_MeasCollectAndDecode(&SBFData, SBFBlock, &MeasEpoch, SBFREAD_ALLMEAS_ENABLED)){
+			int i,tow;
+			tow = MeasEpoch.TOW_ms;
+			if (tow/1000 % obsInterval == 0){
+				for (i=0; i<MeasEpoch.nbrElements; i++){
+					uint32_t SigIdx;
+					for (SigIdx=0; SigIdx<MAX_NR_OF_SIGNALS_PER_SATELLITE; SigIdx++){
+						const MeasSet_t* const MeasSet = &(MeasEpoch.channelData[i].measSet[0][SigIdx]);
+						if (MeasSet->flags != 0){
+							int st = (SignalType_t)MeasSet->signalType;
+							rxSignals[st] = 1;
+						}
+					}
+				}
+			}
+		}
+	}
+	CloseSBFFile(&SBFData);
+	
+	InitializeSBFDecoding(sbfLogFileName, &SBFData);
+	
 	// To sort PRNs, use an array (index is SVID 1)  which contains the index of the corresponding measurement set
 	int prnIDs[MAX_PRN+1];
+	int firstObsTOW=-1,firstObsWN=-1,lastObsTOW=-1,lastObsWN=-1;
 	
 	while (GetNextBlock(&SBFData, SBFBlock, BLOCKNUMBER_ALL, BLOCKNUMBER_ALL,START_POS_CURRENT | END_POS_AFTER_BLOCK) == 0){
 		memset((void *) prnIDs,-1,(MAX_PRN+1)*sizeof(int));
 		
-		/* SBFBlock contains an SBF block as read from the file.  All
-			blocks are sent to sbfread_MeasCollectAndDecode().  The
-			function collects measurement-related blocks (MeasEpoch,
-			MeasExtra, Meas3Ranges, Meas3Doppler, etc...), and returns true
-			when a complete measurement epoch is available.  The decoded
-			measurement epoch containing all observables from all
-			satellites is provided in the MeasEpoch structure. */
 		if (sbfread_MeasCollectAndDecode(&SBFData, SBFBlock, &MeasEpoch, SBFREAD_ALLMEAS_ENABLED)){
 		//if (0){
 			int i,tow;
@@ -349,12 +327,22 @@ main(
 					}
 				}
 				
+				// FIXME bail if nsats == 0 ?
+				
 				// Output header for the observation record
 				struct tm tmGPS;
 				GPS_to_date(MeasEpoch.TOW_ms/1000,MeasEpoch.WNc,&tmGPS); 
 				
+				if (firstObsWN == -1){ 
+					firstObsTOW = MeasEpoch.TOW_ms;
+					firstObsWN  = MeasEpoch.WNc;
+				}
+				
+				lastObsTOW = MeasEpoch.TOW_ms;
+				lastObsWN  = MeasEpoch.WNc;
+					
 				// Epoch flag currently set to 0 - could use this ...
-				fprintf(obsFile,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f  %1d%3d%6s%15.12lf\n",
+				fprintf(tmpObsFile,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f  %1d%3d%6s%15.12lf\n",
 					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec + (double) (MeasEpoch.TOW_ms % 1000)/1000.0,
 					0,nSats," ",0.0);
 				
@@ -363,7 +351,7 @@ main(
 					int measIndex = prnIDs[i];
 					if ( measIndex != -1){
 						if (agIsGPS(i)){
-							fprintf(obsFile,"G%02d",i);
+							fprintf(tmpObsFile,"G%02d",i);
 							uint32_t SigIdx;
 							
 							char cL1CA[17];strcpy(cL1CA,BLANK16);
@@ -386,7 +374,7 @@ main(
 											if (measSet->PR_m != F64_NOTVALID){
 												snprintf(cL1CA,17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
 											}
-											/* discard carrier phases with half-cycle ambiguities */
+											// discard carrier phases with half-cycle ambiguities 
 											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
 												// FIXME truncate phase if it will overflow ! 
 												snprintf(pL1P, 17,"%14.3lf%2s",measSet->L_cycles,
@@ -431,7 +419,21 @@ main(
 									}
 								}
 							}
-							fprintf(obsFile,"%s%s%s%s%s%s%s\n",cL1CA,pL1P,cL1P,cL2P,pL2P,cL2C,pL2C);
+							if (rxSignals[SIG_GPSL1CA])
+								fprintf(tmpObsFile,"%s%s",cL1CA,pL1P);
+							if (rxSignals[SIG_GPSL1P]){
+								if (rxSignals[SIG_GPSL1CA]) // already have CP
+									fprintf(tmpObsFile,"%s",cL1P);
+								else
+									fprintf(tmpObsFile,"%s%s",cL1P,pL1P);
+							}
+							if (rxSignals[SIG_GPSL2P]){
+								fprintf(tmpObsFile,"%s%s",cL2P,pL2P);
+							}
+							if (rxSignals[SIG_GPSL2C]){
+								fprintf(tmpObsFile,"%s%s",cL2C,pL2C);
+							}
+							fprintf(tmpObsFile,"\n");
 						}
 					}
 				}
@@ -472,11 +474,157 @@ main(
 			}
 		}
 	}
+	
+	fclose(tmpObsFile);
+	
+	//
+	// Create the observation file header
+	// 
+	
+	char buf[81],tmp[81];
+	FILE *fout = obsFile;
+	
+	fprintf(fout,"%9s%11s%-20s%c%-19s%-20s\n",rinex_make_ver(RINEX_MAJOR_VER,RINEX_MINOR_VER),"","O",'M',"","RINEX VERSION / TYPE");
+	
+	time_t tnow = time(NULL);
+	struct tm *tgmt = gmtime(&tnow);
+	snprintf(buf,81,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
+					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
+	snprintf(tmp,21,"%s-%s",APP_NAME,APP_VERSION);
+	fprintf(fout,"%-20s%-20s%-20s%-20s\n",tmp,"UNKNOWN",buf,"PGM / RUN BY / DATE");
+	char *txt=NULL;
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"MARKER NAME")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER NAME");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"MARKER NUMBER")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER NUMBER");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"MARKER TYPE")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%-60s%-20s\n","UNKNOWN","MARKER TYPE");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"OBSERVER / AGENCY")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%-20s%-40s%-20s\n","UNKNOWN","UNKNOWN","OBSERVER / AGENCY");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"REC # / TYPE / VERS")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN","UNKNOWN","REC # / TYPE / VERS");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"ANT # / TYPE")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN"," ","ANT # / TYPE");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"APPROX POSITION XYZ")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",0.0,0.0,0.0," ","APPROX POSITION XYZ");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_header_get(rnxObsHeaderFile,"ANTENNA: DELTA H/E/N")))
+			fprintf(fout,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fout,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",0.0,0.0,0.0," ","ANTENNA: DELTA H/E/N");
+	
+	//
+	
+	int nObs =0;
+	char codes[81];
+	strcpy(codes," "); 
+	if (rxSignals[SIG_GPSL1CA]){
+		nObs+=2;
+		strcat(codes,"C1C L1C ");
+	}
+	if (rxSignals[SIG_GPSL1P]){
+		if (rxSignals[SIG_GPSL1CA]){
+			nObs+=1;
+			strcat(codes,"C1W ");
+		}
+		else{
+			nObs+=2;
+			strcat(codes,"C1W L1C ");
+		}
+	}
+	if (rxSignals[SIG_GPSL2P]){
+		nObs += 2;
+		strcat(codes,"C2W L2W ");
+	}
+	if (rxSignals[SIG_GPSL2C]){
+		nObs += 2;
+		strcat(codes,"C2L L2L");
+	}
+	fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nObs,codes,"SYS / # / OBS TYPE");
+	
+	fprintf(fout,"SEPTENTRIO RECEIVERS OUTPUT ALIGNED CARRIER PHASES.         COMMENT\n");             
+	fprintf(fout,"NO FURTHER PHASE SHIFT APPLIED IN THE RINEX ENCODER.        COMMENT\n");             
+	fprintf(fout,"G L1C                                                       SYS / PHASE SHIFT\n");   
+	fprintf(fout,"G L2W                                                       SYS / PHASE SHIFT\n");   
+	fprintf(fout,"G L2L  0.00000                                              SYS / PHASE SHIFT\n");
+	
+	
+	fprintf(fout,"%10.3lf%-50s%-20s\n",(double) obsInterval," ","INTERVAL");
+	
+	struct tm tmGPS;	
+	GPS_to_date(firstObsTOW/1000,firstObsWN,&tmGPS); 
+	fprintf(fout,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
+					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,
+					(double) (tmGPS.tm_sec + (firstObsTOW % 1000)/1000.0),
+					" ", "GPS"," ","TIME OF FIRST OBS");
+	
+	
+	GPS_to_date(lastObsTOW/1000,lastObsWN,&tmGPS); 
+	fprintf(fout,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
+					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,
+					(double) (tmGPS.tm_sec + (firstObsTOW % 1000)/1000.0),
+					" ", "GPS"," ","TIME OF LAST OBS");
+	
+	fprintf(fout,"%60s%-20s\n","","END OF HEADER");
+	
 
-
- 
- rinex_write_obs_header(stderr,rnxObsHeaderFile,RINEX_MAJOR_VER,RINEX_MINOR_VER,"NMIA");
- 
- return EXIT_SUCCESS;
+	// Append the observations
+	tmpObsFile = fopen(tmpRnxObsFileName,"r");
+	char bigBuf[MAXSTR];
+	
+	while (fgets(bigBuf,MAXSTR,tmpObsFile)){
+		fprintf(obsFile,"%s",bigBuf);
+	}
+	fclose(tmpObsFile);
+	fclose(fout);
+	unlink(tmpRnxObsFileName);
+	
+	
+	return EXIT_SUCCESS;
  
 }
