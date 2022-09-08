@@ -585,7 +585,7 @@ main(
 		nObs += 2;
 		strcat(codes,"C2L L2L");
 	}
-	fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nObs,codes,"SYS / # / OBS TYPE");
+	fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nObs,codes,"SYS / # / OBS TYPES");
 	
 	fprintf(fout,"SEPTENTRIO RECEIVERS OUTPUT ALIGNED CARRIER PHASES.         COMMENT\n");             
 	fprintf(fout,"NO FURTHER PHASE SHIFT APPLIED IN THE RINEX ENCODER.        COMMENT\n");             
