@@ -23,7 +23,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -98,7 +98,7 @@ defRnxStation = 'SEPT' # default station name used by sbf2rin
 fixHeader = False
 bodgeSatCountBug = False
 
-configFile = os.path.join(home,'etc','sbf2rnx.conf')
+configFile = os.path.join(home,'etc','runsbf2rnx.conf')
 
 parser = argparse.ArgumentParser(description='Generate RINEX files from Septentrio SBF (wrapper for sbf2rin) ',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
