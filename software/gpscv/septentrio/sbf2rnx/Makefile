@@ -2,7 +2,11 @@ PROGRAM = sbf2rnx
 CC = gcc
 
 
-CFLAGS	= -Wall -O -mno-align-double -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNO_DECRYPTION
+# It is unclear if mno-align-double is needed
+# The comment in Septentrio's Makefile refers to Cygwin and an ancient gcc sbf2asc_version
+# The executable works on x86 with and without the flag
+#CFLAGS	= -Wall -O -mno-align-double -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNO_DECRYPTION
+CFLAGS	= -Wall -O -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNO_DECRYPTION
 
 LDFLAGS = -lm 
 

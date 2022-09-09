@@ -40,7 +40,7 @@
 
 #define APP_AUTHORS "Michael Wouters"
 #define APP_NAME    "sbf2rnx"
-#define APP_VERSION "0.1.0"
+#define APP_VERSION "0.1.1"
 
 #define MAXSTR 4097 // this is accomodates longest file path on Linux 
 
@@ -54,6 +54,7 @@
 #define RINEX_MAJOR_VER 3
 #define RINEX_MINOR_VER 4
 
+#define PLL_LOCK_FUDGE 10
 
 /* globals */
 
@@ -148,7 +149,7 @@ sbf2rnx_set_lli(
 	int lockTime,
 	int obsInterval)
 {
-	if (lockTime/1000 < obsInterval)
+	if (lockTime/1000 < obsInterval + PLL_LOCK_FUDGE)
 		return 1;
 	return 0; // OK
 }
@@ -342,9 +343,9 @@ main(
 				lastObsWN  = MeasEpoch.WNc;
 					
 				// Epoch flag currently set to 0 - could use this ...
-				fprintf(tmpObsFile,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f  %1d%3d%6s%15.12lf\n",
+				fprintf(tmpObsFile,"> %4d %2.2d %2.2d %2.2d %2.2d%11.7f  %1d%3d\n",
 					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec + (double) (MeasEpoch.TOW_ms % 1000)/1000.0,
-					0,nSats," ",0.0);
+					0,nSats); // don't output receiver clock offset
 				
 				// Output observations 
 				for (i=1;i<=MAX_PRN;i++){
@@ -361,6 +362,8 @@ main(
 							char pL2P[17];strcpy(pL2P,BLANK16);
 							char cL2C[17];strcpy(cL2C,BLANK16);
 							char pL2C[17];strcpy(pL2C,BLANK16);
+							char cL5[17];strcpy(cL5,BLANK16);
+							char pL5[17];strcpy(pL5,BLANK16);
 							
 							for (SigIdx = 0; SigIdx < MAX_NR_OF_SIGNALS_PER_SATELLITE; SigIdx++){
 								const MeasSet_t* const measSet = &(MeasEpoch.channelData[measIndex].measSet[0][SigIdx]); /* main antenna */
@@ -379,6 +382,10 @@ main(
 												// FIXME truncate phase if it will overflow ! 
 												snprintf(pL1P, 17,"%14.3lf%2s",measSet->L_cycles,
 													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn)); // repeated for L1P to make sure we get it
+												//if (measSet->PLLTimer_ms/1000 < obsInterval){
+													//fprintf(stderr,"%02d%02d%02d %d %d %s\n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms/1000,
+													//				rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
+												//}
 											}
 											//fprintf(stderr,"L1C %2d %2d %2d SV=%02d %d %d \n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms,measSet->lockCount);
 											break;
@@ -399,6 +406,11 @@ main(
 											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
 												snprintf(pL2P, 17,"%14.3lf%2s",measSet->L_cycles,
 													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
+												//if (measSet->PLLTimer_ms/1000 < obsInterval){
+													//fprintf(stderr,"%02d%02d%02d %d %d %s\n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms/1000,
+														//rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn)
+													//);
+												//}
 											}
 											break;
 										case SIG_GPSL2C:  // GPS L2C
@@ -408,9 +420,21 @@ main(
 											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
 												snprintf(pL2C, 17,"%14.3lf%2s",measSet->L_cycles,
 													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
+												//if (measSet->PLLTimer_ms/1000 < obsInterval){
+													//fprintf(stderr,"%02d%02d%02d %d %d %s\n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms/1000,
+														//rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn)
+													//);
+												//}
 											}
 											break;
 										case SIG_GPSL5:   // GPS L5
+											if (measSet->PR_m != F64_NOTVALID){
+												snprintf(cL5, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
+											}
+											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
+												snprintf(pL5, 17,"%14.3lf%2s",measSet->L_cycles,
+													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
+											}
 											break;
 										case SIG_GPSL1C:  // GPS L1C
 											break;
@@ -432,6 +456,9 @@ main(
 							}
 							if (rxSignals[SIG_GPSL2C]){
 								fprintf(tmpObsFile,"%s%s",cL2C,pL2C);
+							}
+							if (rxSignals[SIG_GPSL5]){
+								fprintf(tmpObsFile,"%s%s",cL5,pL5);
 							}
 							fprintf(tmpObsFile,"\n");
 						}
@@ -585,14 +612,24 @@ main(
 		nObs += 2;
 		strcat(codes,"C2L L2L");
 	}
-	fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nObs,codes,"SYS / # / OBS TYPES");
+	if (rxSignals[SIG_GPSL5]){// FIXME not sure about observation names
+		nObs += 2;
+		strcat(codes,"C5Q L5Q");
+	}
+	
+	if (nObs > 13){ 
+		// FIXME
+	}
+	else{
+		fprintf(fout,"%1s  %3d%-54s%-20s\n","G",nObs,codes,"SYS / # / OBS TYPES");
+	}
 	
 	fprintf(fout,"SEPTENTRIO RECEIVERS OUTPUT ALIGNED CARRIER PHASES.         COMMENT\n");             
 	fprintf(fout,"NO FURTHER PHASE SHIFT APPLIED IN THE RINEX ENCODER.        COMMENT\n");             
-	fprintf(fout,"G L1C                                                       SYS / PHASE SHIFT\n");   
-	fprintf(fout,"G L2W                                                       SYS / PHASE SHIFT\n");   
-	fprintf(fout,"G L2L  0.00000                                              SYS / PHASE SHIFT\n");
-	
+	if (rxSignals[SIG_GPSL1CA]){fprintf(fout,"G L1C                                                       SYS / PHASE SHIFT\n");}   
+	if (rxSignals[SIG_GPSL1P]) {fprintf(fout,"G L2W                                                       SYS / PHASE SHIFT\n");}  
+	if (rxSignals[SIG_GPSL2C]) {fprintf(fout,"G L2L  0.00000                                              SYS / PHASE SHIFT\n");}
+	if (rxSignals[SIG_GPSL5])  {fprintf(fout,"G L5Q  0.00000                                              SYS / PHASE SHIFT\n");}
 	
 	fprintf(fout,"%10.3lf%-50s%-20s\n",(double) obsInterval," ","INTERVAL");
 	
