@@ -151,6 +151,28 @@ sbf2rnx_set_lli(
 	return 0; // OK
 }
 
+static void
+sbf2rnx_format_obs(
+	char * code,
+	char * phase,
+	int sn,
+	int obsInterval,
+	const MeasSet_t* const measSet
+)
+{
+	if (measSet->PR_m != F64_NOTVALID){
+		snprintf(code, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
+	}
+	if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
+		snprintf(phase, 17,"%14.3lf%2s",measSet->L_cycles,
+			rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
+		//if (measSet->PLLTimer_ms/1000 < obsInterval){
+		//	fprintf(stderr,"%02d%02d%02d %d %d %s\n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms/1000,
+		//				rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
+		//}
+	}
+}
+	
 static int
 sbf2rnx_get_int_opt
 (
@@ -469,20 +491,7 @@ main(
 										sn = rinex_sn(measSet->CN0_dBHz);
 									switch (sig){
 										case SIG_GPSL1CA: // GPS L1 C/A
-											if (measSet->PR_m != F64_NOTVALID){
-												snprintf(cL1CA,17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
-											}
-											// discard carrier phases with half-cycle ambiguities 
-											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-												// FIXME truncate phase if it will overflow ! 
-												snprintf(pL1P, 17,"%14.3lf%2s",measSet->L_cycles,
-													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn)); // repeated for L1P to make sure we get it
-												//if (measSet->PLLTimer_ms/1000 < obsInterval){
-													//fprintf(stderr,"%02d%02d%02d %d %d %s\n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms/1000,
-													//				rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
-												//}
-											}
-											//fprintf(stderr,"L1C %2d %2d %2d SV=%02d %d %d \n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms,measSet->lockCount);
+											sbf2rnx_format_obs(cL1CA,pL1P,sn,obsInterval,measSet);
 											break;
 										case SIG_GPSL1P:  // GPS L1 P(Y) 
 											if (measSet->PR_m != F64_NOTVALID){
@@ -495,31 +504,13 @@ main(
 											//fprintf(stderr,"L1P %2d %2d %2d SV=%02d %d %d \n",tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,i,measSet->PLLTimer_ms,measSet->lockCount);
 											break;
 										case SIG_GPSL2P:  // GPS L2 P(Y)
-											if (measSet->PR_m != F64_NOTVALID){
-												snprintf(cL2P, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
-											}
-											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-												snprintf(pL2P, 17,"%14.3lf%2s",measSet->L_cycles,
-													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
-											}
+											sbf2rnx_format_obs(cL2P,pL2P,sn,obsInterval,measSet);
 											break;
 										case SIG_GPSL2C:  // GPS L2C
-											if (measSet->PR_m != F64_NOTVALID){
-												snprintf(cL2C, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
-											}
-											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-												snprintf(pL2C, 17,"%14.3lf%2s",measSet->L_cycles,
-													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
-											}
+											sbf2rnx_format_obs(cL2C,pL2C,sn,obsInterval,measSet);
 											break;
 										case SIG_GPSL5:   // GPS L5
-											if (measSet->PR_m != F64_NOTVALID){
-												snprintf(cL5, 17,"%14.3lf%2s",measSet->PR_m,rinex_format_flags(-1,sn));
-											}
-											if ((measSet->flags & MEASFLAG_HALFCYCLEAMBIGUITY) == 0 && measSet->L_cycles != F64_NOTVALID){
-												snprintf(pL5, 17,"%14.3lf%2s",measSet->L_cycles,
-													rinex_format_flags(sbf2rnx_set_lli(measSet->PLLTimer_ms,obsInterval),sn));
-											}
+											sbf2rnx_format_obs(cL5,pL5,sn,obsInterval,measSet);
 											break;
 										case SIG_GPSL1C:  // GPS L1C
 											break;
