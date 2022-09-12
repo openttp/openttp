@@ -36,7 +36,7 @@
 
 #define APP_AUTHORS "Michael Wouters"
 #define APP_NAME    "sbf2rnx"
-#define APP_VERSION "0.1.2"
+#define APP_VERSION "0.2.0"
 
 #define MAXSTR 4097 // this is accomodates longest file path on Linux 
 
@@ -51,6 +51,9 @@
 #define RINEX_MINOR_VER 4
 
 #define PLL_LOCK_FUDGE 10
+
+#define ICD_PI 3.1415926535898
+static const double GPSURA[] = {2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,2048,4096,0.0};
 
 /* globals */
 
@@ -111,7 +114,7 @@ rinex_make_ver(
 
 char hdrBuf[83]; // 80 + CRLF + null terminator
 char *
-rinex_header_get
+rinex_get_header
 (
 	FILE *rnxObsHeaderFile,
 	char *token
@@ -125,6 +128,201 @@ rinex_header_get
 	return NULL;
 }
 
+void
+rinex_write_obs_header
+(
+	FILE *fobs,
+	FILE *rnxObsHeaderFile,
+	char *user,
+	int rxSignals[],
+	int obsInterval,
+	int firstObsTOW,int firstObsWN,
+	int lastObsTOW,int lastObsWN
+)
+{
+	
+	char buf[81],tmp[81];
+	time_t tnow = time(NULL);
+	struct tm *tgmt = gmtime(&tnow);
+	
+	fprintf(fobs,"%9s%11s%-20s%c%-19s%-20s\n",rinex_make_ver(RINEX_MAJOR_VER,RINEX_MINOR_VER),"","O",'M',"","RINEX VERSION / TYPE");
+	
+	snprintf(buf,81,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
+					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
+	snprintf(tmp,21,"%s-%s",APP_NAME,APP_VERSION);
+	fprintf(fobs,"%-20s%-20s%-20s%-20s\n",tmp,user,buf,"PGM / RUN BY / DATE");
+	
+	char *txt=NULL;
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"MARKER NAME")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%-60s%-20s\n","UNKNOWN","MARKER NAME");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"MARKER NUMBER")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%-60s%-20s\n","UNKNOWN","MARKER NUMBER");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"MARKER TYPE")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%-60s%-20s\n","UNKNOWN","MARKER TYPE");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"OBSERVER / AGENCY")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%-20s%-40s%-20s\n","UNKNOWN","UNKNOWN","OBSERVER / AGENCY");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"REC # / TYPE / VERS")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN","UNKNOWN","REC # / TYPE / VERS");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"ANT # / TYPE")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN"," ","ANT # / TYPE");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"APPROX POSITION XYZ")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",0.0,0.0,0.0," ","APPROX POSITION XYZ");
+	
+	//
+	if (rnxObsHeaderFile){
+		if ((txt = rinex_get_header(rnxObsHeaderFile,"ANTENNA: DELTA H/E/N")))
+			fprintf(fobs,"%s",txt);
+	}
+	if (!txt)
+		fprintf(fobs,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",0.0,0.0,0.0," ","ANTENNA: DELTA H/E/N");
+	
+	//
+	
+	int nObs =0;
+	char codes[81];
+	strcpy(codes," "); 
+	if (rxSignals[SIG_GPSL1CA]){
+		nObs+=2;
+		strcat(codes,"C1C L1C ");
+	}
+	if (rxSignals[SIG_GPSL1P]){
+		if (rxSignals[SIG_GPSL1CA]){
+			nObs+=1;
+			strcat(codes,"C1W ");
+		}
+		else{
+			nObs+=2;
+			strcat(codes,"C1W L1C ");
+		}
+	}
+	if (rxSignals[SIG_GPSL2P]){
+		nObs += 2;
+		strcat(codes,"C2W L2W ");
+	}
+	if (rxSignals[SIG_GPSL2C]){
+		nObs += 2;
+		strcat(codes,"C2L L2L ");
+	}
+	if (rxSignals[SIG_GPSL5]){// FIXME not sure about observation names
+		nObs += 2;
+		strcat(codes,"C5Q L5Q ");
+	}
+	
+	if (nObs > 13){ 
+		// FIXME
+	}
+	else{
+		fprintf(fobs,"%1s  %3d%-54s%-20s\n","G",nObs,codes,"SYS / # / OBS TYPES");
+	}
+	
+	fprintf(fobs,"SEPTENTRIO RECEIVERS OUTPUT ALIGNED CARRIER PHASES.         COMMENT\n");             
+	fprintf(fobs,"NO FURTHER PHASE SHIFT APPLIED IN THE RINEX ENCODER.        COMMENT\n");             
+	if (rxSignals[SIG_GPSL1CA]){fprintf(fobs,"G L1C                                                       SYS / PHASE SHIFT\n");}   
+	if (rxSignals[SIG_GPSL1P]) {fprintf(fobs,"G L2W                                                       SYS / PHASE SHIFT\n");}  
+	if (rxSignals[SIG_GPSL2C]) {fprintf(fobs,"G L2L  0.00000                                              SYS / PHASE SHIFT\n");}
+	if (rxSignals[SIG_GPSL5])  {fprintf(fobs,"G L5Q  0.00000                                              SYS / PHASE SHIFT\n");}
+	
+	fprintf(fobs,"%10.3lf%-50s%-20s\n",(double) obsInterval," ","INTERVAL");
+	
+	struct tm tmGPS;
+	
+	GPS_to_date(firstObsTOW/1000,firstObsWN,&tmGPS); 
+	fprintf(fobs,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
+					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,
+					(double) (tmGPS.tm_sec + (firstObsTOW % 1000)/1000.0),
+					" ", "GPS"," ","TIME OF FIRST OBS");
+	
+	
+	GPS_to_date(lastObsTOW/1000,lastObsWN,&tmGPS); 
+	fprintf(fobs,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
+					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,
+					(double) (tmGPS.tm_sec + (firstObsTOW % 1000)/1000.0),
+					" ", "GPS"," ","TIME OF LAST OBS");
+	
+	fprintf(fobs,"%60s%-20s\n","","END OF HEADER");
+}
+
+void 
+rinex_write_nav_gps
+(
+	FILE *fnav,
+ 	GPSNav_1_0_t *gpsNav
+)
+{
+	
+	int nRolloverWeeks = (gpsNav->Eph.WNc/1024)*1024; // this is full WN for the message transmission time
+	
+	// FIXME the resolution of full WN uses transmission time, which might be after t_OC
+	// Maybe detect this using the difference WNc and WNt?
+	struct tm tmGPS;
+	GPS_to_date(gpsNav->Eph.t_oc,gpsNav->Eph.WNt_oc + nRolloverWeeks,&tmGPS); 
+	
+	fprintf(fnav,"G%02d %4d %02d %02d %02d %02d %02d%19.12E%19.12E%19.12E\n",gpsNav->Eph.PRN,
+		tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,tmGPS.tm_sec,
+		gpsNav->Eph.a_f0,gpsNav->Eph.a_f1,gpsNav->Eph.a_f2);
+	
+	fprintf(fnav,"%4s%19.12E%19.12E%19.12E%19.12E\n"," ", // broadcast orbit 1
+		(double) gpsNav->Eph.IODE2,gpsNav->Eph.C_rs,gpsNav->Eph.DEL_N*ICD_PI,gpsNav->Eph.M_0*ICD_PI);
+
+	fprintf(fnav,"%4s%19.12E%19.12E%19.12E%19.12E\n"," ", // broadcast orbit 2
+		gpsNav->Eph.C_uc,gpsNav->Eph.e,gpsNav->Eph.C_us,gpsNav->Eph.SQRT_A);
+
+	fprintf(fnav,"%4s%19.12E%19.12E%19.12E%19.12E\n"," ", // broadcast orbit 3
+		(double) gpsNav->Eph.t_oe,gpsNav->Eph.C_ic,gpsNav->Eph.OMEGA_0*ICD_PI,gpsNav->Eph.C_is);
+
+	fprintf(fnav,"%4s%19.12E%19.12E%19.12E%19.12E\n"," ", // broadcast orbit 4
+		gpsNav->Eph.i_0*ICD_PI,gpsNav->Eph.C_rc,gpsNav->Eph.omega*ICD_PI,gpsNav->Eph.OMEGADOT*ICD_PI);
+
+	fprintf(fnav,"%4s%19.12E%19.12E%19.12E%19.12E\n"," ", // broadcast orbit 5
+		gpsNav->Eph.IDOT*ICD_PI,1.0,(double) gpsNav->Eph.WNt_oe + nRolloverWeeks,0.0); // FIXME check behaviour near rollover
+
+	fprintf(fnav,"%4s%19.12E%19.12E%19.12E%19.12E\n"," ", // broadcast orbit 6
+		GPSURA[gpsNav->Eph.URA],(double) gpsNav->Eph.health,gpsNav->Eph.T_gd,(double) gpsNav->Eph.IODC);
+	
+	fprintf(fnav,"%4s%19.12E%19.12E\n"," ",(double) gpsNav->Eph.TOW/1000.0,4.0); // broadcast orbit 7 (TOW is transmission time of message)
+}
 
 static void
 sbf2rnx_print_help()
@@ -406,15 +604,15 @@ main(
 		snprintf(tmp,21,"%s-%s",APP_NAME,APP_VERSION);
 		fprintf(fnav,"%-20s%-20s%-20s%-20s\n",tmp,user,buf,"PGM / RUN BY / DATE");
 		if (gotGPSIono){
-			fprintf(fnav,"GPSA %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
+			fprintf(fnav,"GPSA %12.4E%12.4E%12.4E%12.4E%7s%-20s\n",
 							gpsIono.Ion.alpha_0,gpsIono.Ion.alpha_1,gpsIono.Ion.alpha_2,gpsIono.Ion.alpha_3,"","IONOSPHERIC CORR");
-			fprintf(fnav,"GPSB %12.4e%12.4e%12.4e%12.4e%7s%-20s\n",
+			fprintf(fnav,"GPSB %12.4E%12.4E%12.4E%12.4E%7s%-20s\n",
 							gpsIono.Ion.beta_0,gpsIono.Ion.beta_1,gpsIono.Ion.beta_2,gpsIono.Ion.beta_3,"","IONOSPHERIC CORR");
 		}
 		if (gotGPSUTC){
 			// gpsUTC.Utc.WN_t is truncated so fix it
 			int nRolloverWeeks = (gpsUTC.Utc.WNc/256) * 256; // WNc current week number ? Note that WN_t is 8 bits hence divisor of 256
-			fprintf(fnav,"GPUT %17.10e%16.9e%7d%5d %5s %2d %-20s\n",gpsUTC.Utc.A_0,gpsUTC.Utc.A_1,(int) gpsUTC.Utc.t_ot,gpsUTC.Utc.WN_t + nRolloverWeeks," ", 0,"TIME SYSTEM CORR");
+			fprintf(fnav,"GPUT %17.10E%16.9E%7d%5d %5s %2d %-20s\n",gpsUTC.Utc.A_0,gpsUTC.Utc.A_1,(int) gpsUTC.Utc.t_ot,gpsUTC.Utc.WN_t + nRolloverWeeks," ", 0,"TIME SYSTEM CORR");
 			fprintf(fnav,"%6d%54s%-20s\n",gpsUTC.Utc.DEL_t_LS," ","LEAP SECONDS");
 		}
 		
@@ -563,8 +761,7 @@ main(
 				case sbfnr_GPSNav_1:
 				{
 					if (makeNavFile){
-						//GPSNav_1_0_t *gpsNav = (GPSNav_1_0_t *) SBFBlock;
-						//fprintf(stderr,"%d %d %d %d\n",gpsNav->Eph.TOW/1000,gpsNav->Eph.PRN,gpsNav->Eph.IODE2,gpsNav->Eph.IODE3);
+						rinex_write_nav_gps(fnav,(GPSNav_1_0_t *) SBFBlock);
 					}
 					break;
 				}
@@ -576,158 +773,23 @@ main(
 	
 	fclose(tmpObsFile);
 	
-	//
-	// Create the observation file header
-	// 
-	
-	
-	FILE *fobs = obsFile;
-	
-	fprintf(fobs,"%9s%11s%-20s%c%-19s%-20s\n",rinex_make_ver(RINEX_MAJOR_VER,RINEX_MINOR_VER),"","O",'M',"","RINEX VERSION / TYPE");
-	
-	snprintf(buf,81,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
-					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
-	snprintf(tmp,21,"%s-%s",APP_NAME,APP_VERSION);
-	fprintf(fobs,"%-20s%-20s%-20s%-20s\n",tmp,user,buf,"PGM / RUN BY / DATE");
-	char *txt=NULL;
-	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"MARKER NAME")))
-			fprintf(fobs,"%s",txt);
+	if (makeNavFile){
+		fclose(fnav);
 	}
-	if (!txt)
-		fprintf(fobs,"%-60s%-20s\n","UNKNOWN","MARKER NAME");
+	// Assemble the observation file
 	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"MARKER NUMBER")))
-			fprintf(fobs,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fobs,"%-60s%-20s\n","UNKNOWN","MARKER NUMBER");
-	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"MARKER TYPE")))
-			fprintf(fobs,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fobs,"%-60s%-20s\n","UNKNOWN","MARKER TYPE");
-	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"OBSERVER / AGENCY")))
-			fprintf(fobs,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fobs,"%-20s%-40s%-20s\n","UNKNOWN","UNKNOWN","OBSERVER / AGENCY");
-	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"REC # / TYPE / VERS")))
-			fprintf(fobs,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fobs,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN","UNKNOWN","REC # / TYPE / VERS");
-	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"ANT # / TYPE")))
-			fprintf(fobs,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fobs,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN"," ","ANT # / TYPE");
-	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"APPROX POSITION XYZ")))
-			fprintf(fobs,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fobs,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",0.0,0.0,0.0," ","APPROX POSITION XYZ");
-	
-	//
-	if (rnxObsHeaderFile){
-		if ((txt = rinex_header_get(rnxObsHeaderFile,"ANTENNA: DELTA H/E/N")))
-			fprintf(fobs,"%s",txt);
-	}
-	if (!txt)
-		fprintf(fobs,"%14.4lf%14.4lf%14.4lf%-18s%-20s\n",0.0,0.0,0.0," ","ANTENNA: DELTA H/E/N");
-	
-	//
-	
-	int nObs =0;
-	char codes[81];
-	strcpy(codes," "); 
-	if (rxSignals[SIG_GPSL1CA]){
-		nObs+=2;
-		strcat(codes,"C1C L1C ");
-	}
-	if (rxSignals[SIG_GPSL1P]){
-		if (rxSignals[SIG_GPSL1CA]){
-			nObs+=1;
-			strcat(codes,"C1W ");
-		}
-		else{
-			nObs+=2;
-			strcat(codes,"C1W L1C ");
-		}
-	}
-	if (rxSignals[SIG_GPSL2P]){
-		nObs += 2;
-		strcat(codes,"C2W L2W ");
-	}
-	if (rxSignals[SIG_GPSL2C]){
-		nObs += 2;
-		strcat(codes,"C2L L2L ");
-	}
-	if (rxSignals[SIG_GPSL5]){// FIXME not sure about observation names
-		nObs += 2;
-		strcat(codes,"C5Q L5Q ");
-	}
-	
-	if (nObs > 13){ 
-		// FIXME
-	}
-	else{
-		fprintf(fobs,"%1s  %3d%-54s%-20s\n","G",nObs,codes,"SYS / # / OBS TYPES");
-	}
-	
-	fprintf(fobs,"SEPTENTRIO RECEIVERS OUTPUT ALIGNED CARRIER PHASES.         COMMENT\n");             
-	fprintf(fobs,"NO FURTHER PHASE SHIFT APPLIED IN THE RINEX ENCODER.        COMMENT\n");             
-	if (rxSignals[SIG_GPSL1CA]){fprintf(fobs,"G L1C                                                       SYS / PHASE SHIFT\n");}   
-	if (rxSignals[SIG_GPSL1P]) {fprintf(fobs,"G L2W                                                       SYS / PHASE SHIFT\n");}  
-	if (rxSignals[SIG_GPSL2C]) {fprintf(fobs,"G L2L  0.00000                                              SYS / PHASE SHIFT\n");}
-	if (rxSignals[SIG_GPSL5])  {fprintf(fobs,"G L5Q  0.00000                                              SYS / PHASE SHIFT\n");}
-	
-	fprintf(fobs,"%10.3lf%-50s%-20s\n",(double) obsInterval," ","INTERVAL");
-	
-	GPS_to_date(firstObsTOW/1000,firstObsWN,&tmGPS); 
-	fprintf(fobs,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
-					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,
-					(double) (tmGPS.tm_sec + (firstObsTOW % 1000)/1000.0),
-					" ", "GPS"," ","TIME OF FIRST OBS");
-	
-	
-	GPS_to_date(lastObsTOW/1000,lastObsWN,&tmGPS); 
-	fprintf(fobs,"%6d%6d%6d%6d%6d%13.7lf%-5s%3s%-9s%-20s\n",
-					tmGPS.tm_year+1900,tmGPS.tm_mon+1,tmGPS.tm_mday,tmGPS.tm_hour,tmGPS.tm_min,
-					(double) (tmGPS.tm_sec + (firstObsTOW % 1000)/1000.0),
-					" ", "GPS"," ","TIME OF LAST OBS");
-	
-	fprintf(fobs,"%60s%-20s\n","","END OF HEADER");
-	
+	// Write the header
+	rinex_write_obs_header(obsFile,rnxObsHeaderFile,user,rxSignals,obsInterval,firstObsTOW,firstObsWN,lastObsTOW,lastObsWN);
 
 	// Append the observations
 	tmpObsFile = fopen(tmpRnxObsFileName,"r");
 	char bigBuf[MAXSTR];
-	
 	while (fgets(bigBuf,MAXSTR,tmpObsFile)){
 		fprintf(obsFile,"%s",bigBuf);
 	}
+	
 	fclose(tmpObsFile);
-	fclose(fobs);
+	fclose(obsFile);
 	unlink(tmpRnxObsFileName);
 	
 	
