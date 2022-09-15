@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -76,7 +76,9 @@ osinfo = [
 	['Raspbian GNU/Linux','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
 	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/']]
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/'],
+	['Raspbian GNU/Linux','11','rpidebian11',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/']]
 
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
