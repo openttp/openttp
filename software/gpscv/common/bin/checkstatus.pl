@@ -27,26 +27,28 @@
 # Modification history:
 # 27.10.99  RBW  First version
 #  7. 4.00  RBW  Add HOSTNAME; optional commands based on selection clause;
-#                  add "tail clockset.log" for sites using clockset
+#                add "tail clockset.log" for sites using clockset
 # 18. 7.01  RBW  Add check for ntpd for relevant sites
 #  3. 9.01  RBW  Add check for tclog as well as for onclog
 # 25. 2.02  RBW  Add substitution of MJD
 #	               Add check for Topcon output messages
 # 21. 1.03  RBW  Ternary forms "{test} if-true : if-false"
 #                Each branch can include multiple statements with separator &
-#		             Use Sys::Hostname, but don't use TFLibrary
+#                Use Sys::Hostname, but don't use TFLibrary
 #                Various new commands added
 # 14. 1.04  RBW  Change ternary form syntax: [] instead of {} (easier for
-#		             commands; fixes long-standing error in temperature log check)
-#		             Add check of GPS tracking schedule
+#                commands; fixes long-standing error in temperature log check)
+#                Add check of GPS tracking schedule
 # 11-03-2008 MJW Import into CVS from topcondf2. Various cleanups. A few more checks.
 # 30-03-2016 MJW Rewrite of check_status. Uses gpscv.conf to determine a few paths etc.
-#								 Closer conformance with our 'standard' Perl script.
+#                Closer conformance with our 'standard' Perl script.
 # 2018-09-13 ELM Added ubloxlog to executables to be checked
 # 2020-06-16 ELM Added hp5313xlog, LTElog, nv08log, ticclog, log1Wtemp and 
 #                logpicputemp to executable to be checked.
 #                Also changed -107 > -7 in approx. line 123; we only want last 7 days.
 # 2022-05-01 ELM Found another -107, approx line 139
+# 2022-09-16 ELM Added command for chrony for sensible results when used instead of
+#                ntpd. Fixed typo in 'find ... check' line. Bumped version to 0.2
 #
 
 use Sys::Hostname;
@@ -56,12 +58,12 @@ use TFLibrary;
 
 use vars qw($opt_h $opt_v);
 
-$VERSION="0.1";
+$VERSION="0.2";
 $AUTHOR="Bruce Warrington, Michael Wouters";
 
 # Check command line
-if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
-$0=~s#.*/##;					# then strip it
+if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"} # read path info
+$0=~s#.*/##;                                    # then strip it
 
 if (!(getopts('hv')) || $opt_h){
 	&ShowHelp();
@@ -127,8 +129,10 @@ if (defined $Init{"paths:counter data"}){
 # 'ps x | grep --extended-regexp "jnslog|restlog|prs10log|okxemlog|plrxlog" | grep -v grep',
 # 'ps x | grep --extended-regexp "jnslog|restlog|prs10log|okxemlog|plrxlog|ubloxlog" | grep -v grep',
  'ps x | grep --extended-regexp "ublox9log|jnslog|restlog|prs10log|okxemlog|plrxlog|ubloxlog|hp5313xlog|LTElog|nv08log|ticclog|log1Wtemp|logpicputemp" | grep -v grep',
- 'find . -name "*.check" -printf "%Ab %Ad %AH:%AM %f\n"',
- 'ps ax | grep ntpd | grep -v grep & /usr/local/bin/ntpq -p'
+# 'find . -name "*.check" -printf "%Ab %Ad %AH:%AM %f\n"',
+ 'find -name "*.check" -printf "%Ab %Ad %AH:%AM %f\n"',
+ 'ps ax | grep ntpd | grep -v grep & /usr/local/bin/ntpq -p',
+ 'ps ax | grep chrony | grep -v grep & chronyc sources'
  );
  
 if ($ticpath eq  $rxpath){ # avoid duplicate output
