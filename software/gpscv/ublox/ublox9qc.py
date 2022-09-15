@@ -27,12 +27,15 @@
 # Quality check ublox9 rx  files
 #
 
+
+# 2022-09-16 ELM Updated for Python3 (RIP Python 2.7). Bumped version to 0.0.2
+
 import argparse
 import os
 import re
 import sys
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 AUTHORS = "Michael Wouters"
 
 parser = argparse.ArgumentParser(description='Quality check ublox rx files')
@@ -72,13 +75,13 @@ for l in fin:
 			tlast = tnow
 		if (tnow > tprev):
 			if (not gotRaw):
-				print 'Missed raw before ',match.group(3),match.group(4),match.group(5)
+				print ('Missed raw before ',match.group(3),match.group(4),match.group(5))
 				nrawmissed += 1
 			gotRaw = False
 			
 		if (tnow - tprev) >= 2:
 			if (args.verbose):
-				print 'Gap ending ',match.group(3),match.group(4),match.group(5), ' length', tnow - tprev - 1
+				print ('Gap ending ',match.group(3),match.group(4),match.group(5), ' length', tnow - tprev - 1)
 			ngaps += 1
 			
 		tprev = tnow
@@ -92,13 +95,13 @@ for l in fin:
 		sys.stderr.write('Bad input:'+l+'\n')
 		nbad += 1
 
-print 'First of day ',tfirst
-print 'Last of day  ',tlast
-print 'Last time ',tnow
-print 'Expected      ',tlast - tfirst + 1 # yes i know there's a bug
-print 'Gaps ',ngaps
-print 'Number of raw measurements ', nraw 
-print 'Missed raw ', nrawmissed
-print 'Bad input lines = ',nbad
+print ('First of day ',tfirst)
+print ('Last of day  ',tlast)
+print ('Last time ',tnow)
+print ('Expected      ',tlast - tfirst + 1) # yes i know there's a bug
+print ('Gaps ',ngaps)
+print ('Number of raw measurements ', nraw)
+print ('Missed raw ', nrawmissed)
+print ('Bad input lines = ',nbad)
 
 fin.close()
