@@ -6,10 +6,13 @@ use strict;
 # Logs Pi CPU temperature - note this is a quick hack based on
 # the OpenTTP log1Wtemp.pl script
 #
-# Louis Marais 2020-04-29
+# 2020-04-29 ELM First versiob
+# 2022-09-15 ELM Location of the vcgencmd command changed in the Raspberry Pi
+#                distribution. Version bumped to 1.1. Cleaned up debugging
+#                output.
 
 
-# Original comments
+# Original comments for log1Wtemp.pl
 
 # Logs the CPU temperature to a file {MJD}.cputemp in the data
 # directory specified in gpscv.conf on an OpenTTP system. Also
@@ -50,7 +53,7 @@ my ($nowstr,%Init,$temp,$logPath,$then,$lockFile,$statusFile,@info,$msg,$sec);
 my ($GPSDO,@dirs,$dir,$sn,$gpsdo_temp);
 
 $AUTHORS = "Louis Marais";
-$VERSION = "1.0";
+$VERSION = "1.1";
 
 # Default debug state is OFF
 $DEBUG = 0;
@@ -162,7 +165,7 @@ else
 
 $Init{version} = $VERSION;
 $Init{"paths:cputemp data"} = TFMakeAbsolutePath($Init{"paths:cputemp data"},$home);
-Debug($Init{"paths:cputemp data"});
+Debug("Data path: ".$Init{"paths:cputemp data"});
 
 $now=time();
 $mjd=int($now/86400) + 40587;
@@ -184,32 +187,19 @@ $SIG{INT} = sub {$killed=1};
 #@dirs = grep(/^28-0/,readdir(DIR));
 #closedir(DIR);
 
+my $cmd = '/opt/vc/bin/vcgencmd';
+if (!(-e $cmd)){
+  $cmd = '/usr/bin/vcgencmd';
+}
+
+Debug("Found vcgencmd here: $cmd");
+
 while (!$killed)
 {
-  # Get one wire temperatures
+  $temp = `$cmd measure_temp`;
+  chomp($temp);
 
-  #foreach $dir(@dirs)
-  #{
-  #  $sn = "";
-  #  if ($dir =~ /^28-(............)/) { $sn = $1; }
-  #  $temp = `cat /sys/devices/w1_bus_master1/$dir/w1_slave`;
-  #  if ($temp =~ /crc=.. YES/)
-  #  {
-  #    if ($temp =~ /t=(\d*)/) { $temp = $1/1000; }
-  #  } else { $temp = -99.999; }
-  #
-  #  if ($sn eq $GPSDO) 
-  #  {
-  #    $gpsdo_temp = $temp; 
-  #  } else {
-  #    Debug("GPSDO sensor not found. Exiting.");
-  #    exit;
-  #  }
-  #}
-
-  $temp = `/opt/vc/bin/vcgencmd measure_temp`;
-
-  Debug($temp);
+  Debug("vcgencmd output: $temp");
 
   if($temp=~/temp=(\d+\.\d+)'C/){
     $temp = $1;
@@ -217,7 +207,7 @@ while (!$killed)
     $temp = '999.9';
   }
 
-  Debug($temp);
+  Debug("Value that will be stored: $temp");
 
   # Store temperatures
   $now = time(); 
@@ -338,11 +328,11 @@ sub OpenDataFile
 sub saveData # mjd, temp
 {
   my($mjd,$temp) = (shift,shift);
-  if($DEBUG) {
-    print "saveData subroutine\n";
-    print "\$mjd: ",$mjd,"\n";
-    print "\$temp: $temp\n";
-  }
+  #if($DEBUG) {
+  #  print "saveData subroutine\n";
+  #  print "\$mjd: ",$mjd,"\n";
+  #  print "\$temp: $temp\n";
+  #}
   my($name) = $Init{"paths:cputemp data"}.$mjd.".temp";
   open DTA,">>$name" or die "Could not write to $name\n";
   my($now) = strftime "%H:%M:%S",gmtime;
