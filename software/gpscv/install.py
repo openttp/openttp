@@ -45,7 +45,7 @@ sys.path.append('/usr/local/lib/python3.8/site-packages')
 sys.path.append('/usr/local/lib/python3.10/dist-packages')
 import ottplib
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -89,7 +89,9 @@ osinfo = [
 	['Raspbian GNU/Linux','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
 	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/']]
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/'],
+	['Raspbian GNU/Linux','11','rpidebian11',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/']]
 
 # All available installation targets
 basetargets = ['mktimetx','misc scripts']
