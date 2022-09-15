@@ -6,7 +6,7 @@ use strict;
 # Logs Pi CPU temperature - note this is a quick hack based on
 # the OpenTTP log1Wtemp.pl script
 #
-# 2020-04-29 ELM First versiob
+# 2020-04-29 ELM First version
 # 2022-09-15 ELM Location of the vcgencmd command changed in the Raspberry Pi
 #                distribution. Version bumped to 1.1. Cleaned up debugging
 #                output.
