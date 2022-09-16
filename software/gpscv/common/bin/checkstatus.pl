@@ -48,7 +48,7 @@
 #                Also changed -107 > -7 in approx. line 123; we only want last 7 days.
 # 2022-05-01 ELM Found another -107, approx line 139
 # 2022-09-16 ELM Added command for chrony for sensible results when used instead of
-#                ntpd. Fixed typo in 'find ... check' line. Bumped version to 0.2
+#                ntpd. Fixed issue in 'find ... check' line. Bumped version to 0.2
 #
 
 use Sys::Hostname;
@@ -130,7 +130,7 @@ if (defined $Init{"paths:counter data"}){
 # 'ps x | grep --extended-regexp "jnslog|restlog|prs10log|okxemlog|plrxlog|ubloxlog" | grep -v grep',
  'ps x | grep --extended-regexp "ublox9log|jnslog|restlog|prs10log|okxemlog|plrxlog|ubloxlog|hp5313xlog|LTElog|nv08log|ticclog|log1Wtemp|logpicputemp" | grep -v grep',
 # 'find . -name "*.check" -printf "%Ab %Ad %AH:%AM %f\n"',
- 'find -name "*.check" -printf "%Ab %Ad %AH:%AM %f\n"',
+ 'find $HOME -name "*.check" -printf "%Ab %Ad %AH:%AM %f\n"',
  'ps ax | grep ntpd | grep -v grep & /usr/local/bin/ntpq -p',
  'ps ax | grep chrony | grep -v grep & chronyc sources'
  );
