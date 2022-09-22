@@ -39,7 +39,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import ottplib
 
-VERSION = "0.0.3"
+VERSION = "0.0.4"
 AUTHORS = "Michael Wouters"
 
 # Globals
@@ -88,7 +88,8 @@ defaultCntrCfg = [':SENS:TINT:AUTO OFF',
 		':INP1:COUP DC',':INP2:COUP DC',
 		':INP1:IMP 50',':INP2:IMP 50',
 		':INP1:LEVEL 1.0',':INP2:LEVEL 1.0',
-		':INP1:SLOPE POS',':INP2:SLOPE POS']
+		':INP1:SLOPE POS',':INP2:SLOPE POS',
+		':SYST:TOUT ON;TOUT:TIME 2.0']
 
 maxTimeouts = 5
 
@@ -100,7 +101,6 @@ parser = argparse.ArgumentParser(description='Log a Pendulum CNT9x in TI mode',
 
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
-parser.add_argument('--settings','-s',help='show settings',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
@@ -182,10 +182,8 @@ if not('0'==errcode):
 oldmjd=-1
 
 instr.timeout = 5*1000 # this stops a hang if the counter stops triggering
-
-instr.write(':SYST:TOUT ON;TOUT:TIME 2.0')
-
 nTimeouts = 0
+
 while (not killed):
 	tt = time.time()
 	mjd = ottplib.MJD(tt)
