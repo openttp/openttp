@@ -33,10 +33,13 @@ import sys
 import time
 import usbtmc
 
-sys.path.append("/usr/local/lib/python3.6/site-packages")
+sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
+sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+
 import ottplib
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 AUTHORS = "Michael Wouters"
 
 # Globals
@@ -229,12 +232,11 @@ usbModelID = 0x1907
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
 
-parser = argparse.ArgumentParser(description='Log a Keysight 53230 counter in TI mode',
+parser = argparse.ArgumentParser(description='Log a Keysight 53230 counter (default is TI mode)',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
 
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
-parser.add_argument('--settings','-s',help='show settings',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
