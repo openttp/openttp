@@ -51,7 +51,7 @@ import time
 
 import ottplib
 
-VERSION = "0.1.5"
+VERSION = "0.1.6"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -147,15 +147,17 @@ if ('counter:header generator' in cfg):
 	headerGen = ottplib.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
 
 if ('counter:mode' in cfg):
-	if (cfg['counter:mode'] == 'timestamp'):
+	cm = cfg['counter:mode'].lower()
+	if (cm == 'timestamp'):
 		tic_mode = TIC_MODE_TS
-	elif (cfg['counter:mode'] == 'time interval'):
+	elif (cm == 'time interval'):
 		tic_mode = TIC_MODE_TI
 		
 if ('counter:timestamp format' in cfg):
-	if (cfg['counter:timestamp format'] == 'unix'):
+	tsf = cfg['counter:timestamp format'] 
+	if (tsf == 'unix'):
 		tsformat = TS_UNIX
-	elif (cfg['counter:timestamp format'] == 'time of day'):
+	elif (tsf == 'time of day'):
 		tsformat = TS_TOD
 		
 # Create the process lock		
