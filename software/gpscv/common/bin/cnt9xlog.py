@@ -26,6 +26,8 @@
 #
 
 import argparse
+import datetime
+import math
 import os
 import re
 import signal
@@ -39,8 +41,16 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import ottplib
 
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 AUTHORS = "Michael Wouters"
+
+# timestamp precision
+TS_PRECISION_S  = 0
+TS_PRECISION_MS = 1
+
+# time stamp formats
+TS_UNIX = 0
+TS_TOD  = 1
 
 # Globals
 debug = False
@@ -128,6 +138,22 @@ headerGen=''
 if ('counter:header generator' in cfg):
 	headerGen = ottplib.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
 
+tsPrecision = TS_PRECISION_S
+if ('counter:timestamp precision' in cfg):
+	tsp = cfg['counter:timestamp precision'].lower()
+	if (tsp == 'seconds'):
+		tsPrecision = TS_PRECISION_S
+	elif (tsp == 'milliseconds'):
+		tsPrecision = TS_PRECISION_MS
+
+tsFormat = TS_TOD
+if ('counter:timestamp format' in cfg):
+	tsf = cfg['counter:timestamp format'].lower()
+	if ( tsf == 'unix'):
+		tsFormat = TS_UNIX
+	elif (tsf == 'time of day'):
+		tsFormat = TS_TOD
+		
 # Create the process lock		
 lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
 Debug("Creating lock " + lockFile)
@@ -191,7 +217,7 @@ while (not killed):
 		oldmjd = mjd
 		fnout = dataPath + str(mjd) + ctrExt
 		if (not os.path.isfile(fnout)):
-			fout = open(fnout,'w') # unbuffered output is not allowed (but we don't care really)q
+			fout = open(fnout,'w') # unbuffered output is not allowed (but we don't care, really)
 			if (os.path.isfile(headerGen) and os.access(headerGen,os.X_OK)):
 				header=subprocess.check_output([headerGen,'-c',configFile])
 				fout.write(header.rstrip()+'\n') # make sure there is just one linefeed
@@ -204,7 +230,20 @@ while (not killed):
 		Debug('Opened ' + fnout)
 	try:
 		rdg = float(instr.ask(':READ?'))
-		tstr = time.strftime('%H:%M:%S',time.gmtime())
+		tt = time.time() # nb this is a float
+		if (tsPrecision == TS_PRECISION_S):
+			if tsFormat == TS_TOD:
+				tstr = time.strftime('%H:%M:%S',time.gmtime(round(tt))) # round to nearest second 
+			elif tsFormat == TS_UNIX:
+				tstr = str(round(tt))
+		elif (tsPrecision == TS_PRECISION_MS):
+			if tsFormat == TS_TOD:
+				# dt = datetime.datetime.fromtimestamp(tt,datetime.timezone.utc,)
+			  tstr = time.strftime('%H:%M:%S.',time.gmtime(math.floor(tt)))	
+			  ms   = round((tt  - math.floor(tt))*1000)
+			  tstr = tstr + '{:03d}'.format(ms)
+			elif tsFormat == TS_UNIX:
+				tstr = '{:.3f}'.format(tt)
 		fout.write(tstr + ' ' + str(rdg) + '\n')
 		Debug(tstr + ' ' + str(rdg))
 		nTimeouts = 0 # reset the count 
