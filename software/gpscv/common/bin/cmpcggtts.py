@@ -44,10 +44,11 @@ import sys
 # This is where cggttslib is installed
 sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import cggttslib
 
-VERSION = "0.4.2"
+VERSION = "0.5.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -233,6 +234,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 	else:
 		header['MSIO present'] = 'no'
 	
+	# nb cksumend is where we stop the checksum ie before CK
 	if (ver == CGGTTS_V1):
 		if (hasMSIO):
 			cksumend=115
@@ -262,27 +264,42 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 	while True:
 		l = fin.readline().rstrip()
 		if l:
-			fields = l.split()
-			if (ver != CGGTTS_RAW):
-				cksum = int(fields[CK],16)
-				#print CK,fields[CK],cksum,CheckSum(l[:cksumend])
-				if (not(cksum == (cggttslib.CheckSum(l[:cksumend])))):
-					if (enforceChecksum):
-						sys.stderr.write('Bad checksum in data of ' + fname + '\n')
-						exit()
-					else:
-						Warn('Bad checksum in data of ' + fname )
+			
+			fields = [None]*24 # FIXME this may need to increase one day
+			
+			# First, fiddle with the SAT identifier to simplify matching
+			# SAT is first three columns
+			satid = l[0:3]
+			
 			# V1 is GPS-only and doesn't have the constellation identifier prepending 
 			# the PRN, so we'll add it for compatibility with later versions
 			if (ver == CGGTTS_V1):
-				thePRN = int(fields[PRN])
-				fields[PRN]= "G{:02d}".format(thePRN)
-			
-			if (ver == CGGTTS_V2): 
-				thePRN = int(fields[PRN])
-				fields[PRN]= "G{:02d}".format(thePRN) # FIXME works for GPS only
+				fields[PRN] = 'G{:02d}'.format(int(satid))
 				
+			if (ver == CGGTTS_V2): 
+				fields[PRN] = 'G{:02d}'.format(int(satid)) # FIXME works for GPS only
+				
+			if (ver == CGGTTS_V2E): 
+				# CGGTTS V2E files may not necessarily have zero padding in SAT
+				if (' ' == satid[1]):
+					fields[PRN] = '{}0{}'.format(satid[0],satid[2]) # TESTED
+				else:
+					fields[PRN] = satid
+				
+			if (ver != CGGTTS_RAW): # should have a checksum 
+				
+				cksum = int(l[cksumend:cksumend+2],16)
+				if (not(cksum == (cggttslib.CheckSum(l[:cksumend])))):
+					if (enforceChecksum):
+						sys.stderr.write('Bad checksum in data of ' + fname + '\n')
+						sys.stderr.write(l + '\n')
+						exit()
+					else:
+						Warn('Bad checksum in data of ' + fname)
+				
+			fields[MJD] = l[7:12]
 			theMJD = int(fields[MJD])
+			fields[STTIME] = l[13:19]
 			hh = int(fields[STTIME][0:2])
 			mm = int(fields[STTIME][2:4])
 			ss = int(fields[STTIME][4:6])
@@ -291,6 +308,19 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 			srsys=0.0
 			trklen=999
 			reject=False
+			fields[TRKL]  = l[20:24]
+			fields[ELV]   = l[25:28]
+			fields[AZTH]  = l[29:33]
+			fields[REFSV] = l[34:45]
+			fields[SRSV]  = l[46:52]
+			fields[REFSYS]= l[53:64]
+			fields[SRSYS] = l[65:71]
+			fields[DSG]   = l[72:76]
+			fields[IOE]   = l[77:80]
+			fields[MDIO]  = l[91:95]
+			if (hasMSIO):
+				fields[MSIO] = l[101:105]
+				
 			if (not(CGGTTS_RAW == ver)): # DSG not defined for RAW
 				if (fields[DSG] == '9999' or fields[DSG] == '****'): # field is 4 wide so 4 digits (no sign needed)
 					reject=True
@@ -333,13 +363,20 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 				continue
 			frc = ''
 			if (ver == CGGTTS_V2 or ver == CGGTTS_V2E):
-				frc=fields[FRC]
+				if hasMSIO:
+					fields[FRC] = l[121:124] # set this for debugging 
+				else:
+					fields[FRC] = l[107:110]
+				frc = fields[FRC]
 			if (measCode == ''): # Not set so we ignore it
 				frc = ''
 				
 			msio = 0
 			if (hasMSIO):
 				msio = float(fields[MSIO])/10.0
+			
+			# print(fields)
+			
 			if ((tt >= startTime and tt < stopTime and theMJD == mjd and frc==measCode) or args.keepall):
 				d.append([fields[PRN],int(fields[MJD]),tt,trklen,elv,float(fields[AZTH])/10.0,float(fields[REFSV])/10.0,float(fields[REFSYS])/10.0,
 					dsg,int(fields[IOE]),float(fields[MDIO])/10.0,msio,frc])
