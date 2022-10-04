@@ -41,7 +41,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import ottplib
 
-VERSION = "0.0.5"
+VERSION = "0.0.6"
 AUTHORS = "Michael Wouters"
 
 # timestamp precision
@@ -245,6 +245,7 @@ while (not killed):
 			elif tsFormat == TS_UNIX:
 				tstr = '{:.3f}'.format(tt)
 		fout.write(tstr + ' ' + str(rdg) + '\n')
+		fout.flush();
 		Debug(tstr + ' ' + str(rdg))
 		nTimeouts = 0 # reset the count 
 	except:
