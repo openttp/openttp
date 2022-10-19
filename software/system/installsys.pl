@@ -41,7 +41,7 @@ use vars qw($opt_h $opt_i $opt_l $opt_m $opt_t $opt_v);
 
 $0=~s#.*/##;	# strip path
 
-$VERSION = "version 0.1.2";
+$VERSION = "version 0.1.3";
 $ECHO=1;
 
 $UPSTART="upstart";
@@ -82,6 +82,10 @@ if (!getopts('hi:lmtv') || $opt_h){
 	ShowHelp();	
 	exit;
 }
+
+print "This installation script is DEPRECATED.\n";
+print "You should probably be using installsys.py.\n";
+print "\n\n";
 
 @targets=@defaulttargets;
 if ($opt_l){
