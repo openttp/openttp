@@ -1,5 +1,5 @@
 CC = gcc
-AR = ar clqv
+AR = ar cqv
 RM = rm -f
 RANLIB = ranlib
 #DEFINES= -DDEBUG
