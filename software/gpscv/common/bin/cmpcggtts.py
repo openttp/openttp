@@ -48,7 +48,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import cggttslib
 
-VERSION = "0.6.1"
+VERSION = "0.6.2"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -530,17 +530,16 @@ IONO_OFF = 0
 CAL_FRC=12
 REF_FRC=12
 
-examples =  'Usage examples\n'
+examples =  'Usage examples:\n'
 examples += '1. Common-view time and frequency transfer\n'
 examples += '    cmpcggtts.py ref cal 58418 58419\n'
 examples += '2. Delay calibration with no prompts for delays\n'
 examples += '    cmpcggtts.py --delaycal --acceptdelays ref cal 58418 58419\n'
-examples += '\nVersion 02 CGGTTS may require extra the use of extra options to be read correctly\n'
+examples += '\nVersion 02 CGGTTS may require the use of extra options to be read correctly\n'
 examples += 'For example, there can be multiple signals within a single file so you will need to specify\n'
-examples += 'the one you want with eg --reffrc L1C. Similary, you may need to specify the delay to extract from INT DLY\n'
-examples += "eg --refintdelays 'GPS C1' \n"
+examples += 'the one you want. Similary, you may need to specify the delay to extract from INT DLY.\n'
 examples += 'Example:\n'
-examples += "cmpcggtts.py --matchephemeris  --comment 'GPS L1C' --delaycal --calfrc L1C --calintdelays ' GPS C1' --refprefix GMAU04 --calprefix GMIM11  sep1  IM11/cggtts 59480 5948\n"
+examples += "cmpcggtts.py  --delaycal --calfrc L1C --calintdelays 'GPS C1' ref cal 59480 59482\n"
 
 parser = argparse.ArgumentParser(description='Match and difference CGGTTS files',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
