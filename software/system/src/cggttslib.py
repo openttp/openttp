@@ -42,7 +42,7 @@ def CheckSum(l):
 # Read the CGGTTS header, storing the result in a dictionary
 # Returns (header,warnings,checksumOK)
 # ------------------------------------------
-def ReadHeader(fname):
+def ReadHeader(fname,intdelays=[]):
 	
 	try:
 		fin = open(fname,'r')
@@ -167,7 +167,7 @@ def ReadHeader(fname):
 		warnings += 'Invalid format in {} line {}: too many comment lines;'.format(fname,lineCount)
 	header['comments'] = comments
 	
-	if (header['version'] == '01' or header['version'] == '02'):
+	if (header['version'] == '01' ):
 		#l = fin.readline().rstrip()
 		#lineCount = lineCount +1
 		match = re.match('INT\s+DLY\s+=\s+(.+)\s+ns',l)
@@ -194,7 +194,9 @@ def ReadHeader(fname):
 		else:
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 			
-	elif (header['version'] == '2E' or header['version'] == 'RAW'):
+	elif (header['version'] == '02' or header['version'] == '2E' or header['version'] == 'RAW'):
+		
+		# Some of the options here are not Version '02' but that's OK
 		
 		#l = fin.readline().rstrip()
 		#lineCount = lineCount +1
@@ -219,19 +221,37 @@ def ReadHeader(fname):
 				return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 				
 		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
-		
-			(dlyname,dly) = l.split('=',1)
-			# extra spaces in constellation and code for r2cggtts
-			match = re.search('([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
-			if (match):
-				header['int dly'] = match.group(1)
-				header['int dly code'] = match.group(2) # non-standard but convenient
-				if (not(match.group(5) == None) and not (match.group(5) == None)):
-					header['int dly 2'] = match.group(4) 
-					header['int dly code 2'] = match.group(5) 
+			if intdelays:
+				nfound = 0
+				for i in range(0,len(intdelays)):
+					d = intdelays[i]
+					if d in l:
+						match = re.search('([+-]?\d+\.?\d?)\sns\s\(\s*' + d + '\s*\)',l)
+						if match:
+							nfound += 1
+							if i == 0:
+								header['int dly'] = match.group(1)
+								ss = d.split()
+								header['int dly code'] = ss[-1] 
+							elif i == 1:
+								header['int dly 2'] = match.group(1)
+								ss = d.split()
+								header['int dly code 2'] = ss[-1] 
+				if not(nfound == len(intdelays)):
+					return ({},'Could not find the specified delays in {} line {} INT DLY'.format(fname,lineCount),False)
 			else:
-				return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
-				
+				(dlyname,dly) = l.split('=',1)
+				# extra spaces in constellation and code for r2cggtts
+				match = re.search('([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
+				if (match):
+					header['int dly'] = match.group(1)
+					header['int dly code'] = match.group(2) # non-standard but convenient
+					if (not(match.group(5) == None) and not (match.group(5) == None)):
+						header['int dly 2'] = match.group(4) 
+						header['int dly code 2'] = match.group(5) 
+				else:
+					return ({},'Invalid format in {} line {} INT DLY'.format(fname,lineCount),False)
+					
 			l = fin.readline().rstrip()
 			hdr += l
 			lineCount = lineCount +1
@@ -239,7 +259,7 @@ def ReadHeader(fname):
 			if (match):
 				header['cab dly'] = match.group(1)
 			else:
-				return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
+				return ({},'Invalid format in {} line {} CAB DLY'.format(fname,lineCount),False)
 			
 			l = fin.readline().rstrip()
 			hdr += l
@@ -248,7 +268,8 @@ def ReadHeader(fname):
 			if (match):
 				header['ref dly'] = match.group(1)
 			else:
-				return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
+				return ({},'Invalid format in {} line {} REF DLY'.format(fname,lineCount),False)
+			
 	if not (header['version'] == 'RAW'):
 		l = fin.readline().rstrip()
 		hdr += l
@@ -257,7 +278,7 @@ def ReadHeader(fname):
 			(tag,val) = l.split('=')
 			header['ref'] = val.strip()
 		else:
-			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
+			return ({},'Invalid format in {} line {} REF'.format(fname,lineCount),False)
 		
 		l = fin.readline().rstrip()
 		lineCount = lineCount +1
@@ -270,7 +291,7 @@ def ReadHeader(fname):
 				warnings += 'Bad checksum in ' + fname
 		else:
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
-	
+
 	return (header,warnings,checksumOK)
 
 # ------------------------------------------

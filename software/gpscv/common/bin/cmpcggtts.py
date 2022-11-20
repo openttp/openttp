@@ -48,7 +48,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import cggttslib
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -122,6 +122,11 @@ def Warn(msg):
 	return
 
 # ------------------------------------------
+def ErrorExit(msg):
+	sys.stderr.write('Error! '+ msg+'\n')
+	sys.exit(1)
+
+# ------------------------------------------
 def Info(msg):
 	if (not args.quiet):
 		sys.stdout.write(msg+'\n')
@@ -165,7 +170,7 @@ def SetDataColumns(ver,isdf):
 
 # ------------------------------------------
 
-def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
+def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 	d=[]
 	
 	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
@@ -177,9 +182,11 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 			Warn('Unable to open ' + fBIPMname + ' or ' + fname)
 			return ([],[],{})
 		fname = fBIPMname
-		
+	
+	Debug('\nReading ' + fname)
+	
 	ver = CGGTTS_UNKNOWN
-	(header,warnings,checksumOK) = cggttslib.ReadHeader(fname)
+	(header,warnings,checksumOK) = cggttslib.ReadHeader(fname,delays)
 	if (not header):
 		Warn(warnings)
 		return ([],[],{})
@@ -191,26 +198,25 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 	# OK to open the file
 	fin = open(fname,'r')
 	
+
 	if (header['version'] == 'RAW'):
-		Debug('Raw clock results')
 		ver=CGGTTS_RAW
 		header['version']='raw'
 	elif (header['version'] == '01'):	
-		Debug('V01')
 		ver=CGGTTS_V1
 		header['version']='V1'
 	elif (header['version'] == '02'):	
-		Debug('V02')
-		Warn('The data are treated as GPS')
+		Warn('The data may be treated as GPS')
 		ver=CGGTTS_V2
 		header['version']='V02'
 	elif (header['version'] == '2E'):
-		Debug('V2E')
 		ver=CGGTTS_V2E
 		header['version']='V2E'
 	else:
 		Warn('Unknown format - the header is incorrectly formatted')
 		return ([],[],{})
+	
+	Debug('CGGTTS version ' + header['version'])
 	
 	hasMSIO = False
 	# Eat the header
@@ -380,7 +386,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode):
 			if ((tt >= startTime and tt < stopTime and theMJD == mjd and frc==measCode) or args.keepall):
 				d.append([fields[PRN],int(fields[MJD]),tt,trklen,elv,float(fields[AZTH])/10.0,float(fields[REFSV])/10.0,float(fields[REFSYS])/10.0,
 					dsg,int(fields[IOE]),float(fields[MDIO])/10.0,msio,frc])
-			else:
+			elif (frc==measCode): # don't count observation code mismatches
 				nextday += 1
 		else:
 			break
@@ -511,6 +517,8 @@ calIonosphere=MODELED_IONOSPHERE
 weighting=NO_WEIGHT
 enforceChecksum=False
 
+comment = ''
+
 startTime=0 # in seconds, from the start of the day
 stopTime=86399
 
@@ -527,6 +535,12 @@ examples += '1. Common-view time and frequency transfer\n'
 examples += '    cmpcggtts.py ref cal 58418 58419\n'
 examples += '2. Delay calibration with no prompts for delays\n'
 examples += '    cmpcggtts.py --delaycal --acceptdelays ref cal 58418 58419\n'
+examples += '\nVersion 02 CGGTTS may require extra the use of extra options to be read correctly\n'
+examples += 'For example, there can be multiple signals within a single file so you will need to specify\n'
+examples += 'the one you want with eg --reffrc L1C. Similary, you may need to specify the delay to extract from INT DLY\n'
+examples += "eg --refintdelays 'GPS C1' \n"
+examples += 'Example:\n'
+examples += "cmpcggtts.py --matchephemeris  --comment 'GPS L1C' --delaycal --calfrc L1C --calintdelays ' GPS C1' --refprefix GMAU04 --calprefix GMIM11  sep1  IM11/cggtts 59480 5948\n"
 
 parser = argparse.ArgumentParser(description='Match and difference CGGTTS files',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
@@ -558,6 +572,9 @@ parser.add_argument('--cv',help='compare in common view (default)',action='store
 parser.add_argument('--aiv',help='compare in all-in-view',action='store_true')
 
 parser.add_argument('--acceptdelays',help='accept the delays (no prompts in delay calibration mode)',action='store_true')
+parser.add_argument('--refintdelays',help='search for these internal delays in reference eg "GPS P1,GPS P2" ')
+parser.add_argument('--calintdelays',help='search for these internal delays in cal eg "GPS C2" ')
+
 parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
@@ -569,6 +586,8 @@ parser.add_argument('--refprefix',help='file prefix for reference receiver (defa
 parser.add_argument('--calprefix',help='file prefix for calibration receiver (default = MJD)')
 parser.add_argument('--refext',help='file extension for reference receiver (default = cctf)')
 parser.add_argument('--calext',help='file extension for calibration receiver (default = cctf)')
+
+parser.add_argument('--comment',help='set comment on displayed plot')
 
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
@@ -664,6 +683,24 @@ if (args.reffrc):
 
 if (args.calfrc):
 	calMeasCode = args.calfrc
+
+refintdelays = []
+if (args.refintdelays):
+	refintdelays = args.refintdelays.split(',')
+	refintdelays = [ r.strip() for r in refintdelays]
+	if len(refintdelays) > 2:
+		ErrorExit('Too many delays in  --refintdelays ' + args.refintdelays + ' (max. 2)') 
+
+calintdelays = []
+if (args.calintdelays):
+	calintdelays = args.calintdelays.split(',')
+	calintdelays = [ r.strip() for r in calintdelays]
+	if len(calintdelays) > 2:
+		ErrorExit('Too many delays in  --calintdelays ' + args.calintdelays + ' (max. 2)')
+		
+comment = ''
+if (args.comment):
+	comment = args.comment
 	
 firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
@@ -693,7 +730,7 @@ for mjd in range(firstMJD,lastMJD+1):
 			 stopT = stopTime
 	else:
 			stopT=86399
-	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode)
+	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode,refintdelays)
 	if (header):
 		allref = allref + d
 		refHeaders.append(header)
@@ -711,7 +748,7 @@ for mjd in range(firstMJD,lastMJD+1):
 	else:
 			stopT=86399
 			
-	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode)
+	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode,calintdelays)
 	if header:
 		allcal = allcal + d
 		calHeaders.append(header)
@@ -798,9 +835,9 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			refCorrection = (intDelay + cabDelay - refDelay) - (newIntDelay + newCabDelay - newRefDelay)
 			
 			if ('int dly 2' in calHeaders[0]):
-				Info('Reported INT DLY ({})={} INT DLY ({})={} CAB DLY={} REF DLY={}'.format(dlyCode,newIntDelay,dlyCode2,newIntDelay2,newCabDelay,newRefDelay)) 
+				Info('Reported INT DLY ({})={} INT DLY ({})={} CAB DLY={} REF DLY={}'.format(newIntDelay,dlyCode,newIntDelay2,dlyCode2,newCabDelay,newRefDelay)) 
 			else:
-				Info('Reported INT DLY ({})={} CAB DLY={} REF DLY={}'.format(newIntDelay,dlyCode,newCabDelay,newRefDelay))
+				Info('Reported INT DLY ({})={} CAB DLY={} REF DLY={}'.format(dlyCode,newIntDelay,newCabDelay,newRefDelay))
 			
 	Info('Delay delta = {}'.format(refCorrection))	
 	
@@ -828,7 +865,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 				dlyCode=calHeaders[0]['int dly code']
 				
 			ok,intDelay = GetDelay(calHeaders,'int dly') 
-			newIntDelay = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode,intDelay),intDelay)
+			newIntDelay = GetFloat('New INT DLY {} [{} ns]: '.format(dlyCode,intDelay),intDelay)
 			
 			# Dual frequency
 			if ('int dly 2' in calHeaders[0]):
@@ -836,7 +873,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 				if ('int dly code 2' in calHeaders[0]):
 					dlyCode2=calHeaders[0]['int dly code 2']
 				ok,intDelay2 = GetDelay(calHeaders,'int dly 2') 
-				newIntDelay2 = GetFloat('New INT DLY {}[{} ns]: '.format(dlyCode2,intDelay2),intDelay2)
+				newIntDelay2 = GetFloat('New INT DLY {} [{} ns]: '.format(dlyCode2,intDelay2),intDelay2)
 				print('WARNING! P3 delay changes will not be used!')
 				
 			ok,cabDelay = GetDelay(calHeaders,'cab dly') 
@@ -847,9 +884,9 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			
 			calCorrection = (intDelay + cabDelay - refDelay) - (newIntDelay + newCabDelay - newRefDelay)
 			if ('int dly 2' in calHeaders[0]):
-				Info('Reported INT DLY ({})={} INT DLY ({})={} CAB DLY={} REF DLY={}'.format(dlyCode,newIntDelay,dlyCode2,newIntDelay2,newCabDelay,newRefDelay)) 
+				Info('Reported INT DLY ({})={} INT DLY ({})={} CAB DLY={} REF DLY={}'.format(newIntDelay,dlyCode,newIntDelay2,dlyCode2,newCabDelay,newRefDelay)) 
 			else:
-				Info('Reported INT DLY ({})={} CAB DLY={} REF DLY={}'.format(newIntDelay,dlyCode,newCabDelay,newRefDelay))
+				Info('Reported INT DLY ({})={} CAB DLY={} REF DLY={}'.format(dlyCode,newIntDelay,newCabDelay,newRefDelay))
 			
 	Info('Delay delta = {}'.format(calCorrection))	
 	
@@ -905,7 +942,7 @@ if (useMSIO): # all ionosphere on
 	ionosphere=True
 	IONO_OFF=0
 
-Debug('Matching tracks ...')
+Debug('\nMatching tracks ...')
 Debug('Ionosphere '+('removed' if (IONO_OFF==1) else 'included'))
 
 if (cmpMethod == USE_GPSCV):
@@ -1108,7 +1145,12 @@ if (MODE_DELAY_CAL==mode ):
 		print('RMS of residuals {} ns'.format(rmsResidual))
 		
 	f,(ax1,ax2,ax3)= plt.subplots(3,sharex=True,figsize=(8,11))
-	f.suptitle('Delay calibration ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
+	title = 'Delay calibration\n'
+	if comment:
+		title += comment + '\n'
+	title += os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n'
+	title += datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+	f.suptitle(title,ha='left',x=0.1)
 	ax1.plot(tMatch,deltaMatch,ls='None',marker='.')
 	ax1.plot(tAvMatches,avMatches)
 	ax1.set_title('REF-CAL (filtered)')
@@ -1132,7 +1174,7 @@ if (MODE_DELAY_CAL==mode ):
 
 elif (MODE_TT == mode):
 	if (not args.quiet):
-		print(' Linear fit to data')
+		print('\nLinear fit to data')
 		print('Offset (REF - CAL) at midpoint {} ns '.format(meanOffset))
 		print('ffe = {:.3e} +/- {:.3e}'.format(p[0]*1.0E-9/86400.0,slopeErr*1.0E-9/86400.0))
 		
