@@ -48,7 +48,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import cggttslib
 
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -596,6 +596,15 @@ parser.add_argument('--keepall',help='keep tracks after the end of the day',acti
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
+
+cmdline = ''
+currlen = 0
+for a in sys.argv:
+	if currlen + len(a) > 120:
+		cmdline += '\n'
+		currlen = 0
+	cmdline += a + ' '
+	currlen += len(a) + 1
 
 debug = args.debug
 
@@ -1145,18 +1154,19 @@ if (MODE_DELAY_CAL==mode ):
 		print('RMS of residuals {} ns'.format(rmsResidual))
 		
 	f,(ax1,ax2,ax3)= plt.subplots(3,sharex=True,figsize=(8,11))
-	title = 'Delay calibration\n'
+	title = ''
 	if comment:
 		title += comment + '\n'
-	title += os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n'
-	title += datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-	f.suptitle(title,ha='left',x=0.1)
+	title += cmdline + '\n'
+	title += os.path.basename(sys.argv[0])+ ' v' + VERSION   + '     ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+	f.suptitle(title,ha='left',x=0.02,size='small')
 	ax1.plot(tMatch,deltaMatch,ls='None',marker='.')
 	ax1.plot(tAvMatches,avMatches)
-	ax1.set_title('REF-CAL (filtered)')
+	stats = 'mean = {:.3f},median = {:.3f},std = {:.3f},rms resid = {:.3f}'.format(
+		np.mean(deltaMatch),np.median(deltaMatch),np.std(deltaMatch),rmsResidual)
+	ax1.set_title('REF-CAL: ' + stats)
 	ax1.set_ylabel('REF-CAL (ns)')
 	ax1.set_xlabel('MJD - '+str(firstMJD))
-	
 	ax2.plot(tMatch,calMatch,ls='None',marker='.')
 	ax2.set_title('CAL (filtered) [ ' + args.calDir+ ' ]')
 	ax2.set_ylabel('REFSYS (ns)')
