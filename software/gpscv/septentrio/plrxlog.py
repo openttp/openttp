@@ -49,17 +49,20 @@ import sys
 # This is where ottplib is installed
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
+sys.path.append('/usr/local/lib/python3.10/site-packages')
+
 import time
 
 import ottplib
 
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
 debug = False
 killed = False
 
+MINBUFLEN = 500 
 MAXBUFLEN = 30000
 
 STATUS_LOGGING_INTERVAL=5
@@ -621,9 +624,8 @@ inp = b''
 # Sync (2b) | CRC (2b) | ID (2b) | length (2b) 
 # Sync == $@
 
-sbfre = re.compile(rb'\x24\x40(..)(..)(..)([\s\S]*)') 
+sbfre = re.compile(rb'\x24\x40(..)(..)(..)',re.DOTALL) 
 killed = False
-
 
 # The list GNSS contains current SVs 
 GNSS=[]
@@ -665,8 +667,12 @@ while (not killed):
 	if (logStatus or broadcast):
 		inp = inp + newinp
 		
+		# Don't attempt to parse until we've got a decent chunk
+		if len(inp) < MINBUFLEN:
+			continue
+		
 		# A reasonable limit on the size of the buffered data needs to be set
-		# to guard against odd problems (seen with ublox receivers but not Septentrio) 
+		# to guard against bugs
 		if len(inp) > MAXBUFLEN:
 			print ('Buffer too big',len(inp),'bytes') # FIXME remove this one day
 			inp=b'' # empty the buffer AFTER reporting its size
@@ -694,7 +700,7 @@ while (not killed):
 			inpLen=len(inp)
 							
 			if (pktLen > inpLen):
-				Debug('SHORT!' + str(pktLen) + ',' + str(inpLen))
+				#Debug('SHORT!' + str(pktLen) + ',' + str(inpLen))
 				break # need a bit more 
 			
 			# Check the length - should be a multiple of 4 (and at least 8). If it isn't, then the packet is incomplete
@@ -720,7 +726,7 @@ while (not killed):
 					continue
 			
 			# Length OK CRC OK so parse away
-			data = match.group(4)
+			data = match.string[match.end():]
 			if ((pktID & 8191) == 4027):
 				Debug('pkt 4027 ' + str(pktLen))
 				ParseMeasEpoch(data);
