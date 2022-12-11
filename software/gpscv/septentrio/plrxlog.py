@@ -53,7 +53,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -201,6 +201,11 @@ def SendCommand(cmd):
 	Debug('SendCommand: ' + cmd)
 	bcmd = cmd.encode('utf-8') + b'\r'
 	serport.write(bcmd)
+	# RS232 ports on the Septentrio4 need a pause between commands
+	# Problem may be commands with long responses like lstInternal
+	# No pause needed for USB though
+	
+	time.sleep(0.2)
 	
 	# Replies with $R: <command> for set,get,exe
 	#              $R; <command> for lst
@@ -210,6 +215,7 @@ def SendCommand(cmd):
 	ansre = re.compile(rb'(STOP>|\$R[:;\?])')
 	inp=b''
 	ntries=0
+	# FIXME the Sepentrio4 was failing to configure 
 	while ntries < 20: # ie try for 2s, given timeout in the next line
 		select.select([serport],[],[],0.1)
 		ntries += 1
@@ -223,7 +229,10 @@ def SendCommand(cmd):
 				if (match[1] == b'$R?'):
 					Debug('Error in command')
 					# FIXME this should be fatal
+				else:
+					Debug('Command OK')
 				return True # otherwise, OK
+	Debug('Command failed')
 	return False
 
 #----------------------------------------------------------------------------
@@ -231,7 +240,7 @@ def ConfigureReceiver(rxcfg):
 	Debug('Configuring receiver')
 	if (args.reset):
 		Debug('Resetting: Hard,PVTData+SatData')
-		SendCommand('exeResetReceiver,Hard,PVTData+SatData')
+		SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
 		# A hard reset closes the serial port 
 		# For the moment, just reset and then exit
 		# NB mosaicT takes about 12 s to reboot
@@ -259,7 +268,9 @@ def ConfigureReceiver(rxcfg):
 	# TBC when the antenna type is set, the receiver compensates for PCV. This may add noise to TT.
 	cmd = 'SetAntennaOffset,Main,' + deltaE + ',' + deltaN + ',' + deltaH + ','  + antType + ',' + antSerialNum + ',0'
 	SendCommand(cmd)
-         
+	
+	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility,sec1') # default setup
+	
 	comment_re = re.compile(r'^\s*#')
 	fin = open(rxcfg,'r') # already checked its OK
 	for l in fin:
@@ -269,8 +280,6 @@ def ConfigureReceiver(rxcfg):
 		if (comment_re.search(l)): # skip comments
 			continue
 		SendCommand(l)
- 
-	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility,sec1') # default setup
  
 	fin.close()
 
@@ -396,7 +405,7 @@ def ParseMeasEpoch(d):
 		if (CN >=0 and CN < 255): # CN is used to flag that we're tracking at some level
 			GNSS[SVID][0] = constellation
 			GNSS[SVID][1] = prn
-			GNSS[SVID][4] = int(CN/4) + 10 # NB different scaling for sigType = 1,2 (L1P,L2P) - but we're not tracking
+			GNSS[SVID][4] = int(CN) # NB different scaling for sigType = 1,2 (L1P,L2P) - but we're not tracking ; was using CN/4 + 10 for the mosaicT
 			
 		n2Cnt += N2
 
@@ -540,7 +549,7 @@ if (not os.path.isfile(rxCfg)):
 # Check the receiver model is supported
 rxModel = cfg['receiver:model'].lower()
 
-if ('mosaict' == rxModel):
+if ('mosaict' == rxModel or 'polarx4' in rxModel or 'polarx5' in rxModel):
 	pass
 else:
 	ErrorExit('Receiver model ' + rxModel + ' is not supported')
@@ -570,7 +579,7 @@ if broadcast:
 		mcastGroup = cfg['gnssview:address']
 	mcastPort = MCAST_PORT
 	if ('gnssview:port' in cfg):
-		mcastPort = cfg['gnssview:port']
+		mcastPort = int(cfg['gnssview:port'])
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 	sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
 	
