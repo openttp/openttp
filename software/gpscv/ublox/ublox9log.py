@@ -51,7 +51,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.8'
+VERSION = '0.1.9'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -625,7 +625,7 @@ tLastMsg=time.time()
 inp = b''
 
 # Since we like using regexes, pre-compile the main ones
-ubxre = re.compile(rb'\xb5\x62(..)(..)([\s\S]*)')
+ubxre = re.compile(rb'\xb5\x62(..)(..)(.*)',re.DOTALL)
 
 while (not killed):
 	
