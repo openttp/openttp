@@ -146,11 +146,11 @@ for t in targets:
 	#  Since there can be command line arguments we need to extract the first part of the command
 	cmdArgs = cfg[t + ':command'].split()
 	if len(cmdArgs) > 1:
-		cmd = [ottplib.MakeAbsoluteFilePath(cmdArgs[0],root,os.path.join(root,'bin'))] 
+		cmd = ottplib.MakeAbsoluteFilePath(cmdArgs[0],root,os.path.join(root,'bin')) 
 		for j in range(1,len(cmdArgs)):
 			cmd.append(cmdArgs[j])
 	else:
-		cmd = [ottplib.MakeAbsoluteFilePath(cfg[t + ':command'],root,os.path.join(root,'bin'))]
+		cmd = ottplib.MakeAbsoluteFilePath(cfg[t + ':command'],root,os.path.join(root,'bin'))
 	
 	Debug('Testing ' + target + ' for ' + lockFile)
 	running = not(ottplib.TestProcessLock(lockFile)) # reverse logic to Perl function!
@@ -169,10 +169,9 @@ for t in targets:
 		Debug(msg)
 		
 		# The nitty gritty
-		# shell = True needed to inherit environment
 		try:
-			x = subprocess.check_output(cmd,shell=True,stderr=subprocess.STDOUT)
-			print(x)
+			x = subprocess.Popen('nohup ' + cmd + ' &',shell=True) # this is how you can start a background process
+			print(x) #FIXME need to decide what to do with this
 		except Exception as e:
 			print(e)
 		
@@ -183,4 +182,4 @@ for t in targets:
 		except Exception as e:
 			print(e) # not fatal and we're done anyway 
 			
-		Debug('Restarted using ...');
+		Debug('Restarted using ' + cmd);
