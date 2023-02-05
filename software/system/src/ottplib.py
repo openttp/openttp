@@ -27,13 +27,24 @@ import re
 import sys
 import time
  
-LIBVERSION = '0.0.3'
+LIB_MAJOR_VERSION  = 0
+LIB_MINOR_VERSION = 1
+LIB_PATCH_VERSION = 0
 
 # ------------------------------------------
 # Return the library version
 #
 def LibVersion():
-	return LIBVERSION
+	return '{:d}.{:d}.{:d}'.format(LIB_MAJOR_VERSION,LIB_MINOR_VERSION,LIB_PATCH_VERSION)
+
+def LibMajorVersion():
+	return LIB_MAJOR_VERSION
+
+def LibMinorVersion():
+	return LIB_MINOR_VERSION
+
+def LibPatchVersion():
+	return LIB_PATCH_VERSION
 
 # ------------------------------------------
 # Read a text file to set up a dictionary for configuration information
@@ -94,7 +105,9 @@ def CreateProcessLock(lockFile):
 	if (not TestProcessLock(lockFile)):
 		return False;
 	flock=open(lockFile,'w')
-	flock.write(os.path.basename(sys.argv[0]) + ' ' + str(os.getpid()))
+	pid = os.getpid() # process ID
+	stime = int(open("/proc/{:d}/stat".format(pid)).read().split()[21]) # process start time. in ticks
+	flock.write(os.path.basename(sys.argv[0]) + ' ' + str(pid) + ' ' + str(stime))
 	flock.close()
 	
 	return True
@@ -107,35 +120,48 @@ def RemoveProcessLock(lockFile):
 		os.unlink(lockFile)
 
 # ------------------------------------------
-# Test whether a lock can be obtained
-#
+# Returns True if a lock can be obtained
+# The principal test is a match between PID, process name and process start time
+
 def TestProcessLock(lockFile):
 	if (os.path.isfile(lockFile)):
+			
+		# The following test is retained for the moment but can be removed when all kickstart-compatible 
+		# executables write stime in the lock (C,C++, Perl)
 		
 		# Check the system boot time
 		# If the lock file was created before the reboot, it's stale (and the
-		# system did not shut down cleanly) and it should be ignored. 
-		# This could fail if the system time was/is unsynchronized.
+		# system did not shut down cleanly) and should be ignored. 
+		# This could fail if the system time is not yet set.
 		
-		fup = open('/proc/uptime','r')
-		upt = float(fup.readline().split()[0])
-		fup.close();
-		
-		tboot = time.time() - upt;
-		if os.path.getmtime(lockFile) < tboot:
-			return True;
+		tup = float(open('/proc/uptime').read().split()[0])
+		mtime = float(os.stat(lockFile).st_mtime)
+		if (mtime < time.time() - tup): # old and stinky
+			return True
 		
 		flock=open(lockFile,'r')
 		info = flock.readline().split()
 		flock.close()
-		if (len(info)==2):
-			procDir = '/proc/'+str(info[1])
+		# Deprecated format is:
+		# executable PID
+		# New format is:
+		# executable PID stime
+		# For the present, we'll maintain backwards compatibility with the deprecated format
+		if len(info)>=2:
+			pid = info[1]
+			procDir = '/proc/' + pid
 			if (os.path.exists(procDir)):
 				fcmd = open(procDir + '/cmdline')
+				# We don't try to parse the command line since it could be a script (with the interpreter as first argument)
+				# or a compiled executable with arguments or ...
 				cmdline = fcmd.readline()
 				fcmd.close()
-				if os.path.basename(sys.argv[0]) in cmdline:
-					return False
+				if info[0] in cmdline: # so we just look for the script/executable name
+					if len(info) == 3: # should have stime
+						stime = open("/proc/{}/stat".format(pid)).read().split()[21] # starttime field, in clock ticks
+						return not(stime == info[2])
+					else:
+						return False
 				# otherwise, it's an unrelated process
 	return True
 		
