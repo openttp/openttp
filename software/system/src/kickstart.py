@@ -3,7 +3,7 @@
 
 # The MIT License (MIT)
 #
-# Copyright (c) 2015 Michael J. Wouters
+# Copyright (c) 2023 Michael J. Wouters
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,9 +23,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# kickstart.pl
+# kickstart.py
 # Restarts processes listed in the file kickstart.conf
 # Should be run periodically as a cron job
+# Rewrite of kickstart.pl
 #
 # Shamelessly cut&pasted from check_rx and siblings
 # 17-07-2002 MJW first version
@@ -39,7 +40,7 @@
 # 30-03-2016 MJW New configuration file format. Use the 'standard' .conf format
 # 10-05-2017 ELM moved location of check files to ~/lockStatusCheck directory - on the BBB system this is a RAM disk.
 # 2017-12-11 MJW Backwards compatibility for checkStatusPath
-# 2023-01-31 MJW python3 port. 
+# 2023-01-31 MJW python3 port. Version 2.x.x
 
 
 import argparse
@@ -59,9 +60,8 @@ sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib
 
-VERSION = "1.9.9"
+VERSION = "2.0.0"
 AUTHORS = "Michael Wouters"
-
 
 debug = False
 
@@ -96,7 +96,6 @@ def Initialise(configFile):
 		
 	return cfg
 
-
 # ------------------------------------------
 # Main body 
 # ------------------------------------------
@@ -113,6 +112,10 @@ if not(os.path.isdir(checkPath)):
 appName = os.path.basename(sys.argv[0])
 hostName = socket.gethostname()
 examples=''
+
+if ottplib.LibMinorVersion() < 1: # a bit redundant since this will fail anyway on older versions of ottplib ...
+	print('ottplib major version < 1')
+	sys.exit(1)
 
 parser = argparse.ArgumentParser(description='Start/restart user processes',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
@@ -161,25 +164,35 @@ for t in targets:
 		fout.close()
 	else:
 		Debug('Process is not running')
-		msg = '{} {} restarted'.format(datetime.utcnow().strftime('%Y/%m/%d %H:%M:%S'),t)
-		if os.path.isfile(checkFile):
-			mtime = int(os.stat(checkFile).st_mtime) # chop off fractional bit
-			msg += ' (last OK check {})'.format(datetime.fromtimestamp(mtime))
-		msg += '\n'
-		Debug(msg)
+		
+		targetOutputFile = os.path.join(logPath,target + '.log')
 		
 		# The nitty gritty
 		try:
-			x = subprocess.Popen('nohup ' + cmd + ' &',shell=True) # this is how you can start a background process
-			print(x) #FIXME need to decide what to do with this
+			x = subprocess.Popen('nohup ' + cmd + ' >>' + targetOutputFile + ' 2>&1 &',shell=True) # this is how you can start a background process
+			Debug('Restarted using ' + cmd);
+			msg = '{} {} restarted'.format(datetime.utcnow().strftime('%Y/%m/%d %H:%M:%S'),t)
+			if os.path.isfile(checkFile):
+				mtime = int(os.stat(checkFile).st_mtime) # chop off fractional bit
+				msg += ' (last OK check {})'.format(datetime.fromtimestamp(mtime))
+			msg += '\n'
 		except Exception as e:
+			msg = '{} {} restart failed'.format(datetime.utcnow().strftime('%Y/%m/%d %H:%M:%S'),t)
 			print(e)
+		
+		Debug(msg)
 		
 		try:
 			fout = open(logFile,'a')
 			fout.write(msg)
 			fout.close()
 		except Exception as e:
-			print(e) # not fatal and we're done anyway 
+			print(e) # not fatal 
+		
+		try:
+			fout = open(targetOutputFile,'a')
+			fout.write(msg)
+			fout.close()
+		except Exception as e:
+			print(e) # similarly, not fatal.  
 			
-		Debug('Restarted using ' + cmd);
