@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.0.2'
+VERSION = '1.1.0'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -420,7 +420,7 @@ if ('misc' in targets):
 # Installation of Perl and Python scripts
 
 if ('kickstart' in targets):
-	InstallScript('src/kickstart.pl','/usr/local/bin')
+	InstallScript('src/kickstart.py','/usr/local/bin')
 
 if ('gziplogs' in targets):
 	InstallScript('src/gziplogs.pl','/usr/local/bin')
