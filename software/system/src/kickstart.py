@@ -60,7 +60,7 @@ sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 AUTHORS = "Michael Wouters"
 
 debug = False
@@ -151,7 +151,7 @@ for t in targets:
 	if len(cmdArgs) > 1:
 		cmd = ottplib.MakeAbsoluteFilePath(cmdArgs[0],root,os.path.join(root,'bin')) 
 		for j in range(1,len(cmdArgs)):
-			cmd.append(cmdArgs[j])
+			cmd += ' ' + cmdArgs[j]
 	else:
 		cmd = ottplib.MakeAbsoluteFilePath(cfg[t + ':command'],root,os.path.join(root,'bin'))
 	
