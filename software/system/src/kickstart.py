@@ -60,7 +60,7 @@ sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib
 
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 AUTHORS = "Michael Wouters"
 
 debug = False
@@ -171,13 +171,13 @@ for t in targets:
 		try:
 			x = subprocess.Popen('nohup ' + cmd + ' >>' + targetOutputFile + ' 2>&1 &',shell=True) # this is how you can start a background process
 			Debug('Restarted using ' + cmd);
-			msg = '{} {} restarted'.format(datetime.utcnow().strftime('%Y/%m/%d %H:%M:%S'),t)
+			msg = '{} {} restarted'.format(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),t)
 			if os.path.isfile(checkFile):
 				mtime = int(os.stat(checkFile).st_mtime) # chop off fractional bit
 				msg += ' (last OK check {})'.format(datetime.fromtimestamp(mtime))
 			msg += '\n'
 		except Exception as e:
-			msg = '{} {} restart failed'.format(datetime.utcnow().strftime('%Y/%m/%d %H:%M:%S'),t)
+			msg = '{} {} restart failed'.format(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),t)
 			print(e)
 		
 		Debug(msg)
