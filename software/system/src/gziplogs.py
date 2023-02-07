@@ -35,6 +35,7 @@
 import argparse
 from datetime import datetime
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -84,23 +85,14 @@ def Initialise(configFile):
 
 # ------------------------------------------
 def CompressFile(f):
-	f=f.strip() # trim white space from beginning and end
-	f=f.replace('{MJD}',str(mjd))
-	f=f.replace('{YYYYMMDD}',ymd)
-	f=f.replace('{DOY}',doy)
-	f=f.replace('{YY}',yy)
-	fname = ottplib.MakeAbsoluteFilePath(f,root,os.path.join(root,'raw'))
-	Debug('Checking ' + fname)
-	if os.path.isfile(fname):
+	Debug('Checking ' + f)
+	if os.path.isfile(f):
 		try:
-			Debug('Compressing ' + fname)
+			Debug('Compressing ' + f)
 			x = subprocess.check_output(['gzip','-f',fname]) # -q to suppress warnings?
-			return fname
 		except Exception as e:
 			print(e) # not fatal
-			return None
-	return None
-
+	
 # ------------------------------------------
 # Main body 
 # ------------------------------------------
@@ -154,27 +146,51 @@ if (args.mjd):
 		ErrorExit('Too many MJDs')
 
 for mjd in range(startMJD,stopMJD + 1):
+	
 	tmjd =  (mjd - 40587)*86400
-	utc = datetime.utcfromtimestamp(tmjd - 86400)
+	utc = datetime.utcfromtimestamp(tmjd)
 	ymd = utc.strftime('%Y%m%d')
 	doy = utc.strftime('%j') # zero padded
 	yy  = utc.strftime('%y') # ditto
 	
 	if ':files' in cfg: # old style, single entry
 		files = cfg[':files'].split(',')
+		files = [f.strip() for f in files]
 		for f in files:
-			CompressFile(f)
-	elif ':targets' in cfg: # new style, more functionality 
+			f=f.strip() # trim white space from beginning and end
+			f=f.replace('{MJD}',str(mjd))
+			f=f.replace('{YYYYMMDD}',ymd)
+			f=f.replace('{DOY}',doy) # this
+			f=f.replace('{YY}',yy)   # plus this is useful for V2 RINEX file names
+			fname = ottplib.MakeAbsoluteFilePath(f,root,os.path.join(root,'raw')) # default is just GPSCV raw data files
+			CompressFile(fname)
+			# nuffink more to do
+	elif ':targets' in cfg: # new style, extensible and more flexible 
 		targets = cfg[':targets'].split(',')
 		for t in targets:
 			t = t.strip()
 			if t+':files' in cfg:
 				files = cfg[t + ':files'].split(',')
 				for f in files:
-					CompressFile(f)
+					f=f.strip() # trim white space from beginning and end
+					f=f.replace('{MJD}',str(mjd))
+					f=f.replace('{YYYYMMDD}',ymd)
+					f=f.replace('{DOY}',doy)
+					f=f.replace('{YY}',yy)
+					fname = ottplib.MakeAbsoluteFilePath(f,root,os.path.join(root,'raw')) 
+					CompressFile(fname)
+					# The following moves any matching compressed file, if a destination is defined
+					fgz = fname + '.gz'
+					if os.path.isfile(fgz) and (t+':destination' in cfg) :
+						dst = ottplib.MakeAbsolutePath(cfg[t+':destination'],home)
+						Debug('Moving ' + fgz + ' to ' + dst)
+						try:
+							shutil.move(fgz,dst)
+						except Exception as e:
+							print(e) # it's not the end of the world
 			else:
 				Debug('No files defined for target ' + t)
 	else:
 		pass
 
-
+# That's all folks!
