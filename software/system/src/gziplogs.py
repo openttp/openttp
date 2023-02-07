@@ -46,7 +46,7 @@ sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib
 
-VERSION = "0.9.9"
+VERSION = "1.0.0"
 AUTHORS = "Michael Wouters"
 
 debug = False

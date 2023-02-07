@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -423,7 +423,7 @@ if ('kickstart' in targets):
 	InstallScript('src/kickstart.py','/usr/local/bin')
 
 if ('gziplogs' in targets):
-	InstallScript('src/gziplogs.pl','/usr/local/bin')
+	InstallScript('src/gziplogs.py','/usr/local/bin')
 
 # Installation of sysmonitor
 if ('sysmonitor' in targets):
