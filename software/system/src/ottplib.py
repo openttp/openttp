@@ -24,12 +24,15 @@
 
 import os
 import re
+import subprocess
 import sys
 import time
  
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION = 1
+LIB_MINOR_VERSION = 2
 LIB_PATCH_VERSION = 0
+
+debug=False
 
 # ------------------------------------------
 # Return the library version
@@ -47,6 +50,37 @@ def LibPatchVersion():
 	return LIB_PATCH_VERSION
 
 # ------------------------------------------
+# Miscellaneous
+# ------------------------------------------
+
+def SetDebugging(dbgOn):
+	global debug
+	debug = dbgOn
+	
+def Debug(msg):
+	global debug
+	if (debug):
+		sys.stderr.write(msg + '\n')
+	return
+
+# ------------------------------------------
+def ErrorExit(msg):
+	print (msg)
+	sys.exit(0)
+	
+# ------------------------------------------
+def DecompressFile(basename,ext):
+	if (ext == '.gz'):
+		subprocess.check_output(['gunzip',basename + ext])
+		Debug('Decompressed ' + basename)
+
+# ------------------------------------------
+def RecompressFile(basename,ext):
+	if (ext == '.gz'):
+		subprocess.check_output(['gzip',basename])
+		Debug('Recompressed ' + basename)
+
+# ------------------------------------------
 # Read a text file to set up a dictionary for configuration information
 # Options supported are:
 # tolower=>[True,False] coonvert keys to lower case (but not values)
@@ -61,6 +95,20 @@ def LoadConfig(fname,options={}):
 		cfg.update(custcfg)
 	else:
 		cfg=custcfg
+	return cfg
+
+
+# ------------------------------------------
+def Initialise(configFile,reqd):
+	cfg = LoadConfig(configFile,{'tolower':True})
+	if (cfg == None):
+		ErrorExit("Error loading " + configFile)
+		
+	# Check for required arguments
+	for k in reqd:
+		if (not k in cfg):
+			ErrorExit('The required configuration entry "' + k + '" is undefined')
+		
 	return cfg
 
 # ------------------------------------------
