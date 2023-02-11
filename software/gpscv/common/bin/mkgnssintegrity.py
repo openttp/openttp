@@ -28,7 +28,7 @@
 # 
 
 import argparse
-from   datetime import datetime
+from   datetime import datetime,timezone
 import os
 import re
 import subprocess
@@ -58,7 +58,8 @@ MAX_OBS_BREAK = 60    # as per old files
 MIN_TRK_LEN   = 3600  # as per old files
 
 # Globals 
-gps = [] # top level of data structure will be a list, with index corresponding to SVN
+gnss = [] # top level of data structure will be a list, with index corresponding to SVN
+nav = []
 
 # ------------------------------------------
 def ShowVersion():
@@ -67,45 +68,20 @@ def ShowVersion():
 	return
 
 # ------------------------------------------
-def Debug(msg):
-	if (debug):
-		sys.stderr.write(msg + '\n')
-	return
-
-# ------------------------------------------
-def ErrorExit(msg):
-	print (msg)
-	sys.exit(0)
-
-# ------------------------------------------
-def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
-	if (cfg == None):
-		ErrorExit("Error loading " + configFile)
-		
-	# Check for required arguments
-	reqd = []
-	for k in reqd:
-		if (not k in cfg):
-			ErrorExit('The required configuration entry "' + k + '" is undefined')
-		
-	return cfg
-
-# ------------------------------------------
 # Find a file with basename and a list of potential extensions
 # (usually compression extensions - .gz, .Z etc
 def FindFile(basename,extensions):
 	fname = basename
-	Debug('Trying ' + fname )
+	ottplib.Debug('Trying ' + fname)
 	if (os.path.exists(fname)):
-		Debug('Success')
+		ottplib.Debug('Success')
 		return (True,'')
 	
 	for ext in extensions:
 		fname = basename + ext
-		Debug('Trying ' + fname )
+		ottplib.Debug('Trying ' + fname)
 		if (os.path.exists(fname)):
-			Debug('Success')
+			ottplib.Debug('Success')
 			return (True,ext)
 	
 	return (False,'') # flag failure
@@ -192,19 +168,21 @@ def FindRINEXNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 	return ('','')
 
 # ------------------------------------------
-def DecompressFile(basename,ext):
-	if (ext == '.gz'):
-		subprocess.check_output(['gunzip',basename + ext])
-		Debug('Decompressed ' + basename)
+def ReadLeapSeconds(nav,zext,rnxVers):
+	ottplib.DecompressFile(nav,zext)
+	nLeap = 0
+	fin = open(nav,'r')
+	for l in fin:
+		m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
+		if (m):
+			nLeap = int(m.group(1))
+			ottplib.Debug('Leap seconds = '+str(nLeap))
+			break
+	fin.close()
+	return nLeap
 
 # ------------------------------------------
-def RecompressFile(basename,ext):
-	if (ext == '.gz'):
-		subprocess.check_output(['gzip',basename])
-		Debug('Recompressed ' + basename)
-
-# ------------------------------------------
-def ParseV3Obs(fname,rnxVer,leapSecs):
+def ParseObs(fname,rnxVer,leapSecs):
 	fin = open(fname,'r')
 	
 	while 1:
@@ -222,11 +200,11 @@ def ParseV3Obs(fname,rnxVer,leapSecs):
 	while 1:
 		l = fin.readline()
 		if (len(l) == 0): # EOF
-			Debug('Finished')
+			ottplib.Debug('Finished')
 			break
 		if l[0] == '>': # beginning of record - extract the timestamp NB this is usually GPS
 			hdr = l.split()
-			dt = datetime(int(hdr[1]),int(hdr[2]),int(hdr[3])) # already 'UTC' sorta
+			dt = datetime(int(hdr[1]),int(hdr[2]),int(hdr[3]),tzinfo=timezone.utc) 
 			currMJD = ottplib.MJD(dt.timestamp()) 
 			currTOD = 3600*int(hdr[4]) + 60*int(hdr[5]) + int(float(hdr[6])) + leapSecs
 			if currTOD >= 86400: # assuming roughly 1 day of data !
@@ -234,31 +212,76 @@ def ParseV3Obs(fname,rnxVer,leapSecs):
 				currMJD += 1
 		if l[0] == 'G':
 			svn = int(l[1:3])
-			if gps[svn] == None: 
-				gps[svn]=[[[currMJD,currTOD],[currMJD,currTOD],0,0.0]]
+			if gnss[svn] == None: 
+				gnss[svn]=[[[currMJD,currTOD],[currMJD,currTOD],0,0.0]] # create new list
 			else:
-				currTrk = gps[svn][-1]
+				currTrk = gnss[svn][-1]
 				if ((currMJD - currTrk[1][0])*86400 + (currTOD - currTrk[1][1])) > MAX_OBS_BREAK: # start a new track
-					gps[svn].append([[currMJD,currTOD],[currMJD,currTOD],0,0.0])
+					gnss[svn].append([[currMJD,currTOD],[currMJD,currTOD],0,0.0])
 				else:
-					gps[svn][-1][1][0] = currMJD
-					gps[svn][-1][1][1] = currTOD
+					gnss[svn][-1][1][0] = currMJD
+					gnss[svn][-1][1][1] = currTOD
 			
 	fin.close()
+
+# ------------------------------------------
+def ParseNav(fname,rnxVer):
+	fin = open(fname,'r')
+	
+	while 1:
+		l = fin.readline()
+		if (len(l) == 0): # EOF 
+			reading = False
+			break
+		if 'END OF HEADER' in l:
+			break
+	currMJD=-1
+	currTOD=-1
+	while 1:
+		l = fin.readline()
+		if (len(l) == 0): # EOF
+			ottplib.Debug('Finished')
+			break
+		if l[0] == 'G':
+			svn = int(l[1:3])
+			# get the time
+			hdr = l[0:23].split() # feelin' the love for FORTRAN
+			dt = datetime(int(hdr[1]),int(hdr[2]),int(hdr[3]),tzinfo=timezone.utc) 
+			currMJD = ottplib.MJD(dt.timestamp()) 
+			currTOD = 3600*int(hdr[4]) + 60*int(hdr[5]) + int(float(hdr[6])) 
+			if currTOD >= 86400: # assuming roughly 1 day of data !
+				currTOD = 0
+				currMJD += 1
+			for i in range(1,6):
+				fin.readline()
+			l = fin.readline()
+			# health is in columns 23-41
+			health = int(float(l[23:42]))
+			
+			if nav[svn] == None: 
+				nav[svn]=[[[currMJD,currTOD],health]] # create new list
+			else:
+				nav[svn].append([[currMJD,currTOD],health])
+			
+# ------------------------------------------
+
+def FindCGGTTSFile():
+	pass
+
 # ------------------------------------------
 
 home = os.environ['HOME'] 
 root = home 
-configFile = os.path.join(root,'etc','mkcggtts.conf') # try this first
+configFile = os.path.join(root,'etc','mkgnssintegrity.conf') # try this first
 cfgFormat = MKCGGTTS_FORMAT
 appName = os.path.basename(sys.argv[0])
 examples=''
 create = True
 
-if ottplib.LibMajorVersion() >= 0 and ottplib.LibMinorVersion() < 1: # a bit redundant since this will fail anyway on older versions of ottplib ...
-	print('ottplib minor version < 1')
+if ottplib.LibMajorVersion() >= 0 and ottplib.LibMinorVersion() < 2: # a bit redundant since this will fail anyway on older versions of ottplib ...
+	print('ottplib minor version < 2')
 	sys.exit(1)
-
+	
 parser = argparse.ArgumentParser(description='Generate a GNSS integrity file from RINEX and CGGTTS',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
 parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, the MJD of the previous day is used)')
@@ -269,6 +292,7 @@ parser.add_argument('--version','-v',help='show version and exit',action='store_
 args = parser.parse_args()
 
 debug = args.debug
+ottplib.SetDebugging(debug)
 
 if (args.version):
 	ShowVersion()
@@ -278,17 +302,10 @@ if (args.config):
 	configFile = args.config
 	if (not os.path.isfile(configFile)):
 		ErrorExit(configFile + ' not found')
-else:
-	# If mkcggtts is used, the information we need is in mkcggtts.conf
-	if (not os.path.isfile(configFile)):
-		configFile = os.path.join(root,'etc','gpscv.conf')
-		if not os.path.isfile(configFile):
-			ErrorExit('A mkcggtts.conf or gpscv.conf was not found')
-		cfgFormat = GPSCV_FORMAT
 		
-Debug('Using ' + configFile)
+ottplib.Debug('Using ' + configFile)
 
-cfg=Initialise(configFile)
+cfg=ottplib.Initialise(configFile,['main:processing tool','main:processing config'])
 
 startMJD = ottplib.MJD(time.time()) - 1 # previous day
 stopMJD  = startMJD
@@ -301,64 +318,165 @@ if (args.mjd):
 		startMJD = int(args.mjd[0])
 		stopMJD  = int(args.mjd[1])
 		if (stopMJD < startMJD):
-			ErrorExit('Stop MJD is before start MJD')
+			ottplib.ErrorExit('Stop MJD is before start MJD')
 	else:
-		ErrorExit('Too many MJDs')
+		ottplib.ErrorExit('Too many MJDs')
 
 # Boilerplate done
 
+tool = cfg['main:processing tool'].lower()
+if tool == 'mkcggtts':
+	cfgFormat = MKCGGTTS_FORMAT
+elif tool == 'gpscv':
+	cfgFormat = GPSCV_FORMAT
+else:
+	ottplib.ErrorExit('Unknown option ' + tool)
+
+toolConfigFile = ottplib.MakeAbsoluteFilePath(cfg['main:processing config'],root,os.path.join(home,'etc'))
+tcfg = ottplib.Initialise(toolConfigFile,[])
+
 if cfgFormat == MKCGGTTS_FORMAT:
-	rnxVer = int(cfg['rinex:version'])
-	obsSta = cfg['rinex:obs sta']
-	obsDir = cfg['rinex:obs directory']
-	navSta = cfg['rinex:nav sta']
-	navDir = cfg['rinex:nav directory']
-
+	rnxVer = int(tcfg['rinex:version'])
+	obsSta = tcfg['rinex:obs sta']
+	obsDir = tcfg['rinex:obs directory']
+	navSta = tcfg['rinex:nav sta']
+	navDir = tcfg['rinex:nav directory']
+	
+	cggttsNaming = tcfg['cggtts:naming convention']
+	cggttsOutputs = tcfg['cggtts:outputs'].split(',')
+	cggttsOutputs = [c.strip() for c in cggttsOutputs]
+	print(cggttsOutputs)
+else:
+	ErrorExit('GPSCV format not supported yet')
+	
 obsDir = ottplib.MakeAbsolutePath(obsDir,root)
+navDir = ottplib.MakeAbsolutePath(navDir,root)
 
-Debug('RINEX version is {:d}'.format(rnxVer))
+ottplib.Debug('RINEX version is {:d}'.format(rnxVer))
 
-# Data structure for each GNSS
+# Data structure for GNSS observations
+
 # List (index corresponds to SV) - fixed size
 # 	List of SV tracks - variable size
 #     Track start (from OBS)
 #     Track finish (from OBS)
-#     Health (from NAV)
+#     Health (from NAV) - initially unset
 #     REFSV  (from CGGTTS)
 
+lat = cfg['main:latitude']
+lon = cfg['main:longitude']
+ht  = cfg['main:height']
+
 for mjd in range(startMJD,stopMJD + 1):
+	
+	gnssName = 'GPS'
+	
 	for s in range(1,MAXSV+1):
-		gps.append(None)
+		gnss.append(None)
+		nav.append(None)
+		
 	tmjd =  (mjd - 40587)*86400
 	utc = datetime.utcfromtimestamp(tmjd)
 	doy = int(utc.strftime('%j')) # zero padded
 	yyyy  = int(utc.strftime('%Y'))
-	[baseName,ext] = FindRINEXObservationFile(obsDir,obsSta,yyyy,doy,rnxVer,False)
-	if not baseName:
-		Debug(' .. skipped')
-		continue
-	DecompressFile(baseName,ext)
-	ParseV3Obs(baseName,rnxVer,18)
-	RecompressFile(baseName,ext)
-	# Read the navigtion file
-	[baseName,ext] = FindRINEXNavigationFile(navDir,navSta,yyyy,doy,rnxVer,False)
-	if not baseName:
-		Debug(' .. skipped')
-		continue
-	DecompressFile(baseName,ext)
-	ParseV3Obs(baseName,rnxVer,18)
-	RecompressFile(baseName,ext)
 	
-prn = -1
-for g in gps:
-	prn += 1
-	if not g:
+	# Read the RINEX navigation file
+	# This gives us SV health
+	[baseName,zext] = FindRINEXNavigationFile(navDir,navSta,yyyy,doy,rnxVer,False)
+	if not baseName:
+		ottplib.Debug(' .. skipped')
+		continue
+	ottplib.DecompressFile(baseName,zext)
+	nLeapSecs = ReadLeapSeconds(baseName,zext,rnxVer)
+	ParseNav(baseName,rnxVer)
+	ottplib.RecompressFile(baseName,zext)
+
+	# Read the RINEX observation file
+	# This gives us visible satellites and track lengths
+	[baseName,zext] = FindRINEXObservationFile(obsDir,obsSta,yyyy,doy,rnxVer,False)
+	if not baseName:
+		ottplib.Debug(' .. skipped')
+		continue
+	ottplib.DecompressFile(baseName,zext)
+	ParseObs(baseName,rnxVer,nLeapSecs)
+	ottplib.RecompressFile(baseName,zext) # note that this will not compress if the file was initially uncompressed
+
+	# Read the CGGTTS file
+	# This gives us REF-SV and REF_GPS(SV)
+	# P3 preferred
+	cggttsOutput=''
+	for c in cggttsOutputs:
+		if tcfg[c.lower()+':constellation'].lower() == gnssName.lower():
+			if tcfg[c.lower()+':code'].lower() == 'l3p':
+				cggttsOutput=c
+				break
+			
+	# otherwise, C1
+	if not cggttsOutput:
+		for c in cggttsOutputs:
+			if tcfg[c.lower()+':constellation'].lower() == gnssName.lower():
+				if tcfg[c.lower()+':code'].lower() == 'c1':
+					cggttsOutput=c
+					break
+			
+	if not cggttsOutput:
+		Debug('Skipping: no CGGTTS output defined')
 		continue
 	
-	for trk in g: 
-		if (trk[1][0] - trk[0][0])*86400 +  trk[1][1] - trk[0][1] > MIN_TRK_LEN:
-			print(prn,trk)
-		else:
-			#print(svn,trk)
-			pass
+	ottplib.Debug(cggttsOutput)
+	
+	html = ''
+	html += '<title>{} Space Vehicle Time Integrity for MJD {:d}, </title>\n'.format(gnssName,mjd)
+	html += '<h2>{} Space Vehicle Time Integrity for MJD {:d}, </h2>\n'.format(gnssName,mjd)
+	html += '<br>As viewed from ' + cfg['main:description'] +'</br>\n'
+	html += '<br>Latitude {}, longitude {}, height {} m </br>\n'.format(lat,lon,ht)
+
+	for prn in range(1,33):
+		if ((not gnss[prn])):
+			# This typically means that the SV was unhealthy, so doesn't appear in the RINEX observation file
+			# Check the NAV data and add a record tagging unhealthy for the entire day
+			ottplib.Debug('{:d} -no OBS data - checking health'.format(prn))
+			if nav[prn] == None:
+				ottplib.Debug('No NAV data')
+				html += '{:d} {}\n'.format(prn,'no data')
+			else:
+				nUnhealthy = 0
+				for n in nav[prn]:
+					if n[1] > 0:
+						nUnhealthy += 1
+				ottplib.Debug('{:d} unhealthy NAV records out of {:d}'.format(nUnhealthy,len(nav[prn])))
+				if nUnhealthy >= 1:
+					html += '{:d} {}\n'.format(prn,'UNHEALTHY')
+			continue
 		
+		trkCount = 0
+		for t in range(0,len(gnss[prn])):
+			trk = gnss[prn][t]
+			if (trk[1][0] - trk[0][0])*86400 +  trk[1][1] - trk[0][1] > MIN_TRK_LEN:
+				trkCount += 1
+				startMJD = trk[0][0]
+				starts = trk[0][1]
+				start = ''
+				stop = ''
+				if startMJD < mjd : # shouldn't happen
+					start = '00:00'
+					starts = 0
+				else:
+					hh = int(starts/3600)
+					mm = int((starts - hh*3600)/60)
+					start = '{:02d}:{:02d}'.format(hh,mm)
+		
+				stopMJD = trk[1][0]
+				stops  = trk[1][1]
+				if stopMJD > mjd: # will happen!
+					stop = '23:59'
+					stops = 86399
+				else:
+					hh = int(stops/3600)
+					mm = int((stops - hh*3600)/60)
+					stop = '{:02d}:{:02d}'.format(hh,mm)
+				trklenhh = int((stops - starts)/3600)
+				trklenmm = int((stops - starts - trklenhh*3600)/60)
+				html += '<tr>{:d} {:d} {} {} {:d}h {:d}m </tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm)
+			
+	print(html)
