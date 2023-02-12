@@ -36,45 +36,19 @@ import sys
 import time
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.8/site-packages")
-import ottplib
+import ottplib as ottp
+import rinexlib as rinex
 
-VERSION = "1.0.9"
+VERSION = "1.1.0"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
-# ------------------------------------------
-def Debug(msg):
-	if (debug):
-		sys.stderr.write(msg + '\n')
-	return
-
-# ------------------------------------------
-def ErrorExit(msg):
-	print (msg)
-	sys.exit(0)
-
-# ------------------------------------------
-def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
-	if (cfg == None):
-		ErrorExit("Error loading " + configFile)
-		
-	# Check for required arguments
-	reqd = ['tool:executable','tool:version',
-		'rinex:obs sta',
-		'cggtts:outputs']
-	
-	for k in reqd:
-		if (not k in cfg):
-			ErrorExit('The required configuration entry "' + k + '" is undefined')
-		
-	return cfg
 
 # ------------------------------------------
 # Create a r2cggtts parameter file from scratch
 def CreateParamsFile(fname,leapSecs):
 	
-	Debug('Creating the parameter file for r2cggtts')
+	ottp.Debug('Creating the parameter file for r2cggtts')
 	
 	fout = open(fname,'w')
 	
@@ -121,7 +95,7 @@ def CreateParamsFile(fname,leapSecs):
 # ------------------------------------------
 def SetLeapSeconds(paramsFile,newLeapSecs):
 	
-	Debug('Setting leap seconds')
+	ottp.Debug('Setting leap seconds')
 	
 	fin  = open(paramsFile,'r')
 	fout = open(paramsFile + '.tmp','w')
@@ -139,137 +113,6 @@ def SetLeapSeconds(paramsFile,newLeapSecs):
 	shutil.copyfile(paramsFile + '.tmp',paramsFile)
 	os.unlink(paramsFile + '.tmp')
 	
-# ------------------------------------------
-# Convert Unix time to (truncated) MJD
-def MJD(unixtime):
-	return int(unixtime/86400) + 40587
-
-# ------------------------------------------
-# Find a file with basename and a list of potential extensions
-# (usually compression extensions - .gz, .Z etc
-def FindFile(basename,extensions):
-	fname = basename
-	Debug('Trying ' + fname )
-	if (os.path.exists(fname)):
-		Debug('Success')
-		return (True,'')
-	
-	for ext in extensions:
-		fname = basename + ext
-		Debug('Trying ' + fname )
-		if (os.path.exists(fname)):
-			Debug('Success')
-			return (True,ext)
-	
-	return (False,'') # flag failure
-
-# ------------------------------------------
-def FindRINEXObservationFile(dirname,staname,yyyy,doy,rnxver,reqd):
-	if (rnxver == 2):
-		yy = yyyy - int(yyyy/100)*100
-		
-		bname1 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find obs file:\n\t" + bname1 + '\n\t' + bname2 )
-			
-	elif (rnxver==3):
-		# Try a V3 name first
-		bname1 = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(staname,yyyy,doy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		# Try version 2
-		yy = yyyy - int(yyyy/100)*100
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		# Another try at version 2
-		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname3,['.gz'])
-		if (found):
-			return (bname3,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find obs file:\n\t" + bname1 + '\n\t' + bname2 + '\n\t' + bname3)
-			
-	return ('','')
-
-# ------------------------------------------		
-#
-def FindRINEXNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
-	if (rnxver == 2):
-		yy = yyyy - int(yyyy/100)*100
-		
-		bname1 = os.path.join(dirname,'{}{:03d}0.{:02d}n'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}N'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find nav file:\n\t" + bname1 + '\n\t' + bname2)
-			
-	elif (rnxver == 3):
-		# Mixed navigation files only
-		bname1 = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_MN.rnx'.format(staname,yyyy,doy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		# Try version 2 name (typically produced by sbf2rin)
-		yy = yyyy - int(yyyy/100)*100
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}P'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find nav file:\n\t" + bname1)
-			
-	return ('','')
-
-# ------------------------------------------
-def ReadLeapSeconds(nav,navExt,rnxVers):
-	DecompressFile(nav,navExt)
-	nLeap = 0
-	fin = open(nav,'r')
-	for l in fin:
-		m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
-		if (m):
-			nLeap = int(m.group(1))
-			Debug('Leap seconds = '+str(nLeap))
-			break
-	fin.close()
-	return nLeap
-
-# ------------------------------------------
-def DecompressFile(basename,ext):
-	if (ext == '.gz'):
-		subprocess.check_output(['gunzip',basename + ext])
-		Debug('Decompressed ' + basename)
-
-# ------------------------------------------
-def RecompressFile(basename,ext):
-	if (ext == '.gz'):
-		subprocess.check_output(['gzip',basename])
-		Debug('Recompressed ' + basename)
-
 # ------------------------------------------
 # Main
 
@@ -300,22 +143,24 @@ parser.add_argument('--missing',help='generate missing files')
 args = parser.parse_args()
 
 debug = args.debug
+ottp.SetDebugging(debug)
+rinex.SetDebugging(debug)
 
-configFile = args.config;
+configFile = args.config
 
 if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + ' not found')
+	ottp.ErrorExit(configFile + ' not found')
 	
-cfg=Initialise(configFile)
+cfg=ottp.Initialise(configFile,['tool:executable','tool:version','rinex:obs sta','cggtts:outputs'])
 	
 toolVersion = float(cfg['tool:version'])
 if (toolVersion < 8):
-	ErrorExit('r2cggtts version is unsupported (>=8 only)')
+	ottp.ErrorExit('r2cggtts version is unsupported (>=8 only)')
 		
 if 'paths:root' in cfg:
-	root = ottplib.MakeAbsolutePath(cfg['paths:root'],home)
+	root = ottp.MakeAbsolutePath(cfg['paths:root'],home)
 	
-startMJD = ottplib.MJD(time.time()) - 1 # previous day
+startMJD = ottp.MJD(time.time()) - 1 # previous day
 stopMJD  = startMJD
 	
 if (args.mjd):
@@ -326,9 +171,9 @@ if (args.mjd):
 		startMJD = int(args.mjd[0])
 		stopMJD  = int(args.mjd[1])
 		if (stopMJD < startMJD):
-			ErrorExit('Stop MJD is before start MJD')
+			ottp.ErrorExit('Stop MJD is before start MJD')
 	else:
-		ErrorExit('Too many MJDs')
+		ottp.ErrorExit('Too many MJDs')
 
 if (startMJD == stopMJD and args.previousmjd): # add the previous day - this is to get both MJDs needed for a CGGTTS file with complete tracks at day end
 	startMJD -= 1
@@ -337,15 +182,15 @@ paramFile = os.path.join(home,'etc','paramCGGTTS.dat')
 if 'cggtts:parameter file' in cfg:
 	paramFile = cfg['cggtts:parameter file']
 	if not('auto' == paramFile):
-		paramFile = ottplib.MakeAbsoluteFilePath(paramFile,root,root + 'etc')
+		paramFile = ottp.MakeAbsoluteFilePath(paramFile,root,root + 'etc')
 if (not('auto' == paramFile) and not(os.path.exists(paramFile))):
-	ErrorExit(paramFile + " doesn't exist - check the configuration file")
+	ottp.ErrorExit(paramFile + " doesn't exist - check the configuration file")
 
 tmpDir = os.path.join(root,'tmp')
 if 'paths:tmp' in cfg:
-	tmpDir = ottplib.MakeAbsolutePath(cfg['paths:tmp'],root)
+	tmpDir = ottp.MakeAbsolutePath(cfg['paths:tmp'],root)
 if not(os.path.exists(tmpDir)):
-	ErrorExit(tmpDir + " doesn't exist - check the configuration file")
+	ottp.ErrorExit(tmpDir + " doesn't exist - check the configuration file")
 			
 rnxVersion = 2
 if 'rinex:version' in cfg:
@@ -353,17 +198,17 @@ if 'rinex:version' in cfg:
 	
 rnxObsDir = os.path.join(home,'rinex')
 if 'rinex:obs directory' in cfg:
-	rnxObsDir = ottplib.MakeAbsolutePath(cfg['rinex:obs directory'],root)
+	rnxObsDir = ottp.MakeAbsolutePath(cfg['rinex:obs directory'],root)
 if not(os.path.exists(rnxObsDir)):
-	ErrorExit(rnxObsDir + " doesn't exist - check the configuration file")
-Debug('RINEX observation directory is ' + rnxObsDir)
+	ottp.ErrorExit(rnxObsDir + " doesn't exist - check the configuration file")
+ottp.Debug('RINEX observation directory is ' + rnxObsDir)
 			
 rnxNavDir = os.path.join(home,'rinex')
 if 'rinex:nav directory' in cfg:
-	rnxNavDir = ottplib.MakeAbsolutePath(cfg['rinex:nav directory'],root)
+	rnxNavDir = ottp.MakeAbsolutePath(cfg['rinex:nav directory'],root)
 if not(os.path.exists(rnxNavDir)):
-	ErrorExit(rnxNavDir + " doesn't exist - check the configuration file")
-Debug('RINEX navigation directory is ' + rnxNavDir)
+	ottp.ErrorExit(rnxNavDir + " doesn't exist - check the configuration file")
+ottp.Debug('RINEX navigation directory is ' + rnxNavDir)
 
 rnxObsSta = cfg['rinex:obs sta'] # required
 
@@ -379,17 +224,17 @@ outputs = cfg['cggtts:outputs'].split(',')
 for o in outputs:
 	lco = (o.lower()).strip()
 	if not( (lco + ':directory') in cfg):
-		ErrorExit('CGGTTS output section [' + lco + '] is missing')
-	cggttsPath = ottplib.MakeAbsolutePath(cfg[lco+':directory'],root)
+		ottp.ErrorExit('CGGTTS output section [' + lco + '] is missing')
+	cggttsPath = ottp.MakeAbsolutePath(cfg[lco+':directory'],root)
 	if not(os.path.exists(cggttsPath)):
-		ErrorExit(cggttsPath + " doesn't exist - check the configuration file")
+		ottp.ErrorExit(cggttsPath + " doesn't exist - check the configuration file")
 
 mjdsToDo = [*range(startMJD,stopMJD+1)]
 
 #  --missing overrides everything
 if (args.missing):
 	nMissing = int(args.missing)
-	stopMJD  = ottplib.MJD(time.time()) - 1
+	stopMJD  = ottp.MJD(time.time()) - 1
 	startMJD = stopMJD - nMissing
 	if not(args.previousmjd): # this is so that we retain the MJD defined by --previousmjd
 		mjdsToDo = []
@@ -401,7 +246,7 @@ if (args.missing):
 			lco = (o.lower()).strip()
 			constellation = cfg[lco + ':constellation'].upper()
 			code = cfg[lco + ':code'].upper() 
-			cggttsPath = ottplib.MakeAbsolutePath(cfg[lco+':directory'],root)
+			cggttsPath = ottp.MakeAbsolutePath(cfg[lco+':directory'],root)
 			if (cfg['cggtts:naming convention'].lower() == 'plain'):
 				fout = cggttsPath + str(mjd) + '.cctf'
 			elif (cfg['cggtts:naming convention'].upper() == 'BIPM'):
@@ -428,7 +273,7 @@ if (args.missing):
 				fout = cggttsPath + '{}{}{}{}{:02d}.{:03d}'.format(X,F,cfg['cggtts:lab id'].upper(),
 					cfg['cggtts:receiver id'].upper(),mjdDD,mjdDDD)
 			if not(os.path.exists(fout)):
-				Debug(fout + ' is missing')
+				ottp.Debug(fout + ' is missing')
 				# Don't be too fussy - one missing file means redo the lot
 				mjdsToDo.append(mjd)
 				break
@@ -436,7 +281,7 @@ if (args.missing):
 # Main loop
 for mjd in mjdsToDo:
 	
-	Debug('Processing ' + str(mjd))
+	ottp.Debug('Processing ' + str(mjd))
 	
 	# Clean up the leftovers
 	misc = ['paramCGGTTS.dat','biasC1P1.dat','biasC2P2.dat','r2cggtts.log']
@@ -470,47 +315,47 @@ for mjd in mjdsToDo:
 	doy2 = tod.tm_yday
 	
 	# Make RINEX file names
-	(rnx1,rnx1ext)=FindRINEXObservationFile(rnxObsDir,rnxObsSta,yyyy1,doy1,rnxVersion,False);
+	(rnx1,rnx1ext)=rinex.FindObservationFile(rnxObsDir,rnxObsSta,yyyy1,doy1,rnxVersion,False);
 	if not(rnx1):
-		Debug('Missing observation file')
+		ottp.Debug('Missing observation file')
 		continue
 	ftmp = 'rinex_obs' 
 	shutil.copy(rnx1 + rnx1ext,ftmp + rnx1ext)
-	DecompressFile(ftmp,rnx1ext)
+	ottp.DecompressFile(ftmp,rnx1ext)
 	
-	(nav1,nav1ext)=FindRINEXNavigationFile(rnxNavDir,rnxNavSta,yyyy1,doy1,rnxVersion,False);
+	(nav1,nav1ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy1,doy1,rnxVersion,False);
 	if not(rnx1):
-		Debug('Missing navigation file')
+		ottp.Debug('Missing navigation file')
 		continue
 	# Need to copy the file to the current directory, decompress it if necessary and rename it
 	ftmp = 'rinex_nav_gps'  # version 2 is default
 	if (rnxVersion == 3):
 		ftmp = 'rinex_nav_mix' 
 	shutil.copy(nav1 + nav1ext,ftmp + nav1ext)
-	DecompressFile(ftmp,nav1ext)
+	ottp.DecompressFile(ftmp,nav1ext)
 	
-	(rnx2,rnx2ext)=FindRINEXObservationFile(rnxObsDir,rnxObsSta,yyyy2,doy2,rnxVersion,False); 
+	(rnx2,rnx2ext)=rinex.FindObservationFile(rnxObsDir,rnxObsSta,yyyy2,doy2,rnxVersion,False); 
 	if rnx2: # don't require the next day's data
 		ftmp = 'rinex_obs_p' 
 		shutil.copy(rnx2 + rnx2ext,ftmp + rnx2ext)
-		DecompressFile(ftmp,rnx2ext)
+		ottp.DecompressFile(ftmp,rnx2ext)
 	
-	(nav2,nav2ext)=FindRINEXNavigationFile(rnxNavDir,rnxNavSta,yyyy2,doy2,rnxVersion,False);
+	(nav2,nav2ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy2,doy2,rnxVersion,False);
 	if nav2:
 		ftmp = 'rinex_nav_p_gps'  # version 2 is default
 		if (rnxVersion == 3):
 			ftmp = 'rinex_nav_p_mix' 
 		shutil.copy(nav2 + nav2ext,ftmp + nav2ext)
-		DecompressFile(ftmp,nav2ext)
+		ottp.DecompressFile(ftmp,nav2ext)
 	
 	leapSecs =0
 	if (args.leapsecs):
 		leapSecs = int(args.leapsecs)
 	else:
-		leapSecs = ReadLeapSeconds(nav1,nav1ext,rnxVersion)
+		leapSecs = rinex.GetLeapSeconds(nav1,rnxVersion) # already decompressed
 		
 	if (leapSecs <= 0):
-		ErrorExit('Invalid number of leap seconds')
+		ottp.ErrorExit('Invalid number of leap seconds')
 		
 	if (paramFile == 'auto'):
 		CreateParamsFile('paramCGGTTS.dat',leapSecs)
@@ -519,17 +364,17 @@ for mjd in mjdsToDo:
 		SetLeapSeconds('paramCGGTTS.dat',leapSecs)
 	
 	# Do it
-	Debug('Running ' + cfg['tool:executable'])
+	ottp.Debug('Running ' + cfg['tool:executable'])
 	try:
 		x = subprocess.check_output([cfg['tool:executable']]) # eat the output
-	except:
-		ErrorExit('Failed to run ' + cfg['tool:executable'])
-	Debug(x.decode('utf-8'))
+	except Exception as e:
+		ottp.ErrorExit('Failed to run ' + cfg['tool:executable'])
+	ottp.Debug(x.decode('utf-8'))
 		
 	# Copy and rename files
 	outputs = cfg['cggtts:outputs'].split(',')
 	for o in outputs:
-		Debug('Processing ' + o)
+		ottp.Debug('Processing ' + o)
 		lco = (o.lower()).strip()
 		constellation = cfg[lco + ':constellation'].upper()
 		code = cfg[lco + ':code'].upper() 
@@ -537,10 +382,10 @@ for mjd in mjdsToDo:
 			fin = 'CGGTTS_' + constellation + '_' + code 
 		
 		if not(os.path.exists(fin)):
-			Debug(fin + ' is missing')
+			ottp.Debug(fin + ' is missing')
 			continue
 		
-		cggttsPath = ottplib.MakeAbsolutePath(cfg[lco+':directory'],root)
+		cggttsPath = ottp.MakeAbsolutePath(cfg[lco+':directory'],root)
 		
 		if (cfg['cggtts:naming convention'].lower() == 'plain'):
 			fout = cggttsPath + str(mjd) + '.cctf'
@@ -570,4 +415,4 @@ for mjd in mjdsToDo:
 				cfg['cggtts:receiver id'].upper(),mjdDD,mjdDDD)
 		
 		shutil.copy(fin,fout)
-		Debug('Generated ' + fout)
+		ottp.Debug('Generated ' + fout)
