@@ -41,6 +41,7 @@ sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib
+import rinexlib
 
 VERSION = "0.0.1"
 AUTHORS = "Michael Wouters"
@@ -66,120 +67,6 @@ def ShowVersion():
 	print (os.path.basename(sys.argv[0])+" "+VERSION)
 	print ('Written by ' + AUTHORS)
 	return
-
-# ------------------------------------------
-# Find a file with basename and a list of potential extensions
-# (usually compression extensions - .gz, .Z etc
-def FindFile(basename,extensions):
-	fname = basename
-	ottplib.Debug('Trying ' + fname)
-	if (os.path.exists(fname)):
-		ottplib.Debug('Success')
-		return (True,'')
-	
-	for ext in extensions:
-		fname = basename + ext
-		ottplib.Debug('Trying ' + fname)
-		if (os.path.exists(fname)):
-			ottplib.Debug('Success')
-			return (True,ext)
-	
-	return (False,'') # flag failure
-
-# ------------------------------------------
-def FindRINEXObservationFile(dirname,staname,yyyy,doy,rnxver,reqd):
-	if (rnxver == 2):
-		yy = yyyy - int(yyyy/100)*100
-		
-		bname1 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find obs file:\n\t" + bname1 + '\n\t' + bname2 )
-			
-	elif (rnxver==3):
-		# Try a V3 name first
-		bname1 = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(staname,yyyy,doy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		# Try version 2
-		yy = yyyy - int(yyyy/100)*100
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		# Another try at version 2
-		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname3,['.gz'])
-		if (found):
-			return (bname3,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find obs file:\n\t" + bname1 + '\n\t' + bname2 + '\n\t' + bname3)
-			
-	return ('','')
-
-# ------------------------------------------		
-#
-def FindRINEXNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
-	if (rnxver == 2):
-		yy = yyyy - int(yyyy/100)*100
-		
-		bname1 = os.path.join(dirname,'{}{:03d}0.{:02d}n'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}N'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find nav file:\n\t" + bname1 + '\n\t' + bname2)
-			
-	elif (rnxver == 3):
-		# Mixed navigation files only
-		bname1 = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_MN.rnx'.format(staname,yyyy,doy))
-		(found,ext) = FindFile(bname1,['.gz'])
-		if (found):
-			return (bname1,ext)
-		
-		# Try version 2 name (typically produced by sbf2rin)
-		yy = yyyy - int(yyyy/100)*100
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}P'.format(staname,doy,yy))
-		(found,ext) = FindFile(bname2,['.gz'])
-		if (found):
-			return (bname2,ext)
-		
-		if (reqd):	
-			ErrorExit("Can't find nav file:\n\t" + bname1)
-			
-	return ('','')
-
-# ------------------------------------------
-def ReadLeapSeconds(nav,zext,rnxVers):
-	ottplib.DecompressFile(nav,zext)
-	nLeap = 0
-	fin = open(nav,'r')
-	for l in fin:
-		m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
-		if (m):
-			nLeap = int(m.group(1))
-			ottplib.Debug('Leap seconds = '+str(nLeap))
-			break
-	fin.close()
-	return nLeap
 
 # ------------------------------------------
 def ParseObs(fname,rnxVer,leapSecs):
@@ -293,6 +180,7 @@ args = parser.parse_args()
 
 debug = args.debug
 ottplib.SetDebugging(debug)
+rinexlib.SetDebugging(debug)
 
 if (args.version):
 	ShowVersion()
@@ -382,18 +270,18 @@ for mjd in range(startMJD,stopMJD + 1):
 	
 	# Read the RINEX navigation file
 	# This gives us SV health
-	[baseName,zext] = FindRINEXNavigationFile(navDir,navSta,yyyy,doy,rnxVer,False)
+	[baseName,zext] = rinexlib.FindNavigationFile(navDir,navSta,yyyy,doy,rnxVer,False)
 	if not baseName:
 		ottplib.Debug(' .. skipped')
 		continue
 	ottplib.DecompressFile(baseName,zext)
-	nLeapSecs = ReadLeapSeconds(baseName,zext,rnxVer)
+	nLeapSecs = rinexlib.GetLeapSeconds(baseName,rnxVer)
 	ParseNav(baseName,rnxVer)
 	ottplib.RecompressFile(baseName,zext)
 
 	# Read the RINEX observation file
 	# This gives us visible satellites and track lengths
-	[baseName,zext] = FindRINEXObservationFile(obsDir,obsSta,yyyy,doy,rnxVer,False)
+	[baseName,zext] = rinexlib.FindObservationFile(obsDir,obsSta,yyyy,doy,rnxVer,False)
 	if not baseName:
 		ottplib.Debug(' .. skipped')
 		continue
@@ -407,7 +295,7 @@ for mjd in range(startMJD,stopMJD + 1):
 	cggttsOutput=''
 	for c in cggttsOutputs:
 		if tcfg[c.lower()+':constellation'].lower() == gnssName.lower():
-			if tcfg[c.lower()+':code'].lower() == 'l3p':
+			if tcfg[c.lower()+':code'].upper() == 'L3P':
 				cggttsOutput=c
 				break
 			
@@ -415,7 +303,7 @@ for mjd in range(startMJD,stopMJD + 1):
 	if not cggttsOutput:
 		for c in cggttsOutputs:
 			if tcfg[c.lower()+':constellation'].lower() == gnssName.lower():
-				if tcfg[c.lower()+':code'].lower() == 'c1':
+				if tcfg[c.lower()+':code'].upper() == 'C1':
 					cggttsOutput=c
 					break
 			
@@ -423,7 +311,7 @@ for mjd in range(startMJD,stopMJD + 1):
 		Debug('Skipping: no CGGTTS output defined')
 		continue
 	
-	ottplib.Debug(cggttsOutput)
+	ottplib.Debug('Using CGGTTS ' + cggttsOutput)
 	
 	html = ''
 	html += '<title>{} Space Vehicle Time Integrity for MJD {:d}, </title>\n'.format(gnssName,mjd)

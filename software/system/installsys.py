@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.1.1'
+VERSION = '1.2.0'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -85,11 +85,11 @@ osinfo = [
 
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
-	'sysmonitor','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib',
+	'sysmonitor','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib',
 	'okcounterd','okbitloader','udevrules','gpscvperllibs']
 
 # Targets for a minimal installation
-mintargets = ['libconfigurator','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib']
+mintargets = ['libconfigurator','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib']
 
 # ------------------------------------------
 def Debug(msg):
@@ -374,6 +374,9 @@ if ('ottplib' in targets):
 if ('cggttslib' in targets):
 	InstallPyModule('cggttslib','src',thisos[PY2LIBDIR],thisos[PY3LIBDIR])
 
+if ('rinexlib' in targets):
+	InstallPyModule('rinexlib','src',thisos[PY2LIBDIR],thisos[PY3LIBDIR])
+	
 # Installation of C/C++ libraries
 if ('libconfigurator' in targets):
 	CompileTarget('libconfigurator','src/libconfigurator','install')
