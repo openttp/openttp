@@ -39,7 +39,7 @@ sys.path.append("/usr/local/lib/python3.8/site-packages")
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -331,6 +331,7 @@ for mjd in mjdsToDo:
 	ftmp = 'rinex_nav_gps'  # version 2 is default
 	if (rnxVersion == 3):
 		ftmp = 'rinex_nav_mix' 
+	tmpNavFile = ftmp
 	shutil.copy(nav1 + nav1ext,ftmp + nav1ext)
 	ottp.DecompressFile(ftmp,nav1ext)
 	
@@ -352,7 +353,7 @@ for mjd in mjdsToDo:
 	if (args.leapsecs):
 		leapSecs = int(args.leapsecs)
 	else:
-		leapSecs = rinex.GetLeapSeconds(nav1,rnxVersion) # already decompressed
+		leapSecs = rinex.GetLeapSeconds(tmpNavFile,rnxVersion) # already decompressed
 		
 	if (leapSecs <= 0):
 		ottp.ErrorExit('Invalid number of leap seconds')
