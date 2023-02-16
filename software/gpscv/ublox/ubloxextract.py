@@ -48,7 +48,7 @@ sys.path.append('/usr/local/lib/python3.8/site-packages') # Ubuntu 20
 import ottplib
 import time
 
-VERSION = '0.1.6'
+VERSION = '0.2.0'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -88,11 +88,10 @@ def Initialise(configFile):
 	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
 	if (cfg == None):
 		ErrorExit("Error loading " + configFile)
-		
 	# Check for required arguments
 	reqd = ['paths:receiver data','receiver:file extension']
 	for k in reqd:
-		if (not cfg.has_key(k)):
+		if not k in cfg:
 			ErrorExit("The required configuration entry " + k + " is undefined")
 		
 	return cfg
@@ -106,7 +105,17 @@ def DecodeUBX_MON_VER(msg):
 	unpacked=struct.unpack_from('30s10s',packed)
 	# TO DO parse extended version strings
 	return unpacked
-	
+
+# ------------------------------------------
+def DecodeUBX_NAV_POSECEF(msg):
+	if not(len(msg)==(20+2)*2):
+		return ''
+	packed=binascii.unhexlify(msg)
+	# iTOW,ecefx,ecefy,ecefz,pAcc
+	unpacked=struct.unpack('I3iI2B',packed)
+	return unpacked
+
+
 # ------------------------------------------
 def DecodeUBX_NAV_CLOCK(msg):
 	if not(len(msg)==(20+2)*2):
@@ -254,6 +263,7 @@ parser.add_argument('--mjd','-m',help='mjd',default=mjd)
 parser.add_argument('--uniqid',help='chip id',action='store_true')
 parser.add_argument('--monver',help='hardware and software versions',action='store_true')
 parser.add_argument('--navclock',help='nav-clock',action='store_true')
+parser.add_argument('--navposecef',help='nav-posecef',action='store_true')
 parser.add_argument('--navsat',help='nav-sat',action='store_true')
 parser.add_argument('--navtimeutc',help='nav-timeutc',action='store_true')
 parser.add_argument('--rawx',help='raw measurement data',action='store_true')
@@ -336,6 +346,10 @@ for line in fdata:
 		if (args.timtp):
 			msgf=DecodeUBX_TIM_TP(msg)
 			print(tt,msgf[2]) # in ps
+	elif (msgid == '0101'):
+		if (args.navposecef):
+			msgf=DecodeUBX_NAV_POSECEF(msg)
+			print(tt,msgf[0],msgf[1],msgf[2],msgf[3],msg[4])
 	elif (msgid == '0121'):
 		if (args.navtimeutc):
 			msgf=DecodeUBX_NAV_TIMEUTC(msg)

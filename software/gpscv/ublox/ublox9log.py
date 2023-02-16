@@ -51,7 +51,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.9'
+VERSION = '0.2.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -419,6 +419,14 @@ def ConfigureReceiver(serport):
 	msg = UBX_CFG_VAL_SET  + cmd + b'\x02\x91\x20' + UBX_ON 
 	SendCommand(serport,msg)
 	
+	# CFG-MSGOUT-UBX_NAV_POSECEF 0x20910025+x position solution in ECEF
+	if ('receiver:output position' in cfg):
+		if cfg['receiver:output position'].lower() == 'yes':
+			ubxMsgs.add(b'\x01\x01')
+			cmd = struct.pack('B',0x25 + commOffset)
+			msg = UBX_CFG_VAL_SET  + cmd + b'\x00\x91\x20' + UBX_ON 
+			SendCommand(serport,msg)
+	
 	ubxMsgs.add(b'\x05\x00') # ACK-NAK 
 	ubxMsgs.add(b'\x05\x01') # ACK_ACK
 	ubxMsgs.add(b'\x27\x03') # chip ID
@@ -580,7 +588,7 @@ if ('receiver:file format' in cfg):
 	if (ff == 'native'):
 		dataFormat = NATIVE_FORMAT;
 		cfg['receiver:file extension']= '.ubx'
-	
+
 # Create the process lock		
 lockFile = ottplib.MakeAbsoluteFilePath(cfg['receiver:lock file'],home,home + '/etc')
 Debug('Creating lock ' + lockFile)
