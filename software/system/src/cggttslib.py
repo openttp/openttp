@@ -25,12 +25,37 @@
 import os
 import re
 
-# ------------------------------------------
-# Functions for reading CGGTTS files
-#
+
+LIB_MAJOR_VERSION  = 0
+LIB_MINOR_VERSION  = 0
+LIB_PATCH_VERSION  = 0
+
+debug=False
 
 # ------------------------------------------
-# Calculate the checksum for a string, as defined by the CGTTS specification
+# Return the library version
+#
+
+def LibVersion():
+	return '{:d}.{:d}.{:d}'.format(LIB_MAJOR_VERSION,LIB_MINOR_VERSION,LIB_PATCH_VERSION)
+
+def LibMajorVersion():
+	return LIB_MAJOR_VERSION
+
+def LibMinorVersion():
+	return LIB_MINOR_VERSION
+
+def LibPatchVersion():
+	return LIB_PATCH_VERSION
+
+# ------------------------------------------
+def SetDebugging(debugOn):
+	global __debug
+	__debug = debugOn
+
+
+# ------------------------------------------
+# Calculate the checksum for a string, as defined by the CGGTTS specification
 # ------------------------------------------
 def CheckSum(l):
 	cksum = 0
@@ -372,3 +397,21 @@ def MakeFileSequence(filename1,filename2):
 			fileSeq.append(os.path.join(path1,fname))
 	
 	return (fileSeq,'',False)
+
+
+# ------------------------------------------
+# INTERNALS
+# ------------------------------------------
+
+__debug = False
+
+# ------------------------------------------
+def __ErrorExit(msg):
+	print (msg)
+	sys.exit(0)
+
+# ------------------------------------------
+def __Debug(msg):
+	if (__debug):
+		sys.stderr.write('cggttslib:' + msg + '\n')
+		
