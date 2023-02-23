@@ -24,17 +24,22 @@
 
 import os
 import re
+import sys
 
-
-LIB_MAJOR_VERSION  = 0
+LIB_MAJOR_VERSION  = 1
 LIB_MINOR_VERSION  = 0
 LIB_PATCH_VERSION  = 0
 
 debug=False
 
-# ------------------------------------------
+
+# ------------------------------------------------------------------------------------
+# 'STANDARD' LIBRARY  FUNCTIONS 
+# ------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------------
 # Return the library version
-#
+# ------------------------------------------------------------------------------------
 
 def LibVersion():
 	return '{:d}.{:d}.{:d}'.format(LIB_MAJOR_VERSION,LIB_MINOR_VERSION,LIB_PATCH_VERSION)
@@ -48,31 +53,382 @@ def LibMinorVersion():
 def LibPatchVersion():
 	return LIB_PATCH_VERSION
 
-# ------------------------------------------
+# ------------------------------------------------------------------------------------
+# Miscellaneous 
+# ------------------------------------------------------------------------------------
+
 def SetDebugging(debugOn):
-	global __debug
-	__debug = debugOn
+	global _debug
+	_debug = debugOn
 
 
-# ------------------------------------------
+def SetWarnings(warningsOn):
+	global _warn
+	_warn = warningsOn
+	
+# ------------------------------------------------------------------------------------
+# 
+# ------------------------------------------------------------------------------------
+
+
+
+# ------------------------------------------------------------------------------------
+# CGGTTS data class 
+# ------------------------------------------------------------------------------------
+
+class CGGTTS:
+	
+	# CGGTTS versions
+	CGGTTS_RAW = 0
+	CGGTTS_V1  = 1
+	CGGTTS_V2  = 2
+	CGGTTS_V2E = 3
+	CGGTTS_UNKNOWN = 999
+
+	# CGGTTS field identifiers
+	# These get diddled with when the file is read so that they align with the file version
+	PRN=0
+	CL=1 
+	MJD=2
+	STTIME=3
+	TRKL=4
+	ELV=5
+	AZTH=6
+	REFSV=7
+	SRSV=8
+	REFGPS=9
+	REFSYS=9
+	SRGPS=10
+	SRSYS=10
+	DSG=11
+	IOE=12
+	MDTR=13
+	SMDT=14
+	MDIO=15
+	SMDI=16
+	# CK=17 # for V1, single frequency
+	MSIO=17
+	SMSI=18 
+	ISG=19 # only for dual frequency
+	# CK=20  # V1, dual freqeuncy
+	# CK=20  # V2E, single frequency
+	FRC=21 
+	# CK=23  #V2E, ionospheric measurements available
+
+	version = CGGTTS_UNKNOWN
+	header  = {}
+	tracks  = []
+	
+	def __init__(self,fileName,mjd,maxDSG = 20.0, maxSRSYS = 9999.9,minTrackLength=750,elevationMask=0.0): # constructor
+		self.fileName = fileName
+		self.mjd = mjd
+		self.maxDSG   = maxDSG
+		self.maxSRSYS = maxSRSYS
+		self.minTrackLength = minTrackLength
+		self.elevationMask = elevationMask
+		
+	def Read(self,startTime=0,stopTime=86399,measCode='',delays=[],keepAll=False):
+		
+		
+		enforceChecksum = False
+		
+		_Debug('\nReading ' + self.fileName)
+		
+		
+		(self.header,warnings,checksumOK) = ReadHeader(self.fileName,delays)
+		if (not self.header):
+			_Warn(warnings)
+			return ([],[],{})
+		if (not(warnings == '')): # header OK, but there was a warning
+			_Warn(warnings)
+			
+		if (not checksumOK and enforceChecksum):
+			sys.exit()
+			
+		# OK to read the file
+		fin = open(self.fileName,'r')
+		
+		if (self.header['version'] == 'RAW'):
+			self.version= self.CGGTTS_RAW
+			self.header['version']='raw'
+		elif (self.header['version'] == '01'):	
+			self.version = self.CGGTTS_V1
+			self.header['version']='V1'
+		elif (self.header['version'] == '02'):	
+			_Warn('The data may be treated as GPS')
+			self.version = self.CGGTTS_V2
+			self.header['version']='V02'
+		elif (self.header['version'] == '2E'):
+			self.version = self.CGGTTS_V2E
+			self.header['version']='V2E'
+		else:
+			_Warn('Unknown format - the header is incorrectly formatted')
+			return ([],[],{})
+		
+		_Debug('CGGTTS version ' + self.header['version'])
+		
+		hasMSIO = False
+		# Eat the header
+		while True:
+			l = fin.readline()
+			if not l:
+				_Warn('Bad format')
+				return ([],[],{})
+			if (re.search('STTIME TRKL ELV AZTH',l)):
+				if (re.search('MSIO',l)):
+					hasMSIO=True
+					_Debug('MSIO present')
+				continue
+			match = re.match('\s+hhmmss',l)
+			if match:
+				break
+			
+		self.SetDataColumns(self.version,hasMSIO)
+		if (hasMSIO):
+			self.header['MSIO present'] = 'yes' # A convenient bodge. Sorry Mum.
+		else:
+			self.header['MSIO present'] = 'no'
+		
+		# nb cksumend is where we stop the checksum ie before CK
+		if (self.version == self.CGGTTS_V1):
+			if (hasMSIO):
+				cksumend=115
+			else:
+				cksumend=101
+		elif (self.version == self.CGGTTS_V2):
+			if (hasMSIO):
+				cksumend=125
+			else:
+				cksumend=111
+		elif (self.version == self.CGGTTS_V2E):
+			if (hasMSIO):
+				cksumend=125
+			else:
+				cksumend=111
+				
+		nextday =0
+		stats=[]
+		
+		nLowElevation=0
+		nHighDSG=0
+		nHighSRSYS=0
+		nShortTracks=0
+		nBadSRSV=0
+		nBadMSIO =0
+		
+		while True:
+			l = fin.readline().rstrip()
+			if l:
+				
+				trk = [None]*24 # FIXME this may need to increase one day
+				
+				# First, fiddle with the SAT identifier to simplify matching
+				# SAT is first three columns
+				satid = l[0:3]
+				
+				# V1 is GPS-only and doesn't have the constellation identifier prepending 
+				# the PRN, so we'll add it for compatibility with later versions
+				if (self.version == self.CGGTTS_V1):
+					trk[self.PRN] = 'G{:02d}'.format(int(satid))
+					
+				if (self.version == self.CGGTTS_V2): 
+					trk[self.PRN] = 'G{:02d}'.format(int(satid)) # FIXME works for GPS only
+					
+				if (self.version == self.CGGTTS_V2E): 
+					# CGGTTS V2E files may not necessarily have zero padding in SAT
+					if (' ' == satid[1]):
+						trk[self.PRN] = '{}0{}'.format(satid[0],satid[2]) # TESTED
+					else:
+						trk[self.PRN] = satid
+					
+				if (self.version != self.CGGTTS_RAW): # should have a checksum 
+					
+					cksum = int(l[cksumend:cksumend+2],16)
+					if (not(cksum == (CheckSum(l[:cksumend])))):
+						if (enforceChecksum):
+							sys.stderr.write('Bad checksum in data of ' + fname + '\n')
+							sys.stderr.write(l + '\n')
+							exit()
+						else:
+							_Warn('Bad checksum in data of ' + fname)
+					
+				trk[self.MJD] = int(l[7:12])
+				theMJD = trk[self.MJD]
+				sttime = l[13:19]
+				hh = int(sttime[0:2])
+				mm = int(sttime[2:4])
+				ss = int(sttime[4:6])
+				tt = hh*3600+mm*60+ss
+				trk[self.STTIME] = tt
+				
+				reject=False
+				trk[self.TRKL]  = l[20:24] 
+				trk[self.ELV]   = float(l[25:28])/10.0
+				trk[self.AZTH]  = float(l[29:33])/10.0
+				trk[self.REFSV] = float(l[34:45])/10.0
+				trk[self.SRSV]  = float(l[46:52])/10.0
+				trk[self.REFSYS]= float(l[53:64])/10.0
+				srsys = l[65:71]
+				dsg   = l[72:76]
+				trk[self.IOE]   = int(l[77:80])
+				trk[self.MDIO]  = float(l[91:95])/10.0
+				if (hasMSIO):
+					trk[self.MSIO] = l[101:105]
+					
+				if (not(self.CGGTTS_RAW == self.version)): # DSG not defined for RAW
+					if (dsg == '9999' or dsg == '****'): # field is 4 wide so 4 digits (no sign needed)
+						reject=True
+						trk[self.DSG] = 999.9 # so that we count '****' as high DSG
+					else:
+						trk[self.DSG] = float(dsg)/10.0
+					if (srsys == '99999' or srsys == '******'): # field is 6 wide so sign + 5 digits -> max value is 99999
+						reject=True;
+						trk[self.SRSYS] = 9999.9 # so that we count '******' as high SRSYS
+					else:
+						trk[self.SRSYS] = float(srsys)/10.0
+					trk[self.TRKL] = int(trk[self.TRKL]) 
+				else:
+					trk[self.DSG] = 0.0
+					trk[self.SRSYS] = 0.0
+					trk[self.TRKL] = 999
+					
+				if (trk[self.ELV] < self.elevationMask):
+					nLowElevation +=1
+					reject=True
+				if (trk[self.DSG] > self.maxDSG):
+					nHighDSG += 1
+					reject = True
+				if (abs(trk[self.SRSYS]) > self.maxSRSYS):
+					nHighSRSYS += 1
+					reject = True
+				if (trk[self.TRKL]  < self.minTrackLength):
+					nShortTracks +=1
+					reject = True
+				if (not(self.CGGTTS_RAW == self.version)):
+					if (trk[self.SRSV] == '99999' or trk[self.SRSV]=='*****'):
+						nBadSRSV +=1
+						reject=True
+					if (hasMSIO):
+						if (trk[self.MSIO] == '9999' or trk[self.MSIO] == '****' or trk[self.SMSI]=='***' ):
+							nBadMSIO +=1
+							reject=True
+				if (self.CGGTTS_RAW == self.version):
+					if (hasMSIO):
+						if (trk[self.MSIO] == '9999' or trk[self.MSIO] == '****'):
+							nBadMSIO +=1
+							reject=True	
+				if (reject):
+					continue
+				frc = ''
+				if (self.version == self.CGGTTS_V2 or self.version == self.CGGTTS_V2E):
+					if hasMSIO:
+						trk[self.FRC] = l[121:124] # set this for debugging 
+					else:
+						trk[self.FRC] = l[107:110]
+					frc = trk[self.FRC]
+				if (measCode == ''): # Not set so we ignore it
+					frc = ''
+					
+				if (hasMSIO):
+					trk[self.MSIO] = float(trk[self.MSIO])/10.0
+				else:
+					trk[self.MSIO] = 0.0
+					
+				# print(trk)
+				
+				if ((tt >= startTime and tt < stopTime and theMJD == self.mjd and frc==measCode) or keepAll):
+					self.tracks.append(trk)
+				elif (frc==measCode): # don't count observation code mismatches
+					nextday += 1
+			else:
+				break
+			
+		fin.close()
+		stats.append([nLowElevation,nHighDSG,nShortTracks,nBadSRSV,nBadMSIO])
+
+		_Debug(str(nextday) + ' tracks after end of the day removed')
+		_Debug('low elevation = ' + str(nLowElevation))
+		_Debug('high DSG = ' + str(nHighDSG))
+		_Debug('high SRSYS = ' + str(nHighSRSYS))
+		_Debug('short tracks = ' + str(nShortTracks))
+		_Debug('bad SRSV = ' + str(nBadSRSV))
+		_Debug('bad MSIO = ' + str(nBadMSIO))
+		return (stats)
+
+	# ------------------------------------------
+	def SetDataColumns(self,ver,isdf):
+		
+		if (self.CGGTTS_RAW == ver): # CL field is empty
+			self.PRN=0
+			self.MJD=1
+			self.STTIME=2
+			self.ELV=3
+			self.AZTH=4
+			self.REFSV=5
+			self.REFSYS=6
+			self.IOE=7
+			self.MDTR=8
+			self.MDIO=9
+			self.MSIO=10
+			self.FRC=11
+		elif (self.CGGTTS_V1 == ver):
+			if (isdf):
+				self.CK = 20
+			else:
+				self.CK = 17
+		elif (self.CGGTTS_V2 == ver):
+			if (isdf):
+				self.FRC=22
+				self.CK =23
+			else:
+				self.FRC=19
+				self.CK =20
+		elif (self.CGGTTS_V2E == ver):
+			if (isdf):
+				self.FRC = 22
+				self.CK  = 23
+			else:
+				self.FRC= 19
+				self.CK = 20
+
+# ------------------------------------------------------------------------------------
 # Calculate the checksum for a string, as defined by the CGGTTS specification
-# ------------------------------------------
+# ------------------------------------------------------------------------------------
+
 def CheckSum(l):
 	cksum = 0
 	for c in l:
 		cksum = cksum + ord(c)
 	return int(cksum % 256)
 
-# ------------------------------------------
+# ------------------------------------------------------------------------------------
+# Try to find a CGGTTS file, given some hints
+# Returns full path if successful
+# ------------------------------------------------------------------------------------
+
+def FindFile(path,prefix,ext,mjd):
+	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
+	if (not os.path.isfile(fname)): # otherwise, try BIPM style name
+		mjdYY = int(mjd/1000)
+		mjdXXX = mjd % 1000
+		fBIPMname = path + '/' + prefix + '{:02d}.{:03d}'.format(mjdYY,mjdXXX)
+		if (not os.path.isfile(fBIPMname)): 
+			return ('')
+		fname = fBIPMname
+	return fname
+
+# ------------------------------------------------------------------------------------
 # Read the CGGTTS header, storing the result in a dictionary
 # Returns (header,warnings,checksumOK)
-# ------------------------------------------
+# ------------------------------------------------------------------------------------
+
 def ReadHeader(fname,intdelays=[]):
 	
 	try:
 		fin = open(fname,'r')
 	except:
-		return ({},'Unable to open ' + fname,False)
+		_Warn('Unable to open ' + fname)
+		return ({},'Unable to open ' + fname,False) # don't want to exit because a missing file may be acceptable
 	
 	checksumStart=0 # workaround for R2CGGTTS output
 	
@@ -91,6 +447,7 @@ def ReadHeader(fname,intdelays=[]):
 		if (re.search('RAW CLOCK RESULTS',l)):
 			header['version'] = 'RAW'
 		else:
+			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 	
 	if not(header['version'] == 'RAW'):
@@ -101,6 +458,7 @@ def ReadHeader(fname,intdelays=[]):
 			(tag,val) = l.split('=')
 			header['rev date'] = val.strip()
 		else:
+			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 		
 		l = fin.readline().rstrip()
@@ -121,6 +479,7 @@ def ReadHeader(fname,intdelays=[]):
 		if (l.find('CH') >= 0):
 			header['ch'] = l
 		else:
+			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 			
 		l = fin.readline().rstrip()
@@ -129,6 +488,7 @@ def ReadHeader(fname,intdelays=[]):
 		if (l.find('IMS') >= 0):
 			header['ims'] = l
 		else:
+			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 		
 	l = fin.readline().rstrip()
@@ -137,6 +497,7 @@ def ReadHeader(fname,intdelays=[]):
 	if (l.find('LAB') == 0):
 		header['lab'] = l
 	else:
+		_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 		return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)	
 	
 	l = fin.readline().rstrip()
@@ -146,6 +507,7 @@ def ReadHeader(fname,intdelays=[]):
 	if (match):
 		header['x'] = match.group(1)
 	else:
+		_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 		return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 	
 	l = fin.readline().rstrip()
@@ -155,6 +517,7 @@ def ReadHeader(fname,intdelays=[]):
 	if (match):
 		header['y'] = match.group(1)
 	else:
+		_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 		return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 		
 	l = fin.readline().rstrip()
@@ -164,6 +527,7 @@ def ReadHeader(fname,intdelays=[]):
 	if (match):
 		header['z'] = match.group(1)
 	else:
+		_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 		return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 		
 	l = fin.readline().rstrip()
@@ -172,6 +536,7 @@ def ReadHeader(fname,intdelays=[]):
 	if (l.find('FRAME') == 0):
 		header['frame'] = l
 	else:
+		_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 		return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 	
 	# Some incorrectly! formatted files have multiple COMMENTS lines.
@@ -189,6 +554,7 @@ def ReadHeader(fname,intdelays=[]):
 		else:
 			break
 	if (commentCount > 1):
+		_Warn('Invalid format in {} line {}: too many comment lines'.format(fname,lineCount))
 		warnings += 'Invalid format in {} line {}: too many comment lines;'.format(fname,lineCount)
 	header['comments'] = comments
 	
@@ -199,6 +565,7 @@ def ReadHeader(fname,intdelays=[]):
 		if (match):
 			header['int dly'] = match.group(1)
 		else:
+			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 		
 		l = fin.readline().rstrip()
@@ -208,6 +575,7 @@ def ReadHeader(fname,intdelays=[]):
 		if (match):
 			header['cab dly'] = match.group(1)
 		else:
+			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 		
 		l = fin.readline().rstrip()
@@ -217,6 +585,7 @@ def ReadHeader(fname,intdelays=[]):
 		if (match):
 			header['ref dly'] = match.group(1)
 		else:
+			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 			
 	elif (header['version'] == '02' or header['version'] == '2E' or header['version'] == 'RAW'):
@@ -243,6 +612,7 @@ def ReadHeader(fname,intdelays=[]):
 			if (match):
 				header['ref dly'] = match.group(1)
 			else:
+				_Warn('Invalid format in {} line {}'.format(fname,lineCount))
 				return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 				
 		elif (match.group(1) == 'INT DLY'): # if INT DLY is provided, then read CAB DLY and REF DLY
@@ -263,6 +633,7 @@ def ReadHeader(fname,intdelays=[]):
 								ss = d.split()
 								header['int dly code 2'] = ss[-1] 
 				if not(nfound == len(intdelays)):
+					_Warn('Could not find the specified delays in {} line {} INT DLY'.format(fname,lineCount))
 					return ({},'Could not find the specified delays in {} line {} INT DLY'.format(fname,lineCount),False)
 			else:
 				(dlyname,dly) = l.split('=',1)
@@ -275,6 +646,7 @@ def ReadHeader(fname,intdelays=[]):
 						header['int dly 2'] = match.group(4) 
 						header['int dly code 2'] = match.group(5) 
 				else:
+					_Warn('Invalid format in {} line {} INT DLY'.format(fname,lineCount))
 					return ({},'Invalid format in {} line {} INT DLY'.format(fname,lineCount),False)
 					
 			l = fin.readline().rstrip()
@@ -284,6 +656,7 @@ def ReadHeader(fname,intdelays=[]):
 			if (match):
 				header['cab dly'] = match.group(1)
 			else:
+				_Warn('Invalid format in {} line {} CAB DLY'.format(fname,lineCount))
 				return ({},'Invalid format in {} line {} CAB DLY'.format(fname,lineCount),False)
 			
 			l = fin.readline().rstrip()
@@ -293,6 +666,7 @@ def ReadHeader(fname,intdelays=[]):
 			if (match):
 				header['ref dly'] = match.group(1)
 			else:
+				_Warn('Invalid format in {} line {} REF DLY'.format(fname,lineCount))
 				return ({},'Invalid format in {} line {} REF DLY'.format(fname,lineCount),False)
 			
 	if not (header['version'] == 'RAW'):
@@ -303,6 +677,7 @@ def ReadHeader(fname,intdelays=[]):
 			(tag,val) = l.split('=')
 			header['ref'] = val.strip()
 		else:
+			_Warn('Invalid format in {} line {} REF'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {} REF'.format(fname,lineCount),False)
 		
 		l = fin.readline().rstrip()
@@ -313,6 +688,7 @@ def ReadHeader(fname,intdelays=[]):
 			cksum = int(val,16)
 			checksumOK = CheckSum(hdr[checksumStart:]) == cksum
 			if (not checksumOK):
+				_Warn('Bad checksum in ' + fname)
 				warnings += 'Bad checksum in ' + fname
 		else:
 			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
@@ -398,20 +774,21 @@ def MakeFileSequence(filename1,filename2):
 	
 	return (fileSeq,'',False)
 
-
 # ------------------------------------------
 # INTERNALS
 # ------------------------------------------
 
-__debug = False
+_debug = False
+
+_warn  = True
+
 
 # ------------------------------------------
-def __ErrorExit(msg):
-	print (msg)
-	sys.exit(0)
+def _Debug(msg):
+	if (_debug):
+		sys.stderr.write('cggttslib: ' + msg + '\n')
 
 # ------------------------------------------
-def __Debug(msg):
-	if (__debug):
-		sys.stderr.write('cggttslib:' + msg + '\n')
-		
+def _Warn(msg):
+	if (_warn):
+		sys.stderr.write('WARNING! cggttslib: ' + msg + '\n')
