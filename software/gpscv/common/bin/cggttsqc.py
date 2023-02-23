@@ -35,17 +35,13 @@ import sys
 # This is where cggttslib is installed
 sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
-import cggttslib
+import cggttslib as cggtts
+import ottplib as ottp
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 AUTHORS = "Michael Wouters"
-
-# ------------------------------------------
-def Debug(msg):
-	if (debug):
-		sys.stderr.write(msg+'\n')
-	return
 
 # ------------------------------------------
 def Warn(msg):
@@ -57,10 +53,10 @@ def Warn(msg):
 #
 def CheckFile(fname):
 	
-	Debug('Checking ' + fname)
+	ottp.Debug('Checking ' + fname)
 	
 	header={}
-	(header,warnings,checksumOK) = cggttslib.ReadHeader(fname)
+	(header,warnings,checksumOK) = cggtts.ReadHeader(fname)
 	if (not header):
 		Warn(warnings)
 		return ({},{})
@@ -180,6 +176,8 @@ parser.add_argument('--version','-v',action='version',version = os.path.basename
 args = parser.parse_args()
 
 debug = args.debug
+ottp.SetDebugging(debug)
+cggtts.SetDebugging(debug)
 
 minElevation = int(args.elevation) * 10 # in units of 0.1 ns
 minTrackLength = int(args.tracklength)
