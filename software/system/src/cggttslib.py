@@ -85,40 +85,6 @@ class CGGTTS:
 	CGGTTS_V2E = 3
 	CGGTTS_UNKNOWN = 999
 
-	# CGGTTS field identifiers
-	# These get diddled with when the file is read so that they align with the file version
-	PRN=0
-	CL=1 
-	MJD=2
-	STTIME=3
-	TRKL=4
-	ELV=5
-	AZTH=6
-	REFSV=7
-	SRSV=8
-	REFGPS=9
-	REFSYS=9
-	SRGPS=10
-	SRSYS=10
-	DSG=11
-	IOE=12
-	MDTR=13
-	SMDT=14
-	MDIO=15
-	SMDI=16
-	# CK=17 # for V1, single frequency
-	MSIO=17
-	SMSI=18 
-	ISG=19 # only for dual frequency
-	# CK=20  # V1, dual freqeuncy
-	# CK=20  # V2E, single frequency
-	FRC=21 
-	# CK=23  #V2E, ionospheric measurements available
-
-	version = CGGTTS_UNKNOWN
-	header  = {}
-	tracks  = []
-	
 	def __init__(self,fileName,mjd,maxDSG = 20.0, maxSRSYS = 9999.9,minTrackLength=750,elevationMask=0.0): # constructor
 		self.fileName = fileName
 		self.mjd = mjd
@@ -126,22 +92,52 @@ class CGGTTS:
 		self.maxSRSYS = maxSRSYS
 		self.minTrackLength = minTrackLength
 		self.elevationMask = elevationMask
-		
+		self.version = self.CGGTTS_UNKNOWN
+		self.header  = {}
+		self.tracks  = []
+	
+		# CGGTTS field identifiers
+		# These get diddled with when the file is read so that they align with the file version
+		self.PRN=0
+		self.CL=1 
+		self.MJD=2
+		self.STTIME=3
+		self.TRKL=4
+		self.ELV=5
+		self.AZTH=6
+		self.REFSV=7
+		self.SRSV=8
+		self.REFGPS=9
+		self.REFSYS=9
+		self.SRGPS=10
+		self.SRSYS=10
+		self.DSG=11
+		self.IOE=12
+		self.MDTR=13
+		self.SMDT=14
+		self.MDIO=15
+		self.SMDI=16
+		# CK=17 # for V1, single frequency
+		self.MSIO=17
+		self.SMSI=18 
+		self.ISG=19 # only for dual frequency
+		# CK=20  # V1, dual freqeuncy
+		# CK=20  # V2E, single frequency
+		self.FRC=21 
+		# CK=23  #V2E, ionospheric measurements available
+	
 	def Read(self,startTime=0,stopTime=86399,measCode='',delays=[],keepAll=False):
 		
 		
 		enforceChecksum = False
 		
-		_Debug('\nReading ' + self.fileName)
+		_Debug('Reading ' + self.fileName)
 		
 		
 		(self.header,warnings,checksumOK) = ReadHeader(self.fileName,delays)
 		if (not self.header):
-			_Warn(warnings)
 			return ([],[],{})
-		if (not(warnings == '')): # header OK, but there was a warning
-			_Warn(warnings)
-			
+		
 		if (not checksumOK and enforceChecksum):
 			sys.exit()
 			
