@@ -37,13 +37,13 @@ sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
-import ottplib
+import ottplib as ottp
 
-VERSION = "0.0.3"
+VERSION = "1.0.0"
 AUTHORS = "Michael Wouters"
 
 # Globals
-debug = False
+
 killed = False
 cntrCfg = []
 startChan = 1
@@ -56,31 +56,6 @@ def SignalHandler(signal,frame):
 	killed=True
 	return
 
-# ------------------------------------------
-def Debug(msg):
-	if (debug):
-		print(msg)
-	return
-
-# ------------------------------------------
-def ErrorExit(msg):
-	print(msg)
-	sys.exit(0)
-
-# ------------------------------------------
-def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
-	if (cfg == None):
-		ErrorExit("Error loading " + configFile)
-		
-	# Check for required arguments
-	reqd = ['paths:counter data','counter:file extension','counter:lock file']
-	for k in reqd:
-		if (not k in cfg):
-			ErrorExit("The required configuration entry " + k + " is undefined")
-		
-	return cfg
-
 # --------------------------------------------
 # Keysight functions
 # Don't call these directly
@@ -91,16 +66,16 @@ def _Keysight53230Open(cfg):
 	try:
 		ks53230 =  usbtmc.Instrument(0x0957,usbModelID)
 	except:
-		ErrorExit("Can\'t open the counter")
+		ottp.ErrorExit("Can\'t open the counter")
 	
 def _Keysight53230Reset():
 	try:
 		ks53230.write('*RST;*CLS')
 	except:
-		ErrorExit("Can't write to the counter. Check your USB device permissions (nb raw USB so you need a udev rule for it)")
+		ottp.ErrorExit("Can't write to the counter. Check your USB device permissions (nb raw USB so you need a udev rule for it)")
 	
 	id = ks53230.ask("*IDN?")
-	Debug('Opened ' + id)
+	ottp.Debug('Opened ' + id)
 	return id
 
 def _Keysight53230Configure(cfg):
@@ -127,7 +102,7 @@ def _Keysight53230Configure(cfg):
 	stopChan = 2
 	
 	if ('counter:configuration' in cfg):
-		cntrCfgFile = ottplib.MakeAbsoluteFilePath(cfg['counter:configuration'],home,home+'/etc')
+		cntrCfgFile = ottp.MakeAbsoluteFilePath(cfg['counter:configuration'],home,home+'/etc')
 		if (os.path.isfile(cntrCfgFile)):
 			cntrCfg = []
 			fin = open(cntrCfgFile,'r')
@@ -138,7 +113,7 @@ def _Keysight53230Configure(cfg):
 				if (not None == re.match('#',l)): 
 					continue
 				l = re.sub('#.*$','',l)
-				Debug('Read command: ' + l)
+				ottp.Debug('Read command: ' + l)
 				cntrCfg.append(l)
 				if 'CONF:TINT' in l or 'CONFIGURE:TINTERVAL'in l:
 					ch1 = l.find('@1')
@@ -148,16 +123,16 @@ def _Keysight53230Configure(cfg):
 						stopChan = 1
 						# rdgSign remains +ve because the initial configuration of the counter defines what is START
 		else:
-			ErrorExit('Can\'t open ' + cntrCfgFile)
+			ottp.ErrorExit('Can\'t open ' + cntrCfgFile)
 
 	for c in cntrCfg:
-		Debug(c)
+		ottp.Debug(c)
 		ks53230.write(c)
 	
 	# Check for errors
 	errcode,errtxt = ks53230.ask(':SYST:ERR?').split(',')
 	if not('+0'==errcode):
-		ErrorExit('SCPI error ' + errcode + ',' + errtxt)
+		ottp.ErrorExit('SCPI error ' + errcode + ',' + errtxt)
 
 	ks53230.timeout = 5*1000
 	
@@ -169,13 +144,13 @@ def _Keysight53230Read():
 		rdg = ks53230.ask('READ?') 
 	except:
 		errcode,errtxt = ks53230.ask(':SYST:ERR?').split(',')
-		Debug('SCPI error ' + errcode + ',' + errtxt)
+		ottp.Debug('SCPI error ' + errcode + ',' + errtxt)
 		return '-1'
 	return rdg
 
 def _Keysight53230SwapStartStop():
 	global startChan,stopChan,cntrCfg,rdgSign
-	Debug('Swapping start/stop')
+	ottp.Debug('Swapping start/stop')
 	confTint = ''
 	rdgSign *= -1 # flip the sign
 	if (startChan == 1):
@@ -242,20 +217,21 @@ parser.add_argument('--version','-v',action='version',version = os.path.basename
 args = parser.parse_args()
 
 debug = args.debug
+ottp.SetDebugging(debug)
 
 configFile = args.config;
 
 if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + " not found")
+	ottp.ErrorExit(configFile + " not found")
 	
 logPath = os.path.join(home,'logs')
 if (not os.path.isdir(logPath)):
-	ErrorExit(logPath + "not found")
+	ottp.ErrorExit(logPath + "not found")
 
-cfg=Initialise(configFile)
+cfg=ottp.Initialise(configFile,['paths:counter data','counter:file extension','counter:lock file'])
 
 
-dataPath= ottplib.MakeAbsolutePath(cfg['paths:counter data'], home)
+dataPath= ottp.MakeAbsolutePath(cfg['paths:counter data'], home)
 
 ctrExt = cfg['counter:file extension']
 if (None == re.search(r'\.$',ctrExt)):
@@ -263,13 +239,13 @@ if (None == re.search(r'\.$',ctrExt)):
 
 headerGen=''
 if ('counter:header generator' in cfg):
-	headerGen = ottplib.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
+	headerGen = ottp.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
 
 # Create the process lock		
-lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
-Debug("Creating lock " + lockFile)
-if (not ottplib.CreateProcessLock(lockFile)):
-	ErrorExit("Couldn't create a lock")
+lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
+ottp.Debug("Creating lock " + lockFile)
+if (not ottp.CreateProcessLock(lockFile)):
+	ottp.ErrorExit("Couldn't create a lock")
 
 signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
@@ -299,7 +275,7 @@ for i in range(bufSize):
 	
 while (not killed):
 	tt = time.time()
-	mjd = ottplib.MJD(tt)
+	mjd = ottp.MJD(tt)
 	if (not( mjd == oldmjd)):
 		oldmjd = mjd
 		fnout = dataPath + str(mjd) + ctrExt
@@ -314,7 +290,7 @@ while (not killed):
 			fout.flush()
 		else:
 			fout = open(fnout,'a')
-		Debug('Opened ' + fnout)
+		ottp.Debug('Opened ' + fnout)
 	try:
 		# Get a reading from the counter
 
@@ -341,18 +317,18 @@ while (not killed):
 		tstamp = time.strftime('%H:%M:%S',time.gmtime(tt))
 		fout.write(tstamp + ' ' + str(float(rdg)*rdgSign) + '\n')
 		fout.flush()
-		Debug(tstamp + ' ' + str(float(rdg)*rdgSign) + '[' + rdg + ']')
+		ottp.Debug(tstamp + ' ' + str(float(rdg)*rdgSign) + '[' + rdg + ']')
 		nTimeouts = 0 # reset the count 
 	except:
-		Debug('Timeout')
+		ottp.Debug('Timeout')
 		nTimeouts += 1
 		if (nTimeouts == maxTimeouts):
 			CounterClose()
 			fout.close()
-			ottplib.RemoveProcessLock(lockFile)
-			ErrorExit('Too many timeouts')
+			ottp.RemoveProcessLock(lockFile)
+			ottp.ErrorExit('Too many timeouts')
 	
 # All done - cleanup
 CounterClose()
 fout.close()
-ottplib.RemoveProcessLock(lockFile)
+ottp.RemoveProcessLock(lockFile)

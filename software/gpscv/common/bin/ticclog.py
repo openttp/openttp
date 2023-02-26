@@ -49,9 +49,9 @@ sys.path.append("/usr/local/lib/python3.8/site-packages")
 sys.path.append("/usr/local/lib/python3.10/dist-packages")
 import time
 
-import ottplib
+import ottplib as ottp
 
-VERSION = "0.1.6"
+VERSION = "0.2.0"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -62,7 +62,6 @@ TS_TOD  = 1
 TIC_MODE_TS=0 # time stamp mode
 TIC_MODE_TI=1 # time interval mode
 
-
 # Globals
 debug = False
 killed = False
@@ -72,32 +71,6 @@ def SignalHandler(signal,frame):
 	global killed
 	killed=True
 	return
-
-
-# ------------------------------------------
-def Debug(msg):
-	if (debug):
-		print(msg)
-	return
-
-# ------------------------------------------
-def ErrorExit(msg):
-	print(msg)
-	sys.exit(0)
-	
-# ------------------------------------------
-def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
-	if (cfg == None):
-		ErrorExit("Error loading " + configFile)
-		
-	# Check for required arguments
-	reqd = ['counter:port','paths:counter data','counter:file extension','counter:lock file']
-	for k in reqd:
-		if not(k in cfg):
-			ErrorExit("The required configuration entry " + k + " is undefined")
-		
-	return cfg
 
 # ------------------------------------------
 # Main 
@@ -120,23 +93,24 @@ parser.add_argument('--version','-v',action='version',version = os.path.basename
 args = parser.parse_args()
 
 debug = args.debug
+ottp.SetDebugging(debug)
 
 configFile = args.config;
 
 if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + " not found")
+	ottp.ErrorExit(configFile + " not found")
 	
 logPath = os.path.join(home,'logs')
 if (not os.path.isdir(logPath)):
-	ErrorExit(logPath + "not found")
+	ottp.ErrorExit(logPath + "not found")
 
-cfg=Initialise(configFile)
+cfg=ottp.Initialise(configFile,['counter:port','paths:counter data','counter:file extension','counter:lock file'])
 
 #for key,val in cfg.items():
 #	print key,"=>",val
 	
 port = cfg['counter:port']
-dataPath= ottplib.MakeAbsolutePath(cfg['paths:counter data'], home)
+dataPath= ottp.MakeAbsolutePath(cfg['paths:counter data'], home)
 
 ctrExt = cfg['counter:file extension']
 if (None == re.search(r'\.$',ctrExt)):
@@ -144,7 +118,7 @@ if (None == re.search(r'\.$',ctrExt)):
 
 headerGen=''
 if ('counter:header generator' in cfg):
-	headerGen = ottplib.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
+	headerGen = ottp.MakeAbsoluteFilePath(cfg['counter:header generator'],home,home+'/bin')
 
 if ('counter:mode' in cfg):
 	cm = cfg['counter:mode'].lower()
@@ -161,10 +135,10 @@ if ('counter:timestamp format' in cfg):
 		tsformat = TS_TOD
 		
 # Create the process lock		
-lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
+lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
 Debug("Creating lock " + lockFile)
-if (not ottplib.CreateProcessLock(lockFile)):
-	ErrorExit("Couldn't create a lock")
+if (not ottp.CreateProcessLock(lockFile)):
+	ottp.ErrorExit("Couldn't create a lock")
 
 # Create UUCP lock for the serial port
 uucpLockPath="/var/lock";
@@ -174,8 +148,8 @@ if ('paths:uucp lock' in cfg):
 ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,'-p',str(os.getpid()),port,sys.argv[0]])
 
 if (re.match(b'1',ret)==None):
-	ottplib.RemoveProcessLock(lockFile)
-	ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
+	ottp.RemoveProcessLock(lockFile)
+	ottp.ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
 
 signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
@@ -187,7 +161,7 @@ try:
 	ser = serial.Serial(port,115200,timeout=2)
 except:
 	print("Error on device" + port)
-	ottplib.RemoveProcessLock(lockFile)
+	ottp.RemoveProcessLock(lockFile)
 	subprocess.check_output(['/usr/local/bin/lockport','-r',port]) # but ignore return value anyway
 	exit()
 
@@ -223,7 +197,7 @@ while (state < 4):
 			state = 3
 			if (args.settings): # this is here so we don't get stuck on a TICC not configured for TI yet
 				print(ctrcfg)
-				ottplib.RemoveProcessLock(lockFile)
+				ottp.RemoveProcessLock(lockFile)
 				ser.close()
 				subprocess.check_output(['/usr/local/bin/lockport','-r',port]) 
 				sys.exit(0)
@@ -247,7 +221,7 @@ while (not killed):
 	
 	# Check whether we need to create a new log file
 	tt = time.time()
-	mjd = ottplib.MJD(tt)
+	mjd = ottp.MJD(tt)
 	if (not( mjd == oldmjd)):
 		oldmjd = mjd
 		if (tic_mode == TIC_MODE_TI):
@@ -330,13 +304,13 @@ while (not killed):
 					
 	if (nbad >= 30):
 		foutA.close()
-		ottplib.RemoveProcessLock(lockFile)
+		ottp.RemoveProcessLock(lockFile)
 		ser.close()
 		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
-		ErrorExit("Too many bad readings - no signal?")
+		ottp.ErrorExit("Too many bad readings - no signal?")
 
 # All done - cleanup		
 foutA.close()
-ottplib.RemoveProcessLock(lockFile)
+ottp.RemoveProcessLock(lockFile)
 ser.close()
 subprocess.check_output(['/usr/local/bin/lockport','-r',port])
