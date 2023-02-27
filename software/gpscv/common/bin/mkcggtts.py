@@ -39,7 +39,7 @@ sys.path.append("/usr/local/lib/python3.8/site-packages")
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -378,42 +378,53 @@ for mjd in mjdsToDo:
 		ottp.Debug('Processing ' + o)
 		lco = (o.lower()).strip()
 		constellation = cfg[lco + ':constellation'].upper()
-		code = cfg[lco + ':code'].upper() 
-		if (toolVersion >= 8):
-			fin = 'CGGTTS_' + constellation + '_' + code 
+		code = cfg[lco + ':code'].upper()
 		
-		if not(os.path.exists(fin)):
-			ottp.Debug(fin + ' is missing')
-			continue
+		# This list defines the input file and the output path
+		inputs = [ ['CGGTTS_' + constellation + '_' + code, ottp.MakeAbsolutePath(cfg[lco+':directory'],root)] ]
 		
-		cggttsPath = ottp.MakeAbsolutePath(cfg[lco+':directory'],root)
+		if lco +':process ctts' in cfg:
+			cfgVal = cfg[lco +':process ctts'].lower()
+			if ( cfgVal in ['yes','true','1']):
+				if lco+':ctts directory' in cfg:
+					inputs.append(['CTTS_' + constellation + '_30s_' + code, ottp.MakeAbsolutePath(cfg[lco+':ctts directory'],root)])
+				else:
+					ottp.Debug(lco + ':ctts directory' + ' is unconfigured')
 		
-		if (cfg['cggtts:naming convention'].lower() == 'plain'):
-			fout = cggttsPath + str(mjd) + '.cctf'
-		elif (cfg['cggtts:naming convention'].upper() == 'BIPM'):
+		for inp in inputs:
+			fin = inp[0]
+			if not(os.path.exists(fin)):
+				ottp.Debug(fin + ' is missing')
+				continue
 			
-			X = 'G'
-			F = 'Z' # dual frequency is default
-			if ('GPS'==constellation):
-				X='G'
-				if ('C1' == code or 'P1' == code):
-					F='M'
-			elif ('GLO'==constellation):
-				X='R'
-				if ('C1' == code or 'P1' == code):
-					F='M'
-			elif ('BDS'==constellation):
-				X='C'
-				if ('B1' == code):
-					F='M'
-			elif ('GAL'==constellation):
-				X='E'
-				if ('E1' == code ):
-					F='M'
-			mjdDD = int(mjd/1000)
-			mjdDDD = mjd - 1000*mjdDD
-			fout = cggttsPath + '{}{}{}{}{:02d}.{:03d}'.format(X,F,cfg['cggtts:lab id'].upper(),
-				cfg['cggtts:receiver id'].upper(),mjdDD,mjdDDD)
-		
-		shutil.copy(fin,fout)
-		ottp.Debug('Generated ' + fout)
+			cggttsPath = inp[1]
+			
+			if (cfg['cggtts:naming convention'].lower() == 'plain'):
+				fout = cggttsPath + str(mjd) + '.cctf'
+			elif (cfg['cggtts:naming convention'].upper() == 'BIPM'):
+				
+				X = 'G'
+				F = 'Z' # dual frequency is default
+				if ('GPS'==constellation):
+					X='G'
+					if ('C1' == code or 'P1' == code):
+						F='M'
+				elif ('GLO'==constellation):
+					X='R'
+					if ('C1' == code or 'P1' == code):
+						F='M'
+				elif ('BDS'==constellation):
+					X='C'
+					if ('B1' == code):
+						F='M'
+				elif ('GAL'==constellation):
+					X='E'
+					if ('E1' == code ):
+						F='M'
+				mjdDD = int(mjd/1000)
+				mjdDDD = mjd - 1000*mjdDD
+				fout = cggttsPath + '{}{}{}{}{:02d}.{:03d}'.format(X,F,cfg['cggtts:lab id'].upper(),
+					cfg['cggtts:receiver id'].upper(),mjdDD,mjdDDD)
+			
+			shutil.copy(fin,fout)
+			ottp.Debug('Generated ' + fout)
