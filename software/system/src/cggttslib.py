@@ -28,7 +28,7 @@ import sys
 
 LIB_MAJOR_VERSION  = 1
 LIB_MINOR_VERSION  = 0
-LIB_PATCH_VERSION  = 0
+LIB_PATCH_VERSION  = 1
 
 debug=False
 
@@ -230,14 +230,14 @@ class CGGTTS:
 				if (self.version == self.CGGTTS_V2): 
 					trk[self.PRN] = 'G{:02d}'.format(int(satid)) # FIXME works for GPS only
 					
-				if (self.version == self.CGGTTS_V2E): 
+				if (self.version == self.CGGTTS_V2E or self.version == self.CGGTTS_RAW): 
 					# CGGTTS V2E files may not necessarily have zero padding in SAT
 					if (' ' == satid[1]):
 						trk[self.PRN] = '{}0{}'.format(satid[0],satid[2]) # TESTED
 					else:
 						trk[self.PRN] = satid
 					
-				if (self.version != self.CGGTTS_RAW): # should have a checksum 
+				if (self.version != self.CGGTTS_RAW): # should have a checksum FIXME was this for an earlier version of r2cggtts?
 					
 					cksum = int(l[cksumend:cksumend+2],16)
 					if (not(cksum == (CheckSum(l[:cksumend])))):
@@ -262,7 +262,8 @@ class CGGTTS:
 				trk[self.ELV]   = float(l[25:28])/10.0
 				trk[self.AZTH]  = float(l[29:33])/10.0
 				trk[self.REFSV] = float(l[34:45])/10.0
-				trk[self.SRSV]  = float(l[46:52])/10.0
+				if (self.version != self.CGGTTS_RAW): 
+					trk[self.SRSV]  = float(l[46:52])/10.0 # not defined, logically enough!
 				trk[self.REFSYS]= float(l[53:64])/10.0
 				srsys = l[65:71]
 				dsg   = l[72:76]
@@ -316,9 +317,12 @@ class CGGTTS:
 				if (reject):
 					continue
 				frc = ''
-				if (self.version == self.CGGTTS_V2 or self.version == self.CGGTTS_V2E):
-					if hasMSIO:
-						trk[self.FRC] = l[121:124] # set this for debugging 
+				if not(self.version == self.CGGTTS_V1):
+					if hasMSIO: # set FRC for debugging
+						if self.version == self.CGGTTS_RAW:
+							trk[self.FRC] = l[122:125] # this is a bug in v8.3 of r2cggtts - field is misaligned
+						else:
+							trk[self.FRC] = l[121:124]
 					else:
 						trk[self.FRC] = l[107:110]
 					frc = trk[self.FRC]
@@ -354,20 +358,7 @@ class CGGTTS:
 	# ------------------------------------------
 	def SetDataColumns(self,ver,isdf):
 		
-		if (self.CGGTTS_RAW == ver): # CL field is empty
-			self.PRN=0
-			self.MJD=1
-			self.STTIME=2
-			self.ELV=3
-			self.AZTH=4
-			self.REFSV=5
-			self.REFSYS=6
-			self.IOE=7
-			self.MDTR=8
-			self.MDIO=9
-			self.MSIO=10
-			self.FRC=11
-		elif (self.CGGTTS_V1 == ver):
+		if (self.CGGTTS_V1 == ver):
 			if (isdf):
 				self.CK = 20
 			else:
@@ -379,7 +370,7 @@ class CGGTTS:
 			else:
 				self.FRC=19
 				self.CK =20
-		elif (self.CGGTTS_V2E == ver):
+		elif (self.CGGTTS_V2E == ver or self.CGGTTS_RAW == ver):
 			if (isdf):
 				self.FRC = 22
 				self.CK  = 23
@@ -665,7 +656,7 @@ def ReadHeader(fname,intdelays=[]):
 				_Warn('Invalid format in {} line {} REF DLY'.format(fname,lineCount))
 				return ({},'Invalid format in {} line {} REF DLY'.format(fname,lineCount),False)
 			
-	if not (header['version'] == 'RAW'):
+	if not (header['version'] == 'RAW'): #? Why no REF in RAW ?
 		l = fin.readline().rstrip()
 		hdr += l
 		lineCount = lineCount +1
@@ -676,18 +667,18 @@ def ReadHeader(fname,intdelays=[]):
 			_Warn('Invalid format in {} line {} REF'.format(fname,lineCount))
 			return ({},'Invalid format in {} line {} REF'.format(fname,lineCount),False)
 		
-		l = fin.readline().rstrip()
-		lineCount = lineCount +1
-		if (l.find('CKSUM') == 0):
-			hdr += 'CKSUM = '
-			(tag,val) = l.split('=')
-			cksum = int(val,16)
-			checksumOK = CheckSum(hdr[checksumStart:]) == cksum
-			if (not checksumOK):
-				_Warn('Bad checksum in ' + fname)
-				warnings += 'Bad checksum in ' + fname
-		else:
-			return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
+	l = fin.readline().rstrip()
+	lineCount = lineCount +1
+	if (l.find('CKSUM') == 0):
+		hdr += 'CKSUM = '
+		(tag,val) = l.split('=')
+		cksum = int(val,16)
+		checksumOK = CheckSum(hdr[checksumStart:]) == cksum
+		if (not checksumOK):
+			_Warn('Bad checksum in ' + fname)
+			warnings += 'Bad checksum in ' + fname
+	else:
+		return ({},'Invalid format in {} line {}'.format(fname,lineCount),False)
 
 	return (header,warnings,checksumOK)
 
