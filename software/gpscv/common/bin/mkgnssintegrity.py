@@ -197,7 +197,7 @@ if (args.config):
 		
 ottp.Debug('Using ' + configFile)
 
-cfg=ottp.Initialise(configFile,['main:processing tool','main:processing config'])
+cfg=ottp.Initialise(configFile,['main:processing tool','main:processing config','main:reported outputs'])
 
 startMJD = ottp.MJD(time.time()) - 1 # previous day
 stopMJD  = startMJD
@@ -227,6 +227,11 @@ else:
 toolConfigFile = ottp.MakeAbsoluteFilePath(cfg['main:processing config'],root,os.path.join(home,'etc'))
 tcfg = ottp.Initialise(toolConfigFile,[])
 
+# A bit more checking ...
+repOutputs = cfg['main:reported outputs'].split(',')
+repOutputs = [r.strip() for r in repOutputs]
+repOutputs = [r.lower() for r in repOutputs]
+
 if cfgFormat == MKCGGTTS_FORMAT:
 	rnxVer = int(tcfg['rinex:version'])
 	obsSta = tcfg['rinex:obs sta']
@@ -235,11 +240,12 @@ if cfgFormat == MKCGGTTS_FORMAT:
 	navDir = tcfg['rinex:nav directory']
 	
 	cggttsNaming = tcfg['cggtts:naming convention']
-	cggttsOutputs = tcfg['cggtts:outputs'].split(',')
-	cggttsOutputs = [c.strip() for c in cggttsOutputs]
-	print(cggttsOutputs)
+	#cggttsOutputs = tcfg['cggtts:outputs'].split(',')
+	#cggttsOutputs = [c.strip() for c in cggttsOutputs]
+	#cggttsOutputs = [c.lower() for c in cggttsOutputs]
+	
 else:
-	ErrorExit('GPSCV format not supported yet')
+	ottp.ErrorExit('GPSCV format not supported yet')
 	
 obsDir = ottp.MakeAbsolutePath(obsDir,root)
 navDir = ottp.MakeAbsolutePath(navDir,root)
@@ -261,114 +267,134 @@ ht  = cfg['main:height']
 
 for mjd in range(startMJD,stopMJD + 1):
 	
-	gnssName = 'GPS'
+	gnss = []
+	nav  = []
 	
-	for s in range(1,MAXSV+1):
-		gnss.append(None)
-		nav.append(None)
+	for rep in repOutputs:
+	
+		if not (rep + ':constellation' in tcfg):
+			Debug(rep + ':constellation is missing')
+			continue
+		gnssName = tcfg[rep + ':constellation'].upper()
 		
-	tmjd =  (mjd - 40587)*86400
-	utc = datetime.utcfromtimestamp(tmjd)
-	doy = int(utc.strftime('%j')) # zero padded
-	yyyy  = int(utc.strftime('%Y'))
-	
-	# Read the RINEX navigation file
-	# This gives us SV health
-	[baseName,zext] = rinexlib.FindNavigationFile(navDir,navSta,yyyy,doy,rnxVer,False)
-	if not baseName:
-		ottp.Debug(' .. skipped')
-		continue
-	ottp.DecompressFile(baseName,zext)
-	nLeapSecs = rinexlib.GetLeapSeconds(baseName,rnxVer)
-	ParseNav(baseName,rnxVer)
-	ottp.RecompressFile(baseName,zext)
-
-	# Read the RINEX observation file
-	# This gives us visible satellites and track lengths
-	[baseName,zext] = rinexlib.FindObservationFile(obsDir,obsSta,yyyy,doy,rnxVer,False)
-	if not baseName:
-		ottp.Debug(' .. skipped')
-		continue
-	ottp.DecompressFile(baseName,zext)
-	ParseObs(baseName,rnxVer,nLeapSecs)
-	ottp.RecompressFile(baseName,zext) # note that this will not compress if the file was initially uncompressed
-
-	# Read the CGGTTS file
-	# This gives us REF-SV and REF_GPS(SV)
-	# P3 preferred
-	cggttsOutput=''
-	for c in cggttsOutputs:
-		if tcfg[c.lower()+':constellation'].lower() == gnssName.lower():
-			if tcfg[c.lower()+':code'].upper() == 'L3P':
-				cggttsOutput=c
-				break
+		if not (rep + ':code' in tcfg):
+			Debug(rep + ':code is missing')
+			continue
+		gnssCode = tcfg[rep + ':code']
+		
+		for s in range(1,MAXSV+1):
+			gnss.append(None)
+			nav.append(None)
 			
-	# otherwise, C1
-	if not cggttsOutput:
-		for c in cggttsOutputs:
-			if tcfg[c.lower()+':constellation'].lower() == gnssName.lower():
-				if tcfg[c.lower()+':code'].upper() == 'C1':
-					cggttsOutput=c
-					break
-			
-	if not cggttsOutput:
-		Debug('Skipping: no CGGTTS output defined')
-		continue
-	
-	ottp.Debug('Using CGGTTS ' + cggttsOutput)
-	
-	html = ''
-	html += '<title>{} Space Vehicle Time Integrity for MJD {:d}, </title>\n'.format(gnssName,mjd)
-	html += '<h2>{} Space Vehicle Time Integrity for MJD {:d}, </h2>\n'.format(gnssName,mjd)
-	html += '<br>As viewed from ' + cfg['main:description'] +'</br>\n'
-	html += '<br>Latitude {}, longitude {}, height {} m </br>\n'.format(lat,lon,ht)
+		tmjd =  (mjd - 40587)*86400
+		utc = datetime.utcfromtimestamp(tmjd)
+		doy = int(utc.strftime('%j')) # zero padded
+		yyyy  = int(utc.strftime('%Y'))
+		
+		# Read the RINEX navigation file
+		# This gives us SV health
+		[baseName,zext] = rinexlib.FindNavigationFile(navDir,navSta,yyyy,doy,rnxVer,False)
+		if not baseName:
+			ottp.Debug(' .. skipped')
+			continue
+		ottp.DecompressFile(baseName,zext)
+		nLeapSecs = rinexlib.GetLeapSeconds(baseName,rnxVer)
+		ParseNav(baseName,rnxVer)
+		ottp.RecompressFile(baseName,zext)
 
-	for prn in range(1,33):
-		if ((not gnss[prn])):
-			# This typically means that the SV was unhealthy, so doesn't appear in the RINEX observation file
-			# Check the NAV data and add a record tagging unhealthy for the entire day
-			ottp.Debug('{:d} -no OBS data - checking health'.format(prn))
-			if nav[prn] == None:
-				ottp.Debug('No NAV data')
-				html += '{:d} {}\n'.format(prn,'no data')
+		# Read the RINEX observation file
+		# This gives us visible satellites and track lengths
+		[baseName,zext] = rinexlib.FindObservationFile(obsDir,obsSta,yyyy,doy,rnxVer,False)
+		if not baseName:
+			ottp.Debug(' .. skipped')
+			continue
+		ottp.DecompressFile(baseName,zext)
+		ParseObs(baseName,rnxVer,nLeapSecs)
+		ottp.RecompressFile(baseName,zext) # note that this will not compress if the file was initially uncompressed
+
+		# Read the RAW CGGTTS file
+		# This gives us REF-SV and REF-GPS(SV)
+		
+		# But first, construct a file name
+		namingConvention = tcfg['cggtts:naming convention'].lower()
+		if namingConvention == 'bipm':
+			ext = ''
+			if gnssName == 'GPS':
+				cCode = 'G'
+			elif gnssName == 'GALILEO':
+				cCode = 'E'
 			else:
-				nUnhealthy = 0
-				for n in nav[prn]:
-					if n[1] > 0:
-						nUnhealthy += 1
-				ottp.Debug('{:d} unhealthy NAV records out of {:d}'.format(nUnhealthy,len(nav[prn])))
-				if nUnhealthy >= 1:
-					html += '{:d} {}\n'.format(prn,'UNHEALTHY')
+				cCode = 'G'
+			prefix = cCode + 'M' + tcfg['cggtts:lab id']+tcfg['cggtts:receiver id']
+		elif namingConvention == 'plain':
+			ext='cctf'
+			prefix=''
+		else: # try plain anyway
+			ext='cctf'
+			prefix=''
+		cggttsPath = ottp.MakeAbsolutePath(tcfg[rep + ':ctts directory'],root)
+		cggttsFile = cggttsl.FindFile(cggttsPath,prefix,ext,mjd)
+		if not cggttsFile:
+			Debug("Skipping: can't find a CGGTTS file for MJD {:d}".format(mjd))
 			continue
 		
-		trkCount = 0
-		for t in range(0,len(gnss[prn])):
-			trk = gnss[prn][t]
-			if (trk[1][0] - trk[0][0])*86400 +  trk[1][1] - trk[0][1] > MIN_TRK_LEN:
-				trkCount += 1
-				startMJD = trk[0][0]
-				starts = trk[0][1]
-				start = ''
-				stop = ''
-				if startMJD < mjd : # shouldn't happen
-					start = '00:00'
-					starts = 0
-				else:
-					hh = int(starts/3600)
-					mm = int((starts - hh*3600)/60)
-					start = '{:02d}:{:02d}'.format(hh,mm)
+		ottp.Debug('Using CGGTTS file ' + cggttsFile)
+		cf = CGGTTS(cggttsFile,mjd)
+		cf.Read()
 		
-				stopMJD = trk[1][0]
-				stops  = trk[1][1]
-				if stopMJD > mjd: # will happen!
-					stop = '23:59'
-					stops = 86399
+		
+		html = ''
+		html += '<title>{} Space Vehicle Time Integrity for MJD {:d}, </title>\n'.format(gnssName,mjd)
+		html += '<h2>{} Space Vehicle Time Integrity for MJD {:d}, </h2>\n'.format(gnssName,mjd)
+		html += '<br>As viewed from ' + cfg['main:description'] +'</br>\n'
+		html += '<br>Latitude {}, longitude {}, height {} m </br>\n'.format(lat,lon,ht)
+
+		for prn in range(1,33):
+			if ((not gnss[prn])):
+				# This typically means that the SV was unhealthy, so doesn't appear in the RINEX observation file
+				# Check the NAV data and add a record tagging unhealthy for the entire day
+				ottp.Debug('{:d} -no OBS data - checking health'.format(prn))
+				if nav[prn] == None:
+					ottp.Debug('No NAV data')
+					html += '{:d} {}\n'.format(prn,'no data')
 				else:
-					hh = int(stops/3600)
-					mm = int((stops - hh*3600)/60)
-					stop = '{:02d}:{:02d}'.format(hh,mm)
-				trklenhh = int((stops - starts)/3600)
-				trklenmm = int((stops - starts - trklenhh*3600)/60)
-				html += '<tr>{:d} {:d} {} {} {:d}h {:d}m </tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm)
+					nUnhealthy = 0
+					for n in nav[prn]:
+						if n[1] > 0:
+							nUnhealthy += 1
+					ottp.Debug('{:d} unhealthy NAV records out of {:d}'.format(nUnhealthy,len(nav[prn])))
+					if nUnhealthy >= 1:
+						html += '{:d} {}\n'.format(prn,'UNHEALTHY')
+				continue
 			
-	print(html)
+			trkCount = 0
+			for t in range(0,len(gnss[prn])):
+				trk = gnss[prn][t]
+				if (trk[1][0] - trk[0][0])*86400 +  trk[1][1] - trk[0][1] > MIN_TRK_LEN:
+					trkCount += 1
+					startMJD = trk[0][0]
+					starts = trk[0][1]
+					start = ''
+					stop = ''
+					if startMJD < mjd : # shouldn't happen
+						start = '00:00'
+						starts = 0
+					else:
+						hh = int(starts/3600)
+						mm = int((starts - hh*3600)/60)
+						start = '{:02d}:{:02d}'.format(hh,mm)
+			
+					stopMJD = trk[1][0]
+					stops  = trk[1][1]
+					if stopMJD > mjd: # will happen!
+						stop = '23:59'
+						stops = 86399
+					else:
+						hh = int(stops/3600)
+						mm = int((stops - hh*3600)/60)
+						stop = '{:02d}:{:02d}'.format(hh,mm)
+					trklenhh = int((stops - starts)/3600)
+					trklenmm = int((stops - starts - trklenhh*3600)/60)
+					html += '<tr>{:d} {:d} {} {} {:d}h {:d}m </tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm)
+			
+		print(html)
