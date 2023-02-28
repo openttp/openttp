@@ -101,14 +101,14 @@ def ParseObs(fname,rnxVer,leapSecs):
 			if currTOD >= 86400: # assuming roughly 1 day of data !
 				currTOD = 0
 				currMJD += 1
-		if l[0] == 'G':
+		if l[0] == 'G': # GPS only!
 			svn = int(l[1:3])
 			if gnss[svn] == None: 
-				gnss[svn]=[[[currMJD,currTOD],[currMJD,currTOD],0,0.0]] # create new list
+				gnss[svn]=[[[currMJD,currTOD],[currMJD,currTOD],0,[],[]]] # create new list
 			else:
 				currTrk = gnss[svn][-1]
 				if ((currMJD - currTrk[1][0])*86400 + (currTOD - currTrk[1][1])) > MAX_OBS_BREAK: # start a new track
-					gnss[svn].append([[currMJD,currTOD],[currMJD,currTOD],0,0.0])
+					gnss[svn].append([[currMJD,currTOD],[currMJD,currTOD],0,[],[]])
 				else:
 					gnss[svn][-1][1][0] = currMJD
 					gnss[svn][-1][1][1] = currTOD
@@ -259,8 +259,8 @@ ottp.Debug('RINEX version is {:d}'.format(rnxVer))
 #     Track start (from OBS)
 #     Track finish (from OBS)
 #     Health (from NAV) - initially unset
-#     REFSV  (from CGGTTS)
-
+#     List of REFSV   corresponding to the track interval (from CGGTTS)
+#     List of REFGPS  corresponding to the track interval (from CGGTTS)
 lat = cfg['main:latitude']
 lon = cfg['main:longitude']
 ht  = cfg['main:height']
@@ -319,10 +319,10 @@ for mjd in range(startMJD,stopMJD + 1):
 		namingConvention = tcfg['cggtts:naming convention'].lower()
 		if namingConvention == 'bipm':
 			ext = ''
-			if gnssName == 'GPS':
+			if gnssName == 'GPS': # FIXME GPS only
 				cCode = 'G'
-			elif gnssName == 'GALILEO':
-				cCode = 'E'
+			#elif gnssName == 'GALILEO':
+			#	cCode = 'E'
 			else:
 				cCode = 'G'
 			prefix = cCode + 'M' + tcfg['cggtts:lab id']+tcfg['cggtts:receiver id']
@@ -342,7 +342,17 @@ for mjd in range(startMJD,stopMJD + 1):
 		cf = CGGTTS(cggttsFile,mjd)
 		cf.Read()
 		
+		# Reorganize CGGTTS to index it by PRN
+		# This will cut down on search time later 
 		
+		cbyprn = []
+		for s in range(1,MAXSV+1):
+			cbyprn.append([])
+			
+		for trk in cf.tracks:
+			prn = int((trk[cf.PRN])[1:3])
+			cbyprn[prn].append(trk)
+				
 		html = ''
 		html += '<title>{} Space Vehicle Time Integrity for MJD {:d}, </title>\n'.format(gnssName,mjd)
 		html += '<h2>{} Space Vehicle Time Integrity for MJD {:d}, </h2>\n'.format(gnssName,mjd)
@@ -368,9 +378,9 @@ for mjd in range(startMJD,stopMJD + 1):
 				continue
 			
 			trkCount = 0
-			for t in range(0,len(gnss[prn])):
+			for t in range(0,len(gnss[prn])): # for each track recorded for the SV
 				trk = gnss[prn][t]
-				if (trk[1][0] - trk[0][0])*86400 +  trk[1][1] - trk[0][1] > MIN_TRK_LEN:
+				if (trk[1][0] - trk[0][0])*86400 +  trk[1][1] - trk[0][1] > MIN_TRK_LEN: 
 					trkCount += 1
 					startMJD = trk[0][0]
 					starts = trk[0][1]
@@ -395,6 +405,51 @@ for mjd in range(startMJD,stopMJD + 1):
 						stop = '{:02d}:{:02d}'.format(hh,mm)
 					trklenhh = int((stops - starts)/3600)
 					trklenmm = int((stops - starts - trklenhh*3600)/60)
-					html += '<tr>{:d} {:d} {} {} {:d}h {:d}m </tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm)
+					
+					# Could be tricky here and try to remember where we are in the list of CGGTTS tracks but let's not do that shall we ?
+					# Just start the beginning
+					
+					intMatches = [] # list of tracks in the reported interval
+					for ct in cbyprn[prn]:
+						cMJD = ct[cf.MJD]
+						cTOD = ct[cf.STTIME]
+						if (cMJD <= stopMJD and cMJD >= startMJD and cTOD <= stops and cTOD >=starts):
+							intMatches.append(ct)
+					
+					nMatches     = len(intMatches)
+					
+					
+					if nMatches < 2:
+						Debug("Insufficient CGGTTS tracks")
+						continue
+					
+					# Pass 1: get the mean
+					avREFSV   = 0.0
+					avREFGPS  = 0.0
+					for m in intMatches:
+						avREFSV  += m[cf.REFSV]
+						avREFGPS += m[cf.REFGPS]
+					avREFSV = avREFSV/nMatches
+					avREFGPS = avREFGPS/nMatches
+					
+					# Pass 2: get the SD
+					sdREFSV   = 0.0
+					sdREFGPS  = 0.0
+					for m in intMatches:
+						sdREFSV  += (m[cf.REFSV] - avREFSV)**2
+						sdREFGPS += (m[cf.REFGPS]- avREFGPS)**2
+					sdREFSV = (sdREFSV/(nMatches - 1))**0.5	
+					sdREFGPS = (sdREFGPS/(nMatches - 1))**0.5	
+					
+					# Pass 3: count outliers
+					n500 = 0
+					n4sd = 0
+					for m in intMatches:
+						if abs(m[cf.REFSV] - avREFSV) >500.0:
+							n500 += 1
+						if abs(m[cf.REFSV] - avREFSV) > 4.0*sdREFSV:
+							n4sd += 1
+						
+					html += '<tr>{:d} {:d} {} {} {:d}h {:d}m {:d} {:g} {:g} {:g} {:g} {:g}</tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm,nMatches,avREFSV,avREFGPS,sdREFSV,n4sd,n500)
 			
 		print(html)
