@@ -122,6 +122,7 @@ appName = os.path.basename(sys.argv[0])
 examples=''
 create = True
 refclk = 'REF'
+outputDirectory = ''
 
 if ottp.LibMajorVersion() >= 0 and ottp.LibMinorVersion() < 2: # a bit redundant since this will fail anyway on older versions of ottplib ...
 	print('ottplib minor version < 2')
@@ -153,7 +154,7 @@ if (args.config):
 		
 ottp.Debug('Using ' + configFile)
 
-cfg=ottp.Initialise(configFile,['main:processing tool','main:processing config','main:reported outputs'])
+cfg=ottp.Initialise(configFile,['main:processing tool','main:processing config','main:reported outputs','main:output path'])
 
 startMJD = ottp.MJD(time.time()) - 1 # previous day
 stopMJD  = startMJD
@@ -193,8 +194,6 @@ repOutputs = [r.lower() for r in repOutputs]
 
 if cfgFormat == MKCGGTTS_FORMAT:
 	rnxVer = int(tcfg['rinex:version'])
-	obsSta = tcfg['rinex:obs sta']
-	obsDir = tcfg['rinex:obs directory']
 	navSta = tcfg['rinex:nav sta']
 	navDir = tcfg['rinex:nav directory']
 	
@@ -206,7 +205,6 @@ if cfgFormat == MKCGGTTS_FORMAT:
 else:
 	ottp.ErrorExit('GPSCV format not supported yet')
 	
-obsDir = ottp.MakeAbsolutePath(obsDir,root)
 navDir = ottp.MakeAbsolutePath(navDir,root)
 
 ottp.Debug('RINEX version is {:d}'.format(rnxVer))
@@ -223,6 +221,8 @@ ottp.Debug('RINEX version is {:d}'.format(rnxVer))
 lat = cfg['main:latitude']
 lon = cfg['main:longitude']
 ht  = cfg['main:height']
+
+outputPath = ottp.MakeAbsolutePath(cfg['main:output path'],root)
 
 for mjd in range(startMJD,stopMJD + 1):
 	
@@ -443,4 +443,9 @@ for mjd in range(startMJD,stopMJD + 1):
 		html += '</div>'
 		html += '</body>'
 		html += '</html>'
-		print(html)
+		
+		# 
+		fname = os.path.join(outputPath,'{:5d}.html'.format(mjd))
+		fout  = open(fname,'w')
+		fout.write(html)
+		fout.close()
