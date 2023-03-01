@@ -47,7 +47,7 @@ from cggttslib import CGGTTS
 
 import rinexlib
 
-VERSION = "0.0.1"
+VERSION = "1.0.0"
 AUTHORS = "Michael Wouters"
 
 MKCGGTTS_FORMAT = 0
@@ -71,49 +71,6 @@ def ShowVersion():
 	print (os.path.basename(sys.argv[0])+" "+VERSION)
 	print ('Written by ' + AUTHORS)
 	return
-
-# ------------------------------------------
-def ParseObs(fname,rnxVer,leapSecs):
-	fin = open(fname,'r')
-	
-	while 1:
-		l = fin.readline()
-		if (len(l) == 0): # EOF 
-			reading = False
-			break
-		if 'TIME OF FIRST OBS' in l:
-			if not 'GPS' in l:
-				print('Warning! Not GPS time')
-		if 'END OF HEADER' in l:
-			break
-	currMJD=-1
-	currTOD=-1
-	while 1:
-		l = fin.readline()
-		if (len(l) == 0): # EOF
-			ottp.Debug('Finished')
-			break
-		if l[0] == '>': # beginning of record - extract the timestamp NB this is usually GPS
-			hdr = l.split()
-			dt = datetime(int(hdr[1]),int(hdr[2]),int(hdr[3]),tzinfo=timezone.utc) 
-			currMJD = ottp.MJD(dt.timestamp()) 
-			currTOD = 3600*int(hdr[4]) + 60*int(hdr[5]) + int(float(hdr[6])) + leapSecs
-			if currTOD >= 86400: # assuming roughly 1 day of data !
-				currTOD = 0
-				currMJD += 1
-		if l[0] == 'G': # GPS only!
-			svn = int(l[1:3])
-			if gnss[svn] == None: 
-				gnss[svn]=[[[currMJD,currTOD],[currMJD,currTOD],0,[],[]]] # create new list
-			else:
-				currTrk = gnss[svn][-1]
-				if ((currMJD - currTrk[1][0])*86400 + (currTOD - currTrk[1][1])) > MAX_OBS_BREAK: # start a new track
-					gnss[svn].append([[currMJD,currTOD],[currMJD,currTOD],0,[],[]])
-				else:
-					gnss[svn][-1][1][0] = currMJD
-					gnss[svn][-1][1][1] = currTOD
-			
-	fin.close()
 
 # ------------------------------------------
 def ParseNav(fname,rnxVer):
@@ -153,7 +110,6 @@ def ParseNav(fname,rnxVer):
 				nav[svn]=[[[currMJD,currTOD],health]] # create new list
 			else:
 				nav[svn].append([[currMJD,currTOD],health])
-			
 
 
 # ------------------------------------------
@@ -165,9 +121,7 @@ cfgFormat = MKCGGTTS_FORMAT
 appName = os.path.basename(sys.argv[0])
 examples=''
 create = True
-
-cggttsl.SetDebugging(True)
-cggttsl.SetWarnings(True)
+refclk = 'REF'
 
 if ottp.LibMajorVersion() >= 0 and ottp.LibMinorVersion() < 2: # a bit redundant since this will fail anyway on older versions of ottplib ...
 	print('ottplib minor version < 2')
@@ -185,6 +139,8 @@ args = parser.parse_args()
 debug = args.debug
 ottp.SetDebugging(debug)
 rinexlib.SetDebugging(debug)
+cggttsl.SetDebugging(debug)
+cggttsl.SetWarnings(debug)
 
 if (args.version):
 	ShowVersion()
@@ -227,6 +183,9 @@ else:
 toolConfigFile = ottp.MakeAbsoluteFilePath(cfg['main:processing config'],root,os.path.join(home,'etc'))
 tcfg = ottp.Initialise(toolConfigFile,[])
 
+if 'main:reference' in cfg:
+	refclk = cfg['main:reference']
+	
 # A bit more checking ...
 repOutputs = cfg['main:reported outputs'].split(',')
 repOutputs = [r.strip() for r in repOutputs]
@@ -302,16 +261,6 @@ for mjd in range(startMJD,stopMJD + 1):
 		ParseNav(baseName,rnxVer)
 		ottp.RecompressFile(baseName,zext)
 
-		# Read the RINEX observation file
-		# This gives us visible satellites and track lengths
-		[baseName,zext] = rinexlib.FindObservationFile(obsDir,obsSta,yyyy,doy,rnxVer,False)
-		if not baseName:
-			ottp.Debug(' .. skipped')
-			continue
-		ottp.DecompressFile(baseName,zext)
-		ParseObs(baseName,rnxVer,nLeapSecs)
-		ottp.RecompressFile(baseName,zext) # note that this will not compress if the file was initially uncompressed
-
 		# Read the RAW CGGTTS file
 		# This gives us REF-SV and REF-GPS(SV)
 		
@@ -342,28 +291,51 @@ for mjd in range(startMJD,stopMJD + 1):
 		cf = CGGTTS(cggttsFile,mjd)
 		cf.Read()
 		
-		# Reorganize CGGTTS to index it by PRN
-		# This will cut down on search time later 
-		
-		cbyprn = []
-		for s in range(1,MAXSV+1):
-			cbyprn.append([])
-			
-		for trk in cf.tracks:
-			prn = int((trk[cf.PRN])[1:3])
-			cbyprn[prn].append(trk)
+		# Now run over the CGGTTS, identifying contiguous tracks, building up gnss[]
+		for cg in cf.tracks:
+			prn      = int(cg[cf.PRN][1:3])
+			currMJD  = cg[cf.MJD]
+			currTOD  = cg[cf.STTIME]
+			if gnss[prn] == None: 
+				gnss[prn]=[ [[currMJD,currTOD],[currMJD,currTOD],0,[cg[cf.REFSV]],[cg[cf.REFGPS]]] ] # create new list
+			else:
+				currTrk = gnss[prn][-1]
+				if ((currMJD - currTrk[1][0])*86400 + (currTOD - currTrk[1][1])) > MAX_OBS_BREAK: # start a new track, but no filtering on MIN_TRK_LEN as yet
+					gnss[prn].append([[currMJD,currTOD],[currMJD,currTOD],0,[cg[cf.REFSV]],[cg[cf.REFGPS]]])
+				else:
+					# update the track end time
+					gnss[prn][-1][1][0] = currMJD
+					gnss[prn][-1][1][1] = currTOD
+					# and append new REFSV etc
+					gnss[prn][-1][3].append(cg[cf.REFSV])
+					gnss[prn][-1][4].append(cg[cf.REFGPS])
 				
-		html = ''
-		html += '<title>{} Space Vehicle Time Integrity for MJD {:d}, </title>\n'.format(gnssName,mjd)
-		html += '<h2>{} Space Vehicle Time Integrity for MJD {:d}, </h2>\n'.format(gnssName,mjd)
-		html += '<br>As viewed from ' + cfg['main:description'] +'</br>\n'
-		html += '<br>Latitude {}, longitude {}, height {} m </br>\n'.format(lat,lon,ht)
-
+		html = '<!DOCTYPE html>'
+		html += '<html>'
+		html += '<head>'
+		html += '<style>'
+		html += 'body {font-family:"Verdana", Geneva, sans-serif;}'
+		html += 'tr {text-align:right;}'
+		html += 'th,td {padding-left:10px;padding-right:10px;}'
+		html += 'div {padding-top:12px;padding-bottom:12px;}'
+		html += '</style>'
+		html += '<title>{} Space Vehicle Time Integrity for MJD {:d}</title>'.format(gnssName,mjd)
+		html += '</head>'
+		
+		html += '<body>'
+		
+		html += '<h2>{} Space Vehicle Time Integrity for MJD {:d}</h2>'.format(gnssName,mjd)
+		html += '<div>As viewed from ' + cfg['main:description'] +'<br>'
+		html += 'Latitude {}, longitude {}, height {} m </div>'.format(lat,lon,ht)
+		html += '<table style="border: 1px solid black;">'
+		html += '<tr style="text-align:center;"><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr>'
+		html += '<tr style="white-space:pre;text-align:center;vertical-align:top;border-bottom:1px solid #000000;"><th>PRN</th><th>Block</th><th>Start</th><th>Stop</th><th>Interval</th><th>Measurements</th><th>'+refclk+'- <br>GPS (ns)</th><th>'+refclk+'- <br>SV (ns)</th><th>Std Dev <br> (ns)</th><th>Outliers <br>&gt 4 std. dev. </th><th>Outliers <br>&gt; 500 ns</th></tr>'
+		
 		for prn in range(1,33):
 			if ((not gnss[prn])):
-				# This typically means that the SV was unhealthy, so doesn't appear in the RINEX observation file
+				# This typically means that the SV was unhealthy, so doesn't appear in the RINEX observation file and thus the CGGTTS file
 				# Check the NAV data and add a record tagging unhealthy for the entire day
-				ottp.Debug('{:d} -no OBS data - checking health'.format(prn))
+				ottp.Debug('{:d} -no CGGTTS data - checking health'.format(prn))
 				if nav[prn] == None:
 					ottp.Debug('No NAV data')
 					html += '{:d} {}\n'.format(prn,'no data')
@@ -374,7 +346,7 @@ for mjd in range(startMJD,stopMJD + 1):
 							nUnhealthy += 1
 					ottp.Debug('{:d} unhealthy NAV records out of {:d}'.format(nUnhealthy,len(nav[prn])))
 					if nUnhealthy >= 1:
-						html += '{:d} {}\n'.format(prn,'UNHEALTHY')
+						html += '<tr><td>{:d}</td><td colspan="10" style="text-align:center;">UNHEALTHY</td></tr>\n'.format(prn)
 				continue
 			
 			trkCount = 0
@@ -406,50 +378,69 @@ for mjd in range(startMJD,stopMJD + 1):
 					trklenhh = int((stops - starts)/3600)
 					trklenmm = int((stops - starts - trklenhh*3600)/60)
 					
-					# Could be tricky here and try to remember where we are in the list of CGGTTS tracks but let's not do that shall we ?
-					# Just start the beginning
+					nMeas = len(trk[3])
 					
-					intMatches = [] # list of tracks in the reported interval
-					for ct in cbyprn[prn]:
-						cMJD = ct[cf.MJD]
-						cTOD = ct[cf.STTIME]
-						if (cMJD <= stopMJD and cMJD >= startMJD and cTOD <= stops and cTOD >=starts):
-							intMatches.append(ct)
-					
-					nMatches     = len(intMatches)
-					
-					
-					if nMatches < 2:
+					if nMeas < 2:
 						Debug("Insufficient CGGTTS tracks")
 						continue
 					
 					# Pass 1: get the mean
 					avREFSV   = 0.0
 					avREFGPS  = 0.0
-					for m in intMatches:
-						avREFSV  += m[cf.REFSV]
-						avREFGPS += m[cf.REFGPS]
-					avREFSV = avREFSV/nMatches
-					avREFGPS = avREFGPS/nMatches
+					for meas in trk[3]:
+						avREFSV  += meas
+					for meas in trk[4]:
+						avREFGPS += meas
+					avREFSV = avREFSV/nMeas
+					avREFGPS = avREFGPS/nMeas
 					
+					# Stats are on REFSV because this shows noise better, unlike REFGPS
 					# Pass 2: get the SD
 					sdREFSV   = 0.0
 					sdREFGPS  = 0.0
-					for m in intMatches:
-						sdREFSV  += (m[cf.REFSV] - avREFSV)**2
-						sdREFGPS += (m[cf.REFGPS]- avREFGPS)**2
-					sdREFSV = (sdREFSV/(nMatches - 1))**0.5	
-					sdREFGPS = (sdREFGPS/(nMatches - 1))**0.5	
+					for meas in trk[3]:
+						sdREFSV  += (meas - avREFSV)**2
+					for meas in trk[4]:
+						sdREFGPS  += (meas - avREFGPS)**2
+						
+					sdREFSV = (sdREFSV/(nMeas - 1))**0.5	
+					sdREFGPS = (sdREFGPS/(nMeas - 1))**0.5	
 					
 					# Pass 3: count outliers
 					n500 = 0
 					n4sd = 0
-					for m in intMatches:
-						if abs(m[cf.REFSV] - avREFSV) >500.0:
+					for meas in trk[3]:
+						if abs(meas - avREFSV) >500.0:
 							n500 += 1
-						if abs(m[cf.REFSV] - avREFSV) > 4.0*sdREFSV:
+						if abs(meas - avREFSV) > 4.0*sdREFSV:
 							n4sd += 1
 						
-					html += '<tr>{:d} {:d} {} {} {:d}h {:d}m {:d} {:g} {:g} {:g} {:g} {:g}</tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm,nMatches,avREFSV,avREFGPS,sdREFSV,n4sd,n500)
-			
+					html += '<tr><td>{:d}</td><td>{:d}</td><td>{}</td><td>{}</td><td>{:2d}h {:2d}m</td><td>{:d}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td></tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm,nMeas,int(avREFGPS),int(avREFSV),int(sdREFSV),n4sd,n500)
+		
+		html += '</table>'
+		
+		# Make the footer
+		html += '<ol type = "A">'
+		html += '<li>Space vehicle identification number.</li>'
+		html += '<li>The period when the satellite was in view. Each of these blocks is a sequence of measurements longer than 60 minutes, containing no breaks of longer than 60 seconds.</li>'
+		html += '<li>Time at the start of the block (UTC).</li>'
+		html += '<li>Time at the end of the block (UTC).</li>'
+		html += '<li>Length of block.</li>'
+		html += '<li>Number of pseudorange measurements in the block, sampled every 30 s.</li>'
+		html += '<li>Average value of ' + refclk + ' minus GPS satellite time during the block, in nanoseconds.</li>'
+		html += '<li>Average value of ' + refclk + ' minus space vehicle time during the block, in nanoseconds.</li>'
+		html += '<li>Standard deviation of H during the block, in nanoseconds.</li>'
+		html += '<li>Number of measurements more than 4 standard deviations from the average.</li>'
+		html += '<li>Number of measurements more than 500 ns from the average.</li>'
+		html += '</ol>'
+		
+		html += '<div>'
+		html += 'Pseudoranges have been corrected using the broadcast ephemerides and ionosphere model.'
+		html += '</div>'
+		
+		html += '<div>'
+		html += 'Generated by mkgnssintegrity.py v' + VERSION
+		html += '</div>'
+		html += '</body>'
+		html += '</html>'
 		print(html)
