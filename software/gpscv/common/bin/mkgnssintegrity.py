@@ -24,11 +24,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-# Contructs an integrity file for a GNSS
+# Contructs an SV integrity file for a GNSS
 # 
 
 import argparse
 from   datetime import datetime,timezone
+import math as m
 import os
 import re
 import subprocess
@@ -47,7 +48,7 @@ from cggttslib import CGGTTS
 
 import rinexlib
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 AUTHORS = "Michael Wouters"
 
 MKCGGTTS_FORMAT = 0
@@ -328,8 +329,8 @@ for mjd in range(startMJD,stopMJD + 1):
 		html += '<div>As viewed from ' + cfg['main:description'] +'<br>'
 		html += 'Latitude {}, longitude {}, height {} m </div>'.format(lat,lon,ht)
 		html += '<table style="border: 1px solid black;">'
-		html += '<tr style="text-align:center;"><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr>'
-		html += '<tr style="white-space:pre;text-align:center;vertical-align:top;border-bottom:1px solid #000000;"><th>PRN</th><th>Block</th><th>Start</th><th>Stop</th><th>Interval</th><th>Measurements</th><th>'+refclk+'- <br>GPS (ns)</th><th>'+refclk+'- <br>SV (ns)</th><th>Std Dev <br> (ns)</th><th>Outliers <br>&gt 4 std. dev. </th><th>Outliers <br>&gt; 500 ns</th></tr>'
+		html += '<tr style="text-align:center;background-color:#e0e0e0"><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr>'
+		html += '<tr style="white-space:pre;text-align:center;vertical-align:top;background-color:#e0e0e0;"><th>PRN</th><th>Block</th><th>Start</th><th>Stop</th><th>Interval</th><th>Measurements</th><th>'+refclk+'- <br>GPS (ns)</th><th>'+refclk+'- <br>SV (ns)</th><th>Std. dev. <br> (ns)</th><th>Outliers <br>&gt 4 std. dev. </th><th>Outliers <br>&gt; 500 ns</th></tr>'
 		
 		for prn in range(1,33):
 			if ((not gnss[prn])):
@@ -377,7 +378,7 @@ for mjd in range(startMJD,stopMJD + 1):
 						stop = '{:02d}:{:02d}'.format(hh,mm)
 					trklenhh = int((stops - starts)/3600)
 					trklenmm = int((stops - starts - trklenhh*3600)/60)
-					
+					todStr = '{:2d}h {:2d}m'.format(trklenhh,trklenmm) # FIXME html eats any extra whitespace
 					nMeas = len(trk[3])
 					
 					if nMeas < 2:
@@ -403,8 +404,7 @@ for mjd in range(startMJD,stopMJD + 1):
 					for meas in trk[4]:
 						sdREFGPS  += (meas - avREFGPS)**2
 						
-					sdREFSV = (sdREFSV/(nMeas - 1))**0.5	
-					sdREFGPS = (sdREFGPS/(nMeas - 1))**0.5	
+					sdREFSV = m.ceil((sdREFSV/(nMeas - 1))**0.5)	 # do all calculatiosn with rounded up sd, for consistency with output value
 					
 					# Pass 3: count outliers
 					n500 = 0
@@ -414,8 +414,15 @@ for mjd in range(startMJD,stopMJD + 1):
 							n500 += 1
 						if abs(meas - avREFSV) > 4.0*sdREFSV:
 							n4sd += 1
-						
-					html += '<tr><td>{:d}</td><td>{:d}</td><td>{}</td><td>{}</td><td>{:2d}h {:2d}m</td><td>{:d}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td></tr>\n'.format(prn,trkCount,start,stop,trklenhh,trklenmm,nMeas,int(avREFGPS),int(avREFSV),int(sdREFSV),n4sd,n500)
+					#if prn % 2 == 1:
+						#rowStyle = ' style="background-color:#e0e0e0"';
+					#else:
+						#rowStyle = '';
+					rowStyle=''
+					if trkCount == 1:
+						html += '<tr'+rowStyle+'><td>{:d}</td><td>{:d}</td><td>{}</td><td>{}</td><td>{}</td><td>{:d}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td></tr>\n'.format(prn,trkCount,start,stop,todStr,nMeas,int(round(avREFGPS)),int(round(avREFSV)),int(sdREFSV),n4sd,n500)
+					else:
+						html += '<tr'+rowStyle+'><td></td><td>{:d}</td><td>{}</td><td>{}</td><td>{}</td><td>{:d}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td><td>{:g}</td></tr>\n'.format(trkCount,start,stop,todStr,nMeas,int(round(avREFGPS)),int(round(avREFSV)),int(sdREFSV),n4sd,n500)
 		
 		html += '</table>'
 		
@@ -449,3 +456,4 @@ for mjd in range(startMJD,stopMJD + 1):
 		fout  = open(fname,'w')
 		fout.write(html)
 		fout.close()
+		ottp.Debug('Wrote ' + fname)
