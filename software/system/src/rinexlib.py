@@ -27,7 +27,7 @@ import re
 import sys
 
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION  = 1
+LIB_MINOR_VERSION  = 2
 LIB_PATCH_VERSION  = 0
 
 
@@ -127,8 +127,14 @@ def FindNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 		if (found):
 			return (bname2,ext)
 		
+		# Try yet another version 2 name (typically produced by sbf2rin)
+		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}N'.format(staname,doy,yy))
+		(found,ext) = __FindFile(bname3,['.gz'])
+		if (found):
+			return (bname3,ext)
+		
 		if (reqd):	
-			__ErrorExit("Can't find nav file:\n\t" + bname1)
+			__ErrorExit("Can't find nav file:\n\t" + bname1 + "\n\t" + bname2 + "\n\t" + bname3)
 			
 	return ('','') 
 
