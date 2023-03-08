@@ -48,7 +48,7 @@ from cggttslib import CGGTTS
 
 import rinexlib
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 AUTHORS = "Michael Wouters"
 
 MKCGGTTS_FORMAT = 0
@@ -339,7 +339,7 @@ for mjd in range(startMJD,stopMJD + 1):
 				ottp.Debug('{:d} -no CGGTTS data - checking health'.format(prn))
 				if nav[prn] == None:
 					ottp.Debug('No NAV data')
-					html += '{:d} {}\n'.format(prn,'no data')
+					html += '<tr><td>{:d}</td><td colspan="10" style="text-align:center;">No data</td></tr>\n'.format(prn)
 				else:
 					nUnhealthy = 0
 					for n in nav[prn]:
