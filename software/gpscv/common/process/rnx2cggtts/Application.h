@@ -50,6 +50,8 @@ class Application
 		
 		void run();
 		
+		void logMessage(std::string msg);
+		
 	private:
 		
 		enum CGGTTSNamingConvention {Plain,BIPM};
@@ -59,6 +61,7 @@ class Application
 		std::string homeDir;
 		std::string rootDir;
 		std::string configurationFile;
+		std::string logFile;
 		
 		std::string RINEXpath;
 		std::string RINEXobsPath;
@@ -92,7 +95,7 @@ class Application
 		bool setConfig(ListEntry *,const char *,const char *,std::string &,bool *ok,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,double *,bool *ok,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,int *,bool *ok, bool required=true);
-		
+	
 		std::string FindRINEXObsFile(int,int,std::vector<std::string> &);
 		std::string FindRINEXNavFile(int,int,std::vector<std::string> &);
 		

@@ -48,28 +48,27 @@ double RINEXFile::readRINEXVersion(std::string fname)
 	char line[SBUFSIZE];
 	
 	FILE *fin = std::fopen(fname.c_str(),"r");
-	// First, determine the version
-	double RINEXver = 0.0;
 	
 	while (!std::feof(fin)){
 		std::fgets(line,SBUFSIZE,fin);
 		lineCount++;
 		if (NULL != strstr(line,"RINEX VERSION")){
-			//parseParam(line,1,12,&RINEXver);
+			readParam(line,1,12,&version);
 			break;
 		}
 	}
 
 	if (std::feof(fin)){
 		//app->logMessage("Unable to determine the RINEX version in " + fname);
-		return 0;
+		return version;
 	}
 	
-	DBGMSG(debugStream,TRACE,"RINEX version is " << RINEXver);
+	
+	DBGMSG(debugStream,TRACE,"RINEX version is " << version);
 	
 	std::fclose(fin);
 	
-	return RINEXver;
+	return version;
 }
 
 //
@@ -77,7 +76,7 @@ double RINEXFile::readRINEXVersion(std::string fname)
 //
 
 // Note: these subtract one from the index !
-void RINEXFile::parseParam(char *str,int start,int len,int *val)
+void RINEXFile::readParam(char *str,int start,int len,int *val)
 {
 	char sbuf[SBUFSIZE];
 	memset(sbuf,0,SBUFSIZE);
@@ -86,7 +85,7 @@ void RINEXFile::parseParam(char *str,int start,int len,int *val)
 	*val = strtol(sbuf,NULL,10);
 }
 
-void RINEXFile::parseParam(char *str,int start,int len,float *val)
+void RINEXFile::readParam(char *str,int start,int len,float *val)
 {
 	//std::replace(str.begin(), str.end(), 'D', 'E'); // filthy FORTRAN
 	char *pch;
@@ -101,7 +100,7 @@ void RINEXFile::parseParam(char *str,int start,int len,float *val)
 	
 }
 
-void RINEXFile::parseParam(char *str,int start,int len,double *val)
+void RINEXFile::readParam(char *str,int start,int len,double *val)
 {
 	char *pch;
 	if ((pch=strstr(str,"D"))){
@@ -114,11 +113,38 @@ void RINEXFile::parseParam(char *str,int start,int len,double *val)
 	*val = strtod(sbuf,NULL);
 }
 
+bool RINEXFile::read4DParams(FILE *fin,int startCol,
+	double *darg1,double *darg2,double *darg3,double *darg4,
+	unsigned int *lineCount)
+{
+	char sbuf[SBUFSIZE];
+	
+	(*lineCount)++;
+	if (!std::feof(fin)) 
+		std::fgets(sbuf,SBUFSIZE,fin);
+	else
+		return false;
+
+	int slen = strlen(sbuf);
+	*darg1 = *darg2= *darg3 = *darg4 = 0.0;
+	if (slen >= startCol + 19 -1)
+		readParam(sbuf,startCol,19,darg1);
+	if (slen >= startCol + 38 -1)
+		readParam(sbuf,startCol+19,19,darg2);
+	if (slen >= startCol + 57 -1)
+		readParam(sbuf,startCol+2*19,19,darg3);
+	if (slen >= startCol + 76 -1)
+		readParam(sbuf,startCol+3*19,19,darg4);
+	
+	return true;
+	
+}
+
 //
 // Private methods
 //
 		
 void RINEXFile::init()
 {
-	
+	version = 0.0; // unknown
 }

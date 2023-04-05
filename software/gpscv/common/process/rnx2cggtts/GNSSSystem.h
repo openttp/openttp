@@ -90,8 +90,12 @@ class GNSSSystem
 		GNSSSystem();
 		~GNSSSystem();
 		
+		int codes; // observation codes
 		static unsigned int strToObservationCode(std::string, int RINEXversion);
 		
+	protected:
+		std::string n; // system name
+		std::string olc; // one letter code for the system
 };
 
 #endif

@@ -29,7 +29,10 @@
 #include <string>
 #include <vector>
 
+#include "GPS.h"
 #include "RINEXFile.h"
+
+class GPSEphemeris;
 
 class RINEXNavFile:public RINEXFile
 {
@@ -40,10 +43,17 @@ class RINEXNavFile:public RINEXFile
 		virtual ~RINEXNavFile();
 		virtual bool read(std::string);
 		
+		GPS gps;
+		
+		// ... and so on
 	private:
 		
 		void init();
 		
+		bool readV2File(std::string);
+		bool readV3File(std::string);
+		
+		GPSEphemeris* readGPSEphemeris(FILE* fin, char* line, unsigned int* lineCount);
 };
 
 #endif

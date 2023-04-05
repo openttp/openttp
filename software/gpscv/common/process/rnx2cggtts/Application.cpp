@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// ./rnx2cggtts --debug stderr --shorten -c ./rnx2cggtts.conf --mjd 58568
+// ./rnx2cggtts --debug stderr --shorten -c ./rnx2cggtts.conf --mjd 58615
 
 #include <getopt.h>
 
@@ -54,6 +54,7 @@
 #include "CGGTTSOutput.h"
 #include "Debug.h"
 #include "GNSSSystem.h"
+#include "RINEXNavFile.h"
 #include "Timer.h"
 #include "Utility.h"
 
@@ -275,7 +276,10 @@ void Application::run()
 		exit(EXIT_FAILURE);
 	}
 	DBGMSG(debugStream,INFO,"Got RINEX nav file " << navFile1);
-	std::string navFile2 = FindRINEXNavFile(mjd,mjd,navFileExtensions);
+	RINEXNavFile nav1;
+	nav1.read(navFile1);
+	
+	std::string navFile2 = FindRINEXNavFile(mjd,mjd+1,navFileExtensions);
 	if (navFile2.empty()){
 		DBGMSG(debugStream,INFO,"Didn't get RINEX nav file for succeeding day " << navFile2);
 		obsFile2="";
@@ -285,6 +289,7 @@ void Application::run()
 	}
 	
 	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
+	
 	
 	for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
 		
@@ -313,12 +318,23 @@ void Application::run()
 		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
 		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
 		
+		
 		//cggtts.writeObservationFile(CGGTTSfile,MJD,startTime,stopTime,mpairs,TICenabled);
 
 	}
 
 	timer.stop();
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
+}
+
+void Application::logMessage(std::string msg)
+{
+	std::ofstream ofs;
+	ofs.open(logFile.c_str(),std::ios::app);
+	ofs << msg << std::endl;
+	ofs.close();
+	
+	DBGMSG(debugStream,INFO,msg);
 }
 
 //
@@ -665,6 +681,8 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 }
 
 
+
+
 std::string Application::FindRINEXObsFile(int nomMJD,int reqMJD,std::vector<std::string> &ext)
 {
 	
@@ -685,7 +703,7 @@ std::string Application::FindRINEXObsFile(int nomMJD,int reqMJD,std::vector<std:
 	}
 	
 	int year,mon,mday,yday;
-	Utility::MJDtoDate(mjd,&year,&mon,&mday,&yday);
+	Utility::MJDtoDate(reqMJD,&year,&mon,&mday,&yday);
 	
 	if (stationName.length() == 4){ // Try a V2 style name
 		int yy = year - (year/100)*100;
@@ -736,7 +754,7 @@ std::string Application::FindRINEXNavFile(int nomMJD,int reqMJD,std::vector<std:
 	}
 	
 	int year,mon,mday,yday;
-	Utility::MJDtoDate(mjd,&year,&mon,&mday,&yday);
+	Utility::MJDtoDate(reqMJD,&year,&mon,&mday,&yday);
 	
 	if (stationName.length() == 4){ // Try a V2 style name
 		int yy = year - (year/100)*100;

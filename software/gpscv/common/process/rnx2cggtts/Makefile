@@ -5,11 +5,12 @@ LDFLAGS=
 LIBS= -lconfigurator -lboost_regex -lgsl -lgslcblas
 CXXFLAGS= -Wall -Wno-unused-variable -DDEBUG -g
 CFGFLAGS= 
-OBJECTS = Application.o  CGGTTS.o CGGTTSOutput.o GNSSSystem.o  Main.o RINEXFile.o RINEXNavFile.o Timer.o Utility.o
+OBJECTS = Application.o  CGGTTS.o CGGTTSOutput.o GNSSSystem.o  GPS.o Main.o RINEXFile.o RINEXNavFile.o Timer.o Utility.o
 
 all: $(PROGRAM)
 
-Application.o: Application.cpp  Application.h Debug.h CGGTTS.h CGGTTSOutput.h GNSSSystem.h Timer.h Utility.h
+Application.o: Application.cpp  Application.h Debug.h CGGTTS.h CGGTTSOutput.h GNSSSystem.h\
+	RINEXNavFile.h Timer.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Application.cpp
 
 CGGTTS.o: CGGTTS.cpp CGGTTS.h GNSSSystem.h RINEXFile.h
@@ -17,6 +18,9 @@ CGGTTS.o: CGGTTS.cpp CGGTTS.h GNSSSystem.h RINEXFile.h
 
 CGGTTSOutput.o: CGGTTSOutput.cpp CGGTTSOutput.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c CGGTTSOutput.cpp
+
+GPS.o: GPS.cpp GPS.h GNSSSystem.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GPS.cpp
 	
 GNSSSystem.o: GNSSSystem.cpp GNSSSystem.h RINEXFile.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GNSSSystem.cpp

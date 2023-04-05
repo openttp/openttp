@@ -41,12 +41,16 @@ class RINEXFile
 		virtual bool read(std::string){return true;};
 	
 		double readRINEXVersion(std::string fname);
+		double version;
+		
+		int leapsecs;
 		
 	protected:
 		
-		void parseParam(char *str,int start,int len,int *val);
-		void parseParam(char *str,int start,int len,float *val);
-		void parseParam(char *,int start,int len,double *val);
+		void readParam(char *str,int start,int len,int *val);
+		void readParam(char *str,int start,int len,float *val);
+		void readParam(char *,int start,int len,double *val);
+		bool read4DParams(FILE *fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
 	private:
 		
