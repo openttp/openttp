@@ -19,19 +19,19 @@ CGGTTS.o: CGGTTS.cpp CGGTTS.h GNSSSystem.h RINEXFile.h
 CGGTTSOutput.o: CGGTTSOutput.cpp CGGTTSOutput.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c CGGTTSOutput.cpp
 
-GPS.o: GPS.cpp GPS.h GNSSSystem.h
+GPS.o: GPS.cpp GPS.h Application.h Debug.h GNSSSystem.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GPS.cpp
 	
-GNSSSystem.o: GNSSSystem.cpp GNSSSystem.h RINEXFile.h
+GNSSSystem.o: GNSSSystem.cpp GNSSSystem.h Application.h Debug.h RINEXFile.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GNSSSystem.cpp
 	
 Main.o: Main.cpp Debug.h Application.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Main.cpp
 
-RINEXFile.o: RINEXFile.cpp RINEXFile.h
+RINEXFile.o: RINEXFile.cpp RINEXFile.h Application.h Debug.h 
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RINEXFile.cpp
 
-RINEXNavFile.o: RINEXNavFile.cpp  RINEXNavFile.h RINEXFile.h
+RINEXNavFile.o: RINEXNavFile.cpp  RINEXNavFile.h Application.h Debug.h GPS.h RINEXFile.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RINEXNavFile.cpp
 	
 Timer.o: Timer.cpp Timer.h

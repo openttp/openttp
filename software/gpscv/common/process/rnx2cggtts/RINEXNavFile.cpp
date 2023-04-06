@@ -231,7 +231,7 @@ bool RINEXNavFile::readV3File(std::string fname)
 		char satSys = line[0];
 		switch (satSys){
 			case 'G':
-				{GPSEphemeris *ed = readGPSEphemeris(fin,line,&lineCount); continue;}
+				{GPSEphemeris *ed = readGPSEphemeris(fin,line,&lineCount); gps.addEphemeris(ed);}
 				break;
 			case 'E':
 				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} lineCount += 7; continue;} // a big TODO

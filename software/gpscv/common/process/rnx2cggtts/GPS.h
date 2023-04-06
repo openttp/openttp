@@ -126,7 +126,6 @@ class GPS: public GNSSSystem
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	
-	std::vector<GPSEphemeris *> ephemeris;
 	
 };
 

@@ -22,9 +22,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-
+#include "Application.h"
+#include "Debug.h"
 #include "GNSSSystem.h"
 #include "RINEXFile.h"
+
+extern Application *app;
+extern std::ostream *debugStream;
 
 GNSSSystem::GNSSSystem()
 {
@@ -76,3 +80,63 @@ unsigned int GNSSSystem::strToObservationCode(std::string s, int RINEXversion)
 	
 	return c;
 }
+
+bool GNSSSystem::addEphemeris(Ephemeris *ed)
+{
+	// Check whether this is a duplicate by matching on IODE and t_0e
+	int issue;
+	for (issue=0;issue < (int) sortedEphemeris[ed->svn()].size();issue++){
+		if (sortedEphemeris[ed->svn()][issue]->t0e() == ed->t0e()){
+			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->svn() << " toe= " << ed->t0e());
+			return false;
+		}
+	}
+	
+	if (ephemeris.size()>0){
+
+		// Update the ephemeris list - this is time-ordered by t_OC
+		
+		std::vector<Ephemeris *>::iterator it;
+		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
+			if (ed->t0c() < (*it)->t0c()){ // RINEX uses t0c()
+				DBGMSG(debugStream,4,"list inserting " << ed->t0c() << " " << (*it)->t0c());
+				ephemeris.insert(it,ed);
+				break;
+			}
+		}
+		
+		if (it == ephemeris.end()){ // got to end, so append
+			DBGMSG(debugStream,4,"appending " << ed->t0c());
+			ephemeris.push_back(ed);
+		}
+		
+		// Update the ephemeris hash - 
+		if (sortedEphemeris[ed->svn()].size() > 0){
+			std::vector<Ephemeris *>::iterator it;
+			for (it=sortedEphemeris[ed->svn()].begin(); it<sortedEphemeris[ed->svn()].end(); it++){
+				if (ed->t0c() < (*it)->t0c()){ 
+					DBGMSG(debugStream,4,"hash inserting " << ed->t0c() << " " << (*it)->t0c());
+					sortedEphemeris[ed->svn()].insert(it,ed);
+					break;
+				}
+			}
+			if (it == sortedEphemeris[ed->svn()].end()){ // got to end, so append
+				DBGMSG(debugStream,4,"hash appending " << ed->t0c());
+				sortedEphemeris[ed->svn()].push_back(ed);
+			}
+		}
+		else{ // first one for this svn()
+			DBGMSG(debugStream,4,"first for svn " << (int) ed->svn());
+			sortedEphemeris[ed->svn()].push_back(ed);
+		}
+	}
+	else{ //first one
+		DBGMSG(debugStream,4,"first eph ");
+		ephemeris.push_back(ed);
+		sortedEphemeris[ed->svn()].push_back(ed);
+		return true;
+	}
+	return true;
+}
+
+
