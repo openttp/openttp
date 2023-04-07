@@ -24,8 +24,11 @@
 
 #include <cstring>
 
+#include <boost/algorithm/string.hpp>
+
 #include "Application.h"
 #include "Debug.h"
+#include "GNSSSystem.h"
 #include "GPS.h"
 #include "RINEXNavFile.h"
 
@@ -75,6 +78,10 @@ bool RINEXNavFile::read(std::string fname)
 	return true;
 }
 
+void RINEXNavFile::dump()
+{
+}
+
 //
 //	Private
 //		
@@ -86,30 +93,26 @@ void RINEXNavFile::init()
 		
 bool RINEXNavFile::readV2File(std::string)
 {
-	return true;
+	return false;
 }
 
 bool RINEXNavFile::readV3File(std::string fname)
 {
-	unsigned int lineCount=0;
-	
-	FILE *fin;
-	char line[SBUFSIZE];
-				 
-	fin= std::fopen(fname.c_str(),"r"); // already tested OK
+	unsigned int lineCount=0;	
+	std::ifstream fin;
+	fin.open(fname.c_str()); // already tested 'good'
 	
 	// Parse the header
 	int gnss = -1;
 	int ibuf;
 	double dbuf;
+	std::string line,str;
 	
-	while (!feof(fin)){
-		
-		std::fgets(line,SBUFSIZE,fin);
-		
+	while (!fin.eof()){
+		std::getline(fin,line);
 		lineCount++;
 		
-		if (NULL != strstr(line,"RINEX VERSION/TYPE")){
+		if (std::string::npos != line.find("RINEX VERSION/TYPE")){
 			char satSystem = line[40]; //assuming length is OK
 			switch (satSystem){
 				case 'M':gnss = 0; break;
@@ -122,8 +125,8 @@ bool RINEXNavFile::readV3File(std::string fname)
 			continue;
 		}
 		
-		if (NULL != strstr(line,"IONOSPHERIC CORR")){
-			if (NULL != strstr(line,"GPSA")){
+		if (std::string::npos != line.find("IONOSPHERIC CORR")){
+			if (std::string::npos != line.find("GPSA")){
 					readParam(line,6,12, &(gps.ionoData.a0));
 					readParam(line,18,12,&(gps.ionoData.a1));
 					readParam(line,30,12,&(gps.ionoData.a2));
@@ -131,7 +134,7 @@ bool RINEXNavFile::readV3File(std::string fname)
 					DBGMSG(debugStream,TRACE,"read GPS ION ALPHA " << gps.ionoData.a0 << " " << gps.ionoData.a1 << " " << gps.ionoData.a2 << " " << gps.ionoData.a3);
 					continue;
 			}
-			if (NULL != strstr(line,"GPSB")){
+			if (std::string::npos != line.find("GPSB")){
 				readParam(line,6,12, &(gps.ionoData.B0));
 				readParam(line,18,12,&(gps.ionoData.B1));
 				readParam(line,30,12,&(gps.ionoData.B2));
@@ -142,65 +145,33 @@ bool RINEXNavFile::readV3File(std::string fname)
 			continue;
 		}
 
-//			case GNSSSystem::GALILEO :
-// 				if (NULL != strstr(line,"GAL")){
-// 					readParam(line,6,12, &(galileo.ionoData.ai0));
-// 					readParam(line,18,12,&(galileo.ionoData.ai1));
-// 					readParam(line,30,12,&(galileo.ionoData.ai2));
-// 					DBGMSG(debugStream,TRACE,"read GAL ION AI " << galileo.ionoData.ai0 << " " << galileo.ionoData.ai1 << " " << galileo.ionoData.ai2);
-// 				}
-//				break;
-//			case GNSSSystem::BEIDOU :
-// 				if (NULL != strstr(line,"BDSA")){
-// 					readParam(line,6,12, &(beidou.ionoData.a0));
-// 					readParam(line,18,12,&(beidou.ionoData.a1));
-// 					readParam(line,30,12,&(beidou.ionoData.a2));
-// 					readParam(line,42,12,&(beidou.ionoData.a3));
-// 					DBGMSG(debugStream,TRACE,"read BDS ION ALPHA " << beidou.ionoData.a0 << " " << beidou.ionoData.a1 << " " << beidou.ionoData.a2 << " " << rx->beidou.ionoData.a3);
-// 				}
-// 				else if (NULL != strstr(line,"BDSB")){
-// 					readParam(line,6,12, &(beidou.ionoData.b0));
-// 					readParam(line,18,12,&(beidou.ionoData.b1));
-// 					readParam(line,30,12,&(beidou.ionoData.b2));
-// 					readParam(line,42,12,&(beidou.ionoData.b3));
-// 					DBGMSG(debugStream,TRACE,"read BPS ION BETA " << beidou.ionoData.b0 << " " << beidou.ionoData.b1 << " " << beidou.ionoData.b3 << " " << rx->beidou.ionoData.b3);
-// 				}
-	
 		
-		if (NULL != strstr(line,"TIME SYSTEM CORR")){
+		if (std::string::npos != line.find("TIME SYSTEM CORR")){
 			
-			if (NULL != strstr(line,"GPUT")){
+			if (std::string::npos != line.find("GPUT")){
 				readParam(line,6,17,&(gps.UTCdata.A0));
 				readParam(line,23,16,&(gps.UTCdata.A1));
 				readParam(line,39,7,&(gps.UTCdata.t_ot));
 				readParam(line,46,5,&ibuf);gps.UTCdata.WN_t = ibuf; // this is a full week number
-				DBGMSG(debugStream,TRACE,"read GPS UT: " << "WN " << gps.UTCdata.WN_t)
+				DBGMSG(debugStream,TRACE,"read GPS UT: " << "WN " << gps.UTCdata.WN_t);
 				continue;
 			}
-
-// 			if (NULL != strstr(line,"GPUT")){
-// 				readParam(line,6,17,&(rx->beidou.UTCdata.A_0UTC));
-// 				readParam(line,23,16,&(rx->beidou.UTCdata.A_1UTC));
-// 				readParam(line,39,7,&(rx->beidou.UTCdata.t_ot));
-// 				readParam(line,46,5,&ibuf);rx->beidou.UTCdata.WN_t = ibuf; // this is a full week number
-// 			}
-			
 			continue;
 		}
 		
-		if  (NULL != strstr(line,"LEAP SECONDS")){
+		if  (std::string::npos != line.find("LEAP SECONDS")){
 			readParam(line,1,6,&leapsecs);
 			DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << leapsecs);
 			continue;
 		}
 		
-		if (NULL != strstr(line,"END OF HEADER")){ 
+		if (std::string::npos != line.find("END OF HEADER")){ 
 			break;
 		}
 	} // reading header
 	
 	// Parse the data
-	if (feof(fin)){
+	if (fin.eof()){
 		app->logMessage("Format error (no END OF HEADER) in " + fname);
 		return false;
 	}
@@ -209,24 +180,21 @@ bool RINEXNavFile::readV3File(std::string fname)
 	double secs;
 	int startCol;
 	
-	while (!feof(fin)){
+	while (!fin.eof()){
 		
-		if (NULL == std::fgets(line,SBUFSIZE,fin))
-			break;
-		
+		std::getline(fin,line);
 		lineCount++;
+		
 		DBGMSG(debugStream,TRACE,line);
+		
 		// skip blank lines
-		char *pch = line;
-		while (*pch != '\0') {
-			if (!isspace((unsigned char)*pch))
-				break;
-			pch++;
-		}
-		if (*pch == '\0')
+		std::string tst(line);
+		boost::trim(tst);
+		if (tst.length()==0)
 			continue;
-		if (strlen(line) < 79)
-			continue;
+		
+		//if (strlen(line) < 79) // FIXME why did I have this
+		//	continue;
 		
 		char satSys = line[0];
 		switch (satSys){
@@ -234,17 +202,17 @@ bool RINEXNavFile::readV3File(std::string fname)
 				{GPSEphemeris *ed = readGPSEphemeris(fin,line,&lineCount); gps.addEphemeris(ed);}
 				break;
 			case 'E':
-				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} lineCount += 7; continue;} // a big TODO
+				{ for (int i=0;i<7;i++){ std::getline(fin,line);} lineCount += 7; continue;} // a big TODO
 			case 'R':
-				{ for (int i=0;i<3;i++){ std::fgets(line,SBUFSIZE,fin);} lineCount += 3; continue;}
+				{ for (int i=0;i<3;i++){ std::getline(fin,line);} lineCount += 3; continue;}
 			case 'C': // BDS
-				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} lineCount += 7; continue;}
+				{ for (int i=0;i<7;i++){ std::getline(fin,line);} lineCount += 7; continue;}
 			case 'J': // QZSS
-				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} lineCount += 7; continue;}
+				{ for (int i=0;i<7;i++){ std::getline(fin,line);} lineCount += 7; continue;}
 			case 'S': // SBAS
-				{ for (int i=0;i<3;i++){ std::fgets(line,SBUFSIZE,fin);} lineCount += 3; continue;}
+				{ for (int i=0;i<3;i++){ std::getline(fin,line);} lineCount += 3; continue;}
 			case 'I': // IRNS
-				{ for (int i=0;i<7;i++){ std::fgets(line,SBUFSIZE,fin);} lineCount += 7; continue;}
+				{ for (int i=0;i<7;i++){ std::getline(fin,line);} lineCount += 7; continue;}
 			default:
 				break;
 		}
@@ -252,7 +220,7 @@ bool RINEXNavFile::readV3File(std::string fname)
 	return true;
 }
 
-GPSEphemeris * RINEXNavFile::readGPSEphemeris(FILE *fin,char *line, unsigned int *lineCount){
+GPSEphemeris * RINEXNavFile::readGPSEphemeris(std::ifstream &fin,std::string &line, unsigned int *lineCount){
 	GPSEphemeris *ed = NULL;
 	
 	ed = new GPSEphemeris();

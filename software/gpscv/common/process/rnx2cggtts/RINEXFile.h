@@ -46,11 +46,11 @@ class RINEXFile
 		int leapsecs;
 		
 	protected:
-		
-		void readParam(char *str,int start,int len,int *val);
-		void readParam(char *str,int start,int len,float *val);
-		void readParam(char *,int start,int len,double *val);
-		bool read4DParams(FILE *fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
+				
+		void readParam(std::string &str,int start,int len,int *val);
+		void readParam(std::string &str,int start,int len,float *val);
+		void readParam(std::string &str,int start,int len,double *val);
+		bool read4DParams(std::ifstream &fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
 	private:
 		

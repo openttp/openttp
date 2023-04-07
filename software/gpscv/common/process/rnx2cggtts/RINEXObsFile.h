@@ -22,32 +22,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __RINEX_NAV_FILE_H_
-#define __RINEX_NAV_FILE_H_
+#ifndef __RINEX_OBS_FILE_H_
+#define __RINEX_OBS_FILE_H_
 
 #include <fstream>
 #include <string>
 #include <vector>
 
-#include "GPS.h"
 #include "RINEXFile.h"
 
-class GPSEphemeris;
-
-class RINEXNavFile:public RINEXFile
+class RINEXObsFile:public RINEXFile
 {
 	
 	public:
+	
 		
-		RINEXNavFile();
-		virtual ~RINEXNavFile();
+		RINEXObsFile();
+		virtual ~RINEXObsFile();
 		virtual bool read(std::string);
+	
+		double obsInterval;
+		int leapSecs;
 		
-		GPS gps;
+		int obs1yr,obs1mon,obs1day,obs1hr,obs1min;// time of first observation
+		double obs1sec;									          // time of first observation
+		int timeSystem;
 		
-		// ... and so on
+	protected:
 		
-		void dump();
+		
 		
 	private:
 		
@@ -55,8 +58,9 @@ class RINEXNavFile:public RINEXFile
 		
 		bool readV2File(std::string);
 		bool readV3File(std::string);
+	
+		int yrOffset;
 		
-		GPSEphemeris* readGPSEphemeris(std::ifstream &fin, std::string &line, unsigned int* lineCount);
 };
 
 #endif

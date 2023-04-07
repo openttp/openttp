@@ -24,6 +24,11 @@
 
 #include <cstring>
 
+#include <fstream>
+#include <sstream>
+
+#include <boost/algorithm/string.hpp>
+
 #include "Application.h"
 #include "Debug.h"
 #include "RINEXFile.h"
@@ -44,29 +49,29 @@ RINEXFile::RINEXFile()
 
 double RINEXFile::readRINEXVersion(std::string fname)
 {
-	unsigned int lineCount=0;
-	char line[SBUFSIZE];
+	unsigned int lineCount=0;	
+	std::ifstream fin;
 	
-	FILE *fin = std::fopen(fname.c_str(),"r");
+	fin.open(fname.c_str()); // already tested 'good'
 	
-	while (!std::feof(fin)){
-		std::fgets(line,SBUFSIZE,fin);
+	std::string line,str;
+	while (!fin.eof()){
+		std::getline(fin,line);
 		lineCount++;
-		if (NULL != strstr(line,"RINEX VERSION")){
+		// don't test the line length (eg <80), some lines may be short
+		if (std::string::npos != line.find("RINEX VERSION")){
 			readParam(line,1,12,&version);
 			break;
 		}
+		
+		if (std::string::npos != line.find("END OF HEADER")){
+			break;
+		}
 	}
-
-	if (std::feof(fin)){
-		//app->logMessage("Unable to determine the RINEX version in " + fname);
-		return version;
-	}
-	
-	
+			
 	DBGMSG(debugStream,TRACE,"RINEX version is " << version);
 	
-	std::fclose(fin);
+	fin.close();
 	
 	return version;
 }
@@ -75,70 +80,55 @@ double RINEXFile::readRINEXVersion(std::string fname)
 // Protected methods
 //
 
-// Note: these subtract one from the index !
-void RINEXFile::readParam(char *str,int start,int len,int *val)
+void RINEXFile::readParam(std::string &str,int start,int len,int *val)
 {
-	char sbuf[SBUFSIZE];
-	memset(sbuf,0,SBUFSIZE);
-	*val=0;
-	strncpy(sbuf,&(str[start-1]),len);
-	*val = strtol(sbuf,NULL,10);
+	std::stringstream ss(str.substr(start-1,len));
+	ss >> *val;
 }
 
-void RINEXFile::readParam(char *str,int start,int len,float *val)
+void RINEXFile::readParam(std::string &str,int start,int len,float *val)
 {
-	//std::replace(str.begin(), str.end(), 'D', 'E'); // filthy FORTRAN
-	char *pch;
-	if ((pch=strstr(str,"D"))){
-		(*pch)='E';
-	}
-	char sbuf[SBUFSIZE];
-	memset(sbuf,0,SBUFSIZE);
-	*val=0.0;
-	strncpy(sbuf,&(str[start-1]),len);
-	*val = strtof(sbuf,NULL);
+	boost::algorithm::replace_all(str, "D", "E"); // filthy FORTRAN
+	std::stringstream ss(str.substr(start-1,len));
+	ss >> *val;
+}
 	
-}
-
-void RINEXFile::readParam(char *str,int start,int len,double *val)
+void RINEXFile::readParam(std::string &str,int start,int len,double *val)
 {
-	char *pch;
-	if ((pch=strstr(str,"D"))){
-		(*pch)='E';
-	}
-	char sbuf[SBUFSIZE];
-	memset(sbuf,0,SBUFSIZE);
-	*val=0.0;
-	strncpy(sbuf,&(str[start-1]),len);
-	*val = strtod(sbuf,NULL);
+	std::stringstream ss(str.substr(start-1,len));
+	ss >> *val;
 }
 
-bool RINEXFile::read4DParams(FILE *fin,int startCol,
+bool RINEXFile::read4DParams(std::ifstream &fin,int startCol,
 	double *darg1,double *darg2,double *darg3,double *darg4,
 	unsigned int *lineCount)
 {
-	char sbuf[SBUFSIZE];
-	
-	(*lineCount)++;
-	if (!std::feof(fin)) 
-		std::fgets(sbuf,SBUFSIZE,fin);
-	else
-		return false;
 
-	int slen = strlen(sbuf);
+	std::string line;
+	if (!fin.eof()){
+		std::getline(fin,line);
+		(*lineCount)++;
+	}
+	else{
+		return false;
+	}
+	
+	int slen = line.length();
 	*darg1 = *darg2= *darg3 = *darg4 = 0.0;
 	if (slen >= startCol + 19 -1)
-		readParam(sbuf,startCol,19,darg1);
+		readParam(line,startCol,19,darg1);
 	if (slen >= startCol + 38 -1)
-		readParam(sbuf,startCol+19,19,darg2);
+		readParam(line,startCol+19,19,darg2);
 	if (slen >= startCol + 57 -1)
-		readParam(sbuf,startCol+2*19,19,darg3);
+		readParam(line,startCol+2*19,19,darg3);
 	if (slen >= startCol + 76 -1)
-		readParam(sbuf,startCol+3*19,19,darg4);
+		readParam(line,startCol+3*19,19,darg4);
 	
 	return true;
 	
 }
+
+
 
 //
 // Private methods

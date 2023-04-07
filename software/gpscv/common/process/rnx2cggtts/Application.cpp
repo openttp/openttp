@@ -55,6 +55,7 @@
 #include "Debug.h"
 #include "GNSSSystem.h"
 #include "RINEXNavFile.h"
+#include "RINEXObsFile.h"
 #include "Timer.h"
 #include "Utility.h"
 
@@ -251,6 +252,10 @@ void Application::run()
 		exit(EXIT_FAILURE);
 	}
 	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
+	
+	//RINEXObsFile obs1;
+	//obs1.read(obsFile1);
+	
 	std::string obsFile2 = FindRINEXObsFile(mjd,mjd+1,obsFileExtensions);
 	if (obsFile2.empty()){
 		DBGMSG(debugStream,INFO,"Didn't get RINEX obs file for succeeding day " << obsFile2);
@@ -259,6 +264,8 @@ void Application::run()
 		DBGMSG(debugStream,INFO,"Got RINEX obs file for succeeding day " << obsFile2);
 	}
 	
+	
+	//exit(0);
 	std::vector<std::string> navFileExtensions;
 	navFileExtensions.push_back("N");
 	navFileExtensions.push_back("N.gz");
