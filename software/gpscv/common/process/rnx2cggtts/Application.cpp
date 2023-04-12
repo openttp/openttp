@@ -253,8 +253,8 @@ void Application::run()
 	}
 	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
 	
-	//RINEXObsFile obs1;
-	//obs1.read(obsFile1);
+	RINEXObsFile obs1;
+	obs1.read(obsFile1,0,86400);
 	
 	std::string obsFile2 = FindRINEXObsFile(mjd,mjd+1,obsFileExtensions);
 	if (obsFile2.empty()){

@@ -80,23 +80,27 @@ double RINEXFile::readRINEXVersion(std::string fname)
 // Protected methods
 //
 
-void RINEXFile::readParam(std::string &str,int start,int len,int *val)
+bool RINEXFile::readParam(std::string &str,int start,int len,int *val)
 {
 	std::stringstream ss(str.substr(start-1,len));
 	ss >> *val;
+	return true;
 }
 
-void RINEXFile::readParam(std::string &str,int start,int len,float *val)
+bool RINEXFile::readParam(std::string &str,int start,int len,float *val)
 {
 	boost::algorithm::replace_all(str, "D", "E"); // filthy FORTRAN
 	std::stringstream ss(str.substr(start-1,len));
 	ss >> *val;
+	return true;
 }
 	
-void RINEXFile::readParam(std::string &str,int start,int len,double *val)
+bool RINEXFile::readParam(std::string &str,int start,int len,double *val)
 {
+	boost::algorithm::replace_all(str, "D", "E");
 	std::stringstream ss(str.substr(start-1,len));
 	ss >> *val;
+	return !ss.fail();
 }
 
 bool RINEXFile::read4DParams(std::ifstream &fin,int startCol,

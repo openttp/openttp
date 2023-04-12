@@ -22,50 +22,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __RINEX_OBS_FILE_H_
-#define __RINEX_OBS_FILE_H_
+#ifndef __MEASUREMENTS_H_
+#define __MEASUREMENTS_H_
 
-#include <fstream>
 #include <string>
 #include <vector>
 
-#include "Measurements.h"
-#include "RINEXFile.h"
-
-class RINEXObsFile:public RINEXFile
+class Measurements
 {
-	
 	public:
-	
+		Measurements();
+		~Measurements();
 		
-		RINEXObsFile();
-		virtual ~RINEXObsFile();
-		virtual bool read(std::string,int,int);
-	
-		double obsInterval;
-		int leapSecs;
+		void dump();
+		void allocateStorage(int);
 		
-		int obs1yr,obs1mon,obs1day,obs1hr,obs1min;// time of first observation
-		double obs1sec;									          // time of first observation
-		int timeSystem;
+		std::vector<std::string> codes;
+		std::vector<int> cols;
 		
-		Measurements gps; // .. etc
+		int maxMeas;
+		double ***meas; //time[]svn[]pr[]
 		
-	protected:
-		
-		
-		
-	private:
-		
-		void init();
-		
-		bool readV2File(std::string);
-		bool readV3File(std::string);
-	
-		void readV3Obs(Measurements &, int, int,std::string);
-		
-		int yrOffset;
+		int gnss;
+		int maxSVN;
+		int nAllObs; 
+		int nCodeObs;
 		
 };
 
 #endif
+

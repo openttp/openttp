@@ -93,6 +93,8 @@ class GNSSSystem
 		int codes; // observation codes
 		static unsigned int strToObservationCode(std::string, int RINEXversion);
 		
+		virtual int maxSVN(){return -1;}
+		
 		std::vector<Ephemeris *> ephemeris;
 		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
 		virtual bool addEphemeris(Ephemeris *);

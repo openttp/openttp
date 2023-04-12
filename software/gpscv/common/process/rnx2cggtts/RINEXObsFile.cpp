@@ -25,9 +25,14 @@
 #include <cmath>
 #include <cstring>
 
+#include <sstream>
+
+#include <boost/algorithm/string.hpp>
+
 #include "Application.h"
 #include "Debug.h"
 #include "GNSSSystem.h"
+#include "Measurements.h"
 #include "RINEXObsFile.h"
 
 extern Application *app;
@@ -51,7 +56,7 @@ RINEXObsFile::~RINEXObsFile()
 	
 
 	
-bool RINEXObsFile::read(std::string fname)
+bool RINEXObsFile::read(std::string fname,int tstart,int tstop)
 {
 	// It is presumed that the file can be read ...
 	RINEXFile::readRINEXVersion(fname);
@@ -103,7 +108,7 @@ bool RINEXObsFile::readV3File(std::string fname)
 		std::getline(fin,line);
 		lineCount++;
 		
-		if (std::string::npos != line.find("RINEX VERSION/TYPE")){
+		if (std::string::npos != line.find("RINEX VERSION/TYPE",60)){
 			char satSystem = line[40]; //assuming length is OK
 			switch (satSystem){
 				case 'M':gnss = 0; break;
@@ -116,18 +121,61 @@ bool RINEXObsFile::readV3File(std::string fname)
 			continue;
 		}
 		
-		if (std::string::npos != line.find("SYS / # / OBS TYP")){
-			char satSysCode = line[0];
+		if (std::string::npos != line.find("SYS / # / OBS TYP",60)){
+			
 			int nObs;
 			readParam(line,4,3, &nObs);
 			int nObsLines = ceil(nObs/14.0);
-			for (int i=2;i<=nObsLines;i++){
-				std::getline(fin,line);
+			
+			char satSysCode = line[0];
+			Measurements *meas = NULL; // to flag that we don't need to read the record
+			switch (satSysCode)
+			{
+				case 'G':
+				{
+					gps.gnss = GNSSSystem::GPS; gps.maxSVN = 32; // FIXME
+					meas = &gps;
+					break;
+				}
+				default:
+				{
+					DBGMSG(debugStream,INFO,"Ignoring " << satSysCode << "  ... pfftt!");
+					for (int i=2;i<=nObsLines;i++){
+						std::getline(fin,line);
+					}
+					break;
+				}
 			}
-			DBGMSG(debugStream,TRACE,"read SYS/OBS TYP: " << satSysCode);
+			
+			if (meas){
+				meas->nAllObs = nObs;
+				std::string obsCodes = line.substr(7,52);
+				for (int i=2;i<=nObsLines;i++){
+					std::getline(fin,line);
+					obsCodes += line.substr(7,52);
+				}
+				boost::trim(obsCodes);
+				std::vector<std::string> codes;
+				std::vector<int >   cols;
+				for (int i=0;i<nObs;i++){
+					std::string code = obsCodes.substr(i*4,3);
+					// We only care about code observations
+					if (code[0] == 'C'){
+						DBGMSG(debugStream,INFO,code);
+						meas->codes.push_back(code);
+						meas->cols.push_back(i);
+					}
+				}
+				// Now we can allocate memory for the observation data
+				meas->allocateStorage(1440*2);// memory is cheap
+				meas->nCodeObs = meas->codes.size();
+				DBGMSG(debugStream,INFO,"read SYS/OBS TYP: " << satSysCode);
+				DBGMSG(debugStream,INFO,obsCodes << "<-" );
+			}
 		}
 		
-			
+	
+	//		
 // 		if (strfind(l,'SYS / # / OBS TYP'))
 // 					satSysCode=l(1);
 // 					nobs = sscanf(l(4:6),'%i');
@@ -139,19 +187,19 @@ bool RINEXObsFile::readV3File(std::string fname)
 // 						obsl= [obsl,nl];
 // 					end
 					
-		if (std::string::npos != line.find("INTERVAL")){ // optional
+		if (std::string::npos != line.find("INTERVAL",60)){ // optional
 			readParam(line,1,10, &obsInterval); // F10.3
 			DBGMSG(debugStream,TRACE,"read INTERVAL: " << obsInterval);
 			continue;
 		}
 		
-		if (std::string::npos != line.find("LEAP SECONDS")){ // optional
+		if (std::string::npos != line.find("LEAP SECONDS",60)){ // optional
 			readParam(line,1,6, &leapSecs); // I6 
 			DBGMSG(debugStream,TRACE,"read LEAP SECONDS:" << leapSecs);
 			continue;
 		}
 		
-		if (std::string::npos != line.find("TIME OF FIRST OBS")){ // format is 5I6,F12.6,6X,A3 
+		if (std::string::npos != line.find("TIME OF FIRST OBS",60)){ // format is 5I6,F12.6,6X,A3 
 			
 			readParam(line,1,6,&obs1yr);
 			yrOffset = (obs1yr/100)*100;
@@ -169,14 +217,79 @@ bool RINEXObsFile::readV3File(std::string fname)
 			continue;
 		}
 		
-		if (std::string::npos != line.find("END OF HEADER")){
+		if (std::string::npos != line.find("END OF HEADER",60)){
+			DBGMSG(debugStream,TRACE,"Finished reading header");
 			break;
 		}
 		
 	}
 	
+	//for (int i=0;i<gps.codes.size();i++){
+	//	DBGMSG(debugStream,INFO,gps.cols[i] << " " << gps.codes[i]  );
+	//}
+		
+	std::string dummy,satNum;
+	int year,mon,mday,hour,mins,epochFlag,nObs,svn;
+	double secs;
+	
+	while (!fin.eof()){
+		std::getline(fin,line);
+		lineCount++;
+		if (line[0] == '>'){
+			
+			std::stringstream ss(line); // this line has has white space delimited fields for TOD so we can read it with less fuss
+			ss >> dummy >> year >> mon >> mday >> hour >> mins >> secs; // hard to see why there shouldn't always be a space before 'secs'
+			
+			readParam(line,32,1,&epochFlag);
+			readParam(line,33,3,&nObs);
+			DBGMSG(debugStream,TRACE,nObs << " obs at " << hour << ":"<< mins << ":" << secs);
+			
+			int itod = (hour *3600 + mins* 60 + rint(secs))/30;
+			// FIXME should I test epochFlag ?
+			for (int o = 1; o<= nObs; o++){
+				std::getline(fin,line);
+				lineCount++;
+				if (line[0] == 'G'){
+					readParam(line,2,2,&svn);
+					//DBGMSG(debugStream,INFO,tod);
+					gps.meas[itod][svn][gps.nCodeObs]= hour *3600 + mins* 60 + secs; // non-integer measurement epoch has to be taken into account!
+					readV3Obs(gps,itod,svn,line);
+					continue;
+				}
+				// ... and so on for other GNSS
+			}
+		}
+	}
+	
 	fin.close();
+	gps.dump();
 	
 	return true;
 }
+
+void RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
+{
+	int nFields = m.nAllObs;
+	// A field can be empty or have a value of 0.0 to indicate 'no measurement'
+	// Format is A1,I2.2,m(14.3.I1,I1)
+	double dbuf;
+	for (int i=0;i<m.cols.size();i++){
+		int stop = 3 + m.cols[i]*(16+1);
+		if (stop > l.length()){ // empty fields at the end
+			//DBGMSG(debugStream,INFO,l);
+			//DBGMSG(debugStream,INFO,"missing at end " << m.cols[i]);
+			m.meas[itod][svn][i]=0.0; 
+			continue;
+		}
+		if (readParam(l,1+3+m.cols[i]*16,14,&dbuf)){
+			//DBGMSG(debugStream,INFO,dbuf);
+			m.meas[itod][svn][i]=dbuf;
+		}
+		else{
+			//DBGMSG(debugStream,INFO,"missing");
+			m.meas[itod][svn][i]=0.0;
+		}
+	}
+}
+
 		

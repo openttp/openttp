@@ -47,9 +47,9 @@ class RINEXFile
 		
 	protected:
 				
-		void readParam(std::string &str,int start,int len,int *val);
-		void readParam(std::string &str,int start,int len,float *val);
-		void readParam(std::string &str,int start,int len,double *val);
+		bool readParam(std::string &str,int start,int len,int *val);
+		bool readParam(std::string &str,int start,int len,float *val);
+		bool readParam(std::string &str,int start,int len,double *val);
 		bool read4DParams(std::ifstream &fin,int startCol,double *darg1,double *darg2,double *darg3,double *darg4,unsigned int *cnt);
 		
 	private:

@@ -22,50 +22,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __RINEX_OBS_FILE_H_
-#define __RINEX_OBS_FILE_H_
-
-#include <fstream>
-#include <string>
-#include <vector>
+#include <iostream>
 
 #include "Measurements.h"
-#include "RINEXFile.h"
 
-class RINEXObsFile:public RINEXFile
+//
+//	Public
+//
+
+Measurements::Measurements()
 {
-	
-	public:
-	
-		
-		RINEXObsFile();
-		virtual ~RINEXObsFile();
-		virtual bool read(std::string,int,int);
-	
-		double obsInterval;
-		int leapSecs;
-		
-		int obs1yr,obs1mon,obs1day,obs1hr,obs1min;// time of first observation
-		double obs1sec;									          // time of first observation
-		int timeSystem;
-		
-		Measurements gps; // .. etc
-		
-	protected:
-		
-		
-		
-	private:
-		
-		void init();
-		
-		bool readV2File(std::string);
-		bool readV3File(std::string);
-	
-		void readV3Obs(Measurements &, int, int,std::string);
-		
-		int yrOffset;
-		
-};
+	gnss = 0;
+	maxMeas = 0;
+	maxSVN = 0;
+	meas = NULL;
+}
 
-#endif
+Measurements::~Measurements()
+{
+	if (NULL != meas){
+		for (int i = 0; i < maxMeas; i++) {
+			for (int j=0; j <= maxSVN; j++){
+				delete [] meas[i][j];
+			}
+			delete[] meas[i];
+		}	
+		delete [] meas;
+	}
+}
+
+void Measurements::dump(){
+	std::cout << "GNSS: " << gnss << std::endl;
+	//for (int i =0;i<100;i++){
+	//	std::cout << meas[i][0] << std::endl;
+	//}
+}//
+
+void Measurements::allocateStorage(int nMeasEpochs)
+{
+	maxMeas = nMeasEpochs;
+	int n = codes.size() + 1; // extra field is for TOD in seconds wrt nominal MJD of the data
+	meas = new double**[nMeasEpochs];
+	for (int i = 0; i < nMeasEpochs ; i++) { 
+    meas[i] = new double*[maxSVN + 1]; // dummy at beginning so indexing is directly by SVN
+		for (int j=0;j<= maxSVN;j++){
+			meas[i][j] = new double[n]; 
+		}
+	}
+	
+}
+
+

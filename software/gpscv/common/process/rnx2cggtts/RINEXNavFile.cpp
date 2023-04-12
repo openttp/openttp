@@ -105,14 +105,13 @@ bool RINEXNavFile::readV3File(std::string fname)
 	// Parse the header
 	int gnss = -1;
 	int ibuf;
-	double dbuf;
 	std::string line,str;
 	
 	while (!fin.eof()){
 		std::getline(fin,line);
 		lineCount++;
 		
-		if (std::string::npos != line.find("RINEX VERSION/TYPE")){
+		if (std::string::npos != line.find("RINEX VERSION/TYPE",60)){
 			char satSystem = line[40]; //assuming length is OK
 			switch (satSystem){
 				case 'M':gnss = 0; break;
@@ -125,7 +124,7 @@ bool RINEXNavFile::readV3File(std::string fname)
 			continue;
 		}
 		
-		if (std::string::npos != line.find("IONOSPHERIC CORR")){
+		if (std::string::npos != line.find("IONOSPHERIC CORR",60)){
 			if (std::string::npos != line.find("GPSA")){
 					readParam(line,6,12, &(gps.ionoData.a0));
 					readParam(line,18,12,&(gps.ionoData.a1));
@@ -134,7 +133,7 @@ bool RINEXNavFile::readV3File(std::string fname)
 					DBGMSG(debugStream,TRACE,"read GPS ION ALPHA " << gps.ionoData.a0 << " " << gps.ionoData.a1 << " " << gps.ionoData.a2 << " " << gps.ionoData.a3);
 					continue;
 			}
-			if (std::string::npos != line.find("GPSB")){
+			if (std::string::npos != line.find("GPSB",60)){
 				readParam(line,6,12, &(gps.ionoData.B0));
 				readParam(line,18,12,&(gps.ionoData.B1));
 				readParam(line,30,12,&(gps.ionoData.B2));
@@ -145,8 +144,7 @@ bool RINEXNavFile::readV3File(std::string fname)
 			continue;
 		}
 
-		
-		if (std::string::npos != line.find("TIME SYSTEM CORR")){
+		if (std::string::npos != line.find("TIME SYSTEM CORR",60)){
 			
 			if (std::string::npos != line.find("GPUT")){
 				readParam(line,6,17,&(gps.UTCdata.A0));
@@ -159,13 +157,13 @@ bool RINEXNavFile::readV3File(std::string fname)
 			continue;
 		}
 		
-		if  (std::string::npos != line.find("LEAP SECONDS")){
+		if  (std::string::npos != line.find("LEAP SECONDS",60)){
 			readParam(line,1,6,&leapsecs);
-			DBGMSG(debugStream,TRACE,"read LEAP SECONDS=" << leapsecs);
+			DBGMSG(debugStream,TRACE,"read LEAP SECONDS: " << leapsecs);
 			continue;
 		}
 		
-		if (std::string::npos != line.find("END OF HEADER")){ 
+		if (std::string::npos != line.find("END OF HEADER",60)){ 
 			break;
 		}
 	} // reading header
@@ -175,10 +173,6 @@ bool RINEXNavFile::readV3File(std::string fname)
 		app->logMessage("Format error (no END OF HEADER) in " + fname);
 		return false;
 	}
-	
-	int year,mon,mday,hour,mins;
-	double secs;
-	int startCol;
 	
 	while (!fin.eof()){
 		
