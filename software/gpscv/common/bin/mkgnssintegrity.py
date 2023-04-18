@@ -297,6 +297,11 @@ for mjd in range(startMJD,stopMJD + 1):
 			prn      = int(cg[cf.PRN][1:3])
 			currMJD  = cg[cf.MJD]
 			currTOD  = cg[cf.STTIME]
+			# Filter data on elevation
+			if cg[cf.ELV] < 10.0:
+				ottp.Debug('Low elevation ' + str(prn) + ' ' + str(currTOD) + ' ' + str( cg[cf.ELV]))
+				continue
+			
 			if gnss[prn] == None: 
 				gnss[prn]=[ [[currMJD,currTOD],[currMJD,currTOD],0,[cg[cf.REFSV]],[cg[cf.REFGPS]]] ] # create new list
 			else:
@@ -404,7 +409,7 @@ for mjd in range(startMJD,stopMJD + 1):
 					for meas in trk[4]:
 						sdREFGPS  += (meas - avREFGPS)**2
 						
-					sdREFSV = m.ceil((sdREFSV/(nMeas - 1))**0.5)	 # do all calculatiosn with rounded up sd, for consistency with output value
+					sdREFSV = m.ceil((sdREFSV/(nMeas - 1))**0.5)	 # do all calculations with rounded up sd, for consistency with output value
 					
 					# Pass 3: count outliers
 					n500 = 0
