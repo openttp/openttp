@@ -42,13 +42,14 @@ import sys
 import struct
 
 # This is where ottplib is installed
-sys.path.append('/usr/local/lib/python3.6/site-packages') # Ubuntu 18
-sys.path.append('/usr/local/lib/python3.8/site-packages') # Ubuntu 20
+sys.path.append('/usr/local/lib/python3.6/site-packages')  # Ubuntu 18
+sys.path.append('/usr/local/lib/python3.8/site-packages')  # Ubuntu 20
+sys.path.append('/usr/local/lib/python3.10/site-packages') # Ubuntu 22
 
 import ottplib
 import time
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -145,7 +146,7 @@ def DecodeUBX_NAV_SAT(msg):
 	nqzss=0
 	nimes =0
 	nsv = unpacked[2]
-	for sv in xrange(0,nsv):
+	for sv in range(0,nsv):
 		unpacked=struct.unpack_from('3Bb2h4B',packed,8+12*sv)
 		if (unpacked[0]==0):
 			ngps += 1
@@ -181,14 +182,14 @@ def DecodeUBX_RXM_RAWX(msg):
 	if (len(msg)<(16+2)*2):
 		return [0]
 	packed=binascii.unhexlify(msg)
-	nmeas = (len(msg)/2 -18)/32
+	nmeas = int((len(msg)/2 -18)/32)
 	rawx = ''
-	for i in xrange(0,nmeas):
+	for i in range(0,nmeas):
 		rawx += '2df4BH6B'
 	unpacked=struct.unpack_from('dHb5B'+rawx,packed)
 	header = unpacked[0:7]
 	meas=[]
-	for i in xrange(0,nmeas):
+	for i in range(0,nmeas):
 		meas.append(unpacked[8+i*14:8+(i+1)*14])
 	return (header,meas)
 
@@ -222,7 +223,7 @@ def GNSSSummary(meas):
 	nQZSS2=0
 	summary = ''
 	for m in meas:
-		# gnssID (3), svID (4), sigID (5)
+		# gnssID (3), svID (4), sigID (5) cno(8)
 		gnssID = m[3]
 		svID   = m[4]
 		sigID  = m[5]
@@ -243,7 +244,19 @@ def GNSSSummary(meas):
 				nGLO += 1
 	summary = str(nBDS) + ' ' + str(nGAL) + ' ' + str(nGLO) + ' ' + str(nGPS) + ' ' + str(nQZSS)
 	return summary
-	
+
+# ------------------------------------------
+def GNSSMeasurements(meas):
+	summary = ''
+	for m in meas:
+		# gnssID (3), svID (4), sigID (5) cno(8)
+		gnssID = m[3]
+		svID   = m[4]
+		sigID  = m[5]
+		cno    = m[8]
+		summary += '{} {:3} {:3} {:3}\n'.format(gnssID,svID,sigID,cno)
+	return summary
+
 
 # ------------------------------------------
 # Main 
@@ -266,7 +279,8 @@ parser.add_argument('--navclock',help='nav-clock',action='store_true')
 parser.add_argument('--navposecef',help='nav-posecef',action='store_true')
 parser.add_argument('--navsat',help='nav-sat',action='store_true')
 parser.add_argument('--navtimeutc',help='nav-timeutc',action='store_true')
-parser.add_argument('--rawx',help='raw measurement data',action='store_true')
+parser.add_argument('--gnss',help='gnss summary from rawx',action='store_true')
+parser.add_argument('--measurements',help='from rawx',action='store_true')
 parser.add_argument('--timtp',help='sawtooth correction',action='store_true')
 parser.add_argument('--version','-v',help='show version and exit',action='store_true')
 args = parser.parse_args()
@@ -363,10 +377,15 @@ for line in fdata:
 			msgf=DecodeUBX_NAV_SAT(msg)
 			print(tt,msgf[0],msgf[1],msgf[2],msgf[3])
 	elif (msgid == '0215'):
-		if (args.rawx):
+		if (args.gnss or args.measurements):
 			(header,meas)=DecodeUBX_RXM_RAWX(msg)
-			summary = GNSSSummary(meas)
-			print(tt,header[0],header[3],summary)
+			if args.gnss:
+				summary = GNSSSummary(meas)
+				print(tt,header[0],header[3],summary)
+			if args.measurements:
+				summary = GNSSMeasurements(meas)
+				print(tt,header[0],header[3])
+				print(summary)
 	elif (msgid == '2703'):
 		if (args.uniqid):
 			msgf=DecodeUBX_SEC_UNIQID(msg)
