@@ -22,6 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <cmath>
 #include <iostream>
 
 #include "Measurements.h"
@@ -76,7 +77,7 @@ void Measurements::allocateStorage(int nMeasEpochs)
 		for (int j=0;j<= maxSVN;j++){
 			meas[i][j] = new double[n]; 
 			for (int k=0;k<n;k++)
-				meas[i][j][k] = 0; 
+				meas[i][j][k] = FP_NAN; 
 		}
 	}
 	

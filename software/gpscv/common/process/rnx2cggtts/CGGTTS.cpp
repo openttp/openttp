@@ -22,12 +22,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <cmath>
+#include <cstring>
+
 #include <algorithm>
 #include <iostream>
 #include <string>
 #include <boost/lexical_cast.hpp>
 
-#include <cstring>
+
 #include "Antenna.h"
 #include "Application.h"
 #include "Debug.h"
@@ -35,8 +38,7 @@
 #include "GNSSSystem.h"
 #include "Measurements.h"
 #include "Receiver.h"
-#include "RINEXNavFile.h"
-#include "RINEXObsFile.h"
+#include "RINEXFile.h"
 
 extern Application *app;
 extern std::ostream *debugStream;
@@ -86,7 +88,7 @@ CGGTTS::CGGTTS()
 	init();
 }
 	
-bool CGGTTS::write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int mjd,int startTime,int stopTime)
+bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime)
 {
 	FILE *fout;
 	if (!(fout = std::fopen(fname.c_str(),"w"))){
@@ -112,7 +114,6 @@ bool CGGTTS::write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int m
 	
 	double aij=0.0; // frequency weight for pseudoranges, as per CGGTTS v2E
 	
-	Measurements *meas1;
 	std::string  GNSSsys;
 	
 	switch (constellation){
@@ -123,7 +124,6 @@ bool CGGTTS::write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int m
 		case GNSSSystem::GLONASS:
 			GNSSsys="R"; break;
 		case GNSSSystem::GPS:
-			meas1 = &(obs1->gps);
 			GNSSsys="G"; 
 			aij = 77.0*77.0/(77.0*77.0-60*60);break;
 			
@@ -218,7 +218,7 @@ bool CGGTTS::write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int m
 	double svtrk[MAXSV+1][NTRACKPOINTS][4]; 
 	int svObsCount[MAXSV+1];
 	
-	int leapOffset = obs1->leapsecs/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
+	int leapOffset1 = leapsecs1/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
 	int indxMJD = meas1->colMJD();
 	int indxTOD = meas1->colTOD();
 	
@@ -238,19 +238,19 @@ bool CGGTTS::write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int m
 			svObsCount[s]=0;
 			for (int t=0;t<NTRACKPOINTS;t++)
 				for (int o=0;o<3;o++)
-					svtrk[s][t][o] = 0; // 0 in MJD tags no data - pretty sure no GNSS in MJD 0
+					svtrk[s][t][o] = FP_NAN; 
 		}
 		
 		// CASE 1: single code + MDIO
 		int iTrackStart = trackStart/30;
 		int iTrackStop  = trackStop/30;
 		for (int m=iTrackStart;m<=iTrackStop;m++){
-			int mGPS = m - leapOffset; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+			int mGPS = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 			for (int sv = 1; sv <= meas1->maxSVN;sv++){
-				if (meas1->meas[mGPS][sv][indxm1c1] != 0){ // Hmm not ideal - use NaN?
+				if (!isnan(meas1->meas[mGPS][sv][indxm1c1])){ 
 					//DBGMSG(debugStream,INFO,sv << " " << meas1->meas[mGPS][sv][indxMJD] << " " << meas1->meas[mGPS][sv][indxTOD] << " " << meas1->meas[mGPS][sv][indxm1c1]);
 					svtrk[sv][svObsCount[sv]][OBSV1]= meas1->meas[mGPS][sv][indxm1c1];
-					svtrk[sv][svObsCount[sv]][TOD]= meas1->meas[mGPS][sv][indxTOD] + obs1->leapsecs; // yay!! UTC !! Note, fractional seconds preserved
+					svtrk[sv][svObsCount[sv]][TOD]= meas1->meas[mGPS][sv][indxTOD] + leapsecs1; // yay!! UTC !! Note, fractional seconds preserved
 					svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
 				}
 			}

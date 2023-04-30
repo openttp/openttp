@@ -263,7 +263,7 @@ int RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
 	for (unsigned int i=0;i<m.cols.size();i++){
 		unsigned int stop = 3 + m.cols[i]*(16+1);
 		if (stop > l.length()){ // empty fields at the end
-			m.meas[itod][svn][i]=0.0; 
+			m.meas[itod][svn][i]=FP_NAN; 
 			continue;
 		}
 		if (readParam(l,1+3+m.cols[i]*16,14,&dbuf)){
@@ -271,7 +271,7 @@ int RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
 			nMeas += 1;
 		}
 		else{
-			m.meas[itod][svn][i]=0.0;
+			m.meas[itod][svn][i]=FP_NAN;
 		}
 	}
 	return nMeas;

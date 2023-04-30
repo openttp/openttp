@@ -30,8 +30,8 @@
 
 class Antenna;
 class Receiver;
-class RINEXNavFile;
-class RINEXObsFile;
+class Measurements;
+class GNSSSystem;
 
 class CGGTTS
 {
@@ -43,7 +43,7 @@ class CGGTTS
 		
 		CGGTTS();
 	
-		bool write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int mjd,int startTime,int stopTime);
+		bool write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime);
 		
 		static unsigned int strToCode(std::string,bool *);
 		

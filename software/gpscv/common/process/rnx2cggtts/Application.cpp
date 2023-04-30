@@ -306,6 +306,8 @@ void Application::run()
 		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
 	}
 	
+	int leapsecs1 = obs1.leapsecs;
+	
 	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
 	
 	
@@ -321,7 +323,7 @@ void Application::run()
 		cggtts.revDateMM = CGGTTSRevDateMM;
 		cggtts.revDateDD = CGGTTSRevDateDD;
 		//cggtts.cabDly=antCableDelay;
-		cggtts.intDly = CGGTTSoutputs.at(i).internalDelay;
+		cggtts.intDly = CGGTTSoutputs.at(i).internalDelay; // FIXME maybe output could be supplied and other fields in CGGTTS simply duplicated ...
 		cggtts.intDly2 = CGGTTSoutputs.at(i).internalDelay2;
 		cggtts.delayKind = CGGTTSoutputs.at(i).delayKind;
 		//cggtts.refDly=refCableDelay;
@@ -338,9 +340,21 @@ void Application::run()
 		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
 		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
 		
+		switch (cggtts.constellation)
+		{
+			case GNSSSystem::BEIDOU:
+				break;
+			case GNSSSystem::GALILEO:
+				break;
+			case GNSSSystem::GLONASS:
+				break;
+			case GNSSSystem::GPS:
+				cggtts.write(&(obs1.gps),&(nav1.gps),leapsecs1,CGGTTSfile,mjd,0,9999);
+				break;
+			default:
+				break;
+		}
 		
-		cggtts.write(&obs1,&nav1,CGGTTSfile,mjd,0,9999);
-
 	}
 
 	timer.stop();
