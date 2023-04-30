@@ -141,4 +141,5 @@ bool RINEXFile::read4DParams(std::ifstream &fin,int startCol,
 void RINEXFile::init()
 {
 	version = 0.0; // unknown
+	leapsecs = -1; // 
 }

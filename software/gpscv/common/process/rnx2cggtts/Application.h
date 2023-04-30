@@ -39,7 +39,9 @@
 #define APP_VERSION "0.0.1"
 #define APP_CONFIG "rnx2cggtts.conf"
 
+class Antenna;
 class CGGTTSOutput;
+class Receiver;
 
 class Application
 {
@@ -51,6 +53,9 @@ class Application
 		void run();
 		
 		void logMessage(std::string msg);
+		
+		Antenna * antenna;
+		Receiver *receiver;
 		
 	private:
 		

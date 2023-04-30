@@ -43,8 +43,7 @@ class RINEXObsFile:public RINEXFile
 		virtual bool read(std::string,int,int);
 	
 		double obsInterval;
-		int leapSecs;
-		
+	
 		int obs1yr,obs1mon,obs1day,obs1hr,obs1min;// time of first observation
 		double obs1sec;									          // time of first observation
 		int timeSystem;
@@ -62,7 +61,7 @@ class RINEXObsFile:public RINEXFile
 		bool readV2File(std::string);
 		bool readV3File(std::string);
 	
-		void readV3Obs(Measurements &, int, int,std::string);
+		int readV3Obs(Measurements &, int, int,std::string);
 		
 		int yrOffset;
 		

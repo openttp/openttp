@@ -9,11 +9,12 @@ OBJECTS = Application.o  CGGTTS.o CGGTTSOutput.o GNSSSystem.o  GPS.o Main.o Meas
 
 all: $(PROGRAM)
 
-Application.o: Application.cpp  Application.h Debug.h CGGTTS.h CGGTTSOutput.h GNSSSystem.h\
-	RINEXNavFile.h RINEXObsFile.h Timer.h Utility.h
+Application.o: Application.cpp  Application.h Antenna.h Debug.h CGGTTS.h CGGTTSOutput.h GNSSSystem.h\
+	Receiver.h RINEXNavFile.h RINEXObsFile.h Timer.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Application.cpp
 
-CGGTTS.o: CGGTTS.cpp CGGTTS.h GNSSSystem.h RINEXFile.h
+CGGTTS.o: CGGTTS.cpp CGGTTS.h Antenna.h Application.h Debug.h GNSSSystem.h Measurements.h\
+	Receiver.h RINEXNavFile.h RINEXObsFile.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c CGGTTS.cpp
 
 CGGTTSOutput.o: CGGTTSOutput.cpp CGGTTSOutput.h
@@ -34,7 +35,7 @@ Measurements.o: Measurements.cpp Measurements.h
 RINEXFile.o: RINEXFile.cpp RINEXFile.h Application.h Debug.h 
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RINEXFile.cpp
 
-RINEXObsFile.o: RINEXObsFile.cpp  RINEXObsFile.h Application.h Debug.h GPS.h Measurements.h RINEXFile.h
+RINEXObsFile.o: RINEXObsFile.cpp  RINEXObsFile.h Application.h Debug.h GPS.h Measurements.h RINEXFile.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c RINEXObsFile.cpp
 	
 RINEXNavFile.o: RINEXNavFile.cpp  RINEXNavFile.h Application.h Debug.h GPS.h RINEXFile.h

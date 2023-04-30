@@ -30,6 +30,7 @@
 namespace Utility{
 	
 	void MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday);
+	int  DateToMJD(int year, int month, int day);
 	
 }
 #endif

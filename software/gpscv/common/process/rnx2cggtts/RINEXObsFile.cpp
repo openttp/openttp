@@ -32,8 +32,10 @@
 #include "Application.h"
 #include "Debug.h"
 #include "GNSSSystem.h"
+#include "GPS.h"
 #include "Measurements.h"
 #include "RINEXObsFile.h"
+#include "Utility.h"
 
 extern Application *app;
 extern std::ostream *debugStream;
@@ -81,7 +83,6 @@ bool RINEXObsFile::read(std::string fname,int tstart,int tstop)
 void RINEXObsFile::init()
 {
 	obsInterval = -1;
-	leapSecs = -1;
 }
 
 
@@ -102,6 +103,7 @@ bool RINEXObsFile::readV3File(std::string fname)
 	int ibuf;
 	double dbuf;
 	std::string line;
+	GPS gpsSys;
 	
 	while (!fin.eof()){
 		
@@ -133,7 +135,7 @@ bool RINEXObsFile::readV3File(std::string fname)
 			{
 				case 'G':
 				{
-					gps.gnss = GNSSSystem::GPS; gps.maxSVN = 32; // FIXME
+					gps.gnss = GNSSSystem::GPS; gps.maxSVN = gpsSys.maxSVN(); // FIXME
 					meas = &gps;
 					break;
 				}
@@ -167,26 +169,13 @@ bool RINEXObsFile::readV3File(std::string fname)
 					}
 				}
 				// Now we can allocate memory for the observation data
-				meas->allocateStorage(1440*2);// memory is cheap
+				meas->allocateStorage(1440*2*2);// memory is cheap - allow 2 days of data
 				meas->nCodeObs = meas->codes.size();
 				DBGMSG(debugStream,INFO,"read SYS/OBS TYP: " << satSysCode);
 				DBGMSG(debugStream,INFO,obsCodes << "<-" );
 			}
 		}
 		
-	
-	//		
-// 		if (strfind(l,'SYS / # / OBS TYP'))
-// 					satSysCode=l(1);
-// 					nobs = sscanf(l(4:6),'%i');
-// 					obsl = strtrim(l(7:58));% remove leading blank as well for use with strsplit
-// 					nlines = ceil(nobs/14); % 13 + 1 = 14 :-)
-// 					for line=2:nlines % first one done
-// 						nl = fgetl(fobs);
-// 						nl = deblank(nl(7:58));
-// 						obsl= [obsl,nl];
-// 					end
-					
 		if (std::string::npos != line.find("INTERVAL",60)){ // optional
 			readParam(line,1,10, &obsInterval); // F10.3
 			DBGMSG(debugStream,TRACE,"read INTERVAL: " << obsInterval);
@@ -194,8 +183,8 @@ bool RINEXObsFile::readV3File(std::string fname)
 		}
 		
 		if (std::string::npos != line.find("LEAP SECONDS",60)){ // optional
-			readParam(line,1,6, &leapSecs); // I6 
-			DBGMSG(debugStream,TRACE,"read LEAP SECONDS:" << leapSecs);
+			readParam(line,1,6, &leapsecs); // I6 
+			DBGMSG(debugStream,TRACE,"read LEAP SECONDS:" << leapsecs);
 			continue;
 		}
 		
@@ -224,10 +213,6 @@ bool RINEXObsFile::readV3File(std::string fname)
 		
 	}
 	
-	//for (int i=0;i<gps.codes.size();i++){
-	//	DBGMSG(debugStream,INFO,gps.cols[i] << " " << gps.codes[i]  );
-	//}
-		
 	std::string dummy,satNum;
 	int year,mon,mday,hour,mins,epochFlag,nObs,svn;
 	double secs;
@@ -244,15 +229,16 @@ bool RINEXObsFile::readV3File(std::string fname)
 			readParam(line,33,3,&nObs);
 			DBGMSG(debugStream,TRACE,nObs << " obs at " << hour << ":"<< mins << ":" << secs);
 			
-			int itod = (hour *3600 + mins* 60 + rint(secs))/30;
+			int itod = (hour *3600 + mins* 60 + rint(secs))/30; // GPS time, usually
+			int mjd  = Utility::DateToMJD(year,mon,mday);       // ditto
 			// FIXME should I test epochFlag ?
 			for (int o = 1; o<= nObs; o++){
 				std::getline(fin,line);
 				lineCount++;
 				if (line[0] == 'G'){
 					readParam(line,2,2,&svn);
-					//DBGMSG(debugStream,INFO,tod);
-					gps.meas[itod][svn][gps.nCodeObs]= hour *3600 + mins* 60 + secs; // non-integer measurement epoch has to be taken into account!
+					gps.meas[itod][svn][gps.nCodeObs] = mjd;
+					gps.meas[itod][svn][gps.nCodeObs+1]= hour *3600 + mins* 60 + secs; // non-integer measurement epoch has to be taken into account!
 					readV3Obs(gps,itod,svn,line);
 					continue;
 				}
@@ -262,34 +248,33 @@ bool RINEXObsFile::readV3File(std::string fname)
 	}
 	
 	fin.close();
-	gps.dump();
+	//gps.dump();
 	
 	return true;
 }
 
-void RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
+int RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
 {
 	int nFields = m.nAllObs;
+	int nMeas = 0;
 	// A field can be empty or have a value of 0.0 to indicate 'no measurement'
 	// Format is A1,I2.2,m(14.3.I1,I1)
 	double dbuf;
-	for (int i=0;i<m.cols.size();i++){
-		int stop = 3 + m.cols[i]*(16+1);
+	for (unsigned int i=0;i<m.cols.size();i++){
+		unsigned int stop = 3 + m.cols[i]*(16+1);
 		if (stop > l.length()){ // empty fields at the end
-			//DBGMSG(debugStream,INFO,l);
-			//DBGMSG(debugStream,INFO,"missing at end " << m.cols[i]);
 			m.meas[itod][svn][i]=0.0; 
 			continue;
 		}
 		if (readParam(l,1+3+m.cols[i]*16,14,&dbuf)){
-			//DBGMSG(debugStream,INFO,dbuf);
 			m.meas[itod][svn][i]=dbuf;
+			nMeas += 1;
 		}
 		else{
-			//DBGMSG(debugStream,INFO,"missing");
 			m.meas[itod][svn][i]=0.0;
 		}
 	}
+	return nMeas;
 }
 
 		

@@ -50,3 +50,18 @@ void Utility::MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday)
 }
 
 
+int Utility::DateToMJD(int year, int month, int day)
+{
+	// from TVB at leapsecond.com
+	long Y = year, M = month, D = day;
+	long mjd =
+		367 * Y
+		- 7 * (Y + (M + 9) / 12) / 4
+		- 3 * ((Y + (M - 9) / 7) / 100 + 1) / 4
+		+ 275 * M / 9
+		+ D + 1721029 - 2400001;
+	return mjd;
+}
+
+ 
+		

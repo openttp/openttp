@@ -39,7 +39,9 @@ class Measurements
 		
 		std::vector<std::string> codes;
 		std::vector<int> cols;
-		
+		int colIndexFromCode(std::string);
+		int colMJD(){return nCodeObs;}
+		int colTOD(){return nCodeObs+1;}
 		int maxMeas;
 		double ***meas; //time[]svn[]pr[]
 		

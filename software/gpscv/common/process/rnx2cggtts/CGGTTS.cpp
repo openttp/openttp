@@ -22,17 +22,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-
+#include <algorithm>
+#include <iostream>
 #include <string>
-#include <boost/concept_check.hpp>
+#include <boost/lexical_cast.hpp>
 
+#include <cstring>
+#include "Antenna.h"
+#include "Application.h"
+#include "Debug.h"
 #include "CGGTTS.h"
 #include "GNSSSystem.h"
-#include "RINEXFile.h"
+#include "Measurements.h"
+#include "Receiver.h"
+#include "RINEXNavFile.h"
+#include "RINEXObsFile.h"
 
-//
-//	public
-//
+extern Application *app;
+extern std::ostream *debugStream;
+
+#define NTRACKS 89      // maximum number of tracks in a day
+#define NTRACKPOINTS 26 // 30 s sampling
+#define OBSINTERVAL 30  // 30 s
+
+#define MAXSV   37 // GPS 1-32, BDS 1-37, GALILEO 1-36 
+// indices into svtrk
+#define OBSV1    0  
+#define OBSV2    1
+#define OBSV3    2
+#define TOD      3 // decimal TOD, need this in case timestamps are not on the second
+
 
 static unsigned int str2ToCode(std::string s)
 {
@@ -56,17 +75,226 @@ static unsigned int str2ToCode(std::string s)
 	return c;
 }
 
+//
+//	public
+//
+
+
+
 CGGTTS::CGGTTS()
 {
 	init();
 }
 	
+bool CGGTTS::write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int mjd,int startTime,int stopTime)
+{
+	FILE *fout;
+	if (!(fout = std::fopen(fname.c_str(),"w"))){
+		std::cerr << "Unable to open " << fname << std::endl;
+		return false;
+	}
+	
+	app->logMessage("generating CGGTTS file " + fname);
+	
+	double measDelay = intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
+	//DBGMSG(debugStream,1,"P3 = " << (isP3 ? "yes":"no"));
+	
+	int lowElevationCnt=0; // a few diagnostics
+	int highDSGCnt=0;
+	int shortTrackCnt=0;
+	int goodTrackCnt=0;
+	int ephemerisMisses=0;
+	int badHealth=0;
+	int pseudoRangeFailures=0;
+	int badMeasurementCnt=0;
+	
+	// Constellation/code identifiers as per V2E
+	
+	double aij=0.0; // frequency weight for pseudoranges, as per CGGTTS v2E
+	
+	Measurements *meas1;
+	std::string  GNSSsys;
+	
+	switch (constellation){
+		case GNSSSystem::BEIDOU:
+			GNSSsys="C"; break;
+		case GNSSSystem::GALILEO:
+			GNSSsys="E"; break;
+		case GNSSSystem::GLONASS:
+			GNSSsys="R"; break;
+		case GNSSSystem::GPS:
+			meas1 = &(obs1->gps);
+			GNSSsys="G"; 
+			aij = 77.0*77.0/(77.0*77.0-60*60);break;
+			
+		default:break;
+	}
+	
+	
+	std::string FRCcode="";
+	unsigned int code1=code,code2=0;
+	int indxm1c1=-1;
+	
+	switch (code){ 
+		case GNSSSystem::C1C:
+			if (constellation == GNSSSystem::GALILEO){
+				FRCcode=" E1";
+				code1Str="E1";
+			}
+			else{
+				FRCcode="L1C";
+				code1Str="C1"; // identifies the delay
+			}
+			indxm1c1 = meas1->colIndexFromCode("C1C");
+			break;
+		case GNSSSystem::C1B:
+			FRCcode="E1";
+			code1Str="E1";
+			break;
+		case GNSSSystem::C1P:
+			FRCcode="L1P";
+			code1Str="P1";
+			break;
+		case GNSSSystem::C2P:
+			FRCcode="L2P";
+			code1Str="P2";
+			break;
+		case GNSSSystem::C2I:
+			FRCcode="B1i";
+			code1Str="B1";
+			break; // RINEX 3.02
+		// dual frequency combinations
+		case GNSSSystem::C1P | GNSSSystem::C2P:
+			code1 = GNSSSystem::C1P;
+			code2 = GNSSSystem::C2P;
+			code1Str = "P1";
+			code2Str = "P2";
+			FRCcode="L3P";break;
+		case GNSSSystem::C1C | GNSSSystem::C2P:
+			code1 = GNSSSystem::C1C;
+			code2 = GNSSSystem::C2P;
+			code1Str = "C1";
+			code2Str = "P2";
+			FRCcode="L3P";break;
+		case GNSSSystem::C1C | GNSSSystem::C2C:
+			code1 = GNSSSystem::C1C;
+			code2 = GNSSSystem::C2C;
+			code1Str = "C1";
+			code2Str = "C2";
+			FRCcode="L3P";break;
+		default:break;
+	}
+	
+	writeHeader(fout);
+	
+	// Generate the observation schedule as per DefraignePetit2015 pg3
+
+	int schedule[NTRACKS+1];
+	int ntracks=NTRACKS;
+	// There will be a 28 minute gap between two observations (32-4 mins)
+	// which means that you can't just find the first and then add n*16 minutes
+	// Track start times are all UTC, of course
+	for (int i=0,mins=2; i<NTRACKS; i++,mins+=16){
+		schedule[i]=mins-4*(mjd-50722);
+		if (schedule[i] < 0){ // always negative in practice anyway 
+			int ndays = abs(schedule[i]/1436) + 1;
+			schedule[i] += ndays*1436;
+		}
+	}
+	
+	// The schedule is not in ascending order so fix this 
+	std::sort(schedule,schedule+NTRACKS); // don't include the last element, which may or may not be used
+	
+	// Fixup - one more track possibly at the end of the day
+	// Will need the next day's data to use this properly though
+	if ((schedule[NTRACKS-1]%60) < 43){
+		schedule[NTRACKS]=schedule[NTRACKS-1]+16;
+		ntracks++;
+	}
+	
+	// Data structures for accumulating data at each track time
+	// Use a fixed array so that we can use the index as a hash for the SVN. Memory is cheap
+	// and svtrk is only 780 points long anyway
+	double svtrk[MAXSV+1][NTRACKPOINTS][4]; 
+	int svObsCount[MAXSV+1];
+	
+	int leapOffset = obs1->leapsecs/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
+	int indxMJD = meas1->colMJD();
+	int indxTOD = meas1->colTOD();
+	
+	ntracks = 1; // FIXME
+	 
+	for (int i=0;i<ntracks;i++){
+	
+		int trackStart = schedule[i]*60; // in seconds since start of UTC day
+		int trackStop =  schedule[i]*60 + (NTRACKPOINTS-1)*OBSINTERVAL; // note the time of the last point 
+		if (trackStop >= 86400) trackStop=86400-1; // FIXME we can get more from the next day ...
+		DBGMSG(debugStream,INFO,"Track " << i << " start " << trackStart << " stop " << trackStop);
+		
+		// Now window it
+		if (trackStart < startTime || trackStart > stopTime) continue; // svtrk empty so no need to clear
+		
+		for (int s=1;s<=MAXSV;s++){
+			svObsCount[s]=0;
+			for (int t=0;t<NTRACKPOINTS;t++)
+				for (int o=0;o<3;o++)
+					svtrk[s][t][o] = 0; // 0 in MJD tags no data - pretty sure no GNSS in MJD 0
+		}
+		
+		// CASE 1: single code + MDIO
+		int iTrackStart = trackStart/30;
+		int iTrackStop  = trackStop/30;
+		for (int m=iTrackStart;m<=iTrackStop;m++){
+			int mGPS = m - leapOffset; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+			for (int sv = 1; sv <= meas1->maxSVN;sv++){
+				if (meas1->meas[mGPS][sv][indxm1c1] != 0){ // Hmm not ideal - use NaN?
+					//DBGMSG(debugStream,INFO,sv << " " << meas1->meas[mGPS][sv][indxMJD] << " " << meas1->meas[mGPS][sv][indxTOD] << " " << meas1->meas[mGPS][sv][indxm1c1]);
+					svtrk[sv][svObsCount[sv]][OBSV1]= meas1->meas[mGPS][sv][indxm1c1];
+					svtrk[sv][svObsCount[sv]][TOD]= meas1->meas[mGPS][sv][indxTOD] + obs1->leapsecs; // yay!! UTC !! Note, fractional seconds preserved
+					svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
+				}
+			}
+		}
+		
+		
+		for (unsigned int sv=1;sv<=MAXSV;sv++){
+			
+			if (0 == svObsCount[sv]) continue;
+			
+			DBGMSG(debugStream,INFO,sv << " " << svObsCount[sv]);
+			
+			int hh = schedule[i] / 60;
+			int mm = schedule[i] % 60;
+			
+			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26];
+		}
+		
+		
+	}
+	
+	std::fclose(fout);
+	
+	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<std::string>(ephemerisMisses));
+	app->logMessage("Bad health: " + boost::lexical_cast<std::string>(badHealth) );
+	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) ); // PR calculation skipped if unhealthy
+	app->logMessage("Bad measurements: " + boost::lexical_cast<std::string>(badMeasurementCnt) );
+	
+	app->logMessage(boost::lexical_cast<std::string>(goodTrackCnt) + " good tracks");
+	app->logMessage(boost::lexical_cast<std::string>(lowElevationCnt) + " low elevation tracks");
+	app->logMessage(boost::lexical_cast<std::string>(highDSGCnt) + " high DSG tracks");
+	app->logMessage(boost::lexical_cast<std::string>(shortTrackCnt) + " short tracks");
+	
+	return true;
+}
+
 //
 // private
 //		
 
 void CGGTTS::init()
 {
+	antenna = NULL;
+	receiver = NULL;
 }
 
 
@@ -107,6 +335,132 @@ unsigned int CGGTTS::strToCode(std::string str, bool *isP3)
 }
 
 
+void CGGTTS::writeHeader(FILE *fout)
+{
+#define MAXCHARS 128
+	int cksum=0;
+	char buf[MAXCHARS+1];
+
+	std::strncpy(buf,"CGGTTS     GENERIC DATA FORMAT VERSION = 2E",MAXCHARS);
 	
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"REV DATE = %4d-%02d-%02d",revDateYYYY,revDateMM,revDateDD); 
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"RCVR = %s %s %s %4d %s,v%s",receiver->manufacturer.c_str(),receiver->model.c_str(),receiver->serialNumber.c_str(),
+		receiver->commissionYYYY,APP_NAME, APP_VERSION);
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"CH = %02d",receiver->nChannels); 
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	if (useMSIO)
+		std::snprintf(buf,MAXCHARS,"IMS =%s %s %s %4d %s,v%s",receiver->manufacturer.c_str(),receiver->model.c_str(),receiver->serialNumber.c_str(),
+			receiver->commissionYYYY,APP_NAME, APP_VERSION);
+	else
+		std::snprintf(buf,MAXCHARS,"IMS = 99999");
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"LAB = %s",lab.c_str()); 
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"X = %+.3f m",antenna->x);
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"Y = %+.3f m",antenna->y);
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"Z = %+.3f m",antenna->z);
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"FRAME = %s",antenna->frame.c_str());
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	if (comment == "") 
+		comment="NO COMMENT";
+	
+	std::snprintf(buf,MAXCHARS,"COMMENTS = %s",comment.c_str());
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::string cons;
+	switch (constellation){
+		case GNSSSystem::BEIDOU:cons="BDS";break;
+		case GNSSSystem::GALILEO:cons="GAL";break;
+		case GNSSSystem::GLONASS:cons="GLO";break;
+		case GNSSSystem::GPS:cons="GPS";break;
+	}
+	std::string dly;
+	switch (delayKind){
+		case INTDLY:dly="INT";break;
+		case SYSDLY:dly="SYS";break;
+		case TOTDLY:dly="TOT";break;
+	}
+	if (isP3) // FIXME presuming that the logical thing happens here ...
+		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)      CAL_ID = %s",dly.c_str(),
+			intDly,cons.c_str(),code1Str.c_str(),
+			intDly2,cons.c_str(),code2Str.c_str(),calID.c_str());
+	else
+		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1Str.c_str(),calID.c_str());
+
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	if (delayKind == INTDLY){
+		std::snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
+		cksum += checkSum(buf);
+		std::fprintf(fout,"%s\n",buf);
+	}
+	
+	if (delayKind != TOTDLY){
+		std::snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
+		cksum += checkSum(buf);
+		std::fprintf(fout,"%s\n",buf);
+	}
+	
+	std::snprintf(buf,MAXCHARS,"REF = %s",ref.c_str());
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s\n",buf);
+	
+	std::snprintf(buf,MAXCHARS,"CKSUM = ");
+	cksum += checkSum(buf);
+	std::fprintf(fout,"%s%02X\n",buf,cksum % 256);
+	
+	std::fprintf(fout,"\n");
+	
+	if (useMSIO){
+		std::fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI MSIO SMSI ISG FR HC FRC CK\n");
+		std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s.1ns.1ps/s.1ns            \n");
+	}
+	else{
+		std::fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI FR HC FRC CK\n");
+		std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s            \n");
+	}
+
+	std::fflush(fout);
+	
+#undef MAXCHARS	
+}
+	
+
+int CGGTTS::checkSum(char *l)
+{
+	int cksum =0;
+	for (unsigned int i=0;i<strlen(l);i++)
+		cksum += (int) l[i];
+	return cksum;
+}
+
+
 
 

@@ -43,6 +43,7 @@ class RINEXFile
 		double readRINEXVersion(std::string fname);
 		double version;
 		
+		bool leapSecsValid(){return leapsecs != -1;}
 		int leapsecs;
 		
 	protected:

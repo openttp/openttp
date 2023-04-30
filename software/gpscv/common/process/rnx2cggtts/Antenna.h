@@ -22,63 +22,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __CGGTTS_H_
-#define __CGGTTS_H_
+
+#ifndef __ANTENNA_H_
+#define __ANTENNA_H_
 
 #include <string>
-#include <boost/concept_check.hpp>
 
-class Antenna;
-class Receiver;
-class RINEXNavFile;
-class RINEXObsFile;
 
-class CGGTTS
+class Antenna
 {
-	
 	public:
-		
-		enum CGGTTSVERSIONS {V1=0, V2E=2}; // used as array indices too ..
-		enum DELAYS {INTDLY=0,SYSDLY=2,TOTDLY=3};
-		
-		CGGTTS();
 	
-		bool write(RINEXObsFile *obs1,RINEXNavFile *nav1,std::string fname,int mjd,int startTime,int stopTime);
+		Antenna()
+		{
+			markerName="MNAME";
+			markerNumber="MNUM";
+			markerType="NON_GEODETIC"; // required for V3 RINEX
+			antennaNumber="ANUM";
+			antennaType="ATYPE";
+			x=y=z=0.0;
+			deltaH=deltaE=deltaN=0.0;
+			frame="REFFRAME";
+		}
 		
-		static unsigned int strToCode(std::string,bool *);
+		std::string markerName;
+		std::string markerNumber;
+		std::string markerType;
+		std::string antennaNumber;
+		std::string antennaType;
+		double x,y,z;
+		double deltaH,deltaE,deltaN;
+		std::string frame;
 		
-		Antenna *antenna;
-		Receiver *receiver;
-		
-		std::string ref;
-		std::string lab;
-		std::string comment;
-		std::string calID; // for V2E only
-		
-		int ver;
-		int constellation; 		// V2E
-		unsigned int code;    // V2E
-		int delayKind;        // V2E
-		bool useMSIO;
-		bool isP3;
-		
-		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated
-		double intDly,intDly2,cabDly,refDly; // intDly is also SYSDLY or TOTDLY in v2E
-		
-		int minTrackLength; // in seconds
-		double minElevation; // in degrees
-		double maxDSG; // in ns
-		double maxURA; // in m
-		
-		
-	private:
-		
-		void init();
-		void writeHeader(FILE *fout);
-		int checkSum(char *);
-		
-		std::string code1Str,code2Str; // these are for identifying the delays
-		
+		double latitude,longitude,height; // these are calculated from (x,y,z)
 		
 };
 

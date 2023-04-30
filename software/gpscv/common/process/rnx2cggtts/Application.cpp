@@ -22,7 +22,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// ./rnx2cggtts --debug stderr --shorten -c ./rnx2cggtts.conf --mjd 58615
 
 #include <getopt.h>
 
@@ -50,10 +49,12 @@
 #include <configurator.h>
 
 #include "Application.h"
+#include "Antenna.h"
 #include "CGGTTS.h"
 #include "CGGTTSOutput.h"
 #include "Debug.h"
 #include "GNSSSystem.h"
+#include "Receiver.h"
 #include "RINEXNavFile.h"
 #include "RINEXObsFile.h"
 #include "Timer.h"
@@ -286,13 +287,23 @@ void Application::run()
 	RINEXNavFile nav1;
 	nav1.read(navFile1);
 	
-	std::string navFile2 = FindRINEXNavFile(mjd,mjd+1,navFileExtensions);
-	if (navFile2.empty()){
-		DBGMSG(debugStream,INFO,"Didn't get RINEX nav file for succeeding day " << navFile2);
-		obsFile2="";
+// 	
+// 	std::string navFile2 = FindRINEXNavFile(mjd,mjd+1,navFileExtensions);
+// 	if (navFile2.empty()){
+// 		DBGMSG(debugStream,INFO,"Didn't get RINEX nav file for succeeding day " << navFile2);
+// 		obsFile2="";
+// 	}
+// 	else{
+// 		DBGMSG(debugStream,INFO,"Got RINEX nav file for succeeding day " << navFile2);
+// 	}
+	
+	// Fiddle with leap seconds
+	if (obs1.leapSecsValid()){
+		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
 	}
 	else{
-		DBGMSG(debugStream,INFO,"Got RINEX nav file for succeeding day " << navFile2);
+		obs1.leapsecs = 17; 
+		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
 	}
 	
 	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
@@ -301,6 +312,8 @@ void Application::run()
 	for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
 		
 		CGGTTS cggtts;
+		cggtts.antenna = antenna;
+		cggtts.receiver = receiver;
 		cggtts.ref = CGGTTSref;
 		cggtts.lab = CGGTTSlab;
 		cggtts.comment = CGGTTScomment;
@@ -326,7 +339,7 @@ void Application::run()
 		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
 		
 		
-		//cggtts.writeObservationFile(CGGTTSfile,MJD,startTime,stopTime,mpairs,TICenabled);
+		cggtts.write(&obs1,&nav1,CGGTTSfile,mjd,0,9999);
 
 	}
 
@@ -350,6 +363,9 @@ void Application::logMessage(std::string msg)
 
 void Application::init()
 {
+	antenna = new Antenna();
+	receiver = new Receiver();
+	
 	configurationFile = APP_CONFIG;
 	
 	mjd = int(time(0)/86400)+40587 - 1; // default MJD for processing is yesterday
@@ -461,7 +477,22 @@ bool Application::loadConfig()
 	
 	setConfig(last,"rinex","station",stationName,&configOK);
 	
+	//
+	// Antenna
+	//
+	setConfig(last,"antenna","x",&(antenna->x),&configOK);
+	setConfig(last,"antenna","y",&(antenna->y),&configOK);
+	setConfig(last,"antenna","z",&(antenna->z),&configOK);
+	setConfig(last,"antenna","frame",antenna->frame,&configOK);
 	
+	//
+	// Receiver
+	//
+	setConfig(last,"receiver","manufacturer",receiver->manufacturer,&configOK);
+	setConfig(last,"receiver","model",receiver->model,&configOK);
+	setConfig(last,"receiver","serial number",receiver->serialNumber,&configOK);
+	setConfig(last,"receiver","commissioning year",&(receiver->commissionYYYY),&configOK);
+	setConfig(last,"receiver","channels",&(receiver->nChannels),&configOK);
 	//
 	// CGGTTS output
 	//

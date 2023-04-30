@@ -53,23 +53,42 @@ Measurements::~Measurements()
 
 void Measurements::dump(){
 	std::cout << "GNSS: " << gnss << std::endl;
-	//for (int i =0;i<100;i++){
-	//	std::cout << meas[i][0] << std::endl;
-	//}
+	std::cout.precision(14);
+	for (int i = 0; i < 10; i++) {
+		
+		for (int j=1; j <= maxSVN; j++){
+			std::cout << j << " ";
+			for (int k=0; k< nCodeObs+2; k++){
+				std::cout << meas[i][j][k] << " ";
+			}
+			std::cout << std::endl;
+		}
+	}
 }//
 
 void Measurements::allocateStorage(int nMeasEpochs)
 {
 	maxMeas = nMeasEpochs;
-	int n = codes.size() + 1; // extra field is for TOD in seconds wrt nominal MJD of the data
+	int n = codes.size() + 2; // extra fields are for MJD and TOD in seconds 
 	meas = new double**[nMeasEpochs];
 	for (int i = 0; i < nMeasEpochs ; i++) { 
     meas[i] = new double*[maxSVN + 1]; // dummy at beginning so indexing is directly by SVN
 		for (int j=0;j<= maxSVN;j++){
 			meas[i][j] = new double[n]; 
+			for (int k=0;k<n;k++)
+				meas[i][j][k] = 0; 
 		}
 	}
 	
 }
 
+// Return column that the code is in
+int Measurements::colIndexFromCode(std::string c){
+	for (int i=0;i<codes.size();i++){
+		if (codes[i] == c){
+			return cols[i];
+		}
+	}
+	return -1; // FIXME probably should sanity check RINEX file before we get this far
+}
 
