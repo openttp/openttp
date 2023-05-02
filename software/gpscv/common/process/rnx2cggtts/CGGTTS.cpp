@@ -217,7 +217,7 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 	// Use a fixed array so that we can use the index as a hash for the SVN. Memory is cheap
 	// and svtrk is only 780 points long anyway
 	double svtrk[MAXSV+1][NTRACKPOINTS][INDX_MJD+1]; 
-	int svObsCount[MAXSV+1];
+	unsigned int svObsCount[MAXSV+1];
 	
 	int leapOffset1 = leapsecs1/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
 	int indxMJD = meas1->colMJD();

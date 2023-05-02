@@ -85,7 +85,7 @@ void Measurements::allocateStorage(int nMeasEpochs)
 
 // Return column that the code is in
 int Measurements::colIndexFromCode(std::string c){
-	for (int i=0;i<codes.size();i++){
+	for (unsigned int i=0;i<codes.size();i++){
 		if (codes[i] == c){
 			return cols[i];
 		}
