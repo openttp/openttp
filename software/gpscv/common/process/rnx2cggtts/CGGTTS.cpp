@@ -39,6 +39,7 @@
 #include "Measurements.h"
 #include "Receiver.h"
 #include "RINEXFile.h"
+#include "Utility.h"
 
 extern Application *app;
 extern std::ostream *debugStream;
@@ -49,11 +50,11 @@ extern std::ostream *debugStream;
 
 #define MAXSV   37 // GPS 1-32, BDS 1-37, GALILEO 1-36 
 // indices into svtrk
-#define OBSV1    0  
-#define OBSV2    1
-#define OBSV3    2
-#define TOD      3 // decimal TOD, need this in case timestamps are not on the second
-
+#define INDX_OBSV1    0  
+#define INDX_OBSV2    1
+#define INDX_OBSV3    2
+#define INDX_TOD      3 // decimal INDX_TOD, need this in case timestamps are not on the second
+#define INDX_MJD      4
 
 static unsigned int str2ToCode(std::string s)
 {
@@ -215,14 +216,14 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 	// Data structures for accumulating data at each track time
 	// Use a fixed array so that we can use the index as a hash for the SVN. Memory is cheap
 	// and svtrk is only 780 points long anyway
-	double svtrk[MAXSV+1][NTRACKPOINTS][4]; 
+	double svtrk[MAXSV+1][NTRACKPOINTS][INDX_MJD+1]; 
 	int svObsCount[MAXSV+1];
 	
 	int leapOffset1 = leapsecs1/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
 	int indxMJD = meas1->colMJD();
 	int indxTOD = meas1->colTOD();
 	
-	ntracks = 1; // FIXME
+	//ntracks = 2; // FIXME
 	 
 	for (int i=0;i<ntracks;i++){
 	
@@ -237,8 +238,8 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 		for (int s=1;s<=MAXSV;s++){
 			svObsCount[s]=0;
 			for (int t=0;t<NTRACKPOINTS;t++)
-				for (int o=0;o<3;o++)
-					svtrk[s][t][o] = FP_NAN; 
+				for (int o=INDX_OBSV1;o<= INDX_MJD;o++)
+					svtrk[s][t][o] = NAN; 
 		}
 		
 		// CASE 1: single code + MDIO
@@ -249,8 +250,9 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 			for (int sv = 1; sv <= meas1->maxSVN;sv++){
 				if (!isnan(meas1->meas[mGPS][sv][indxm1c1])){ 
 					//DBGMSG(debugStream,INFO,sv << " " << meas1->meas[mGPS][sv][indxMJD] << " " << meas1->meas[mGPS][sv][indxTOD] << " " << meas1->meas[mGPS][sv][indxm1c1]);
-					svtrk[sv][svObsCount[sv]][OBSV1]= meas1->meas[mGPS][sv][indxm1c1];
-					svtrk[sv][svObsCount[sv]][TOD]= meas1->meas[mGPS][sv][indxTOD] + leapsecs1; // yay!! UTC !! Note, fractional seconds preserved
+					svtrk[sv][svObsCount[sv]][INDX_OBSV1]= meas1->meas[mGPS][sv][indxm1c1];
+					svtrk[sv][svObsCount[sv]][INDX_TOD]= meas1->meas[mGPS][sv][indxTOD] + leapsecs1; // yay!! UTC !! Note, fractional seconds preserved
+					svtrk[sv][svObsCount[sv]][INDX_MJD] = meas1->meas[mGPS][sv][indxMJD];
 					svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
 				}
 			}
@@ -261,16 +263,52 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 			
 			if (0 == svObsCount[sv]) continue;
 			
+			int npts=0; // count of number of points for the linear fit
+			int ioe;    // issue of ephemeris
+			
 			DBGMSG(debugStream,INFO,sv << " " << svObsCount[sv]);
 			
-			int hh = schedule[i] / 60;
-			int mm = schedule[i] % 60;
+			int hh = schedule[i] / 60; // schedule hour
+			int mm = schedule[i] % 60; // schedule minute
 			
-			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26];
-		}
+			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26]; //buffers for the data for the linear fits
+			
+			Ephemeris *ed=NULL;
+			
+			for (unsigned int tt=0;tt<svObsCount[sv];tt++){
+				int fwn;
+				double tow;
+				Utility::MJDToGPSTime(svtrk[sv][tt][INDX_MJD],svtrk[sv][tt][INDX_TOD],&fwn,&tow);
+				//DBGMSG(debugStream,INFO,svtrk[sv][tt][INDX_MJD] << " " << svtrk[sv][tt][INDX_TOD] << " " << fwn << " " << tow);
 		
+				// Now window it
+				
+				if (ed==NULL) // use only one ephemeris for each track
+					ed = gnss1->nearestEphemeris(sv,tow,maxURA);
+				
+				if (NULL == ed){
+					ephemerisMisses++;
+				}
+				else{
+					if (!(ed->healthy())){
+						badHealth++;
+						//DBGMSG(debugStream,INFO,"Unhealthy SV = " << sv);
+						continue;
+					}
+				}
+				
+				double refsyscorr,refsvcorr,iono,tropo,az,el,pr;
+				
+				pr = svtrk[sv][tt][INDX_OBSV1];
+				
+				if (gnss1->getPseudorangeCorrections(tow,pr,antenna,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+					
+				}
+				
+			} // for (unsigned int tt=0;tt<svObsCount[sv];tt++)
+		} // for (unsigned int sv=1;sv<=MAXSV;sv++)
 		
-	}
+	} // for (int i=0;i<ntracks;i++)
 	
 	std::fclose(fout);
 	
@@ -295,6 +333,22 @@ void CGGTTS::init()
 {
 	antenna = NULL;
 	receiver = NULL;
+	
+	revDateYYYY = 2023;
+	revDateMM = 1;
+	revDateDD = 1;
+	ref="UTC(XLAB)";
+	lab="XLAB";
+	comment="";
+	calID="UNCALIBRATED";
+	intDly=intDly2=cabDly=refDly=0.0;
+	delayKind = INTDLY;
+	minTrackLength = 390;
+	minElevation = 10.0;
+	maxDSG = 100.0;
+	maxURA = 3.0; // as reported by receivers, typically 2.0 m, with a few at 2.8 m
+	
+	useMSIO = false;
 }
 
 

@@ -260,18 +260,17 @@ int RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
 	// A field can be empty or have a value of 0.0 to indicate 'no measurement'
 	// Format is A1,I2.2,m(14.3.I1,I1)
 	double dbuf;
+	
+	for (unsigned int i=0;i<m.cols.size();i++)
+		m.meas[itod][svn][i] = NAN;
+
 	for (unsigned int i=0;i<m.cols.size();i++){
 		unsigned int stop = 3 + m.cols[i]*(16+1);
-		if (stop > l.length()){ // empty fields at the end
-			m.meas[itod][svn][i]=FP_NAN; 
-			continue;
-		}
+		if (stop > l.length()) // empty fields at the end
+			break;
 		if (readParam(l,1+3+m.cols[i]*16,14,&dbuf)){
 			m.meas[itod][svn][i]=dbuf;
 			nMeas += 1;
-		}
-		else{
-			m.meas[itod][svn][i]=FP_NAN;
 		}
 	}
 	return nMeas;

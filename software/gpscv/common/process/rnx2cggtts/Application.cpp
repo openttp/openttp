@@ -349,7 +349,7 @@ void Application::run()
 			case GNSSSystem::GLONASS:
 				break;
 			case GNSSSystem::GPS:
-				cggtts.write(&(obs1.gps),&(nav1.gps),leapsecs1,CGGTTSfile,mjd,0,9999);
+				cggtts.write(&(obs1.gps),&(nav1.gps),leapsecs1,CGGTTSfile,mjd,0,86400);
 				break;
 			default:
 				break;
@@ -396,6 +396,26 @@ void Application::init()
 	RINEXobsPath = rootDir + "/rinex";
 	RINEXnavPath = rootDir + "/rinex";
 	stationName  = "";
+	
+	CGGTTS cdef;
+	// Use the default values from a CGGTTS object
+	CGGTTSmaxURA = cdef.maxURA;
+	CGGTTScomment = cdef.comment;
+	CGGTTSref = cdef.ref;
+	CGGTTSlab = cdef.lab;
+	CGGTTSminElevation = cdef.minElevation;
+	CGGTTSmaxDSG = cdef.maxDSG;
+	CGGTTSmaxURA = cdef.maxURA;
+	CGGTTSminTrackLength = cdef.minTrackLength;
+	CGGTTSreceiverID = ""; // two letter code
+	CGGTTSlabCode = "";    // two letter code
+	CGGTTSRevDateMM = cdef.revDateMM;
+	CGGTTSRevDateDD = cdef.revDateDD;
+	CGGTTSRevDateYYYY = cdef.revDateYYYY;
+		
+	CGGTTSPath=rootDir+"/cggtts";
+	CGGTTSnamingConvention=Plain;
+		
 }
 
 

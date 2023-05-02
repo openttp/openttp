@@ -39,6 +39,8 @@ typedef short SINT16;
 typedef int SINT32;
 typedef unsigned int UINT32;
 
+class Antenna;
+
 class Ephemeris
 {
 	public:
@@ -47,6 +49,8 @@ class Ephemeris
 		virtual double t0c(){return 0.0;}
 		virtual int    svn(){return 0;}
 		virtual int    iod(){return 0;}
+		
+		virtual int healthy(){return 1;}
 		
 		Ephemeris(){};
 		virtual ~Ephemeris(){};
@@ -98,6 +102,12 @@ class GNSSSystem
 		std::vector<Ephemeris *> ephemeris;
 		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
 		virtual bool addEphemeris(Ephemeris *);
+		
+		virtual Ephemeris *nearestEphemeris(int,double,double);
+		
+		virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int signal,
+			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
+			double *azimuth,double *elevation, int *ioe);
 		
 	protected:
 		std::string n; // system name

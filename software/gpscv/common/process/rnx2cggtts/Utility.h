@@ -31,7 +31,8 @@ namespace Utility{
 	
 	void MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday);
 	int  DateToMJD(int year, int month, int day);
-	
+	void GPSDateTimeToGPSTime(int year, int month, int day,int hh,int mm,double ss,int *fullWN,double *TOW);
+	void MJDToGPSTime(int mjd,double tods,int *fullWN,double *TOW);
 }
 #endif
 

@@ -39,6 +39,8 @@
 extern Application *app;
 extern std::ostream *debugStream;
 
+#define GPS_EPOCH 44244 // MJD of the beginning of GPS time
+
 void Utility::MJDtoDate(int mjd,int *year,int *mon, int *mday, int *yday)
 {
 	time_t tt = (mjd - 40587)*86400;
@@ -63,5 +65,17 @@ int Utility::DateToMJD(int year, int month, int day)
 	return mjd;
 }
 
- 
-		
+void Utility::GPSDateTimeToGPSTime(int year, int month, int day,int hh,int mm,double ss,int *fullWN,double *TOW)
+{
+	int mjd = DateToMJD(year,month,day);
+	*fullWN = (mjd - GPS_EPOCH)/7; 
+	*TOW = ((mjd - GPS_EPOCH)%7)*86400 + hh*3600 + mm*60 + ss;
+}
+
+void Utility::MJDToGPSTime(int mjd,double tods,int *fullWN,double *TOW)
+{
+	*fullWN = (mjd - GPS_EPOCH)/7; 
+	*TOW = ((mjd - GPS_EPOCH)%7)*86400 + tods;
+}
+
+

@@ -81,7 +81,7 @@ class GPSEphemeris:public Ephemeris
 		virtual double t0c(){return t_OC;}
 		virtual int    svn(){return SVN;}
 		virtual int    iod(){return IODE;}
-		
+		virtual int    healthy(){return (SV_health == 0);}
 };
 	
 class GPS: public GNSSSystem
@@ -122,11 +122,21 @@ class GPS: public GNSSSystem
 	virtual double codeToFreq(int);
 	virtual int maxSVN(){return NSATS;}
 
+	virtual Ephemeris *nearestEphemeris(int,double,double);
+	virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int signal,
+			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
+			double *azimuth,double *elevation, int *ioe);
+	
 	bool gotUTCdata,gotIonoData;
 	IonosphereData ionoData;
 	UTCData UTCdata;
 	
+	private:
 	
+		bool satXYZ(GPSEphemeris *ed,double t,double *Ek,double x[3]);
+		double ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
+			float alpha0,float alpha1,float alpha2,float alpha3,
+			float beta0,float beta1,float beta2,float beta3);
 };
 
 #endif

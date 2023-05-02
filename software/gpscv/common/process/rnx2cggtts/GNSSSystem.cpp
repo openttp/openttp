@@ -139,4 +139,26 @@ bool GNSSSystem::addEphemeris(Ephemeris *ed)
 	return true;
 }
 
+Ephemeris *GNSSSystem::nearestEphemeris(int,double,double)
+{
+	return NULL;
+}
 
+// This is just a stub
+// It must be reimplemented for each GNSS
+//
+
+bool GNSSSystem::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int signal,
+			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
+			double *azimuth,double *elevation, int *ioe)
+{
+	*refsyscorr = 0.0;
+	*refsvcorr = 0.0;
+	*iono = 0.0;
+	*tropo = 0.0;
+	*azimuth = 0.0;
+	*elevation = 0.0;
+	*ioe = 0;
+	
+	return false; // well, we didn't do much, did we ?
+}

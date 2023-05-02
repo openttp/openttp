@@ -22,6 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <cmath>
 #include <cstring>
 
 #include <fstream>
@@ -84,7 +85,7 @@ bool RINEXFile::readParam(std::string &str,int start,int len,int *val)
 {
 	std::stringstream ss(str.substr(start-1,len));
 	ss >> *val;
-	return true;
+	return !ss.fail();
 }
 
 bool RINEXFile::readParam(std::string &str,int start,int len,float *val)
@@ -92,7 +93,7 @@ bool RINEXFile::readParam(std::string &str,int start,int len,float *val)
 	boost::algorithm::replace_all(str, "D", "E"); // filthy FORTRAN
 	std::stringstream ss(str.substr(start-1,len));
 	ss >> *val;
-	return true;
+	return !ss.fail();
 }
 	
 bool RINEXFile::readParam(std::string &str,int start,int len,double *val)
@@ -118,7 +119,7 @@ bool RINEXFile::read4DParams(std::ifstream &fin,int startCol,
 	}
 	
 	int slen = line.length();
-	*darg1 = *darg2= *darg3 = *darg4 = 0.0;
+	*darg1 = *darg2= *darg3 = *darg4 = NAN;
 	if (slen >= startCol + 19 -1)
 		readParam(line,startCol,19,darg1);
 	if (slen >= startCol + 38 -1)

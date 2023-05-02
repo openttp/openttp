@@ -77,7 +77,7 @@ void Measurements::allocateStorage(int nMeasEpochs)
 		for (int j=0;j<= maxSVN;j++){
 			meas[i][j] = new double[n]; 
 			for (int k=0;k<n;k++)
-				meas[i][j][k] = FP_NAN; 
+				meas[i][j][k] = NAN; 
 		}
 	}
 	
