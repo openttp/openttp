@@ -56,6 +56,8 @@ extern std::ostream *debugStream;
 #define INDX_TOD      3 // decimal INDX_TOD, need this in case timestamps are not on the second
 #define INDX_MJD      4
 
+#define CLIGHT 299792458.0
+
 static unsigned int str2ToCode(std::string s)
 {
 	int c=0;
@@ -224,7 +226,8 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 	int indxTOD = meas1->colTOD();
 	
 	//ntracks = 2; // FIXME
-	 
+	int prcount = 0; // count of pseudorange estimations 
+	
 	for (int i=0;i<ntracks;i++){
 	
 		int trackStart = schedule[i]*60; // in seconds since start of UTC day
@@ -251,7 +254,7 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 				if (!isnan(meas1->meas[mGPS][sv][indxm1c1])){ 
 					//DBGMSG(debugStream,INFO,sv << " " << meas1->meas[mGPS][sv][indxMJD] << " " << meas1->meas[mGPS][sv][indxTOD] << " " << meas1->meas[mGPS][sv][indxm1c1]);
 					svtrk[sv][svObsCount[sv]][INDX_OBSV1]= meas1->meas[mGPS][sv][indxm1c1];
-					svtrk[sv][svObsCount[sv]][INDX_TOD]= meas1->meas[mGPS][sv][indxTOD] + leapsecs1; // yay!! UTC !! Note, fractional seconds preserved
+					svtrk[sv][svObsCount[sv]][INDX_TOD]= meas1->meas[mGPS][sv][indxTOD]; 
 					svtrk[sv][svObsCount[sv]][INDX_MJD] = meas1->meas[mGPS][sv][indxMJD];
 					svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
 				}
@@ -259,17 +262,17 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 		}
 		
 		
-		for (unsigned int sv=1;sv<=MAXSV;sv++){
-			
+		//for (unsigned int sv=1;sv<=MAXSV;sv++){
+		for (unsigned int sv=1;sv<=1;sv++){
 			if (0 == svObsCount[sv]) continue;
 			
 			int npts=0; // count of number of points for the linear fit
 			int ioe;    // issue of ephemeris
 			
-			DBGMSG(debugStream,INFO,sv << " " << svObsCount[sv]);
+			//DBGMSG(debugStream,INFO,sv << " " << svObsCount[sv]);
 			
-			int hh = schedule[i] / 60; // schedule hour
-			int mm = schedule[i] % 60; // schedule minute
+			int hh = schedule[i] / 60; // schedule hour   (UTC)
+			int mm = schedule[i] % 60; // schedule minute (UTC)
 			
 			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26]; //buffers for the data for the linear fits
 			
@@ -295,16 +298,20 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 						//DBGMSG(debugStream,INFO,"Unhealthy SV = " << sv);
 						continue;
 					}
+					//ed->dump();
 				}
 				
 				double refsyscorr,refsvcorr,iono,tropo,az,el,pr;
 				
-				pr = svtrk[sv][tt][INDX_OBSV1];
-				
+				pr = svtrk[sv][tt][INDX_OBSV1]/CLIGHT;
+				//DBGMSG(debugStream,INFO,tow << " " << pr << " " << antenna->x << " " << antenna->y  << " " << antenna->z << " " << ed->iod());
+				prcount++;
 				if (gnss1->getPseudorangeCorrections(tow,pr,antenna,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
-					
+					DBGMSG(debugStream,INFO,tow << " " << refsyscorr);
 				}
-				
+				else{
+					pseudoRangeFailures++;
+				}
 			} // for (unsigned int tt=0;tt<svObsCount[sv];tt++)
 		} // for (unsigned int sv=1;sv<=MAXSV;sv++)
 		
@@ -314,7 +321,8 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 	
 	app->logMessage("Ephemeris search misses: " + boost::lexical_cast<std::string>(ephemerisMisses));
 	app->logMessage("Bad health: " + boost::lexical_cast<std::string>(badHealth) );
-	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures-ephemerisMisses) ); // PR calculation skipped if unhealthy
+	app->logMessage("Pseudorange calculation failures: " + boost::lexical_cast<std::string>(pseudoRangeFailures) +
+		"/" + boost::lexical_cast<std::string>(prcount)); 
 	app->logMessage("Bad measurements: " + boost::lexical_cast<std::string>(badMeasurementCnt) );
 	
 	app->logMessage(boost::lexical_cast<std::string>(goodTrackCnt) + " good tracks");

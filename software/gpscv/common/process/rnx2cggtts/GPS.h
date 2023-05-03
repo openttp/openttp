@@ -77,6 +77,8 @@ class GPSEphemeris:public Ephemeris
 		GPSEphemeris(){};
 		~GPSEphemeris(){};
 		
+		virtual void dump();
+		
 		virtual double t0e(){return t_0e;}
 		virtual double t0c(){return t_OC;}
 		virtual int    svn(){return SVN;}

@@ -54,11 +54,13 @@ class Ephemeris
 		
 		Ephemeris(){};
 		virtual ~Ephemeris(){};
+		virtual void dump(){};
 		
 		// this is kinda messy but it's handy to have t0c corrected for week rollover,
 		// converted to Unix time
-		time_t t0cAbs;
-		int correctedWeek;
+		//time_t t0cAbs;
+		//int correctedWeek;
+		
 		
 };
 

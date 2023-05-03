@@ -302,7 +302,7 @@ void Application::run()
 		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
 	}
 	else{
-		obs1.leapsecs = 17; 
+		obs1.leapsecs = 18; 
 		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
 	}
 	

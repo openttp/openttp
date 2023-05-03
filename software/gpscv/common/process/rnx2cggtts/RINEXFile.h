@@ -25,6 +25,7 @@
 #ifndef __RINEX_FILE_H_
 #define __RINEX_FILE_H_
 
+#include <cmath>
 #include <fstream>
 #include <string>
 #include <vector>

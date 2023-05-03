@@ -54,6 +54,36 @@ const double* GPS::URA = URAvalues;
 const double  GPS::fL1 = 1575420000.0; // 154*10.23 MHz
 const double  GPS::fL2 = 1227620000.0; // 120*10.23 MHz
 
+
+void GPSEphemeris::dump()
+{
+	char buf[81];
+	
+	std::snprintf(buf,80,"%%4s%%19.12e%%19.12e%%19.12e%%19.12e\n");
+	
+	std::fprintf(stdout,buf," ", // broadcast orbit 1
+					(double) IODE, C_rs, delta_N, M_0);
+			
+	std::fprintf(stdout,buf," ", // broadcast orbit 2
+		C_uc,e,C_us, sqrtA);
+	
+	std::fprintf(stdout,buf," ", // broadcast orbit 3
+		t_0e, C_ic, OMEGA_0,C_is);
+	
+	std::fprintf(stdout,buf," ", // broadcast orbit 4
+		i_0,C_rc,OMEGA,OMEGADOT);
+	
+	std::fprintf(stdout,buf," ", // broadcast orbit 5
+		IDOT,1.0,(double) week_number,0.0); // FIXME this is truncated WN
+	
+	std::fprintf(stdout,buf," ", // broadcast orbit 6
+		GPS::URA[SV_accuracy_raw],(double) SV_health,t_GD,(double) IODC);
+	
+	std::fprintf(stdout,"%4s%19.12e%19.12e\n"," ",t_ephem,4.0); // broadcast orbit 7
+
+}
+
+
 GPS::GPS():GNSSSystem()
 {
 	n="GPS";
@@ -65,6 +95,8 @@ GPS::GPS():GNSSSystem()
 GPS::~GPS()
 {
 }
+
+
 
 Ephemeris* GPS::nearestEphemeris(int svn,double tow,double maxURA)
 {
@@ -223,7 +255,7 @@ bool GPS::satXYZ(GPSEphemeris *ed,double t,double *Ek,double x[3])
 		if (fabs(*Ek-Ekold) < 1e-8) break;
 	}
 	if (nit == MAX_ITERATIONS){
-		//fprintf(stderr,"no convergence for E\n");
+		//DBGMSG(debugStream,WARNING,"No convergence");
 		return false;
 	}
 	
