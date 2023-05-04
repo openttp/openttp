@@ -95,6 +95,7 @@ class Application
 		
 		void showHelp();
 		void showVersion();
+		void showLicence();
 		
 		bool loadConfig();
 		bool setConfig(ListEntry *,const char *,const char *,std::string &,bool *ok,bool required=true);

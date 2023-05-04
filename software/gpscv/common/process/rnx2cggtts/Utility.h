@@ -33,6 +33,9 @@ namespace Utility{
 	int  DateToMJD(int year, int month, int day);
 	void GPSDateTimeToGPSTime(int year, int month, int day,int hh,int mm,double ss,int *fullWN,double *TOW);
 	void MJDToGPSTime(int mjd,double tods,int *fullWN,double *TOW);
+	
+	bool linearFit(double x[], double y[],int n,double xinterp,double *yinterp,double *c,double *m,double *rmsResidual);
+	
 }
 #endif
 

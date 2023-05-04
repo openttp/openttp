@@ -59,7 +59,7 @@ class CGGTTS
 		int constellation; 		// V2E
 		unsigned int code;    // V2E
 		int delayKind;        // V2E
-		bool useMSIO;
+		bool reportMSIO;
 		bool isP3;
 		
 		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated

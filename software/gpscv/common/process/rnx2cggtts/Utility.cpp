@@ -78,4 +78,36 @@ void Utility::MJDToGPSTime(int mjd,double tods,int *fullWN,double *TOW)
 	*TOW = ((mjd - GPS_EPOCH)%7)*86400 + tods;
 }
 
+bool Utility::linearFit(double x[], double y[],int n,double xinterp,double *yinterp,double *c,double *m,double *rmsResidual)
+{
+	double sx = 0, sy = 0, sr2 = 0, xbar, ybar, sxxbary=0,sxxbarsq=0;
+	
+	for (int i=0;i<n;i++){
+		sx += x[i];
+		sy += y[i];
+	}
+	
+	xbar = sx/n;
+	ybar = sy/n;
 
+	for (int i=0;i<n;i++){
+		sxxbary += (x[i] - xbar) * y[i];
+		sxxbarsq += (x[i] - xbar)*(x[i] - xbar);
+	}
+
+	// Slope and intercept
+	*m = sxxbary/sxxbarsq;
+	*c = ybar - *m * xbar;
+
+	// Sum of residuals^2
+
+	for (int i=0;i<n;i++)
+		sr2 += pow(y[i] - *m * x[i] - *c,2);
+
+	// RMS residuals
+	*rmsResidual = sqrt(sr2/n);
+	
+	*yinterp = *m * xinterp + *c;
+	
+	return true;
+}

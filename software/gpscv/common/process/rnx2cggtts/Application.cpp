@@ -77,6 +77,7 @@ static struct option longOptions[] = {
 		{"verbosity",    required_argument, 0,  0 },
 		{"version",      no_argument, 0,  0 },
 		{"shorten",no_argument, 0,  0 },
+		{"licence",no_argument, 0,  0 },
 };
 
 using boost::lexical_cast;
@@ -161,6 +162,10 @@ Application::Application(int argc,char **argv)
 							break;
 						case 6:// --shorten
 							shortDebugMessage=true;
+							break;
+						case 7:// --licence
+							showLicence();
+							exit(EXIT_SUCCESS);
 							break;
 						default:
 							showHelp();
@@ -336,7 +341,7 @@ void Application::run()
 		cggtts.code = CGGTTSoutputs.at(i).code;
 		cggtts.calID = CGGTTSoutputs.at(i).calID;
 		cggtts.isP3 = CGGTTSoutputs.at(i).isP3;
-		cggtts.useMSIO = cggtts.isP3; // FIXME not the whole story
+		cggtts.reportMSIO = cggtts.isP3; // FIXME not the whole story
 		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
 		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
 		
@@ -457,7 +462,8 @@ void Application::showHelp()
 	std::cout << "-m,--mjd <n>              set the mjd" << std::endl;
 	std::cout << "--shorten                 shorten debugging messages" << std::endl;
 	std::cout << "--verbosity <n>           set debugging verbosity" << std::endl;
-	std::cout << "--version                 print version" << std::endl;
+	std::cout << "--version                 show version" << std::endl;
+	std::cout << "--licence                 show licence" << std::endl;
 
 }
 
@@ -467,6 +473,33 @@ void Application::showVersion()
 	std::cout << "Written by " << APP_AUTHORS << std::endl;
 	std::cout << "This ain't no stinkin' Perl script!" << std::endl;
 }
+
+void Application::showLicence()
+{
+
+std::cout <<  " The MIT License (MIT)" << std::endl;
+std::cout << std::endl;
+std::cout <<  " Copyright (c) 2023  Michael J. Wouters" << std::endl;
+std::cout << std::endl; 
+std::cout <<  " Permission is hereby granted, free of charge, to any person obtaining a copy" << std::endl;
+std::cout <<  " of this software and associated documentation files (the \"Software\"), to deal" << std::endl;
+std::cout <<  " in the Software without restriction, including without limitation the rights" << std::endl;
+std::cout <<  " to use, copy, modify, merge, publish, distribute, sublicense, and/or sell" << std::endl;
+std::cout <<  " copies of the Software, and to permit persons to whom the Software is" << std::endl;
+std::cout <<  " furnished to do so, subject to the following conditions:" << std::endl;
+std::cout << std::endl;
+std::cout <<  " The above copyright notice and this permission notice shall be included in" << std::endl;
+std::cout <<  " all copies or substantial portions of the Software." << std::endl;
+std::cout << std::endl;
+std::cout <<  " THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR" << std::endl;
+std::cout <<  " IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY," << std::endl;
+std::cout <<  " FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE" << std::endl;
+std::cout <<  " AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER" << std::endl;
+std::cout <<  " LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM," << std::endl;
+std::cout <<  " OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN" << std::endl;
+std::cout <<  " THE SOFTWARE." << std::endl;
+}
+
 
 bool Application::loadConfig()
 {

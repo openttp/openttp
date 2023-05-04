@@ -233,7 +233,7 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 		int trackStart = schedule[i]*60; // in seconds since start of UTC day
 		int trackStop =  schedule[i]*60 + (NTRACKPOINTS-1)*OBSINTERVAL; // note the time of the last point 
 		if (trackStop >= 86400) trackStop=86400-1; // FIXME we can get more from the next day ...
-		DBGMSG(debugStream,INFO,"Track " << i << " start " << trackStart << " stop " << trackStop);
+		//DBGMSG(debugStream,INFO,"Track " << i << " start " << trackStart << " stop " << trackStop);
 		
 		// Now window it
 		if (trackStart < startTime || trackStart > stopTime) continue; // svtrk empty so no need to clear
@@ -246,8 +246,8 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 		}
 		
 		// CASE 1: single code + MDIO
-		int iTrackStart = trackStart/30;
-		int iTrackStop  = trackStop/30;
+		int iTrackStart = trackStart/OBSINTERVAL;
+		int iTrackStop  = trackStop/OBSINTERVAL;
 		for (int m=iTrackStart;m<=iTrackStop;m++){
 			int mGPS = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 			for (int sv = 1; sv <= meas1->maxSVN;sv++){
@@ -261,12 +261,11 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 			}
 		}
 		
-		
-		//for (unsigned int sv=1;sv<=MAXSV;sv++){
-		for (unsigned int sv=1;sv<=1;sv++){
+		for (unsigned int sv=1;sv<=MAXSV;sv++){
+		//for (unsigned int sv=1;sv<=1;sv++){
 			if (0 == svObsCount[sv]) continue;
 			
-			int npts=0; // count of number of points for the linear fit
+			int nfitpts=0; // count of number of points for the linear fit
 			int ioe;    // issue of ephemeris
 			
 			//DBGMSG(debugStream,INFO,sv << " " << svObsCount[sv]);
@@ -274,7 +273,7 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 			int hh = schedule[i] / 60; // schedule hour   (UTC)
 			int mm = schedule[i] % 60; // schedule minute (UTC)
 			
-			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26]; //buffers for the data for the linear fits
+			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26]; //buffers for the data used for the linear fits
 			
 			Ephemeris *ed=NULL;
 			
@@ -291,28 +290,133 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 				
 				if (NULL == ed){
 					ephemerisMisses++;
+					//pseudoRangeFailures++;
+					continue;
 				}
 				else{
 					if (!(ed->healthy())){
 						badHealth++;
 						//DBGMSG(debugStream,INFO,"Unhealthy SV = " << sv);
-						continue;
+						continue; // WARNING didn't do this in previous code - ed == NULL means that call to getPseudorangeCorrections() will return false
 					}
 					//ed->dump();
 				}
 				
 				double refsyscorr,refsvcorr,iono,tropo,az,el,pr;
 				
-				pr = svtrk[sv][tt][INDX_OBSV1]/CLIGHT;
+				pr = svtrk[sv][tt][INDX_OBSV1]/CLIGHT; // convert to seconds
 				//DBGMSG(debugStream,INFO,tow << " " << pr << " " << antenna->x << " " << antenna->y  << " " << antenna->z << " " << ed->iod());
 				prcount++;
 				if (gnss1->getPseudorangeCorrections(tow,pr,antenna,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
-					DBGMSG(debugStream,INFO,tow << " " << refsyscorr);
+					tutc[nfitpts]=(svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
+					svaz[nfitpts]=az;
+					svel[nfitpts]=el;
+					mdtr[nfitpts]=tropo;
+					mdio[nfitpts]=iono;
+					
+					if (isP3){
+					}
+					else{
+						refsv[nfitpts]  = pr*1.0E9 + refsvcorr  - iono - tropo ; // units are ns, for CGGTTS
+						refsys[nfitpts] = pr*1.0E9 + refsyscorr - iono - tropo ;
+					}
+					
+					nfitpts++;
+					
 				}
 				else{
 					pseudoRangeFailures++;
 				}
 			} // for (unsigned int tt=0;tt<svObsCount[sv];tt++)
+			
+			if (nfitpts*OBSINTERVAL >= minTrackLength){
+				
+				double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
+				
+				double aztc,azc,azm,azresid;
+				Utility::linearFit(tutc,svaz,nfitpts,tc,&aztc,&azc,&azm,&azresid);
+				aztc=rint(aztc*10); // CGGTTS liketh integers
+				
+				double eltc,elc,elm,elresid;
+				Utility::linearFit(tutc,svel,nfitpts,tc,&eltc,&elc,&elm,&elresid);
+				eltc=rint(eltc*10);
+				
+				double mdtrtc,mdtrc,mdtrm,mdtrresid;
+				Utility::linearFit(tutc,mdtr,nfitpts,tc,&mdtrtc,&mdtrc,&mdtrm,&mdtrresid);
+				mdtrtc=rint(mdtrtc*10);
+				mdtrm=rint(mdtrm*10000);
+				
+				double refsvtc,refsvc,refsvm,refsvresid;
+				Utility::linearFit(tutc,refsv,nfitpts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
+				refsvtc=rint((refsvtc-measDelay)*10); // apply total measurement system delay
+				refsvm=rint(refsvm*10000);
+				
+				double refsystc,refsysc,refsysm,refsysresid;
+				Utility::linearFit(tutc,refsys,nfitpts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
+				refsystc=rint((refsystc-measDelay)*10); // apply total measurement system delay
+				refsysm=rint(refsysm*10000);
+				refsysresid=rint(refsysresid*10);
+				
+				double mdiotc,mdioc,mdiom,mdioresid;
+				Utility::linearFit(tutc,mdio,nfitpts,tc,&mdiotc,&mdioc,&mdiom,&mdioresid);
+				mdiotc=rint(mdiotc*10);
+				mdiom=rint(mdiom*10000);
+				
+				double msiotc=0.0,msioc=0.0,msiom=0.0,msioresid=0.0;
+				if (reportMSIO){
+					Utility::linearFit(tutc,msio,nfitpts,tc,&msiotc,&msioc,&msiom,&msioresid);
+					msiotc=rint(msiotc*10);
+					if (msiotc < -999)
+						msiotc=-999;
+					else if (msiotc > 9999)
+						msiotc=9999;
+					msiom=rint(msiom*10000); // 4 digits
+					if (msiom < -999) // clamp out of range
+						msiom=-999;
+					else if (msiom > 9999)
+						msiom=9999;
+					msioresid=rint(msioresid*10); // 3 digits
+					if (msioresid > 999)
+						msioresid=999;
+				}
+				
+				// Some range checks on the data - flag bad measurements
+				if (refsvm >  99999) refsvm=99999;
+				if (refsvm < -99999) refsvm=-99999;
+				
+				if (refsysm >  99999) refsysm=99999;
+				if (refsysm < -99999) refsysm=-99999;
+				
+				if (refsysresid > 999.9) refsysresid = 999.9;
+				
+				if (fabs(refsvm)==99999 || fabs(refsysm) == 99999 || refsysresid == 999.9 || msioresid==999) // so that we only count a single track
+					badMeasurementCnt++;
+				
+				// Ready to output
+				if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 
+					char sout[155]; // V2E
+					goodTrackCnt++;
+
+					if (isP3)
+						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %4i %4i %3i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
+									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
+									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRCcode.c_str());
+					else 
+						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
+									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
+									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRCcode.c_str());
+					std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
+						
+				} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
+				else{
+					if (eltc < minElevation*10) lowElevationCnt++;
+					if (refsysresid > maxDSG*10) highDSGCnt++;
+				}
+			} // if (npts*linFitInterval >= minTrackLength)
+			else{
+				shortTrackCnt++;
+			}
+			
 		} // for (unsigned int sv=1;sv<=MAXSV;sv++)
 		
 	} // for (int i=0;i<ntracks;i++)
@@ -356,7 +460,8 @@ void CGGTTS::init()
 	maxDSG = 100.0;
 	maxURA = 3.0; // as reported by receivers, typically 2.0 m, with a few at 2.8 m
 	
-	useMSIO = false;
+	reportMSIO = false; // MSIO can be reported for for C1C output
+	isP3 = false;
 }
 
 
@@ -420,7 +525,7 @@ void CGGTTS::writeHeader(FILE *fout)
 	std::snprintf(buf,MAXCHARS,"CH = %02d",receiver->nChannels); 
 	cksum += checkSum(buf);
 	std::fprintf(fout,"%s\n",buf);
-	if (useMSIO)
+	if (reportMSIO)
 		std::snprintf(buf,MAXCHARS,"IMS =%s %s %s %4d %s,v%s",receiver->manufacturer.c_str(),receiver->model.c_str(),receiver->serialNumber.c_str(),
 			receiver->commissionYYYY,APP_NAME, APP_VERSION);
 	else
@@ -500,7 +605,7 @@ void CGGTTS::writeHeader(FILE *fout)
 	
 	std::fprintf(fout,"\n");
 	
-	if (useMSIO){
+	if (reportMSIO){
 		std::fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI MSIO SMSI ISG FR HC FRC CK\n");
 		std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s.1ns.1ps/s.1ns            \n");
 	}
