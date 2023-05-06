@@ -78,6 +78,7 @@ static struct option longOptions[] = {
 		{"version",      no_argument, 0,  0 },
 		{"shorten",no_argument, 0,  0 },
 		{"licence",no_argument, 0,  0 },
+		{"r2cggtts",no_argument, 0,  0 },
 };
 
 using boost::lexical_cast;
@@ -167,6 +168,11 @@ Application::Application(int argc,char **argv)
 							showLicence();
 							exit(EXIT_SUCCESS);
 							break;
+						case 8:// --licence
+							r2cggttsMode = true;
+							std::cerr << "r2cggtts compatibility mode not available yet" << std::endl;
+							exit(EXIT_FAILURE);
+							break;
 						default:
 							showHelp();
 							exit(EXIT_FAILURE);
@@ -220,10 +226,16 @@ Application::Application(int argc,char **argv)
 		}
 	}
 
-	if (!loadConfig()){
-		std::cerr << "Error! Configuration failed" << std::endl;
-		exit(EXIT_FAILURE);
+	// Two modes of operation 
+	// Use a configuration file, which allows a bit more flexibility and removes the need for pre- and post- processing of files
+	// r2cggtts compatibility mode, which uses the standard r2cggtts configuration file and naming conventions for input and output files
+	if (!r2cggttsMode){
+		if (!loadConfig()){
+			std::cerr << "Error! Configuration failed" << std::endl;
+			exit(EXIT_FAILURE);
+		}
 	}
+	
 }
 
 Application::~Application()
@@ -239,129 +251,12 @@ void Application::run()
 	Timer timer;
 	timer.start();
 	
-	// Check that the required files are present
-	// Minimum requirement is the RINEX observation and navigation files for the processed MJD
-	// Files for the next day are used if available
-	std::vector<std::string> obsFileExtensions;
-	obsFileExtensions.push_back("O");
-	obsFileExtensions.push_back("O.gz");
-	obsFileExtensions.push_back("O.Z");
-	obsFileExtensions.push_back("o");
-	obsFileExtensions.push_back("o.gz");
-	obsFileExtensions.push_back("o.Z");
-	obsFileExtensions.push_back("rnx");
-	obsFileExtensions.push_back("rnx.gz");
-	obsFileExtensions.push_back("rnx.Z");
-	std::string obsFile1 = FindRINEXObsFile(mjd,mjd,obsFileExtensions);
-	if (obsFile1.empty()){
-		std::cerr << "Error! Unable to find a RINEX observation file" << std::endl;
-		exit(EXIT_FAILURE);
-	}
-	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
-	
-	RINEXObsFile obs1;
-	obs1.read(obsFile1,0,86400);
-	
-	std::string obsFile2 = FindRINEXObsFile(mjd,mjd+1,obsFileExtensions);
-	if (obsFile2.empty()){
-		DBGMSG(debugStream,INFO,"Didn't get RINEX obs file for succeeding day " << obsFile2);
+	if (r2cggttsMode){
+		runR2CGGTTSMode();
 	}
 	else{
-		DBGMSG(debugStream,INFO,"Got RINEX obs file for succeeding day " << obsFile2);
+		runNativeMode();
 	}
-	
-	
-	//exit(0);
-	std::vector<std::string> navFileExtensions;
-	navFileExtensions.push_back("N");
-	navFileExtensions.push_back("N.gz");
-	navFileExtensions.push_back("N.Z");
-	navFileExtensions.push_back("n");
-	navFileExtensions.push_back("n.gz");
-	navFileExtensions.push_back("n.Z");
-	navFileExtensions.push_back("rnx");
-	navFileExtensions.push_back("rnx.gz");
-	navFileExtensions.push_back("rnx.Z");
-	
-	std::string navFile1 = FindRINEXNavFile(mjd,mjd,navFileExtensions);
-	if (navFile1.empty()){
-		std::cerr << "Error! Unable to find a RINEX navigation file" << std::endl;
-		exit(EXIT_FAILURE);
-	}
-	DBGMSG(debugStream,INFO,"Got RINEX nav file " << navFile1);
-	RINEXNavFile nav1;
-	nav1.read(navFile1);
-	
-// 	
-// 	std::string navFile2 = FindRINEXNavFile(mjd,mjd+1,navFileExtensions);
-// 	if (navFile2.empty()){
-// 		DBGMSG(debugStream,INFO,"Didn't get RINEX nav file for succeeding day " << navFile2);
-// 		obsFile2="";
-// 	}
-// 	else{
-// 		DBGMSG(debugStream,INFO,"Got RINEX nav file for succeeding day " << navFile2);
-// 	}
-	
-	// Fiddle with leap seconds
-	if (obs1.leapSecsValid()){
-		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
-	}
-	else{
-		obs1.leapsecs = 18; 
-		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
-	}
-	
-	int leapsecs1 = obs1.leapsecs;
-	
-	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
-	
-	
-	for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
-		
-		CGGTTS cggtts;
-		cggtts.antenna = antenna;
-		cggtts.receiver = receiver;
-		cggtts.ref = CGGTTSref;
-		cggtts.lab = CGGTTSlab;
-		cggtts.comment = CGGTTScomment;
-		cggtts.revDateYYYY = CGGTTSRevDateYYYY;
-		cggtts.revDateMM = CGGTTSRevDateMM;
-		cggtts.revDateDD = CGGTTSRevDateDD;
-		//cggtts.cabDly=antCableDelay;
-		cggtts.intDly = CGGTTSoutputs.at(i).internalDelay; // FIXME maybe output could be supplied and other fields in CGGTTS simply duplicated ...
-		cggtts.intDly2 = CGGTTSoutputs.at(i).internalDelay2;
-		cggtts.delayKind = CGGTTSoutputs.at(i).delayKind;
-		//cggtts.refDly=refCableDelay;
-		cggtts.minElevation = CGGTTSminElevation;
-		cggtts.maxDSG = CGGTTSmaxDSG;
-		cggtts.maxURA = CGGTTSmaxURA;
-		cggtts.minTrackLength = CGGTTSminTrackLength;
-		cggtts.ver = CGGTTSversion;
-		cggtts.constellation = CGGTTSoutputs.at(i).constellation;
-		cggtts.code = CGGTTSoutputs.at(i).code;
-		cggtts.calID = CGGTTSoutputs.at(i).calID;
-		cggtts.isP3 = CGGTTSoutputs.at(i).isP3;
-		cggtts.reportMSIO = cggtts.isP3; // FIXME not the whole story
-		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
-		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
-		
-		switch (cggtts.constellation)
-		{
-			case GNSSSystem::BEIDOU:
-				break;
-			case GNSSSystem::GALILEO:
-				break;
-			case GNSSSystem::GLONASS:
-				break;
-			case GNSSSystem::GPS:
-				cggtts.write(&(obs1.gps),&(nav1.gps),leapsecs1,CGGTTSfile,mjd,0,86400);
-				break;
-			default:
-				break;
-		}
-		
-	}
-
 	timer.stop();
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
 }
@@ -382,6 +277,8 @@ void Application::logMessage(std::string msg)
 
 void Application::init()
 {
+	r2cggttsMode = false;
+	
 	antenna = new Antenna();
 	receiver = new Receiver();
 	
@@ -601,52 +498,62 @@ bool Application::loadConfig()
 					continue;
 				}
 			}
+			std::string rnxcode1(""),rnxcode2(""),frc;
 			if (setConfig(last,configs.at(i).c_str(),"code",stmp,&configOK)){
 				boost::to_upper(stmp);
-				
-				if (0== (code = CGGTTS::strToCode(stmp,&isP3))){
-					std::cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << std::endl;
+				if (std::string::npos != stmp.find("+")){
+					
+				}
+				else if (std::string::npos != stmp.find(",")){
+					
+				}
+				else{
+					boost::trim(stmp);
+					std::cerr << stmp << std::endl;
+					rnxcode1 = stmp;
+				}
+				if (CodesToFRC(constellation,rnxcode1,rnxcode2,frc,&isP3)){
+					// all good
+				}
+				else{
+					std::cerr << "unknown code  " << stmp << " in [" << configs.at(i) << "]" << std::endl;
 					configOK=false;
 					continue;
 				}
+				
+				//if (0== (code = strToCode(stmp,constellation,&isP3))){
+				//	std::cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << std::endl;
+				//	configOK=false;
+				//	continue;
+				//}
 			}
 			setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,&configOK,false);
 			double intdly=0.0,intdly2=0.0;
 			int delayKind = CGGTTS::INTDLY; 
 			
-			switch (CGGTTSversion){
-				case CGGTTS::V1:
-					if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK)){
+			
+			if (isP3)
+				setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
+			if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK,false)){
+				if (!setConfig(last,configs.at(i).c_str(),"system delay",&intdly,&configOK,false)){
+					DBGMSG(debugStream,INFO,"Got there");
+					if (setConfig(last,configs.at(i).c_str(),"total delay",&intdly,&configOK)){
+						delayKind=CGGTTS::TOTDLY;
+					}
+					else{
 						continue;
 					}
-					setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
-					break;
-				case CGGTTS::V2E:
-					if (isP3)
-						setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
-					if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK,false)){
-						if (!setConfig(last,configs.at(i).c_str(),"system delay",&intdly,&configOK,false)){
-							DBGMSG(debugStream,INFO,"Got there");
-							if (setConfig(last,configs.at(i).c_str(),"total delay",&intdly,&configOK)){
-								delayKind=CGGTTS::TOTDLY;
-							}
-							else{
-								continue;
-							}
-						}
-						else{
-							delayKind=CGGTTS::SYSDLY;
-						}
-					}							
-					break;
-			}
-			
-			
+				}
+				else{
+					delayKind=CGGTTS::SYSDLY;
+				}
+			}							
+		
 			if (setConfig(last,configs.at(i).c_str(),"path",stmp,&configOK)){ // got everything
 				// FIXME check compatibility of constellation+code
 				stmp=relativeToAbsolutePath(stmp);
 				ephemerisPath = relativeToAbsolutePath(ephemerisPath);
-				CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,isP3,stmp,calID,intdly,intdly2,delayKind,
+				CGGTTSoutputs.push_back(CGGTTSOutput(constellation,rnxcode1,rnxcode2,isP3,frc,stmp,calID,intdly,intdly2,delayKind,
 					ephemerisPath,ephemerisFile));
 			}
 			
@@ -786,7 +693,138 @@ bool Application::setConfig(ListEntry *last,const char *section,const char *toke
 }
 
 
+void Application::runNativeMode()
+{
+	// Check that the required files are present
+	// Minimum requirement is the RINEX observation and navigation files for the processed MJD
+	// Files for the next day are used if available
+	std::vector<std::string> obsFileExtensions;
+	obsFileExtensions.push_back("O");
+	obsFileExtensions.push_back("O.gz");
+	obsFileExtensions.push_back("O.Z");
+	obsFileExtensions.push_back("o");
+	obsFileExtensions.push_back("o.gz");
+	obsFileExtensions.push_back("o.Z");
+	obsFileExtensions.push_back("rnx");
+	obsFileExtensions.push_back("rnx.gz");
+	obsFileExtensions.push_back("rnx.Z");
+	std::string obsFile1 = FindRINEXObsFile(mjd,mjd,obsFileExtensions);
+	if (obsFile1.empty()){
+		std::cerr << "Error! Unable to find a RINEX observation file" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
+	
+	RINEXObsFile obs1;
+	obs1.read(obsFile1,0,86400);
+	
+	std::string obsFile2 = FindRINEXObsFile(mjd,mjd+1,obsFileExtensions);
+	if (obsFile2.empty()){
+		DBGMSG(debugStream,INFO,"Didn't get RINEX obs file for succeeding day " << obsFile2);
+	}
+	else{
+		DBGMSG(debugStream,INFO,"Got RINEX obs file for succeeding day " << obsFile2);
+	}
+	
+	//exit(0);
+	std::vector<std::string> navFileExtensions;
+	navFileExtensions.push_back("N");
+	navFileExtensions.push_back("N.gz");
+	navFileExtensions.push_back("N.Z");
+	navFileExtensions.push_back("n");
+	navFileExtensions.push_back("n.gz");
+	navFileExtensions.push_back("n.Z");
+	navFileExtensions.push_back("rnx");
+	navFileExtensions.push_back("rnx.gz");
+	navFileExtensions.push_back("rnx.Z");
+	
+	std::string navFile1 = FindRINEXNavFile(mjd,mjd,navFileExtensions);
+	if (navFile1.empty()){
+		std::cerr << "Error! Unable to find a RINEX navigation file" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	DBGMSG(debugStream,INFO,"Got RINEX nav file " << navFile1);
+	RINEXNavFile nav1;
+	nav1.read(navFile1);
+	
+// 	
+// 	std::string navFile2 = FindRINEXNavFile(mjd,mjd+1,navFileExtensions);
+// 	if (navFile2.empty()){
+// 		DBGMSG(debugStream,INFO,"Didn't get RINEX nav file for succeeding day " << navFile2);
+// 		obsFile2="";
+// 	}
+// 	else{
+// 		DBGMSG(debugStream,INFO,"Got RINEX nav file for succeeding day " << navFile2);
+// 	}
+	
+	// Fiddle with leap seconds
+	if (obs1.leapSecsValid()){
+		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
+	}
+	else{
+		obs1.leapsecs = 18; 
+		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
+	}
+	
+	int leapsecs1 = obs1.leapsecs;
+	
+	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
+	
+	CGGTTS cggtts;
+	cggtts.antenna = antenna;
+	cggtts.receiver = receiver;
+	cggtts.ref = CGGTTSref;
+	cggtts.lab = CGGTTSlab;
+	cggtts.comment = CGGTTScomment;
+	cggtts.revDateYYYY = CGGTTSRevDateYYYY;
+	cggtts.revDateMM = CGGTTSRevDateMM;
+	cggtts.revDateDD = CGGTTSRevDateDD;
+	cggtts.minElevation = CGGTTSminElevation;
+	cggtts.maxDSG = CGGTTSmaxDSG;
+	cggtts.maxURA = CGGTTSmaxURA;
+	cggtts.minTrackLength = CGGTTSminTrackLength;
+	cggtts.ver = CGGTTSversion;
+	//cggtts.cabDly=antCableDelay;
+		//cggtts.refDly=refCableDelay;
+	
+	for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
+	
+		cggtts.intDly = CGGTTSoutputs.at(i).internalDelay; // FIXME maybe output could be supplied and other fields in CGGTTS simply duplicated ...
+		cggtts.intDly2 = CGGTTSoutputs.at(i).internalDelay2;
+		cggtts.delayKind = CGGTTSoutputs.at(i).delayKind;
+		cggtts.constellation = CGGTTSoutputs.at(i).constellation;
+		cggtts.rnxcode1 = CGGTTSoutputs.at(i).rnxcode1;
+		cggtts.rnxcode2 = CGGTTSoutputs.at(i).rnxcode2;
+		cggtts.calID = CGGTTSoutputs.at(i).calID;
+		cggtts.isP3 = CGGTTSoutputs.at(i).isP3;
+		cggtts.FRC = CGGTTSoutputs.at(i).FRC;
+		cggtts.reportMSIO = cggtts.isP3; // FIXME not the whole story
+		
+		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
+		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
+		
+		switch (cggtts.constellation)
+		{
+			case GNSSSystem::BEIDOU:
+				break;
+			case GNSSSystem::GALILEO:
+				break;
+			case GNSSSystem::GLONASS:
+				break;
+			case GNSSSystem::GPS:
+				cggtts.write(&(obs1.gps),&(nav1.gps),leapsecs1,CGGTTSfile,mjd,0,86400);
+				break;
+			default:
+				break;
+		}
+	}
 
+}
+
+void Application::runR2CGGTTSMode()
+{
+}
+		
 
 std::string Application::FindRINEXObsFile(int nomMJD,int reqMJD,std::vector<std::string> &ext)
 {
@@ -824,7 +862,6 @@ std::string Application::FindRINEXObsFile(int nomMJD,int reqMJD,std::vector<std:
 	}
 
 	if (stationName.length() == 9){ // Try a V3 style name
-		int yy = year - (year/100)*100;
 		char v3base[65];
 		for (unsigned int i=0;i<ext.size();i++){
 			std::snprintf(v3base,64,"%s_R_%04d%03d0000_01D_30S_MO.%s",stationName.c_str(),year,yday,ext.at(i).c_str());
@@ -907,5 +944,37 @@ std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 	}
 	return ss.str();
 }
+
+
+// RINEX observation codes in, CGGTTS FRC out
+bool Application::CodesToFRC(int constellation,std::string &c1,std::string &c2,std::string &frc,bool *isP3)
+{
+	if (c2.empty()){ // single frequency code
+		if (c1 == "C1C"){ // for all constellations
+			frc = "L1C";
+			return true;
+		}
+		switch (constellation){
+			case GNSSSystem::GPS:
+				if (c1=="C1P" or c1=="C1W"){
+					frc = "L1P";
+					return true;
+				}
+				else if (c1 == "C2P" or c2=="C2W"){
+					frc = "L2P"; // FIXME not actually defined in CGGTTS spec
+					return true;
+				}
+				break;
+			default:
+				break;
+		}
+		return false;
+	}
+	
+	// otherwise, it's a dual frequency combination
+	
+	return false;
+}
+
 
 

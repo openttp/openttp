@@ -43,9 +43,8 @@ class CGGTTS
 		
 		CGGTTS();
 	
-		bool write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime);
-		
-		static unsigned int strToCode(std::string,bool *);
+		bool write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime);
+
 		
 		Antenna *antenna;
 		Receiver *receiver;
@@ -53,12 +52,15 @@ class CGGTTS
 		std::string ref;
 		std::string lab;
 		std::string comment;
-		std::string calID; // for V2E only
+		std::string calID; 
 		
 		int ver;
-		int constellation; 		// V2E
-		unsigned int code;    // V2E
-		int delayKind;        // V2E
+		int constellation; 	
+		std::string rnxcode1;
+		std::string rnxcode2;
+		std::string rnxcode3;
+		std::string FRC;
+		int delayKind; 
 		bool reportMSIO;
 		bool isP3;
 		

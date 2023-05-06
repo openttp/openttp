@@ -63,6 +63,8 @@ class Application
 		
 		int mjd;
 		
+		bool r2cggttsMode; // r2cggtts compatibility mode - set on the command line
+		
 		std::string homeDir;
 		std::string rootDir;
 		std::string configurationFile;
@@ -102,10 +104,17 @@ class Application
 		bool setConfig(ListEntry *,const char *,const char *,double *,bool *ok,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,int *,bool *ok, bool required=true);
 	
+		void runNativeMode();
+		void runR2CGGTTSMode();
+		
 		std::string FindRINEXObsFile(int,int,std::vector<std::string> &);
 		std::string FindRINEXNavFile(int,int,std::vector<std::string> &);
 		
 		std::string makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD);
+		
+		bool CodesToFRC(int constellation,std::string &c1,std::string &c2,std::string &frc,bool *isP3);
+
+		
 };
 #endif
 

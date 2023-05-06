@@ -70,36 +70,12 @@ class GNSSSystem
 	public:
 		
 		enum Constellation {GPS=0x01,GLONASS=0x02,BEIDOU=0x04,GALILEO=0x08};
-		enum Code { // use RINEX V3 designations for the observation names
-				C1C=0x01, // Galileo E1C, GLONASS, GPS
-				C1P=0x02, // GLONASS,GPS
-				C1B=0x04, // Galileo E1B
-				C2C=0x08, // GLONASS,GPS
-				C2P=0x10, // GLONASS,GPS   
-				C2L=0x20, // GPS
-				C2M=0x40, // GPS
-				C2I=0x80, // BeiDou
-				C7I=0x0100, // Galileo E5bI,BeiDou
-				C7Q=0x0200, // Galileo E5bQ
-				L1C=0x10000, // Boundary for carrier phase obervation
-				L1B=0x20000,
-				L1P=0x40000,
-				L2P=0x80000,
-				L2C=0x100000,
-				L2L=0x200000, 
-				L2I=0x400000,
-				L7I=0x800000,
-				L7Q=0x1000000,
-				NONE=0x2000000
-		}; 
 		
 		GNSSSystem();
 		~GNSSSystem();
 		
-		int codes; // observation codes
-		static unsigned int strToObservationCode(std::string, int RINEXversion);
-		
 		virtual int maxSVN(){return -1;}
+		virtual int strToCode(std::string){return 0;}
 		
 		std::vector<Ephemeris *> ephemeris;
 		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
@@ -107,7 +83,7 @@ class GNSSSystem
 		
 		virtual Ephemeris *nearestEphemeris(int,double,double);
 		
-		virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int signal,
+		virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,std::string obsCode,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 			double *azimuth,double *elevation, int *ioe);
 		

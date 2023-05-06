@@ -38,49 +38,6 @@ GNSSSystem::~GNSSSystem()
 {
 }
 		
-
-unsigned int GNSSSystem::strToObservationCode(std::string s, int RINEXversion)
-{
-	unsigned int c=0;
-	switch (RINEXversion)
-	{
-		case RINEXFile::V2:
-			{
-				if (s=="C1"){c=C1C;}
-				else if (s=="P1"){c=C1P;}
-				else if (s=="P2"){c=C2P;}
-				else if (s=="C2"){c=C2L;}
-				//else if (s=="L1"){c=L1C;} // FIXME ambiguity
-				else if (s=="L1"){c=L1P;}   // this is the more common case 
-				else if (s=="L2"){c=L2P;}   // ditto (Javad is L2P, ublox L2 is L2L) 
-			}
-			break;
-		case RINEXFile::V3:
-			{
-				if (s=="C1C"){c=C1C;}
-				else if (s=="C1P"){c=C1P;}
-				else if (s=="C2P"){c=C2P;}
-				else if (s=="C2L"){c=C2L;}
-				else if (s=="C1B"){c=C1B;}
-				else if (s=="C2C"){c=C2C;}
-				else if (s=="C2M"){c=C2M;}
-				else if (s=="C2I"){c=C2I;}
-				else if (s=="C7I"){c=C7I;}
-				else if (s=="C7Q"){c=C7Q;}
-				else if (s=="L1C"){c=L1C;}
-				else if (s=="L1P"){c=L1P;}
-				else if (s=="L2P"){c=L2P;}
-				else if (s=="L2C"){c=L2C;}
-				else if (s=="L2L"){c=L2L;}
-				else if (s=="L2I"){c=L2I;}
-				else if (s=="L7I"){c=L7I;}
-			}
-			break;
-	}
-	
-	return c;
-}
-
 bool GNSSSystem::addEphemeris(Ephemeris *ed)
 {
 	// Check whether this is a duplicate by matching on IODE and t_0e
@@ -148,7 +105,7 @@ Ephemeris *GNSSSystem::nearestEphemeris(int,double,double)
 // It must be reimplemented for each GNSS
 //
 
-bool GNSSSystem::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int signal,
+bool GNSSSystem::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,std::string obsCode,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 			double *azimuth,double *elevation, int *ioe)
 {

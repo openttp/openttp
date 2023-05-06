@@ -41,6 +41,7 @@ extern Application *app;
 extern std::ostream *debugStream;
 
 #define SBUFSIZE 160
+#define MAXDAYS  2    // maximum number of days of data allowed in a file
 
 //
 // Public methods
@@ -161,7 +162,7 @@ bool RINEXObsFile::readV3File(std::string fname)
 				std::vector<int >   cols;
 				for (int i=0;i<nObs;i++){
 					std::string code = obsCodes.substr(i*4,3);
-					// We only care about code observations
+					// We only care about code observations - ignore everything else
 					if (code[0] == 'C'){
 						DBGMSG(debugStream,INFO,code);
 						meas->codes.push_back(code);
@@ -169,7 +170,7 @@ bool RINEXObsFile::readV3File(std::string fname)
 					}
 				}
 				// Now we can allocate memory for the observation data
-				meas->allocateStorage(1440*2*2);// memory is cheap - allow 2 days of data
+				meas->allocateStorage(1440*2*MAXDAYS);// memory is cheap - allow 2 days of data
 				meas->nCodeObs = meas->codes.size();
 				DBGMSG(debugStream,INFO,"read SYS/OBS TYP: " << satSysCode);
 				DBGMSG(debugStream,INFO,obsCodes << "<-" );

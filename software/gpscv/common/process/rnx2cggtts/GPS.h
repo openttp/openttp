@@ -115,17 +115,14 @@ class GPS: public GNSSSystem
 			UINT16 WN_t,WN_LSF,DN;
 			SINT16 dt_LSF;
 	};
-
-	
 	
 	GPS();
 	~GPS();
 	
-	virtual double codeToFreq(int);
 	virtual int maxSVN(){return NSATS;}
 
 	virtual Ephemeris *nearestEphemeris(int,double,double);
-	virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int signal,
+	virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,std::string obsCode,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 			double *azimuth,double *elevation, int *ioe);
 	

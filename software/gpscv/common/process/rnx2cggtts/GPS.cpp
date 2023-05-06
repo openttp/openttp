@@ -88,7 +88,6 @@ GPS::GPS():GNSSSystem()
 {
 	n="GPS";
 	olc="G";
-	codes = GNSSSystem::C1C;
 	gotUTCdata = gotIonoData = false; // sometimes these are not in the nav file
 }
 
@@ -134,7 +133,7 @@ Ephemeris* GPS::nearestEphemeris(int svn,double tow,double maxURA)
 	return ed;
 }
 
-bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int signal,
+bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,std::string obsCode,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
 			double *azimuth,double *elevation, int *ioe)
 {
@@ -146,16 +145,13 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 	
 	// ICD 20.3.3.3.3.2
 	double freqCorr=1.0; 
-	switch (signal){
-		case GNSSSystem::C1C: case GNSSSystem::C1P:
-			freqCorr=1.0;
-			break;
-		case GNSSSystem::C2P: case GNSSSystem::C2C:
-			freqCorr=77.0*77.0/(60.0*60.0);
-			break;
-		default:
-			break;
+	if (obsCode[1] == '1'){
+		freqCorr=1.0;
 	}
+	else if (obsCode[1] == '2'){
+		freqCorr=77.0*77.0/(60.0*60.0);
+	}
+	
 	
 	if (ed != NULL){
 		double x[3],Ek;
@@ -328,17 +324,6 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 } // ionnodelay
 
-double GPS::codeToFreq(int c)
-{
-	double f=1.0;
-	switch(c){
-		case GNSSSystem::C1C: case GNSSSystem::C1P:case GNSSSystem::L1C: case GNSSSystem::L1P:
-			f = GPS::fL1;break;
-		case GNSSSystem::C2C: case GNSSSystem::C2P:case GNSSSystem::C2M:case GNSSSystem::L2C:case GNSSSystem::L2P:case GNSSSystem::L2L:
-			f = GPS::fL2;break;
-	}
-	return f;
-}
 
 #undef CLIGHT
 

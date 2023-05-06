@@ -84,6 +84,7 @@ void Measurements::allocateStorage(int nMeasEpochs)
 }
 
 // Return column that the code is in
+// Code names are stored as given in the obersvation files
 int Measurements::colIndexFromCode(std::string c){
 	for (unsigned int i=0;i<codes.size();i++){
 		if (codes[i] == c){

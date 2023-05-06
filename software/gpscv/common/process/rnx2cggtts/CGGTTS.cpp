@@ -58,27 +58,7 @@ extern std::ostream *debugStream;
 
 #define CLIGHT 299792458.0
 
-static unsigned int str2ToCode(std::string s)
-{
-	int c=0;
-	if (s== "C1")
-		c=GNSSSystem::C1C;
-	else if (s == "P1")
-		c=GNSSSystem::C1P;
-	else if (s == "E1")
-		c=GNSSSystem::C1C; // FIXME what about C1B?
-	else if (s == "B1")
-		c=GNSSSystem::C2I;
-	else if (s == "C2") // C2L ?? C2M
-		c=GNSSSystem::C2C;
-	else if (s == "P2")
-		c=GNSSSystem::C2P;
-	//else if (c1 == "E5")
-	//	c=E5a;
-	else if (s== "B2")
-		c=GNSSSystem::C7I;
-	return c;
-}
+
 
 //
 //	public
@@ -91,7 +71,7 @@ CGGTTS::CGGTTS()
 	init();
 }
 	
-bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime)
+bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime)
 {
 	FILE *fout;
 	if (!(fout = std::fopen(fname.c_str(),"w"))){
@@ -133,59 +113,14 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 		default:break;
 	}
 	
-	
-	std::string FRCcode="";
-	unsigned int code1=code,code2=0;
-	int indxm1c1=-1;
-	
-	switch (code){ 
-		case GNSSSystem::C1C:
-			if (constellation == GNSSSystem::GALILEO){
-				FRCcode=" E1";
-				code1Str="E1";
-			}
-			else{
-				FRCcode="L1C";
-				code1Str="C1"; // identifies the delay
-			}
-			indxm1c1 = meas1->colIndexFromCode("C1C");
-			break;
-		case GNSSSystem::C1B:
-			FRCcode="E1";
-			code1Str="E1";
-			break;
-		case GNSSSystem::C1P:
-			FRCcode="L1P";
-			code1Str="P1";
-			break;
-		case GNSSSystem::C2P:
-			FRCcode="L2P";
-			code1Str="P2";
-			break;
-		case GNSSSystem::C2I:
-			FRCcode="B1i";
-			code1Str="B1";
-			break; // RINEX 3.02
-		// dual frequency combinations
-		case GNSSSystem::C1P | GNSSSystem::C2P:
-			code1 = GNSSSystem::C1P;
-			code2 = GNSSSystem::C2P;
-			code1Str = "P1";
-			code2Str = "P2";
-			FRCcode="L3P";break;
-		case GNSSSystem::C1C | GNSSSystem::C2P:
-			code1 = GNSSSystem::C1C;
-			code2 = GNSSSystem::C2P;
-			code1Str = "C1";
-			code2Str = "P2";
-			FRCcode="L3P";break;
-		case GNSSSystem::C1C | GNSSSystem::C2C:
-			code1 = GNSSSystem::C1C;
-			code2 = GNSSSystem::C2C;
-			code1Str = "C1";
-			code2Str = "C2";
-			FRCcode="L3P";break;
-		default:break;
+	// Set indices into measurement arrays of RINEX observation codes
+	int indxo1=-1,indxo2=-1,indxo3=-1;
+	indxo1=meas->colIndexFromCode(rnxcode1);
+	if (!rnxcode2.empty()){
+		indxo2 = meas->colIndexFromCode(rnxcode2);
+	}
+	if (!rnxcode3.empty()){
+		indxo3 = meas->colIndexFromCode(rnxcode3);
 	}
 	
 	writeHeader(fout);
@@ -222,8 +157,8 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 	unsigned int svObsCount[MAXSV+1];
 	
 	int leapOffset1 = leapsecs1/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
-	int indxMJD = meas1->colMJD();
-	int indxTOD = meas1->colTOD();
+	int indxMJD = meas->colMJD();
+	int indxTOD = meas->colTOD();
 	
 	//ntracks = 2; // FIXME
 	int prcount = 0; // count of pseudorange estimations 
@@ -245,18 +180,22 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 					svtrk[s][t][o] = NAN; 
 		}
 		
-		// CASE 1: single code + MDIO
+		
 		int iTrackStart = trackStart/OBSINTERVAL;
 		int iTrackStop  = trackStop/OBSINTERVAL;
-		for (int m=iTrackStart;m<=iTrackStop;m++){
-			int mGPS = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
-			for (int sv = 1; sv <= meas1->maxSVN;sv++){
-				if (!isnan(meas1->meas[mGPS][sv][indxm1c1])){ 
-					//DBGMSG(debugStream,INFO,sv << " " << meas1->meas[mGPS][sv][indxMJD] << " " << meas1->meas[mGPS][sv][indxTOD] << " " << meas1->meas[mGPS][sv][indxm1c1]);
-					svtrk[sv][svObsCount[sv]][INDX_OBSV1]= meas1->meas[mGPS][sv][indxm1c1];
-					svtrk[sv][svObsCount[sv]][INDX_TOD]= meas1->meas[mGPS][sv][indxTOD]; 
-					svtrk[sv][svObsCount[sv]][INDX_MJD] = meas1->meas[mGPS][sv][indxMJD];
-					svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
+		
+		// CASE 1: single code + MDIO
+		if (indxo1 >=0 and !reportMSIO){
+			for (int m=iTrackStart;m<=iTrackStop;m++){
+				int mGPS = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+				for (int sv = 1; sv <= meas->maxSVN;sv++){
+					if (!isnan(meas->meas[mGPS][sv][indxo1])){ 
+						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][indxo1]);
+						svtrk[sv][svObsCount[sv]][INDX_OBSV1]= meas->meas[mGPS][sv][indxo1];
+						svtrk[sv][svObsCount[sv]][INDX_TOD]= meas->meas[mGPS][sv][indxTOD]; 
+						svtrk[sv][svObsCount[sv]][INDX_MJD] = meas->meas[mGPS][sv][indxMJD];
+						svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
+					}
 				}
 			}
 		}
@@ -286,7 +225,7 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 				// Now window it
 				
 				if (ed==NULL) // use only one ephemeris for each track
-					ed = gnss1->nearestEphemeris(sv,tow,maxURA);
+					ed = gnss->nearestEphemeris(sv,tow,maxURA);
 				
 				if (NULL == ed){
 					ephemerisMisses++;
@@ -307,7 +246,7 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 				pr = svtrk[sv][tt][INDX_OBSV1]/CLIGHT; // convert to seconds
 				//DBGMSG(debugStream,INFO,tow << " " << pr << " " << antenna->x << " " << antenna->y  << " " << antenna->z << " " << ed->iod());
 				prcount++;
-				if (gnss1->getPseudorangeCorrections(tow,pr,antenna,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+				if (gnss->getPseudorangeCorrections(tow,pr,antenna,ed,rnxcode1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 					tutc[nfitpts]=(svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
 					svaz[nfitpts]=az;
 					svel[nfitpts]=el;
@@ -400,11 +339,11 @@ bool CGGTTS::write(Measurements *meas1,GNSSSystem *gnss1,int leapsecs1, std::str
 					if (isP3)
 						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %4i %4i %3i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
-									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRCcode.c_str());
+									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRC.c_str());
 					else 
 						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
-									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRCcode.c_str());
+									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRC.c_str());
 					std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
 						
 				} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)
@@ -462,43 +401,7 @@ void CGGTTS::init()
 	
 	reportMSIO = false; // MSIO can be reported for for C1C output
 	isP3 = false;
-}
-
-
-unsigned int CGGTTS::strToCode(std::string str, bool *isP3)
-{
-	// Convert CGGTTS code string (usually from the configuration file) to RINEX observation code(s)
-	// Dual frequency combinations are of the form 'code1+code2'
-	// Valid formats are 
-	// (1) CGGTTS 2 letter codes
-	// (2) RINEX  3 letter codes
-	// but not mixed!
-	// so valid string lengths are 2 and 5 (CGGTTS)  or 3 and 7 (RINEX)
-	unsigned int c=0;
-	if (str.length()==2){
-		c = str2ToCode(str);
-	}
-	else if (str.length()==5){ // dual frequency, specified using 2 letter codes
-		unsigned int c1=str2ToCode(str.substr(0,2));
-		unsigned int c2=str2ToCode(str.substr(3,2));
-		c = c1 | c2;
-		*isP3=true;
-	} 
-	else if (str.length()==3){ // single frequency, specified using 3 letter RINEX code
-		c=GNSSSystem::strToObservationCode(str,RINEXFile::V3);
-	}
-	else if (str.length()==7){ // dual frequency, specified using 3 letter RINEX codes
-		unsigned int c1=GNSSSystem::strToObservationCode(str.substr(0,3),RINEXFile::V3);
-		unsigned int c2=GNSSSystem::strToObservationCode(str.substr(4,3),RINEXFile::V3);
-		c = c1 | c2;
-		*isP3=true;
-	}
-	else{
-		c= 0;
-		*isP3=false;
-	}
-	
-	return c;
+	FRC="";
 }
 
 

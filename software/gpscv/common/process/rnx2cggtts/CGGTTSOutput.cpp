@@ -32,11 +32,11 @@ CGGTTSOutput::CGGTTSOutput()
 {
 }
 		
-CGGTTSOutput::CGGTTSOutput(int constellation,int code,bool isP3,std::string path,std::string calID,
+CGGTTSOutput::CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,bool isP3,std::string frc,std::string path,std::string calID,
 		double internalDelay,double internalDelay2,int delayKind,
 		std::string ephemerisPath,std::string ephemerisFile
 		):
-		constellation(constellation),code(code),isP3(isP3),path(path),
+		constellation(constellation),rnxcode1(rnxcode1),rnxcode2(rnxcode2),isP3(isP3),FRC(frc),path(path),
 		calID(calID),internalDelay(internalDelay),internalDelay2(internalDelay2),delayKind(delayKind),
 		ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile)
 {
