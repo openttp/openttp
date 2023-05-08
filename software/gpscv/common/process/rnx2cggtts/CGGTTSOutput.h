@@ -31,8 +31,9 @@ class CGGTTSOutput{
 	public:
 		
 		CGGTTSOutput();
-		CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,bool isP3,std::string frc,std::string path,std::string calID,
-			double internalDelay,double internalDelay2,int delayKind,
+		CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,std::string rnxcode3,
+			bool isP3,bool reportMSIO,std::string frc,std::string path,
+			double internalDelay,double internalDelay2,double internalDelay3,int delayKind,
 			std::string ephemerisPath,std::string ephemerisFile
 			);
 		
@@ -43,13 +44,11 @@ class CGGTTSOutput{
 		bool isP3;    
 		std::string FRC;
 		std::string path;
-		std::string calID;
-		double internalDelay,internalDelay2;
+		double internalDelay,internalDelay2,internalDelay3;
 		int delayKind;
 		std::string ephemerisPath;
 		std::string ephemerisFile;
-		std::string reportMSIO; // report MSIO in single frequency output, if MSIO can be calculated, ehich cna only be determined after the RINEX files are loaded
-		
+		bool reportMSIO; // report MSIO in single frequency output
 };
 
 #endif

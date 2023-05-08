@@ -311,6 +311,7 @@ void Application::init()
 	CGGTTSminTrackLength = cdef.minTrackLength;
 	CGGTTSreceiverID = ""; // two letter code
 	CGGTTSlabCode = "";    // two letter code
+	CGGTTScalID = "none";
 	CGGTTSRevDateMM = cdef.revDateMM;
 	CGGTTSRevDateDD = cdef.revDateDD;
 	CGGTTSRevDateYYYY = cdef.revDateYYYY;
@@ -498,7 +499,8 @@ bool Application::loadConfig()
 					continue;
 				}
 			}
-			std::string rnxcode1(""),rnxcode2(""),frc;
+			std::string rnxcode1(""),rnxcode2(""),rnxcode3(""),frc;
+			bool reportMSIO=false;
 			if (setConfig(last,configs.at(i).c_str(),"code",stmp,&configOK)){
 				boost::to_upper(stmp);
 				if (std::string::npos != stmp.find("+")){
@@ -509,7 +511,6 @@ bool Application::loadConfig()
 				}
 				else{
 					boost::trim(stmp);
-					std::cerr << stmp << std::endl;
 					rnxcode1 = stmp;
 				}
 				if (CodesToFRC(constellation,rnxcode1,rnxcode2,frc,&isP3)){
@@ -520,15 +521,39 @@ bool Application::loadConfig()
 					configOK=false;
 					continue;
 				}
-				
-				//if (0== (code = strToCode(stmp,constellation,&isP3))){
-				//	std::cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << std::endl;
-				//	configOK=false;
-				//	continue;
-				//}
 			}
-			setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,&configOK,false);
-			double intdly=0.0,intdly2=0.0;
+			
+			// This is for single frequency outputs, where dual frequency ionosphere corrections are available
+			if (!isP3){
+				if (setConfig(last,configs.at(i).c_str(),"report msio",stmp,&configOK,false)){
+					boost::to_upper(stmp);
+					if (stmp=="YES" or stmp=="TRUE"){
+						reportMSIO = true;
+						// the code pair to compute this is needed
+						if (setConfig(last,configs.at(i).c_str(),"msio codes",stmp,&configOK,true)){
+							if (splitDualCode(stmp,rnxcode2,rnxcode3)){
+								// Our convention will be that rnxcode2 is higher frequency than rnxcode3
+								if (rnxcode2[1] == '2'){
+									std::string tmp = rnxcode2;
+									rnxcode2 = rnxcode3;
+									rnxcode3 = tmp;
+									DBGMSG(debugStream,INFO,"Swapped msio codes " << rnxcode2 << " " << rnxcode3)
+								}
+								// Now read the delays
+								
+							}
+							else{
+								std::cerr << "bad msio code  " << stmp << " in [" << configs.at(i) << "]" << std::endl;
+								configOK=false;
+								continue;
+							}
+						}
+					}
+				}
+			}
+			
+			
+			double intdly=0.0,intdly2=0.0,intdly3=0.0;
 			int delayKind = CGGTTS::INTDLY; 
 			
 			
@@ -553,7 +578,7 @@ bool Application::loadConfig()
 				// FIXME check compatibility of constellation+code
 				stmp=relativeToAbsolutePath(stmp);
 				ephemerisPath = relativeToAbsolutePath(ephemerisPath);
-				CGGTTSoutputs.push_back(CGGTTSOutput(constellation,rnxcode1,rnxcode2,isP3,frc,stmp,calID,intdly,intdly2,delayKind,
+				CGGTTSoutputs.push_back(CGGTTSOutput(constellation,rnxcode1,rnxcode2,rnxcode3,isP3,reportMSIO,frc,stmp,intdly,intdly2,intdly3,delayKind,
 					ephemerisPath,ephemerisFile));
 			}
 			
@@ -599,14 +624,16 @@ bool Application::loadConfig()
 			}
 		}
 		else{
-			std::cerr << "Syntax error in [CGGTTS] revision date - " << stmp << " should be YYYY-MM-DD " << std::endl;
+			std::cerr << "Syntax error in cggtts::revision date - " << stmp << " should be YYYY-MM-DD " << std::endl;
 			configOK=false;
 		}
 	}
 	
+	setConfig(last,"cggtts","bipm cal id",CGGTTScalID,&configOK,false);
+	
 	DBGMSG(debugStream,TRACE,"parsed CGGTTS config ");
 	
-	return true;
+	return configOK;
 }
 
 
@@ -783,6 +810,7 @@ void Application::runNativeMode()
 	cggtts.maxDSG = CGGTTSmaxDSG;
 	cggtts.maxURA = CGGTTSmaxURA;
 	cggtts.minTrackLength = CGGTTSminTrackLength;
+	cggtts.calID = CGGTTScalID;
 	cggtts.ver = CGGTTSversion;
 	//cggtts.cabDly=antCableDelay;
 		//cggtts.refDly=refCableDelay;
@@ -795,10 +823,9 @@ void Application::runNativeMode()
 		cggtts.constellation = CGGTTSoutputs.at(i).constellation;
 		cggtts.rnxcode1 = CGGTTSoutputs.at(i).rnxcode1;
 		cggtts.rnxcode2 = CGGTTSoutputs.at(i).rnxcode2;
-		cggtts.calID = CGGTTSoutputs.at(i).calID;
 		cggtts.isP3 = CGGTTSoutputs.at(i).isP3;
 		cggtts.FRC = CGGTTSoutputs.at(i).FRC;
-		cggtts.reportMSIO = cggtts.isP3; // FIXME not the whole story
+		cggtts.reportMSIO = CGGTTSoutputs.at(i).reportMSIO;
 		
 		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
 		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
@@ -945,11 +972,27 @@ std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 	return ss.str();
 }
 
+bool Application::splitDualCode(std::string &codeStr,std::string &c1,std::string &c2){
+	
+	std::vector<std::string> codes;
+	boost::split(codes,codeStr,boost::is_any_of(",+"), boost::token_compress_on);
+	
+	if (codes.size() == 2){
+		c1 = codes[0];
+		boost::trim(c1);
+		c2 = codes[1];
+		boost::trim(c2);
+		
+		return (c1[1] != c2[1]);
+	}
+	return false;
+}
 
 // RINEX observation codes in, CGGTTS FRC out
 bool Application::CodesToFRC(int constellation,std::string &c1,std::string &c2,std::string &frc,bool *isP3)
 {
 	if (c2.empty()){ // single frequency code
+		*isP3 = false;
 		if (c1 == "C1C"){ // for all constellations
 			frc = "L1C";
 			return true;
@@ -972,7 +1015,22 @@ bool Application::CodesToFRC(int constellation,std::string &c1,std::string &c2,s
 	}
 	
 	// otherwise, it's a dual frequency combination
-	
+	// Just do a basic check. Experts still make typos. 
+	std::string c1of,c2of; // C1,C2 observation+frequency
+	switch (constellation){
+		case GNSSSystem::GPS: // true for GLONASS too
+				c1of = c1.substr(0,2);
+				c2of = c2.substr(0,2);
+				if (( c1of == "C1" and c2of == "C2") or 
+					(c1of == "C2" and c2of == "C1")){
+					frc="L3P";
+					*isP3 = true;
+					return true;
+				}
+				break;
+			default:
+				break;
+	}
 	return false;
 }
 

@@ -32,13 +32,13 @@ CGGTTSOutput::CGGTTSOutput()
 {
 }
 		
-CGGTTSOutput::CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,bool isP3,std::string frc,std::string path,std::string calID,
-		double internalDelay,double internalDelay2,int delayKind,
+CGGTTSOutput::CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,std::string rnxcode3,bool isP3,bool reportMSIO,std::string frc,std::string path,
+		double internalDelay,double internalDelay2,double internalDelay3,int delayKind,
 		std::string ephemerisPath,std::string ephemerisFile
 		):
-		constellation(constellation),rnxcode1(rnxcode1),rnxcode2(rnxcode2),isP3(isP3),FRC(frc),path(path),
-		calID(calID),internalDelay(internalDelay),internalDelay2(internalDelay2),delayKind(delayKind),
-		ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile)
+		constellation(constellation),rnxcode1(rnxcode1),rnxcode2(rnxcode2),rnxcode3(rnxcode3),isP3(isP3),FRC(frc),path(path),
+		internalDelay(internalDelay),internalDelay2(internalDelay2),internalDelay3(internalDelay3),delayKind(delayKind),
+		ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile),reportMSIO(reportMSIO)
 {
 }
 		

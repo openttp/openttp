@@ -114,13 +114,13 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 	}
 	
 	// Set indices into measurement arrays of RINEX observation codes
-	int indxo1=-1,indxo2=-1,indxo3=-1;
-	indxo1=meas->colIndexFromCode(rnxcode1);
+	int obs1indx=-1,obs2indx=-1,obs3indx=-1;
+	obs1indx=meas->colIndexFromCode(rnxcode1);
 	if (!rnxcode2.empty()){
-		indxo2 = meas->colIndexFromCode(rnxcode2);
+		obs2indx = meas->colIndexFromCode(rnxcode2);
 	}
 	if (!rnxcode3.empty()){
-		indxo3 = meas->colIndexFromCode(rnxcode3);
+		obs3indx = meas->colIndexFromCode(rnxcode3);
 	}
 	
 	writeHeader(fout);
@@ -184,16 +184,20 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 		int iTrackStart = trackStart/OBSINTERVAL;
 		int iTrackStop  = trackStop/OBSINTERVAL;
 		
-		// CASE 1: single code + MDIO
-		if (indxo1 >=0 and !reportMSIO){
+		// CASE 1: single code 
+		if (obs1indx >=0 and !isP3){
 			for (int m=iTrackStart;m<=iTrackStop;m++){
 				int mGPS = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
-					if (!isnan(meas->meas[mGPS][sv][indxo1])){ 
-						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][indxo1]);
-						svtrk[sv][svObsCount[sv]][INDX_OBSV1]= meas->meas[mGPS][sv][indxo1];
+					if (!isnan(meas->meas[mGPS][sv][obs1indx])){ 
+						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][obs1indx]);
+						svtrk[sv][svObsCount[sv]][INDX_OBSV1]= meas->meas[mGPS][sv][obs1indx];
 						svtrk[sv][svObsCount[sv]][INDX_TOD]= meas->meas[mGPS][sv][indxTOD]; 
 						svtrk[sv][svObsCount[sv]][INDX_MJD] = meas->meas[mGPS][sv][indxMJD];
+						
+						if (reportMSIO){ // we'll report it if we can
+							//if (!isnan(meas->meas[mGPS][sv][obs1indx])
+						}
 						svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
 					}
 				}

@@ -82,6 +82,7 @@ class Application
 		std::string CGGTTSlab;
 		std::string CGGTTSreceiverID; // two letter code
 		std::string CGGTTSlabCode;    // two letter code
+		std::string CGGTTScalID;
 		
 		int CGGTTSversion;
 		int CGGTTSRevDateYYYY,CGGTTSRevDateMM,CGGTTSRevDateDD;
@@ -112,6 +113,7 @@ class Application
 		
 		std::string makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD);
 		
+		bool splitDualCode(std::string &codeStr,std::string &c1,std::string &c2);
 		bool CodesToFRC(int constellation,std::string &c1,std::string &c2,std::string &frc,bool *isP3);
 
 		

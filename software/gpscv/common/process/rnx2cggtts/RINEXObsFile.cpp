@@ -173,7 +173,7 @@ bool RINEXObsFile::readV3File(std::string fname)
 				meas->allocateStorage(1440*2*MAXDAYS);// memory is cheap - allow 2 days of data
 				meas->nCodeObs = meas->codes.size();
 				DBGMSG(debugStream,INFO,"read SYS/OBS TYP: " << satSysCode);
-				DBGMSG(debugStream,INFO,obsCodes << "<-" );
+				DBGMSG(debugStream,INFO,obsCodes );
 			}
 		}
 		

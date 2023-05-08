@@ -41,6 +41,7 @@ GNSSSystem::~GNSSSystem()
 bool GNSSSystem::addEphemeris(Ephemeris *ed)
 {
 	// Check whether this is a duplicate by matching on IODE and t_0e
+	// FIXME this check is from mktimetx - the receiver may supply duplicate ephemerides but a final navigation file is likely cleaner
 	int issue;
 	for (issue=0;issue < (int) sortedEphemeris[ed->svn()].size();issue++){
 		if (sortedEphemeris[ed->svn()][issue]->t0e() == ed->t0e()){

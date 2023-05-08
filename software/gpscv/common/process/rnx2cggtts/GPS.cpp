@@ -182,7 +182,7 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 		double range,svdist,svrange,ax,ay,az;
 		if (satXYZ(ed,tk,&Ek,x)){
 			double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
-			range = pRange + clockCorrection + relativisticCorrection - freqCorr*ed->t_GD;
+			range = pRange + clockCorrection + relativisticCorrection - freqCorr*ed->t_GD; // Eq2 form CGTTS spec, without ionosphere and troposphere
 			// Sagnac correction (ICD 20.3.3.4.3.4)
 			ax = ant->x - OMEGA_E_DOT * ant->y * range;
 			ay = ant->y + OMEGA_E_DOT * ant->x * range;
@@ -322,7 +322,7 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 
 	return(Tiono*1e9);
 
-} // ionnodelay
+} 
 
 
 #undef CLIGHT
