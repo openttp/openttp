@@ -88,9 +88,14 @@ void Measurements::allocateStorage(int nMeasEpochs)
 int Measurements::colIndexFromCode(std::string c){
 	for (unsigned int i=0;i<codes.size();i++){
 		if (codes[i] == c){
-			return cols[i];
+			return i;
 		}
 	}
 	return -1; // FIXME probably should sanity check RINEX file before we get this far
 }
+
+//
+// Private methods
+//
+
 

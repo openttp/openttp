@@ -65,6 +65,10 @@ class RINEXObsFile:public RINEXFile
 		
 		int yrOffset;
 		
+		int code2RNXcol(std::string c);
+		std::vector<std::string> rnxCodes; 
+		std::vector<int> rnxCols; // index into data columns that we want to extract from the RINEX file
+		
 };
 
 #endif

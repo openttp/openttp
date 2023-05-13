@@ -35,7 +35,7 @@ namespace Utility{
 	void MJDToGPSTime(int mjd,double tods,int *fullWN,double *TOW);
 	
 	bool linearFit(double x[], double y[],int n,double xinterp,double *yinterp,double *c,double *m,double *rmsResidual);
-	
+	void ECEFtoLatLonH(double X, double Y, double Z, double *lat, double *lon, double *ht);
 }
 #endif
 

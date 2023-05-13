@@ -158,15 +158,16 @@ bool RINEXObsFile::readV3File(std::string fname)
 					obsCodes += line.substr(7,52);
 				}
 				boost::trim(obsCodes);
-				std::vector<std::string> codes;
-				std::vector<int >   cols;
+
 				for (int i=0;i<nObs;i++){
 					std::string code = obsCodes.substr(i*4,3);
+					
 					// We only care about code observations - ignore everything else
 					if (code[0] == 'C'){
 						DBGMSG(debugStream,INFO,code);
 						meas->codes.push_back(code);
-						meas->cols.push_back(i);
+						rnxCodes.push_back(code);
+						rnxCols.push_back(i);
 					}
 				}
 				// Now we can allocate memory for the observation data
@@ -256,20 +257,19 @@ bool RINEXObsFile::readV3File(std::string fname)
 
 int RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
 {
-	int nFields = m.nAllObs;
 	int nMeas = 0;
 	// A field can be empty or have a value of 0.0 to indicate 'no measurement'
 	// Format is A1,I2.2,m(14.3.I1,I1)
 	double dbuf;
 	
-	for (unsigned int i=0;i<m.cols.size();i++)
+	for (unsigned int i=0;i<rnxCols.size();i++)
 		m.meas[itod][svn][i] = NAN;
 
-	for (unsigned int i=0;i<m.cols.size();i++){
-		unsigned int stop = 3 + m.cols[i]*(16+1);
+	for (unsigned int i=0;i<rnxCols.size();i++){
+		unsigned int stop = 3 + rnxCols[i]*(16+1);
 		if (stop > l.length()) // empty fields at the end
 			break;
-		if (readParam(l,1+3+m.cols[i]*16,14,&dbuf)){
+		if (readParam(l,1+3+rnxCols[i]*16,14,&dbuf)){
 			m.meas[itod][svn][i]=dbuf;
 			nMeas += 1;
 		}
@@ -277,4 +277,14 @@ int RINEXObsFile::readV3Obs(Measurements &m, int itod,int svn,std::string l)
 	return nMeas;
 }
 
+
+//  This is just used during parsing of the RINEX file
+int RINEXObsFile::code2RNXcol(std::string c){
+	for (unsigned int i=0;i<rnxCodes.size();i++){
+		if (rnxCodes[i] == c){
+			return rnxCols[i];
+		}
+	}
+	return -1; // FIXME probably should sanity check RINEX file before we get this far
+}
 		

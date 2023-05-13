@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <boost/lexical_cast.hpp>
 
@@ -52,9 +53,8 @@ extern std::ostream *debugStream;
 // indices into svtrk
 #define INDX_OBSV1    0  
 #define INDX_OBSV2    1
-#define INDX_OBSV3    2
-#define INDX_TOD      3 // decimal INDX_TOD, need this in case timestamps are not on the second
-#define INDX_MJD      4
+#define INDX_TOD      2 // decimal INDX_TOD, need this in case timestamps are not on the second
+#define INDX_MJD      3
 
 #define CLIGHT 299792458.0
 
@@ -82,8 +82,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 	app->logMessage("generating CGGTTS file " + fname);
 	
 	double measDelay = intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
-	//DBGMSG(debugStream,1,"P3 = " << (isP3 ? "yes":"no"));
-	
+
 	int lowElevationCnt=0; // a few diagnostics
 	int highDSGCnt=0;
 	int shortTrackCnt=0;
@@ -123,6 +122,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 		obs3indx = meas->colIndexFromCode(rnxcode3);
 	}
 	
+	// a bit of checking
+	reportMSIO = (obs2indx != -1)  && (obs3indx != -1);
 	writeHeader(fout);
 	
 	// Generate the observation schedule as per DefraignePetit2015 pg3
@@ -151,10 +152,9 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 	}
 	
 	// Data structures for accumulating data at each track time
-	// Use a fixed array so that we can use the index as a hash for the SVN. Memory is cheap
+	// Use a fixed array so that we can use the index for the SVN. Memory is cheap
 	// and svtrk is only 780 points long anyway
 	double svtrk[MAXSV+1][NTRACKPOINTS][INDX_MJD+1]; 
-	unsigned int svObsCount[MAXSV+1];
 	
 	int leapOffset1 = leapsecs1/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
 	int indxMJD = meas->colMJD();
@@ -174,10 +174,9 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 		if (trackStart < startTime || trackStart > stopTime) continue; // svtrk empty so no need to clear
 		
 		for (int s=1;s<=MAXSV;s++){
-			svObsCount[s]=0;
 			for (int t=0;t<NTRACKPOINTS;t++)
 				for (int o=INDX_OBSV1;o<= INDX_MJD;o++)
-					svtrk[s][t][o] = NAN; 
+					svtrk[s][t][o] = NAN; // as usual, NAN flags no data
 		}
 		
 		
@@ -186,32 +185,41 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 		
 		// CASE 1: single code 
 		if (obs1indx >=0 and !isP3){
+			int measIndx = 0;
 			for (int m=iTrackStart;m<=iTrackStop;m++){
+				measIndx = m - iTrackStart;
 				int mGPS = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
 					if (!isnan(meas->meas[mGPS][sv][obs1indx])){ 
 						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][obs1indx]);
-						svtrk[sv][svObsCount[sv]][INDX_OBSV1]= meas->meas[mGPS][sv][obs1indx];
-						svtrk[sv][svObsCount[sv]][INDX_TOD]= meas->meas[mGPS][sv][indxTOD]; 
-						svtrk[sv][svObsCount[sv]][INDX_MJD] = meas->meas[mGPS][sv][indxMJD];
-						
-						if (reportMSIO){ // we'll report it if we can
-							//if (!isnan(meas->meas[mGPS][sv][obs1indx])
+						svtrk[sv][measIndx][INDX_OBSV1]= meas->meas[mGPS][sv][obs1indx];
+						svtrk[sv][measIndx][INDX_TOD]= meas->meas[mGPS][sv][indxTOD]; 
+						svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPS][sv][indxMJD];
+					}
+					
+					if (reportMSIO){
+						if (!isnan(meas->meas[mGPS][sv][obs2indx]) && !isnan(meas->meas[mGPS][sv][obs3indx])){ // got the lot so OK
+							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " msio pair");
+							svtrk[sv][measIndx][INDX_OBSV2] = (1.0-aij)*(meas->meas[mGPS][sv][obs2indx] - meas->meas[mGPS][sv][obs3indx])/CLIGHT;
+							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << svtrk[sv][measIndx][INDX_OBSV2] << std::setprecision(14) << 
+							//	" " << meas->meas[mGPS][sv][obs2indx] -  meas->meas[mGPS][sv][obs3indx]);
+							
+							svtrk[sv][measIndx][INDX_TOD] = meas->meas[mGPS][sv][indxTOD];  // in case these haven't been set yet
+							svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPS][sv][indxMJD];
 						}
-						svObsCount[sv] +=1; // since the value of this is bounded by iTrackStop - iTrackStart, no need to test it
 					}
 				}
 			}
 		}
 		
+		// CASE 2: dual frequency code
+		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
-		//for (unsigned int sv=1;sv<=1;sv++){
-			if (0 == svObsCount[sv]) continue;
 			
 			int nfitpts=0; // count of number of points for the linear fit
 			int ioe;    // issue of ephemeris
 			
-			//DBGMSG(debugStream,INFO,sv << " " << svObsCount[sv]);
+			//DBGMSG(debugStream,INFO,sv);
 			
 			int hh = schedule[i] / 60; // schedule hour   (UTC)
 			int mm = schedule[i] % 60; // schedule minute (UTC)
@@ -219,28 +227,32 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26]; //buffers for the data used for the linear fits
 			
 			Ephemeris *ed=NULL;
-			
-			for (unsigned int tt=0;tt<svObsCount[sv];tt++){
+			int nSVObs = 0; // keep track of SV observations in track so we can dsistinguish misisng data from pseudorange failures etc ..
+			for (unsigned int tt=0;tt<NTRACKPOINTS;tt++){
 				int fwn;
 				double tow;
+				
+				if (isnan(svtrk[sv][tt][INDX_OBSV1])) continue; // no OBSV1 data, so move along
+				nSVObs++;
+				
 				Utility::MJDToGPSTime(svtrk[sv][tt][INDX_MJD],svtrk[sv][tt][INDX_TOD],&fwn,&tow);
 				//DBGMSG(debugStream,INFO,svtrk[sv][tt][INDX_MJD] << " " << svtrk[sv][tt][INDX_TOD] << " " << fwn << " " << tow);
 		
 				// Now window it
 				
-				if (ed==NULL) // use only one ephemeris for each track
+				if (NULL == ed) // use only one ephemeris for each track
 					ed = gnss->nearestEphemeris(sv,tow,maxURA);
 				
-				if (NULL == ed){
+				if (NULL == ed){ //tried to get ephemeris and failed :-(
 					ephemerisMisses++;
 					//pseudoRangeFailures++;
-					continue;
+					continue; // fixme - probably should 'break'
 				}
 				else{
 					if (!(ed->healthy())){
 						badHealth++;
 						//DBGMSG(debugStream,INFO,"Unhealthy SV = " << sv);
-						continue; // WARNING didn't do this in previous code - ed == NULL means that call to getPseudorangeCorrections() will return false
+						continue; // WARNING didn't do this in previous code 
 					}
 					//ed->dump();
 				}
@@ -271,6 +283,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 					pseudoRangeFailures++;
 				}
 			} // for (unsigned int tt=0;tt<svObsCount[sv];tt++)
+			
+			if (nSVObs == 0) continue;
 			
 			if (nfitpts*OBSINTERVAL >= minTrackLength){
 				
@@ -485,8 +499,8 @@ void CGGTTS::writeHeader(FILE *fout)
 			intDly,cons.c_str(),code1Str.c_str(),
 			intDly2,cons.c_str(),code2Str.c_str(),calID.c_str());
 	else
-		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1Str.c_str(),calID.c_str());
-
+		//std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1Str.c_str(),calID.c_str());
+		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),"C1",calID.c_str());
 	cksum += checkSum(buf);
 	std::fprintf(fout,"%s\n",buf);
 	

@@ -133,7 +133,7 @@ bool RINEXNavFile::readV3File(std::string fname)
 					DBGMSG(debugStream,TRACE,"read GPS ION ALPHA " << gps.ionoData.a0 << " " << gps.ionoData.a1 << " " << gps.ionoData.a2 << " " << gps.ionoData.a3);
 					continue;
 			}
-			if (std::string::npos != line.find("GPSB",60)){
+			if (std::string::npos != line.find("GPSB")){
 				readParam(line,6,12, &(gps.ionoData.B0));
 				readParam(line,18,12,&(gps.ionoData.B1));
 				readParam(line,30,12,&(gps.ionoData.B2));

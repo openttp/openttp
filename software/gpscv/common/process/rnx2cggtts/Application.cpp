@@ -450,6 +450,9 @@ bool Application::loadConfig()
 	setConfig(last,"antenna","z",&(antenna->z),&configOK);
 	setConfig(last,"antenna","frame",antenna->frame,&configOK);
 	
+	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z, // latitude and longitude used in ionosphere model
+		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
+	
 	//
 	// Receiver
 	//
@@ -533,11 +536,12 @@ bool Application::loadConfig()
 						if (setConfig(last,configs.at(i).c_str(),"msio codes",stmp,&configOK,true)){
 							if (splitDualCode(stmp,rnxcode2,rnxcode3)){
 								// Our convention will be that rnxcode2 is higher frequency than rnxcode3
+								DBGMSG(debugStream,INFO,"msio codes " << rnxcode2 << " " << rnxcode3);
 								if (rnxcode2[1] == '2'){
 									std::string tmp = rnxcode2;
 									rnxcode2 = rnxcode3;
 									rnxcode3 = tmp;
-									DBGMSG(debugStream,INFO,"Swapped msio codes " << rnxcode2 << " " << rnxcode3)
+									DBGMSG(debugStream,INFO,"Swapped msio codes " << rnxcode2 << " " << rnxcode3);
 								}
 								// Now read the delays
 								
@@ -823,6 +827,7 @@ void Application::runNativeMode()
 		cggtts.constellation = CGGTTSoutputs.at(i).constellation;
 		cggtts.rnxcode1 = CGGTTSoutputs.at(i).rnxcode1;
 		cggtts.rnxcode2 = CGGTTSoutputs.at(i).rnxcode2;
+		cggtts.rnxcode3 = CGGTTSoutputs.at(i).rnxcode3;
 		cggtts.isP3 = CGGTTSoutputs.at(i).isP3;
 		cggtts.FRC = CGGTTSoutputs.at(i).FRC;
 		cggtts.reportMSIO = CGGTTSoutputs.at(i).reportMSIO;
@@ -852,6 +857,105 @@ void Application::runR2CGGTTSMode()
 {
 }
 		
+
+bool Application::readR2CGGTTSParams(std::string paramsFile)
+{
+	DBGMSG(debugStream,INFO,"reading" << paramsFile);
+	std::ifstream fin(paramsFile.c_str());
+	std::string line;
+	
+	if (!fin.good()){
+		DBGMSG(debugStream,INFO,"unable to open" << paramsFile);
+		return false;
+	}
+	
+	bool ok =true;
+	std::string stmp;
+	while (!fin.eof()){
+		// This file should be strictly formatted but the keywords
+		// may be in arbitrary order
+		getline(fin,line);
+		boost::trim(line);
+		ok = ok && getR2CGGTTSParam(fin,line,"REV DATE",stmp);
+		
+		ok = ok && getR2CGGTTSParam(fin,line,"RCVR",receiver->model); // bit of a fudge since we have separated into manufacturer+model+s/n
+		ok = ok && getR2CGGTTSParam(fin,line,"CH",&receiver->nChannels);
+		ok = ok && getR2CGGTTSParam(fin,line,"LAB NAME",CGGTTSlab);
+		ok = ok && getR2CGGTTSParam(fin,line,"X COORDINATE",&(antenna->x));
+		ok = ok && getR2CGGTTSParam(fin,line,"Y COORDINATE",&(antenna->y));
+		ok = ok && getR2CGGTTSParam(fin,line,"Z COORDINATE",&(antenna->z));
+		ok = ok && getR2CGGTTSParam(fin,line,"COMMENTS",CGGTTScomment);
+		ok = ok && getR2CGGTTSParam(fin,line,"FRAME",antenna->frame);
+		ok = ok && getR2CGGTTSParam(fin,line,"REF",CGGTTSref);
+		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P1 XR+XS (in ns)",&P1delay);
+		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P1 GLO (in ns)",&P2delayGLO);
+		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY C1 XR+XS (in ns)",&P1delay); // FIXME WTF
+		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P2 XR+XS (in ns)",&P2delay);
+		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P2 GLO (in ns)",&P2delayGLO);
+		//ok = ok && getR2CGGTTSParam(fin,line,"ANT CAB DELAY (in ns)",&cabDelay);
+		//ok = ok && getR2CGGTTSParam(fin,line,"LEAP SECOND",&leapSeconds);
+		//ok = ok && getR2CGGTTSParam(fin,line,"CLOCK CAB DELAY XP+XO (in ns)",&refDelay);
+	}
+	fin.close();
+	return ok;
+}
+
+bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,std::string &val)
+{
+	if (currParam == param)
+	{
+		std::string line;
+		if (fin.good()){
+			getline(fin,line);
+			boost::trim(line);
+			val=line;
+			DBGMSG(debugStream,TRACE,currParam << " = " << val);
+		}
+		else{
+			DBGMSG(debugStream,INFO,"Missing parameter for " << param);
+			return false;
+		}
+	}
+	return true;
+}
+
+bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,double *val)
+{
+	if (currParam==param)
+	{
+		std::string line;
+		if (fin.good()){
+			getline(fin,line);
+			std::stringstream ss(line);
+			ss >> *val;
+			DBGMSG(debugStream,TRACE,currParam << " = " << std::fixed << *val);
+		}
+		else{
+			DBGMSG(debugStream,INFO,"Missing parameter for " << param);
+			return false;
+		}
+	}
+	return true;
+}
+
+bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,int *val)
+{
+	if (currParam==param)
+	{
+		std::string line;
+		if (fin.good()){
+			getline(fin,line);
+			std::stringstream ss(line);
+			ss >> *val;
+			DBGMSG(debugStream,3,currParam << " = " << *val);
+		}
+		else{
+			DBGMSG(debugStream,1,"Missing parameter for " << param);
+			return false;
+		}
+	}
+	return true;
+}
 
 std::string Application::FindRINEXObsFile(int nomMJD,int reqMJD,std::vector<std::string> &ext)
 {
@@ -982,7 +1086,6 @@ bool Application::splitDualCode(std::string &codeStr,std::string &c1,std::string
 		boost::trim(c1);
 		c2 = codes[1];
 		boost::trim(c2);
-		
 		return (c1[1] != c2[1]);
 	}
 	return false;

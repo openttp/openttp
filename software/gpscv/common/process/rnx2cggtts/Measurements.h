@@ -38,7 +38,7 @@ class Measurements
 		void allocateStorage(int);
 		
 		std::vector<std::string> codes;
-		std::vector<int> cols;
+		
 		int colIndexFromCode(std::string);
 		int colMJD(){return nCodeObs;}
 		int colTOD(){return nCodeObs+1;}
@@ -49,7 +49,7 @@ class Measurements
 		int maxSVN;
 		int nAllObs; 
 		int nCodeObs;
-		
+
 };
 
 #endif
