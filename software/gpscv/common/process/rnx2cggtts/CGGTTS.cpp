@@ -259,7 +259,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 				
 				double refsyscorr,refsvcorr,iono,tropo,az,el,pr;
 				
-				pr = svtrk[sv][tt][INDX_OBSV1]/CLIGHT; // convert to seconds
+				pr = svtrk[sv][tt][INDX_OBSV1]; // convert to seconds
 				//DBGMSG(debugStream,INFO,tow << " " << pr << " " << antenna->x << " " << antenna->y  << " " << antenna->z << " " << ed->iod());
 				prcount++;
 				if (gnss->getPseudorangeCorrections(tow,pr,antenna,ed,rnxcode1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
@@ -272,8 +272,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 					if (isP3){
 					}
 					else{
-						refsv[nfitpts]  = pr*1.0E9 + refsvcorr  - iono - tropo ; // units are ns, for CGGTTS
-						refsys[nfitpts] = pr*1.0E9 + refsyscorr - iono - tropo ;
+						refsv[nfitpts]  = pr*1.0E9/CLIGHT + refsvcorr  - iono - tropo ; // units are ns, for CGGTTS
+						refsys[nfitpts] = pr*1.0E9/CLIGHT + refsyscorr - iono - tropo ;
 					}
 					
 					nfitpts++;

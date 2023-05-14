@@ -40,6 +40,9 @@
 #define F -4.442807633e-10
 #define MAX_ITERATIONS 10 // for solution of the Kepler equation
 
+#define MAX_SV_XYZ_ERROR 1E-2 // maximum error tolerated in satellite  position, in metres. Usually 3 iterations for 1 cm
+#define MAX_SV_XYZ_ITERATIONS 10 // for iterative solution of position
+
 extern Application *app;
 extern std::ostream *debugStream;
 extern std::string   debugFileName;
@@ -177,51 +180,71 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 			gpsDayOfWeek++;
 	toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
 
-	// Calculate clock corrections (ICD 20.3.3.3.3.1)
-	double gpssvt= gpsTOW - pRange;
-	double clockCorrection = ed->a_f0 + ed->a_f1*(gpssvt - toc) + ed->a_f2*(gpssvt - toc)*(gpssvt - toc); // SV PRN code phase offset
-	double tk = gpssvt - clockCorrection;
+	double rsv,xsv[3];
 	
-	double range,svdist,svrange,ax,ay,az;
+	double tTransmit; 
+	double range = pRange; // initial guess
+	double rangePrev = pRange;
 	
-	if (satXYZ(ed,tk,&Ek,x)){
-		double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
-		range = pRange + clockCorrection + relativisticCorrection - freqCorr*ed->t_GD; // eq2 from CGTTS spec, without ionosphere and troposphere
-		// Sagnac correction (ICD 20.3.3.4.3.4)
-		ax = ant->x - OMEGA_E_DOT * ant->y * range;
-		ay = ant->y + OMEGA_E_DOT * ant->x * range;
-		az = ant->z ;
-		
-		svrange= (pRange+clockCorrection) * CLIGHT;
-		svdist = sqrt( (x[0]-ax)*(x[0]-ax) + (x[1]-ay)*(x[1]-ay) + (x[2]-az)*(x[2]-az));
-		double err  = (svrange - svdist);
-		
-		// Azimuth and elevation of SV
-		double R=sqrt(ant->x*ant->x+ant->y*ant->y+ant->z*ant->z); 
-		double p=sqrt(ant->x*ant->x+ant->y*ant->y);
-		*elevation = 57.296*asin((ant->x*(x[0] - ant->x) + ant->y*(x[1] - ant->y) + ant->z*(x[2] - ant->z))/(R*svdist));
-		*azimuth = 57.296 * atan2( (-(x[0] - ant->x)*ant->y +(x[1] - ant->y)*ant->x) * R,	 
-							-(x[0] - ant->x)*ant->x*ant->z -(x[1] - ant->y)*ant->y*ant->z +(x[2] - ant->z)*p*p);
-
-		if(*azimuth < 0) *azimuth += 360;
-		
-		//if(fabs(err/CLIGHT) < 1000.0e-9){
-		
-		*refsyscorr=(clockCorrection + relativisticCorrection - freqCorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
-		*refsvcorr =(                  relativisticCorrection - freqCorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
-							
-		*tropo = Troposphere::delayModel(*elevation,ant->height);
-		
-		*iono = freqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
-			ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
-			ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
+	// We have to iteratively remove the reciver clock offset
+	// Note that mktimetx is used with receivers that have their timescale referenced to GPS/UTC so this is not necessary
+	
+	for (int i=0;i<MAX_SV_XYZ_ITERATIONS;i++){
+		if (satXYZ(ed,tTransmit = gpsTOW - range/CLIGHT,&Ek,x)){
 			
-		ok=true;
+			// Sagnac corrected SV position
+			double alpha = range*OMEGA_E_DOT/CLIGHT;
+			
+			xsv[0] =  x[0]*cos(alpha) + x[1]*sin(alpha);
+			xsv[1] = -x[0]*sin(alpha) + x[1]*cos(alpha);
+			xsv[2] =  x[2];
+			
+			rsv = sqrt((ant->x - xsv[0])*(ant->x - xsv[0]) + (ant->y - xsv[1])*(ant->y - xsv[1]) + (ant->z - xsv[2])*(ant->z - xsv[2]));
+	
+			rangePrev = range;
+			range = rsv;
+			if (fabs(range - rangePrev) < MAX_SV_XYZ_ERROR){
+				//DBGMSG(debugStream,INFO,"satXYZ OK in " << i+1);
+				break;
+			}
+		}
+		else{
+			DBGMSG(debugStream,INFO,"satXYZ failed to converge");
+			return false;
+		}
 	}
-	else{
-		ok = false;
+	
+	if (fabs(range - rangePrev) >= MAX_SV_XYZ_ERROR){
+		DBGMSG(debugStream,INFO,"satXYZ error too big");
+			return false;
 	}
-	return ok;
+	
+	//
+	
+	double clockCorrection = ed->a_f0 + ed->a_f1*(tTransmit - toc) + ed->a_f2*(tTransmit - toc)*(tTransmit - toc); // SV PRN code phase offset (ICD 20.3.3.3.3.1)
+		
+	double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek); // of order a few tens of ns
+	
+	// Azimuth and elevation of SV
+	double R=sqrt(ant->x*ant->x+ant->y*ant->y+ant->z*ant->z); 
+	double p=sqrt(ant->x*ant->x+ant->y*ant->y);
+	*elevation = 57.296*asin((ant->x*(x[0] - ant->x) + ant->y*(x[1] - ant->y) + ant->z*(x[2] - ant->z))/(R*rsv));
+	*azimuth = 57.296 * atan2( (-(x[0] - ant->x)*ant->y +(x[1] - ant->y)*ant->x) * R,	 
+						-(x[0] - ant->x)*ant->x*ant->z -(x[1] - ant->y)*ant->y*ant->z +(x[2] - ant->z)*p*p);
+
+	if(*azimuth < 0) *azimuth += 360;
+	
+	
+	*refsyscorr=(clockCorrection + relativisticCorrection - freqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
+	*refsvcorr =(                  relativisticCorrection - freqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
+						
+	*tropo = Troposphere::delayModel(*elevation,ant->height);
+	
+	*iono = freqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
+		ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
+		ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
+			
+	return true;
 	
 }
 
