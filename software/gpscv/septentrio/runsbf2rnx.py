@@ -44,11 +44,12 @@ import sys
 
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
+sys.path.append('/usr/local/lib/python3.10/site-packages')
 import time
 
 import ottplib
 
-VERSION = '0.0.5'
+VERSION = '0.0.6'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -255,7 +256,7 @@ for mjd in range(firstMJD,lastMJD+1):
 	
 	# Rename the files
 	oldFObs = fObs
-	fObs = '{}{:03d}0.{:02d}O'.format(rnxNavStation,doy,yy)
+	fObs = '{}{:03d}0.{:02d}O'.format(rnxObsStation,doy,yy)
 	
 	# Fix the observation file header
 	if os.path.exists(oldFObs):
