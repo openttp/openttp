@@ -1,0 +1,221 @@
+\section{Septentrio receivers}
+
+A typical processing chain for the Septentrio receiver looks like:
+
+\begin{enumerate}
+\item \cc{plrxlog.py}    to log the receiver
+\item \cc{runsbf2rnx.py} to generate RINEX files from SBF
+\item \cc{mkcggtts.py}   to generate CGGTTS files from RINEX
+\end{enumerate}
+
+Currently, the processing chain relies on the tools provided by Septentrio and r2cggtts.
+Open source replacements for these are currently under development.
+OpenTTP now provides \cc{sbf2rnx} as a replacement for sbf2rin, but this is limited to GPS at present.
+
+\subsection{plrxlog.py}
+\hypertarget{h:plrxlog}{}
+
+\cc{plrxlog.py} is used to configure and log Septentrio receivers.
+Unlike the other receiver logging scripts, it logs using the receiver's native binary data format, rather
+than the custom OpenTTP format.
+It has mainly been used with mosaicT receivers.
+
+It doesn't produce a log file.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+plrxlog.py [option] $\ldots$ configurationFile
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[--config \textless{file}\textgreater, -c \textless{file}\textgreater] use the specified configuration file
+	\item[--debug, -d]	run in debugging mode
+	\item[--reset, -r]  reset receiver and exit
+	\item[--help, -h]	print help and exit
+	\item[--version, -v]	print version information and exit
+\end{description*}
+
+A reset command issues:
+\begin{lstlisting}
+exeResetReceiver,Hard,PVTData+SatData
+\end{lstlisting}
+
+\subsubsection{configuration}
+
+The file \cc{receiver.conf} lists any custom commands used to configure the receiver.
+These are written in Septentrio XXX format, and passed verbatim to the receiver.
+For example,
+\begin{lstlisting}
+lstInternalFile,Identification
+SetPPSparameters,sec1,Low2High,0,RxClock,60
+SetTimeSyncSource,EventA
+SetSignalTracking,+GPSL1PY+BDSB2A+GALE5
+\end{lstlisting}
+
+The default configuration for the mosaicT enables SBF output and the message set needed for RINEX generation and the SatVisibility message.
+
+\subsection{mosaicmkdev.py}
+
+\cc{mosaicmkdev.py} is used to create a symbolic link for the mosaic-T receiver.
+Currently, it identifies a receiver by the serial number of the USB hub
+that the various available USB devices in the mosaic-T (development kit) are accessed through.
+It is typically used with a \cc{udev} rule, an example of which is included in the OpenTTP distribution.
+
+The default configuration file is \cc{/usr/local/etc/mosaicmkdev.conf} which looks like:
+\begin{lstlisting}
+[main]
+receivers = mos01
+
+[mos01]
+serial number = 3612929
+
+# Symlinks to be made
+ttyACM0 = mos01ACM0
+ttyACM1 = mos01ACM1
+\end{lstlisting}
+
+The \cc{receivers} option is a comma-separated list of section names, as per the usual convention.
+Each section defines the setup for a particular receiver.
+
+The serial number is currently matched through the \cc{udev} `root device' property `ID\_SERIAL\_SHORT'.
+
+The symlinks to be made in \cc{/dev} are defined by the Linux device names (\cc{ttyACM0}, \cc{ttyACM1} only at present).
+
+Startup errors reported via \cc{udev} can be examined using
+\begin{lstlisting}
+systemctl status systemd-udevd
+\end{lstlisting}
+
+\subsection{runsbf2rnx.py}
+
+\cc{runsbf2rnx.py} is a wrapper for \cc{sbf2rin}, provided by Septentrio.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+runsbf2rnx.py [OPTION] $\ldots$ [mjd [mjd $\ldots$]]
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[-{}-help,-h]	print the help information and exit
+	\item[-{}-config \textless{file}\textgreater, -c \textless{file}\textgreater] use the specified configuration file 
+	\item[-{}-debug,-d]	print debugging information to stderr
+	\item[-{}-version,-v] show the version information and exit
+\end{description*}
+
+\subsubsection{configuration}
+
+{\bfseries [Main] section}\\
+
+{\bfseries exec}\\
+This specifies the path to the executable \cc{sbf2rin}.
+The default is \cc{/usr/local/bin/sbf2rin}.
+
+{\bfseries sbf station name}\\
+
+{\bfseries [Receiver] section}\\
+
+{\bfseries file extension}\\
+
+{\bfseries [RINEX] section}\\
+
+{\bfseries version}\\
+This option specifies the RINEX version for the output, via the option to \cc{sbf2rin}
+
+\textit{Example:}
+\begin{lstlisting}
+version = 3 
+\end{lstlisting}
+
+{\bfseries name format}\\
+
+{\bfseries obs directory}\\
+
+{\bfseries nav directory}\\
+
+{\bfseries obs sta}\\
+
+{\bfseries nav sta}\\
+
+{\bfseries create nav file}\\
+
+{\bfseries exclusions}\\
+This option specifies GNSS to be excluded from the generated RINEX files via the `-x' option to \cc{sbf2rin}.
+The GNSS are specified using the same syntax as \cc{sbf2rin} uses.\\
+\textit{Example:}
+\begin{lstlisting}
+exclusions = ISJ 
+\end{lstlisting}
+
+{\bfseries fix header}\\
+This option specifies whether or not the RINEX header should be edited.
+
+{\bfseries header fixes}\\
+This option specifies the file to use when fixing the RINEX header. The file specifies replacements for lines in the
+RINEX header, and needs to be in RINEX format.
+
+{\bfseries fix satellite count}\\
+Some older versions of \cc{sbf2rin} incorrectly report the number of satellites in the RINEX observation file header
+when GNSS are excluded via the `-x' option to \cc{sbf2rin}. The offending line in the RINEX header is removed, since
+it is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+fix satellite count = yes 
+\end{lstlisting}
+
+{\bfseries [Paths] section}\\
+
+{\bfseries receiver data}\\
+
+{\bfseries tmp}\\
+
+\subsection{sbf2rinbatch.py}
+
+\cc{sbf2rinbatch.py} is used for batch processing of SBF files via Septentrio's tool \cc{sbf2rin}.
+
+\subsection{mksephourly.py}
+
+\cc{mksephourly.conf} is used for hourly generation of REFSYS from CGGTTS files. 
+It is intended for `live' monitoring of time-transfer.
+The script calls \cc{runsbf2rnx.py} to generate RINEX, and then \cc{mkcggtts.py} to generate CGGTTS.
+A new file named MJD.dat is created each day, and updated by rewriting it each time \cc{mksephourly.py} is called.
+
+The format of this file is:
+\begin{lstlisting}
+MJD TOD (in seconds) REFSYS (mean) number of tracks
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[--config \textless{file}\textgreater, -c \textless{file}\textgreater] use the specified configuration file
+	\item[--debug, -d]	run in debugging mode
+	\item[--help, -h]	print help and exit
+	\item[--version, -v]	print version information and exit
+\end{description*}
+
+The default configuration file is \cc{~/etc/mksephourly.conf} which looks like:
+\begin{lstlisting}
+[Main]
+runsbf2rnx conf = etc/hourly.runsbf2rnx.conf
+cggtts source = CGGTTS-GPS-P3
+mkcggtts conf = etc/hourly.mkcggtts.conf
+summary path = hourly_tt/summary
+\end{lstlisting}
+
+{\bfseries runsbf2rnx conf}\\
+This defines the configuration file to be used by \cc{runsbf2rnx.py}.
+
+{\bfseries mkcggtts conf}\\
+This defines the configuration file to be used by \cc{mkcggtts.py}.
+
+{\bfseries cggtts source}\\
+This defines the section in the configuration file used by \cc{mkcggtts} for CGGTTS file generation.
+It is used to locate and identify the CGGTTS files that REFSYS is extracted from.
+
+{\bfseries summary path }\\
+This defines where summary files are written to.
+
+\subsection{sbf2rnx}
+Experimental!

@@ -17,7 +17,7 @@ The OpenTTP software suite is catalogued in Table \ref{t:OTTPSoftware}
 GPSCV processing  &  & \\
 	& \hyperlink{h:mktimetx}{mktimetx} & core program\\
 	& \hyperlink{h:runmktimetx}{runmktimetx.pl} & \\
-	& \hyperlink{h:runr2cggttsv8}{runr2cggtsv8.py} & \\
+	& \hyperlink{h:mkcggtts}{mkcggts.py} & \\
 	\hline
 TIC logging & & \\
 	& \hyperlink{h:hp5313xlog}{hp5313xlog.pl} &\\
@@ -153,10 +153,15 @@ TO 00:00:02 cdfbc75a9a8c353fc5
 Hex encoding of binary messages results in much larger files but these compress to a size not much larger
 than the original binary data.
 
+The exception to this is the Septentrio logging script, which uses the native SBF format.
+Some logging scripts have the option of logging data in the receiver's native format, to facilitate
+use of other tools.
+
 \subsection{Time-interval counter \label{s:TICformat}}
 
 This text file records the difference between GNSS receiver and the Reference Oscillator 1 pps,
-measured each second. Entries are successive lines of the form:
+measured each second. The convention is that the Reference oscillator provides the start trigger.
+Entries are successive lines of the form:
 \begin{lstlisting}
 <time_of_day> <time_difference>
 \end{lstlisting}
@@ -172,7 +177,7 @@ where the time difference is in seconds.\\
 
 \input{srcs/runmktimetx}
 
-\input{srcs/runr2cggttsv8}
+\input{srcs/mkcggtts}
 
 \input{srcs/cnt9xlog}
 
@@ -187,6 +192,8 @@ where the time difference is in seconds.\\
 \input{srcs/javad}
 
 \input{srcs/nvs}
+
+\input{srcs/septentrio}
 
 \input{srcs/trimble}
 
@@ -206,7 +213,5 @@ where the time difference is in seconds.\\
 \input{srcs/editrnxobs}
 
 \input{srcs/fetchigs}
-
-\input{srcs/mkcggtts}
 
 \input{srcs/ticqc}

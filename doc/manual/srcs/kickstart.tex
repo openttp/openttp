@@ -1,28 +1,28 @@
-\section{kickstart.pl \label{s:kickstart}}
+\section{kickstart.py \label{s:kickstart}}
 
-\cc{kickstart.pl} is used to check that required processes are running,
+\cc{kickstart.py} is used to check that required processes are running,
 and restart them if necessary. 
 It is used to start the receiver and counter logging processes, for example.
 
 The lock file for each process (target) contains the running process ID; 
-this is used by \cc{kickstart.pl} to test whether the target is running.
+this is used by \cc{kickstart.py} to test whether the target is running.
 
-\cc{kickstart.pl} produces a log file in the user's home directory, \cc{logs/kickstart.log}. Each time 
+\cc{kickstart.py} produces a log file in the user's home directory, \cc{logs/kickstart.log}. Each time 
 a process is checked, it touches the file \cc{logs/kickstart.target.check}, where \cc{target} is
 specified in the configuration file.
 
 \subsection{usage}
 
-To run \cc{kickstart.pl} on the command line, use:
+To run \cc{kickstart.py} on the command line, use:
 \begin{lstlisting}[mathescape=true]
-kickstart.pl [OPTION] $\ldots$
+kickstart.py [option] $\ldots$
 \end{lstlisting}
 The command line options are:
 \begin{description*}
-	\item[-c  FILE] use the specified configuration file
-	\item[-d]	run in debugging mode
-	\item[-h]	print help and exit
-	\item[-v]	print version information and exit
+	\item[--config FILE, -c  FILE] use the specified configuration file
+	\item[--debug, -d ]	run in debugging mode
+	\item[--help, -h]	print help and exit
+	\item[--version, -v]	print version information and exit
 \end{description*}
 
 \subsection{configuration file}

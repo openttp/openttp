@@ -1,18 +1,20 @@
-\subsection{mkcggtts.py}
+\section{mkcggtts.py \label{s:mkcggtts}}
 
 \hypertarget{h:mkcggtts}{}
 
-\cc{mkcggtts.py} is used to generate CGGTTS files from RINEX navigation and observation files using
-a third part tool. Currently, the only tool supported is \cc{r2cggtts}.
+\cc{mkcggtts.py} is used for scripting the generation of CGGTTS files from RINEX navigation and observation files using
+a third party tool. Currently, the only tool supported is \cc{r2cggtts}. It will default to \cc{rnx2cggtts}, when this matures.
 
-\subsubsection{usage}
+\subsection{usage}
 
 \begin{lstlisting}[mathescape=true]
-mkcggtts.py [OPTION] $\ldots$ mjd [mjd $\ldots$]
+mkcggtts.py [OPTION] $\ldots$ [mjd [mjd $\ldots$]]
 \end{lstlisting}
 The command line options are:
 \begin{description*}
+	
 	\item[-{}-help,-h]	print the help information and exit
+	\item[-{}--config \textless{file}\textgreater, -c \textless{file}\textgreater] use the specified configuration file 
 	\item[-{}-debug,-d]	print debugging information to stderr
 	\item[-{}-leapsecs \textless{n}\textgreater]	set the number of leap seconds
 	\item[-{}-previousmjd]	when no MJD (or one MJD) is given, MJD-1 is added to the MJDs to be processed
@@ -25,10 +27,10 @@ Otherwise, it can be specified manually via  the \cc{--leapsecs} option.
 The \cc{--previousMJD} option is intended to be used in automated daily processing using \cc{r2cggtts}, 
 to reprocess data for any missed track at the end of the day.
 
-\subsubsection{configuration file}
+\subsection{configuration file}
 
 See the sample!
 
-\subsubsection{examples}
+\subsection{examples}
 
 None yet!

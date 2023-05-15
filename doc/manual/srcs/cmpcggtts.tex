@@ -2,43 +2,60 @@
 
 \hypertarget{h:cmpcggtts}{}
 
-\cc{cmpcggtts.py} matches tracks in paired CGGTTS files. It can be used for time transfer and delay calibration. 
+\cc{cmpcggtts.py} matches tracks in paired CGGTTS files. 
+It can be used for time transfer and delay calibration. 
+It reads V1, V2, V2E CGGTTS files. 
+It also reads the raw 30 s files produced by r2cggtts.
 
 \subsubsection{usage}
 
+To run \cc{kickstart.py} on the command line, use:
 \begin{lstlisting}[mathescape=true]
 cmpcggtts.py [option] $\ldots$ refDir calDir firstMJD lastMJD
 \end{lstlisting}
+where\\
+
+\begin{description*}
+\item[refDir]    directory for reference receiver
+\item[calDir]    directory for receiver being calibrated 
+\item[firstMJD]  first MJD to be processed
+\item[lastMJD]   last MJD  to be processed
+\end{description*}
 
 The command line options are:
 \begin{description*}
- \item[-{}-help]            show this help message and exit
- \item[-{}-starttime \textless{time}\textgreater ] time of day in HH:MM:SS format
-  to start processing (default 00:00:00)
- \item[-{}-stoptime \textless{time}\textgreater]  time of day in HH:MM:SS format
-  to stop processing (default 23:59:00)
- \item[-{}-elevationmask \textless{value}\textgreater] elevation mask (in degrees, default 0.0)
- \item[-{}-mintracklength \textless{value}\textgreater] minimum track length (in s, default 750)
- \item[-{}-maxdsg \textless{value}\textgreater]       maximum DSG (in ns, default 20.0)
- \item[-{}-matchephemeris ]     match on ephemeris (default no)
- \item[-{}-cv]                  compare in common view (default)
-  \item[-{}-aiv]                 compare in all-in-view
-  \item[-{}-acceptdelays]        accept the delays (no prompts in delay calibration mode)
-  \item[-{}-delaycal]            delay calibration mode
-  \item[-{}-timetransfer]        time-transfer mode (default)
-  \item[-{}-ionosphere]          use the ionosphere in delay calibration mode (default = not used)
-   \item[-{}-checksum]           exit on bad checksum (default = warn only)
-  \item[-{}-refprefix \textless{value}\textgreater] file prefix for
-		reference receiver (default = MJD)
-  \item[-{}-calprefix \textless{value}\textgreater] file prefix for calibration
-		receiver (default = MJD)
-  \item[-{}-refext \textless{value}\textgreater]       file extension for reference receiver (default = cctf)
-  \item[-{}-calext \textless{value}\textgreater]       file extension for calibration receiver (default = cctf)
-  \item[-{}-debug, -d]           debug (to stderr)
-  \item[-{}-nowarn]              suppress warnings
-  \item[-{}-quiet]               suppress all output to the terminal
-  \item[-{}-keepall]             keep tracks after the end of the day
-  \item[-{}-version, -v]         show version and exit
+	\item[-{}-help]            show this help message and exit
+	\item[-{}-starttime \textless{time}\textgreater ] time of day in HH:MM:SS format
+	to start processing (default 00:00:00)
+	\item[-{}-stoptime \textless{time}\textgreater]  time of day in HH:MM:SS format
+	to stop processing (default 23:59:00)
+	\item[-{}--calfrc \textless{calfrc}\textgreater]       set the calibration FRC code (L1C,L3P,\ldots)
+	\item[-{}--reffrc \textless{refrc}\textgreater]      set the reference FRC code (L1C,L3P,\ldots)
+	\item[-{}-elevationmask \textless{value}\textgreater] elevation mask (in degrees, default 0.0)
+	\item[-{}-mintracklength \textless{value}\textgreater] minimum track length (in s, default 750)
+	\item[-{}-maxdsg \textless{value}\textgreater]       maximum DSG (in ns, default 20.0)
+	\item[-{}-matchephemeris ]     match on ephemeris (default no)
+	\item[-{}-cv]                  compare in common view (default)
+	\item[-{}-aiv]                 compare in all-in-view
+	\item[-{}-acceptdelays]        accept the delays (no prompts in delay calibration mode)
+	\item[-{}-refintdelays \textless{REFINTDELAYS}\textgreater] search for given internal delays in reference eg ``GPS P1,GPS P2''
+  \item[-{}-calintdelays \textless{CALINTDELAYS}\textgreater] search for given internal delays in cal eg ``GPS C2''
+	\item[-{}-delaycal]            delay calibration mode
+	\item[-{}-timetransfer]        time-transfer mode (default)
+	\item[-{}-ionosphere]          use the ionosphere in delay calibration mode (default = not used)
+	\item[-{}-useRefMSIO]          use the measured ionosphere (mdio is removed from refsys and msio is subtracted, useful for V1 CGGTTS)
+  \item[-{}-useCalMSIO]          use the measured ionosphere (mdio is removed from refsys and msio is subtracted, useful for V1 CGGTTS)
+	\item[-{}-checksum]           exit on bad checksum (default = warn only)
+	\item[-{}-refprefix \textless{value}\textgreater] file prefix for reference receiver (default = MJD)
+	\item[-{}-calprefix \textless{value}\textgreater] file prefix for calibration receiver (default = MJD)
+	\item[-{}-refext \textless{value}\textgreater]       file extension for reference receiver (default = cctf)
+	\item[-{}-calext \textless{value}\textgreater]       file extension for calibration receiver (default = cctf)
+	\item[-{}-comment \textless{COMMENT}\textgreater]     set comment on displayed plot
+	\item[-{}-debug, -d]           debug (to stderr)
+	\item[-{}-nowarn]              suppress warnings
+	\item[-{}-quiet]               suppress all output to the terminal
+	\item[-{}-keepall]             keep tracks after the end of the day
+	\item[-{}-version, -v]         show version and exit
 \end{description*}
 
 The default mode is time-transfer. In this mode, a linear fit to the time-transfer data is made and the 
@@ -50,13 +67,12 @@ common clock and operating on a short baseline. The ionosphere correction is rem
 but can be retained via a command line option. Delays as reported in the CGGTTS header can be 
 changed interactively; prompting for the new delays can be skipped with a command line option.
 
-
 Data can be filtered by elevation, track length and DSG.
 
-Matching on ephemeris (IODE) can also be enforced. This can reduce time-transfer noise in
-some circumstances.
+Matching on ephemeris (IODE) can also be enforced. 
+This can reduce time-transfer noise when CGGTTS files produced by different programs are compared.
 
-Three text files are produced:
+Three text files are produced.
 
 \subsubsection{examples}
 
@@ -69,7 +85,7 @@ Delay calibration with filenames according to the CGGTTS V2E specification:
 \begin{lstlisting}[mathescape=true]
 cmpcggtts.py --delaycal --refprefix GZAU01 --calprefix GZAU99 refrx remrx 57555 57556
 \end{lstlisting}
-s
+
 
 
 

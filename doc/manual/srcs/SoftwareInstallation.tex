@@ -4,7 +4,7 @@
 
 \section{Installation requirements}
 
-You will need a basic Linux development environment, including C/C++ compilers, Perl and python2 and python3.
+You will need a basic Linux development environment, including C/C++ compilers, Perl and python3.
 You will likely need the development packages for:
 \begin{description*}
 	\item[\cc{boost}]  C++ libraries
@@ -15,6 +15,15 @@ You may also need:
 \begin{description*}
 	\item[\cc{Time::HiRes}] Perl library
 \end{description*}
+
+At present, both Perl and python3 scripts are used in OpenTTP. 
+All new script development is in python3.
+Eventually, all of the Perl scripts still in active use (other than those supporting obsolete devices) will be replaced 
+with python3 scripts.
+
+The python3 scripts generally don't require any exotic libraries but you may still need to 
+install some extra python libraries, in particular if you are installing into a minimal environment.
+
 
 The above requirements are by no means comprehensive.
 What you will need to install will depend very much on the
@@ -50,6 +59,7 @@ git checkout develop
 	.4 gpsdo.
 	.4 javad.
 	.4 nvs.
+	.4 septentrio
 	.4 trimble.
 	.4 ublox.
 	.3 system.
@@ -79,25 +89,25 @@ To build the documentation as a PDF, change directory to \cc{doc/manual} and run
 
 \subsection{Installing the software}
 
-Two scripts are provided for building and installing the software.
+A scripts is provided for building and installing the software.
 \begin{lstlisting}
-software/system/installsys.pl
-software/gpscv/install.pl
+software/system/installsys.py
 \end{lstlisting}
 
-The installer has been used with current versions of RedHat Enterprise Linux, 
+The installer has been used with RedHat Enterprise Linux, 
 CentOS, Ubuntu and Debian (on the BeagleBone Black).
 
-\cc{installsys.pl} must be run first (with superuser privileges), 
+\cc{installsys.py} must be run first (with superuser privileges), 
 because it installs libraries which are needed by the GPSCV software.
 
-\cc{installsys.pl} can also be used to install various targets individually.
+\cc{installsys.py} can also be used to install various targets individually.
 Run \cc{installsys.pl -h} to see the options available. 
 This may be helpful when trying to resolve problems with building the software.
 
-\cc{install.pl} will archive any existing scripts and binaries, and create any
+\cc{install.py} will archive any existing scripts and binaries, and create any
 directories it needs in the current user's home directory. 
-Run \cc{install.pl -h} to see the options available.
+Run \cc{install.py -h} to see the options available.
+One useful option is the capability to install individual targets.
 
 \section{A minimal software setup}
 
@@ -124,11 +134,12 @@ will probably be straight-forward. Most likely, users will have to provide their
 logging their counter/timer, given the large number of possible devices here, and the limited
 support within OpenTTP.
 
+
 You may also find the following useful:
 \begin{description*}
-	\item[] \cc{kickstart.pl} for automatic start of logging processes
-	\item[] \cc{runmktimetx.pl} for automated processing, and reprocessing
-	\item[] \cc{gziplogs.pl} for managing log file compression
+	\item[] \cc{kickstart.py} for automatic start of logging processes
+	\item[] \cc{runmktimetx.pl} for automated processing, and reprocessing of time transfer data files
+	\item[] \cc{gziplogs.py} for managing log file compression
 \end{description*}
 
 

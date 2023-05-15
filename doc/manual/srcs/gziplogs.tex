@@ -1,37 +1,57 @@
-\section{gziplogs.pl \label{s:gziplogs}}
+\section{gziplogs.py \label{s:gziplogs}}
 
-\cc{gziplogs.pl} is used to manage compression of log files. 
+\cc{gziplogs.py} is used to manage compression of log files. 
 Typically, it will be run once per day, after UTC0. It requires 
 a configuration file, \cc{gziplogs.conf}, which is expected to be
-in the user's \cc{etc} directory. 
+in the user's \cc{etc} directory and uses our standard format \ref{sConfigFileFormat}.
 
-\cc{gziplogs.pl} doesn't produce a log file.
+\cc{gziplogs.py} doesn't produce a log file.
 
 \subsection{usage}
 
-\cc{gziplogs.pl} is normally run as a \cc{cron} job. To run it on the command line, use:
+\cc{gziplogs.py} is normally run as a \cc{cron} job. To run it on the command line, use:
 \begin{lstlisting}[mathescape=true]
-gziplogs.pl [OPTION] $\ldots$
+gziplogs.py [option] $\ldots$ [MJD [MJD]]
 \end{lstlisting}
 The command line options are:
 \begin{description*}
-	\item[-c \textless file\textgreater] use the specified configuration file
-	\item[-d]	run in debugging mode
-	\item[-h]	print help and exit
-	\item[-m \textless MJD\textgreater] compress files for the given MJD
-	\item[-v]	print version information and exit
+	\item[--config \textless{file}\textgreater, -c \textless{file}\textgreater] use the specified configuration file
+	\item[--debug, -d]	run in debugging mode
+	\item[--help, -h]	print help and exit
+	\item[--version, -v]	print version information and exit
 \end{description*}
+
+Either a single MJD or range of MJDs can be given. 
+If no MJD is given, the MJD of the previous day is used.
 
 \subsection{configuration file}
 
-The configuration file has a single entry.
+A \cc{targets} entry is needed. Note that this is not defined within a section, for compatibility with older versions of this script.
+
+{\bfseries targets}\\
+This entry defines a comma-separated list of targets. 
+Each target defines a section in the configuration file.\\
+\textit{Example:}
+\begin{lstlisting}
+targets = ppslogs,ntpstats
+\end{lstlisting}
+
+
+Within each section defined by targets, the following entries are defined
 
 {\bfseries files}\\
-This entry defines a comma-separated list of files to compress. Two date specifications, 
-delimited by parentheses, are recognized: YYYYMMDD; and MJD.\\
+This entry defines a comma-separated list of files to compress. 
+Three date specifications, delimited by parentheses, are recognized: YYYYMMDD, MJD and YYDOY.\\
 \textit{Example:}
 \begin{lstlisting}
 files = raw/{MJD}.rx, raw/{MJD}.tic, raw/{YYYYMMDD}.dat
 \end{lstlisting}
 
+{\bfseries destination}\\
+This optional entry defines a directory to move compressed files to\\
+\textit{Example:}
+\begin{lstlisting}
+destination = archive
+\end{lstlisting}
 
+Note, for compatibility, the file format used by  \cc{gziplogs.pl}, the deprecated Perl version of \cc{gziplogs.py} is also supported.
