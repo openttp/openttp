@@ -1,0 +1,48 @@
+\section{ks53230log.py}
+
+\hypertarget{h:ks53230log}{Keysight} 53230 counters are supported via USB TMC.
+The script automatically detects the situation where the start trigger occurs after the stop trigger,
+resulting in incorrect triggering. 
+
+\subsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+ks53230log.py [option] $\ldots$ 
+\end{lstlisting}
+
+The command line options are:
+\begin{description*}
+	\item[-c \textless file\textgreater] use the specified configuration file
+	\item[-d]	run in debugging mode
+	\item[-h]	print help and exit
+	\item[-v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+
+The default is to configure the counter for time-interval measurement of a pair of 1 pps signals,
+For example:
+\begin{lstlisting}
+CONF:TINT (@1),(@2)             
+TRIG:SLOP POS
+SYSTEM:TIMEOUT 3
+:INP1:PROB 1                    
+:INP2:PROB 1                   
+:INP1:COUP DC                   
+:INP2:COUP DC                   
+:INP1:IMP 50                   
+:INP2:IMP 50                    
+:INP1:SLOP POS
+:INP2:SLOP POS
+:INP1:LEV 1
+:INP2:LEV 1
+\end{lstlisting}
+
+This can be overridden by creating a file with the desired SCPI commands.
+
+
+It has the following specific configuration file entries in \cc{gpscv.conf}:
+\begin{itemize}
+\item[x] TBA
+\end{itemize}
+
