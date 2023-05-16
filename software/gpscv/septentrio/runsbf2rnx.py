@@ -49,7 +49,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.6'
+VERSION = '0.1.0'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -118,6 +118,7 @@ rnxObsDir = os.path.join(home,'RINEX')
 rnxNavDir = os.path.join(home,'RINEX')
 
 rnxVersion = '3' # as a string
+nameFormat = '3' # as a string
 rnxObsInterval = '30'
 rnxExclusions = 'ISJ'
 defRnxStation = 'SEPT' # default station name used by sbf2rin
@@ -185,6 +186,9 @@ if 'main:exec' in cfg:
 if 'main:sbf station name' in cfg:
 	defRnxStation = cfg['main:sbf station name']
 
+if 'main:name format' in cfg:
+	nameFormat = cfg['main:name format']
+	
 createNav = False
 if 'rinex:create nav file' in cfg:
 	token  = cfg['rinex:create nav file'].lower()
@@ -256,8 +260,11 @@ for mjd in range(firstMJD,lastMJD+1):
 	
 	# Rename the files
 	oldFObs = fObs
-	fObs = '{}{:03d}0.{:02d}O'.format(rnxObsStation,doy,yy)
-	
+	if nameFormat == '2':
+		fObs = '{}{:03d}0.{:02d}O'.format(rnxObsStation,doy,yy)
+	elif nameFormat == '3':
+		fObs = '{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(rnxObsStation,yyyy,doy) # FIXME observation interval ??
+
 	# Fix the observation file header
 	if os.path.exists(oldFObs):
 		Debug('Renaming ' + oldFObs + ' to ' + fObs)
@@ -294,15 +301,20 @@ for mjd in range(firstMJD,lastMJD+1):
 			shutil.move(fObs + '.tmp',os.path.join(rnxObsDir,fObs))
 			os.unlink(fObs)
 	else:
-			pass
+		pass
 	
 	oldFNav = fNav
-	fNav = '{}{:03d}0.{:02d}P'.format(rnxNavStation,doy,yy)
-	
+	if nameFormat == '2':
+		fNav = '{}{:03d}0.{:02d}P'.format(rnxNavStation,doy,yy) # nb mixed GNSS
+	elif nameFormat == '3':
+		fNav = '{}_R_{:04d}{:03d}0000_01D_MN.rnx'.format(rnxNavStation,yyyy,doy)
+		
 	if os.path.exists(oldFNav):
 		Debug('Moving ' + oldFNav + ' to ' + os.path.join(rnxNavDir,fNav))
 		shutil.move(oldFNav,os.path.join(rnxNavDir,fNav))
-		
+	else:
+		pass
+	
 	if recompress:
 		CompressFile(frx,'.gz')
 		
