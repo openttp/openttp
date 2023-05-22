@@ -855,6 +855,91 @@ void Application::runNativeMode()
 
 void Application::runR2CGGTTSMode()
 {
+	// We're going on a file hunt
+	// All required files are presumed to be in the current directory
+	std::string obsFile1 = "rinex_obs";
+	if (!(canOpenFile(obsFile1))){
+		std::cerr << "Error! Unable to find  RINEX observation file" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
+	
+	RINEXObsFile obs1;
+	obs1.read(obsFile1,0,86400);
+	
+	std::string obsFile2 = "rinex_obs_p";
+	if (!(canOpenFile(obsFile2))){
+		DBGMSG(debugStream,INFO,"Didn't get RINEX obs file for succeeding day " << obsFile2);
+		obsFile2 =""; // empty string flags missing
+	}
+	else{
+		DBGMSG(debugStream,INFO,"Got RINEX obs file for succeeding day " << obsFile2);
+	}
+	
+	// FIXME not read yet
+	
+	std::string mixNavFile1 = "rinex_nav_mix";
+	if (!(canOpenFile(obsFile2))){
+		DBGMSG(debugStream,INFO,"Didn't get mixed  RINEX nav file");
+		mixNavFile1 ="";
+		// not fatal
+	}
+	else{
+		DBGMSG(debugStream,INFO,"Got mixed RINEX nav file");
+	}
+	
+	if (!mixNavFile1.empty()){ // look for next day 
+	}
+	
+	
+	std::string gpsNavFile1="rinex_nav_gps";
+	std::string gpsNavFile2="rinex_nav_p_gps";
+	std::string bdsNavFile1="rinex_nav_bds";
+	std::string bdsNavFile2="rinex_nav_p_bds";
+	std::string galNavFile1="rinex_nav_gal";
+	std::string galNavFile2="rinex_nav_p_gal";
+	std::string gloNavFile1="rinex_nav_glo";
+	std::string gloNavFile2="rinex_nav_p_glo";
+
+	if (mixNavFile1.empty()){ // Didn't find a mixed nav file so try per constellation
+		if (canOpenFile(gpsNavFile1)){
+			if (!(canOpenFile(gpsNavFile2))){
+				gpsNavFile2="";
+			}
+		}
+		else{
+			gpsNavFile1="";
+		}
+		
+		if (canOpenFile(bdsNavFile1)){
+			if (!(canOpenFile(bdsNavFile2))){
+				bdsNavFile2="";
+			}
+		}
+		else{
+			bdsNavFile1="";
+		}
+		
+		if (canOpenFile(galNavFile1)){
+			if (!(canOpenFile(galNavFile2))){
+				galNavFile2="";
+			}
+		}
+		else{
+			galNavFile1="";
+		}
+		
+		if (canOpenFile(gloNavFile1)){
+			if (!(canOpenFile(gloNavFile2))){
+				gloNavFile2="";
+			}
+		}
+		else{
+			gloNavFile1="";
+		}
+	}
+	
+	
 }
 		
 

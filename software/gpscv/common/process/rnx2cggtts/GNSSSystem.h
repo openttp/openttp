@@ -49,7 +49,7 @@ class Ephemeris
 		virtual double t0c(){return 0.0;}
 		virtual int    svn(){return 0;}
 		virtual int    iod(){return 0;}
-		
+		virtual double tgd(){return 0;}
 		virtual int healthy(){return 1;}
 		
 		Ephemeris(){};

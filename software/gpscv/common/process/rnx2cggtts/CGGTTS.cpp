@@ -107,7 +107,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 			GNSSsys="R"; break;
 		case GNSSSystem::GPS:
 			GNSSsys="G"; 
-			aij = 77.0*77.0/(77.0*77.0-60*60);break;
+			aij = 77.0*77.0/(77.0*77.0-60*60); // aij == 2.54573
+			break;
 			
 		default:break;
 	}
@@ -188,24 +189,25 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 			int measIndx = 0;
 			for (int m=iTrackStart;m<=iTrackStop;m++){
 				measIndx = m - iTrackStart;
-				int mGPS = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+				int mGPSt = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
-					if (!isnan(meas->meas[mGPS][sv][obs1indx])){ 
+					if (!isnan(meas->meas[mGPSt][sv][obs1indx])){ 
 						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][obs1indx]);
-						svtrk[sv][measIndx][INDX_OBSV1]= meas->meas[mGPS][sv][obs1indx];
-						svtrk[sv][measIndx][INDX_TOD]= meas->meas[mGPS][sv][indxTOD]; 
-						svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPS][sv][indxMJD];
+						svtrk[sv][measIndx][INDX_OBSV1]= meas->meas[mGPSt][sv][obs1indx];
+						svtrk[sv][measIndx][INDX_TOD]= meas->meas[mGPSt][sv][indxTOD]; 
+						svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPSt][sv][indxMJD];
 					}
 					
 					if (reportMSIO){
-						if (!isnan(meas->meas[mGPS][sv][obs2indx]) && !isnan(meas->meas[mGPS][sv][obs3indx])){ // got the lot so OK
+						if (!isnan(meas->meas[mGPSt][sv][obs1indx]) && !isnan(meas->meas[mGPSt][sv][obs2indx]) && !isnan(meas->meas[mGPSt][sv][obs3indx])){ // got the lot so OK
 							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " msio pair");
-							svtrk[sv][measIndx][INDX_OBSV2] = (1.0-aij)*(meas->meas[mGPS][sv][obs2indx] - meas->meas[mGPS][sv][obs3indx])/CLIGHT;
-							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << svtrk[sv][measIndx][INDX_OBSV2] << std::setprecision(14) << 
-							//	" " << meas->meas[mGPS][sv][obs2indx] -  meas->meas[mGPS][sv][obs3indx]);
+							// Measured ionosphere for the frequency we are reporting is just PR - PR_IF
+							svtrk[sv][measIndx][INDX_OBSV2] = (meas->meas[mGPSt][sv][obs1indx] - (aij*meas->meas[mGPSt][sv][obs2indx] + (1.0-aij)*meas->meas[mGPSt][sv][obs3indx]))/CLIGHT;
+							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPSt][sv][indxMJD] << " " << meas->meas[mGPSt][sv][indxTOD] << " " << svtrk[sv][measIndx][INDX_OBSV2] 
+							//	<< std::setprecision(14) << " " << meas->meas[mGPSt][sv][obs1indx] << " " << meas->meas[mGPSt][sv][obs2indx] << " " << meas->meas[mGPSt][sv][obs3indx]);
 							
-							svtrk[sv][measIndx][INDX_TOD] = meas->meas[mGPS][sv][indxTOD];  // in case these haven't been set yet
-							svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPS][sv][indxMJD];
+							svtrk[sv][measIndx][INDX_TOD] = meas->meas[mGPSt][sv][indxTOD];  // in case these haven't been set yet
+							svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPSt][sv][indxMJD];
 						}
 					}
 				}
@@ -217,6 +219,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
 			
 			int nfitpts=0; // count of number of points for the linear fit
+			int msiofitpts=0; // separately tracked for single code+ MSIO
 			int ioe;    // issue of ephemeris
 			
 			//DBGMSG(debugStream,INFO,sv);
@@ -224,7 +227,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 			int hh = schedule[i] / 60; // schedule hour   (UTC)
 			int mm = schedule[i] % 60; // schedule minute (UTC)
 			
-			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26]; //buffers for the data used for the linear fits
+			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26],msiotutc[26]; //buffers for the data used for the linear fits
 			
 			Ephemeris *ed=NULL;
 			int nSVObs = 0; // keep track of SV observations in track so we can dsistinguish misisng data from pseudorange failures etc ..
@@ -232,6 +235,17 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 				int fwn;
 				double tow;
 				
+				// Don't mask out MSIO if there is no corresponding code measurement
+				// Even if you did, you would still have to separately store timestamps (unless you dropped code measurements) 
+				if (reportMSIO){
+					if (!isnan(svtrk[sv][tt][INDX_OBSV2])){
+						msio[msiofitpts] = svtrk[sv][tt][INDX_OBSV2];
+						msiotutc[msiofitpts] = (svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
+						msiofitpts++;
+						//DBGMSG(debugStream,INFO,sv << " " << msio[msiofitpts-1] << " " << msiotutc[msiofitpts -1]);
+					}
+				}
+						
 				if (isnan(svtrk[sv][tt][INDX_OBSV1])) continue; // no OBSV1 data, so move along
 				nSVObs++;
 				
@@ -271,9 +285,10 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 					
 					if (isP3){
 					}
-					else{
+					else{ // used modelled ionosphere
 						refsv[nfitpts]  = pr*1.0E9/CLIGHT + refsvcorr  - iono - tropo ; // units are ns, for CGGTTS
 						refsys[nfitpts] = pr*1.0E9/CLIGHT + refsyscorr - iono - tropo ;
+					
 					}
 					
 					nfitpts++;
@@ -321,20 +336,22 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 				
 				double msiotc=0.0,msioc=0.0,msiom=0.0,msioresid=0.0;
 				if (reportMSIO){
-					Utility::linearFit(tutc,msio,nfitpts,tc,&msiotc,&msioc,&msiom,&msioresid);
-					msiotc=rint(msiotc*10);
+					Utility::linearFit(msiotutc,msio,msiofitpts,tc,&msiotc,&msioc,&msiom,&msioresid);
+					//DBGMSG(debugStream,INFO,"MSIO " << rint(msiotc*1.0E10) << " " << rint(ed->tgd()*1.0E10));
+					msiotc=rint((msiotc-ed->tgd())*10*1.0E9); // FIXME frequenyc correction
 					if (msiotc < -999)
 						msiotc=-999;
 					else if (msiotc > 9999)
 						msiotc=9999;
-					msiom=rint(msiom*10000); // 4 digits
+					msiom=rint(msiom*10000*1.0E9); // 4 digits
 					if (msiom < -999) // clamp out of range
 						msiom=-999;
 					else if (msiom > 9999)
 						msiom=9999;
-					msioresid=rint(msioresid*10); // 3 digits
+					msioresid=rint(msioresid*10*1.0E9); // 3 digits
 					if (msioresid > 999)
 						msioresid=999;
+					
 				}
 				
 				// Some range checks on the data - flag bad measurements
@@ -353,8 +370,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 				if (eltc >= minElevation*10 && refsysresid <= maxDSG*10){ 
 					char sout[155]; // V2E
 					goodTrackCnt++;
-
-					if (isP3)
+						
+					if (isP3 or reportMSIO)
 						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %4i %4i %3i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
 									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRC.c_str());

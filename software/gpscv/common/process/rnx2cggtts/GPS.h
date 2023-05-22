@@ -83,6 +83,7 @@ class GPSEphemeris:public Ephemeris
 		virtual double t0c(){return t_OC;}
 		virtual int    svn(){return SVN;}
 		virtual int    iod(){return IODE;}
+		virtual double tgd(){return t_GD;}
 		virtual int    healthy(){return (SV_health == 0);}
 };
 	
