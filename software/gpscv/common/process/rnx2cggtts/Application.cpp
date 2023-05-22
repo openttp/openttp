@@ -556,33 +556,12 @@ bool Application::loadConfig()
 				}
 			}
 			
-			
-			double intdly=0.0,intdly2=0.0,intdly3=0.0;
-			int delayKind = CGGTTS::INTDLY; 
-			
-			
-			if (isP3)
-				setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
-			if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK,false)){
-				if (!setConfig(last,configs.at(i).c_str(),"system delay",&intdly,&configOK,false)){
-					DBGMSG(debugStream,INFO,"Got there");
-					if (setConfig(last,configs.at(i).c_str(),"total delay",&intdly,&configOK)){
-						delayKind=CGGTTS::TOTDLY;
-					}
-					else{
-						continue;
-					}
-				}
-				else{
-					delayKind=CGGTTS::SYSDLY;
-				}
-			}							
 		
 			if (setConfig(last,configs.at(i).c_str(),"path",stmp,&configOK)){ // got everything
 				// FIXME check compatibility of constellation+code
 				stmp=relativeToAbsolutePath(stmp);
 				ephemerisPath = relativeToAbsolutePath(ephemerisPath);
-				CGGTTSoutputs.push_back(CGGTTSOutput(constellation,rnxcode1,rnxcode2,rnxcode3,isP3,reportMSIO,frc,stmp,intdly,intdly2,intdly3,delayKind,
+				CGGTTSoutputs.push_back(CGGTTSOutput(constellation,rnxcode1,rnxcode2,rnxcode3,isP3,reportMSIO,frc,stmp,
 					ephemerisPath,ephemerisFile));
 			}
 			
@@ -820,10 +799,7 @@ void Application::runNativeMode()
 		//cggtts.refDly=refCableDelay;
 	
 	for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
-	
-		cggtts.intDly = CGGTTSoutputs.at(i).internalDelay; // FIXME maybe output could be supplied and other fields in CGGTTS simply duplicated ...
-		cggtts.intDly2 = CGGTTSoutputs.at(i).internalDelay2;
-		cggtts.delayKind = CGGTTSoutputs.at(i).delayKind;
+
 		cggtts.constellation = CGGTTSoutputs.at(i).constellation;
 		cggtts.rnxcode1 = CGGTTSoutputs.at(i).rnxcode1;
 		cggtts.rnxcode2 = CGGTTSoutputs.at(i).rnxcode2;
@@ -844,7 +820,7 @@ void Application::runNativeMode()
 			case GNSSSystem::GLONASS:
 				break;
 			case GNSSSystem::GPS:
-				cggtts.write(&(obs1.gps),&(nav1.gps),leapsecs1,CGGTTSfile,mjd,0,86400);
+				cggtts.write(&(obs1.gps),&(nav1.gps),&gpsDelay,leapsecs1,CGGTTSfile,mjd,0,86400);
 				break;
 			default:
 				break;

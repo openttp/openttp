@@ -22,65 +22,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __CGGTTS_H_
-#define __CGGTTS_H_
+#ifndef __GNSS_DELAY_H_
+#define __GNSS_DELAY_H_
 
 #include <string>
-#include <boost/concept_check.hpp>
+#include <vector>
 
-class Antenna;
-class Receiver;
-class Measurements;
-class GNSSDelay;
-class GNSSSystem;
-
-class CGGTTS
-{
+class GNSSDelay{
 	
 	public:
 		
-		enum CGGTTSVERSIONS {V1=0, V2E=2}; // used as array indices too ..
+		enum DELAYS {INTDLY=0,SYSDLY=2,TOTDLY=3};
 		
+		GNSSDelay();
 		
-		CGGTTS();
-	
-		bool write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime);
-
-		
-		Antenna *antenna;
-		Receiver *receiver;
-		
-		std::string ref;
-		std::string lab;
-		std::string comment;
-		std::string calID; 
-		
-		int ver;
-		int constellation; 	
-		std::string rnxcode1;
-		std::string rnxcode2;
-		std::string rnxcode3;
-		std::string FRC;
-		bool reportMSIO;
-		bool isP3;
-		
-		int revDateYYYY,revDateMM,revDateDD; // last date CGGTTS header was updated
-		
-		int minTrackLength; // in seconds
-		double minElevation; // in degrees
-		double maxDSG; // in ns
-		double maxURA; // in m
-		
-	private:
-		
-		void init();
-		void writeHeader(FILE *fout,GNSSDelay *dly);
-		int checkSum(char *);
-		
-		std::string code1Str,code2Str; // these are for identifying the delays
+		int constellation;
+		int kind; // enum DELAYS
+		std::vector<std::string> code; // code names
+		std::vector<double>      delay;
+		double refDelay; // for convenience ...
+		double cabDelay;
+		double getDelay(std::string);
 		
 		
 };
 
 #endif
-

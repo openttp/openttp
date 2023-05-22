@@ -5,16 +5,16 @@ LDFLAGS=
 LIBS= -lconfigurator -lboost_regex -lgsl -lgslcblas
 CXXFLAGS= -Wall -Wno-unused-variable -DDEBUG -g
 CFGFLAGS= 
-OBJECTS = Application.o  CGGTTS.o CGGTTSOutput.o GNSSSystem.o  GPS.o Main.o Measurements.o RINEXFile.o RINEXNavFile.o RINEXObsFile.o Timer.o\
+OBJECTS = Application.o  CGGTTS.o CGGTTSOutput.o GNSSDelay.o GNSSSystem.o  GPS.o Main.o Measurements.o RINEXFile.o RINEXNavFile.o RINEXObsFile.o Timer.o\
 	Troposphere.o Utility.o
 
 all: $(PROGRAM)
 
 Application.o: Application.cpp  Application.h Antenna.h Debug.h CGGTTS.h CGGTTSOutput.h GNSSSystem.h\
-	Receiver.h RINEXNavFile.h RINEXObsFile.h Timer.h Utility.h
+	GNSSDelay.h Receiver.h RINEXNavFile.h RINEXObsFile.h Timer.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c Application.cpp
 
-CGGTTS.o: CGGTTS.cpp CGGTTS.h Antenna.h Application.h Debug.h GNSSSystem.h Measurements.h\
+CGGTTS.o: CGGTTS.cpp CGGTTS.h Antenna.h Application.h Debug.h GNSSDelay.h GNSSSystem.h Measurements.h\
 	Receiver.h RINEXFile.h Utility.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c CGGTTS.cpp
 
@@ -23,6 +23,9 @@ CGGTTSOutput.o: CGGTTSOutput.cpp CGGTTSOutput.h
 
 GPS.o: GPS.cpp GPS.h Antenna.h Application.h Debug.h GNSSSystem.h Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GPS.cpp
+
+GNSSDelay.o: GNSSDelay.cpp GNSSDelay.h
+	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GNSSDelay.cpp
 	
 GNSSSystem.o: GNSSSystem.cpp GNSSSystem.h Antenna.h Application.h Debug.h RINEXFile.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GNSSSystem.cpp

@@ -36,6 +36,7 @@
 #include "Application.h"
 #include "Debug.h"
 #include "CGGTTS.h"
+#include "GNSSDelay.h"
 #include "GNSSSystem.h"
 #include "Measurements.h"
 #include "Receiver.h"
@@ -71,7 +72,7 @@ CGGTTS::CGGTTS()
 	init();
 }
 	
-bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime)
+bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime)
 {
 	FILE *fout;
 	if (!(fout = std::fopen(fname.c_str(),"w"))){
@@ -81,8 +82,10 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 	
 	app->logMessage("generating CGGTTS file " + fname);
 	
-	double measDelay = intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
+	// double measDelay = intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS FIXME
 
+	double measDelay  = 0.0;
+	
 	int lowElevationCnt=0; // a few diagnostics
 	int highDSGCnt=0;
 	int shortTrackCnt=0;
@@ -125,7 +128,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,int leapsecs1, std::strin
 	
 	// a bit of checking
 	reportMSIO = (obs2indx != -1)  && (obs3indx != -1);
-	writeHeader(fout);
+	writeHeader(fout,dly);
 	
 	// Generate the observation schedule as per DefraignePetit2015 pg3
 
@@ -427,8 +430,6 @@ void CGGTTS::init()
 	lab="XLAB";
 	comment="";
 	calID="UNCALIBRATED";
-	intDly=intDly2=cabDly=refDly=0.0;
-	delayKind = INTDLY;
 	minTrackLength = 390;
 	minElevation = 10.0;
 	maxDSG = 100.0;
@@ -437,10 +438,11 @@ void CGGTTS::init()
 	reportMSIO = false; // MSIO can be reported for for C1C output
 	isP3 = false;
 	FRC="";
+	
 }
 
 
-void CGGTTS::writeHeader(FILE *fout)
+void CGGTTS::writeHeader(FILE *fout,GNSSDelay *dly)
 {
 #define MAXCHARS 128
 	int cksum=0;
@@ -505,30 +507,30 @@ void CGGTTS::writeHeader(FILE *fout)
 		case GNSSSystem::GLONASS:cons="GLO";break;
 		case GNSSSystem::GPS:cons="GPS";break;
 	}
-	std::string dly;
-	switch (delayKind){
-		case INTDLY:dly="INT";break;
-		case SYSDLY:dly="SYS";break;
-		case TOTDLY:dly="TOT";break;
+	std::string dlyName;
+	switch (dly->kind){
+		case GNSSDelay::INTDLY:dlyName="INT";break;
+		case GNSSDelay::SYSDLY:dlyName="SYS";break;
+		case GNSSDelay::TOTDLY:dlyName="TOT";break;
 	}
 	if (isP3) // FIXME presuming that the logical thing happens here ...
-		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)      CAL_ID = %s",dly.c_str(),
-			intDly,cons.c_str(),code1Str.c_str(),
-			intDly2,cons.c_str(),code2Str.c_str(),calID.c_str());
+		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)      CAL_ID = %s",dlyName.c_str(),
+			0.0,cons.c_str(),code1Str.c_str(), // FIXME
+			0.0,cons.c_str(),code2Str.c_str(),calID.c_str()); // FIXME
 	else
 		//std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1Str.c_str(),calID.c_str());
-		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),"C1",calID.c_str());
+		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),0.0,cons.c_str(),"C1",calID.c_str()); // FIXME
 	cksum += checkSum(buf);
 	std::fprintf(fout,"%s\n",buf);
 	
-	if (delayKind == INTDLY){
-		std::snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",cabDly);
+	if (dly->kind == GNSSDelay::INTDLY){
+		std::snprintf(buf,MAXCHARS,"CAB DLY = %.1f ns",dly->cabDelay);
 		cksum += checkSum(buf);
 		std::fprintf(fout,"%s\n",buf);
 	}
 	
-	if (delayKind != TOTDLY){
-		std::snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",refDly);
+	if (dly->kind != GNSSDelay::TOTDLY){
+		std::snprintf(buf,MAXCHARS,"REF DLY = %.1f ns",dly->refDelay);
 		cksum += checkSum(buf);
 		std::fprintf(fout,"%s\n",buf);
 	}

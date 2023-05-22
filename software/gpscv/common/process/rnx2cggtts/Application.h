@@ -34,6 +34,8 @@
 #include <boost/concept_check.hpp>
 #include <configurator.h>
 
+#include "GNSSDelay.h"
+
 #define APP_NAME "rnx2cggtts"
 #define APP_AUTHORS "Michael Wouters"
 #define APP_VERSION "0.0.1"
@@ -83,6 +85,8 @@ class Application
 		std::string CGGTTSreceiverID; // two letter code
 		std::string CGGTTSlabCode;    // two letter code
 		std::string CGGTTScalID;
+		
+		GNSSDelay gpsDelay;
 		
 		int CGGTTSversion;
 		int CGGTTSRevDateYYYY,CGGTTSRevDateMM,CGGTTSRevDateDD;

@@ -33,7 +33,6 @@ class CGGTTSOutput{
 		CGGTTSOutput();
 		CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,std::string rnxcode3,
 			bool isP3,bool reportMSIO,std::string frc,std::string path,
-			double internalDelay,double internalDelay2,double internalDelay3,int delayKind,
 			std::string ephemerisPath,std::string ephemerisFile
 			);
 		
