@@ -53,8 +53,7 @@ class CGGTTS
 		std::string ref;
 		std::string lab;
 		std::string comment;
-		std::string calID; 
-		
+	
 		int ver;
 		int constellation; 	
 		std::string rnxcode1;

@@ -118,12 +118,16 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	
 	// Set indices into measurement arrays of RINEX observation codes
 	int obs1indx=-1,obs2indx=-1,obs3indx=-1;
+	double dly1,dly2,dly3;
 	obs1indx=meas->colIndexFromCode(rnxcode1);
+	dly1    = dly->getDelay(rnxcode1);
 	if (!rnxcode2.empty()){
 		obs2indx = meas->colIndexFromCode(rnxcode2);
+		dly2    = dly->getDelay(rnxcode2);
 	}
 	if (!rnxcode3.empty()){
 		obs3indx = meas->colIndexFromCode(rnxcode3);
+		dly3    = dly->getDelay(rnxcode3);
 	}
 	
 	// a bit of checking
@@ -429,7 +433,6 @@ void CGGTTS::init()
 	ref="UTC(XLAB)";
 	lab="XLAB";
 	comment="";
-	calID="UNCALIBRATED";
 	minTrackLength = 390;
 	minElevation = 10.0;
 	maxDSG = 100.0;
@@ -507,19 +510,21 @@ void CGGTTS::writeHeader(FILE *fout,GNSSDelay *dly)
 		case GNSSSystem::GLONASS:cons="GLO";break;
 		case GNSSSystem::GPS:cons="GPS";break;
 	}
+	
 	std::string dlyName;
 	switch (dly->kind){
 		case GNSSDelay::INTDLY:dlyName="INT";break;
 		case GNSSDelay::SYSDLY:dlyName="SYS";break;
 		case GNSSDelay::TOTDLY:dlyName="TOT";break;
 	}
+	
 	if (isP3) // FIXME presuming that the logical thing happens here ...
 		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)      CAL_ID = %s",dlyName.c_str(),
 			0.0,cons.c_str(),code1Str.c_str(), // FIXME
-			0.0,cons.c_str(),code2Str.c_str(),calID.c_str()); // FIXME
+			0.0,cons.c_str(),code2Str.c_str(),dly->calID.c_str()); // FIXME
 	else
-		//std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1Str.c_str(),calID.c_str());
-		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),0.0,cons.c_str(),"C1",calID.c_str()); // FIXME
+		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),0.0,cons.c_str(),"C1",dly->calID.c_str()); // FIXME
+		
 	cksum += checkSum(buf);
 	std::fprintf(fout,"%s\n",buf);
 	

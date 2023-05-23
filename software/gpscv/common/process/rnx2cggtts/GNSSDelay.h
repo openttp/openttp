@@ -38,12 +38,12 @@ class GNSSDelay{
 		
 		int constellation;
 		int kind; // enum DELAYS
+		std::string calID; // overrides global
 		std::vector<std::string> code; // code names
 		std::vector<double>      delay;
 		double refDelay; // for convenience ...
 		double cabDelay;
 		double getDelay(std::string);
-		
 		
 };
 

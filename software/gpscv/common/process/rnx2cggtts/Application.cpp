@@ -624,19 +624,20 @@ bool Application::loadConfig()
 	DBGMSG(debugStream,TRACE,"parsed CGGTTS config ");
 	
 	
-	setDelay(last,"gps delay",&gpsDelay,refdly,cabdly);
+	setDelay(last,"gps delays",&gpsDelay,CGGTTScalID,refdly,cabdly);
 	
 	return configOK;
 }
 
 
-bool Application::setDelay(ListEntry *last,const char *section,GNSSDelay *dly,double refdly,double cabdly)
+bool Application::setDelay(ListEntry *last,const char *section,GNSSDelay *dly,std::string & calID,double refdly,double cabdly)
 {
 	bool configOK=true;
 	std::string stmp;
 	
 	dly->refDelay = refdly;
 	dly->cabDelay = cabdly;
+	dly->calID    = calID;
 	
 	if (setConfig(last,section,"kind",stmp,&configOK)){
 		boost::trim(stmp);
@@ -673,6 +674,9 @@ bool Application::setDelay(ListEntry *last,const char *section,GNSSDelay *dly,do
 			dly->delay.push_back(lexical_cast<double>(delays[i]));
 		}
 	}
+	
+	setConfig(last,section,"bipm cal id",dly->calID,&configOK,false);
+	
 	return configOK;
 	
 }
@@ -850,7 +854,6 @@ void Application::runNativeMode()
 	cggtts.maxDSG = CGGTTSmaxDSG;
 	cggtts.maxURA = CGGTTSmaxURA;
 	cggtts.minTrackLength = CGGTTSminTrackLength;
-	cggtts.calID = CGGTTScalID;
 	cggtts.ver = CGGTTSversion;
 	//cggtts.cabDly=antCableDelay;
 		//cggtts.refDly=refCableDelay;
