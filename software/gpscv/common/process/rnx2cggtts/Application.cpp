@@ -318,6 +318,8 @@ void Application::init()
 		
 	CGGTTSPath=rootDir+"/cggtts";
 	CGGTTSnamingConvention=Plain;
+	
+	gpsDelay.constellation = GNSSSystem::GPS;
 		
 }
 
@@ -614,11 +616,66 @@ bool Application::loadConfig()
 	
 	setConfig(last,"cggtts","bipm cal id",CGGTTScalID,&configOK,false);
 	
+	// Delays
+	double cabdly=0.0,refdly=0.0;
+	setConfig(last,"cggtts","refdly",&refdly,&configOK,false);
+	setConfig(last,"cggtts","cabdly",&cabdly,&configOK,false);
+	
 	DBGMSG(debugStream,TRACE,"parsed CGGTTS config ");
+	
+	
+	setDelay(last,"gps delay",&gpsDelay,refdly,cabdly);
 	
 	return configOK;
 }
 
+
+bool Application::setDelay(ListEntry *last,const char *section,GNSSDelay *dly,double refdly,double cabdly)
+{
+	bool configOK=true;
+	std::string stmp;
+	
+	dly->refDelay = refdly;
+	dly->cabDelay = cabdly;
+	
+	if (setConfig(last,section,"kind",stmp,&configOK)){
+		boost::trim(stmp);
+		boost::to_lower(stmp);
+		if (stmp == "internal"){
+			dly->kind = GNSSDelay::INTDLY;
+		}
+		else if (stmp == "system"){
+			dly->kind = GNSSDelay::SYSDLY;
+		}
+		else if (stmp == "total"){
+			dly->kind = GNSSDelay::TOTDLY;
+		}
+	}
+	
+	if (setConfig(last,section,"codes",stmp,&configOK)){
+	  std::vector<std::string> codes;
+		boost::split(codes, stmp,boost::is_any_of(","), boost::token_compress_on);
+		for (unsigned int i=0;i<codes.size();i++){
+			boost::trim(codes[i]);
+			dly->code.push_back(codes[i]);
+		}
+	}
+	
+	if (setConfig(last,section,"delays",stmp,&configOK)){
+	  std::vector<std::string> delays;
+		boost::split(delays, stmp,boost::is_any_of(","), boost::token_compress_on);
+		if (delays.size() != dly->code.size()){
+			std::cerr << "Code/delay mismatch in "<< section << std::endl;
+			return false;
+		}
+		for (unsigned int i=0;i<delays.size();i++){
+			boost::trim(delays[i]);
+			dly->delay.push_back(lexical_cast<double>(delays[i]));
+		}
+	}
+	return configOK;
+	
+}
 
 bool Application::setConfig(ListEntry *last,const char *section,const char *token,std::string &val,bool *ok,bool required)
 {

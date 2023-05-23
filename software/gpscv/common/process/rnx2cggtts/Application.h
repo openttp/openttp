@@ -105,6 +105,7 @@ class Application
 		void showLicence();
 		
 		bool loadConfig();
+		bool setDelay(ListEntry *,const char *s,GNSSDelay *,double,double);
 		bool setConfig(ListEntry *,const char *,const char *,std::string &,bool *ok,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,double *,bool *ok,bool required=true);
 		bool setConfig(ListEntry *,const char *,const char *,int *,bool *ok, bool required=true);

@@ -27,7 +27,7 @@
 
 
 //
-//	public
+//	Public
 //
 
 GNSSDelay::GNSSDelay()
@@ -35,12 +35,14 @@ GNSSDelay::GNSSDelay()
 	// default values maketh no sense
 }
 
-double GNSSDelay::getDelay(std::string)
+double GNSSDelay::getDelay(std::string c)
 {
-	double val = 0.0;
-	refDelay=0.0;
-	cabDelay=0.0;
-	return val;
+	
+	for (unsigned int i=0;i<code.size();i++){
+		if (code[i] == c)
+			return delay[i];
+	}
+	return 0.0;
 }
 
 		
