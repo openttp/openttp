@@ -121,7 +121,8 @@ class GPS: public GNSSSystem
 	~GPS();
 	
 	virtual int maxSVN(){return NSATS;}
-
+	virtual std::string rnxCodeToCGGTTSCode(std::string);
+	
 	virtual Ephemeris *nearestEphemeris(int,double,double);
 	virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,std::string obsCode,
 			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,

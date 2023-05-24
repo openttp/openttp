@@ -73,11 +73,12 @@ class CGGTTS
 	private:
 		
 		void init();
-		void writeHeader(FILE *fout,GNSSDelay *dly);
+		void writeHeader(FILE *fout,GNSSSystem *gnss,GNSSDelay *dly);
 		int checkSum(char *);
 		
-		std::string code1Str,code2Str; // these are for identifying the delays
+		//  a bit lazy - these are to avoid passing parameters to writeHeader
 		
+		double  dly1,dly2,dly3;
 		
 };
 

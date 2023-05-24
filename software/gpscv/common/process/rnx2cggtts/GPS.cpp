@@ -98,6 +98,21 @@ GPS::~GPS()
 {
 }
 
+std::string GPS::rnxCodeToCGGTTSCode(std::string rc){
+	if (rc=="C1C"){
+		return "C1";
+	}
+	if (rc=="C1W" || rc=="C1P"){
+		return "P1";
+	}
+	if (rc=="C2W" || rc=="C2P"){
+		return "P2";
+	}
+	if (rc[0]=='C' && rc[1]=='2'){ //C2x should be reported as C2
+		return "C2";
+	}
+	return "";
+}
 
 
 Ephemeris* GPS::nearestEphemeris(int svn,double tow,double maxURA)

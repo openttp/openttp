@@ -118,7 +118,6 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	
 	// Set indices into measurement arrays of RINEX observation codes
 	int obs1indx=-1,obs2indx=-1,obs3indx=-1;
-	double dly1,dly2,dly3;
 	obs1indx=meas->colIndexFromCode(rnxcode1);
 	dly1    = dly->getDelay(rnxcode1);
 	if (!rnxcode2.empty()){
@@ -132,7 +131,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	
 	// a bit of checking
 	reportMSIO = (obs2indx != -1)  && (obs3indx != -1);
-	writeHeader(fout,dly);
+	writeHeader(fout,gnss,dly);
 	
 	// Generate the observation schedule as per DefraignePetit2015 pg3
 
@@ -445,7 +444,7 @@ void CGGTTS::init()
 }
 
 
-void CGGTTS::writeHeader(FILE *fout,GNSSDelay *dly)
+void CGGTTS::writeHeader(FILE *fout,GNSSSystem *gnss,GNSSDelay *dly)
 {
 #define MAXCHARS 128
 	int cksum=0;
@@ -518,13 +517,28 @@ void CGGTTS::writeHeader(FILE *fout,GNSSDelay *dly)
 		case GNSSDelay::TOTDLY:dlyName="TOT";break;
 	}
 	
+	std::string dly1Code,dly2Code,dly3Code; // these are for identifying the delays
+	dly1Code = gnss->rnxCodeToCGGTTSCode(rnxcode1);
+	dly2Code = gnss->rnxCodeToCGGTTSCode(rnxcode2);
+	dly3Code = gnss->rnxCodeToCGGTTSCode(rnxcode3);
+	
 	if (isP3) // FIXME presuming that the logical thing happens here ...
-		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)      CAL_ID = %s",dlyName.c_str(),
-			0.0,cons.c_str(),code1Str.c_str(), // FIXME
-			0.0,cons.c_str(),code2Str.c_str(),dly->calID.c_str()); // FIXME
-	else
-		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),0.0,cons.c_str(),"C1",dly->calID.c_str()); // FIXME
-		
+		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),
+			dly1,cons.c_str(),dly1Code.c_str(), // FIXME
+			dly2,cons.c_str(),dly2Code.c_str(),dly->calID.c_str()); // FIXME
+	else{
+		if (reportMSIO){
+// 			std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s), %.1f ns (%s %s), %.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(), // spec says only the measured code
+// 				dly1,cons.c_str(),dly1Code.c_str(),
+// 				dly2,cons.c_str(),dly2Code.c_str(),
+// 				dly3,cons.c_str(),dly3Code.c_str(),
+// 				dly->calID.c_str());
+			std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),dly1,cons.c_str(),dly1Code.c_str(),dly->calID.c_str()); 
+		}
+		else{
+			std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),dly1,cons.c_str(),dly1Code.c_str(),dly->calID.c_str()); 
+		}// FIXME
+	}	
 	cksum += checkSum(buf);
 	std::fprintf(fout,"%s\n",buf);
 	
@@ -550,7 +564,7 @@ void CGGTTS::writeHeader(FILE *fout,GNSSDelay *dly)
 	
 	std::fprintf(fout,"\n");
 	
-	if (reportMSIO){
+	if (isP3 || reportMSIO){
 		std::fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI MSIO SMSI ISG FR HC FRC CK\n");
 		std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s.1ns.1ps/s.1ns            \n");
 	}

@@ -76,6 +76,7 @@ class GNSSSystem
 		
 		virtual int maxSVN(){return -1;}
 		virtual int strToCode(std::string){return 0;}
+		virtual std::string rnxCodeToCGGTTSCode(std::string){return "";}
 		
 		std::vector<Ephemeris *> ephemeris;
 		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
