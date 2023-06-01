@@ -76,10 +76,6 @@ class CGGTTS
 		void writeHeader(FILE *fout,GNSSSystem *gnss,GNSSDelay *dly);
 		int checkSum(char *);
 		
-		//  a bit lazy - these are to avoid passing parameters to writeHeader
-		
-		double  dly1,dly2,dly3;
-		
 };
 
 #endif

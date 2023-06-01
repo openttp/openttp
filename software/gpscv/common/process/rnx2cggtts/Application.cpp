@@ -891,6 +891,14 @@ void Application::runNativeMode()
 
 void Application::runR2CGGTTSMode()
 {
+	
+	
+	if (!readR2CGGTTSParams(r2cParamsFile)){
+		std::cerr << "Error! Unable to params.dat file" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	
+	
 	// We're going on a file hunt
 	// All required files are presumed to be in the current directory
 	std::string obsFile1 = "rinex_obs";
@@ -942,6 +950,7 @@ void Application::runR2CGGTTSMode()
 			if (!(canOpenFile(gpsNavFile2))){
 				gpsNavFile2="";
 			}
+			DBGMSG(debugStream,INFO,"Got GPS RINEX nav file");
 		}
 		else{
 			gpsNavFile1="";
@@ -951,6 +960,7 @@ void Application::runR2CGGTTSMode()
 			if (!(canOpenFile(bdsNavFile2))){
 				bdsNavFile2="";
 			}
+			DBGMSG(debugStream,INFO,"Got BDS RINEX nav file");
 		}
 		else{
 			bdsNavFile1="";
@@ -960,6 +970,7 @@ void Application::runR2CGGTTSMode()
 			if (!(canOpenFile(galNavFile2))){
 				galNavFile2="";
 			}
+			DBGMSG(debugStream,INFO,"Got GAL RINEX nav file");
 		}
 		else{
 			galNavFile1="";
@@ -969,6 +980,7 @@ void Application::runR2CGGTTSMode()
 			if (!(canOpenFile(gloNavFile2))){
 				gloNavFile2="";
 			}
+			DBGMSG(debugStream,INFO,"Got GLO RINEX nav file");
 		}
 		else{
 			gloNavFile1="";

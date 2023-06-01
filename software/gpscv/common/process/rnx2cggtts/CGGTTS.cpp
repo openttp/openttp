@@ -82,9 +82,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	
 	app->logMessage("generating CGGTTS file " + fname);
 	
-	// double measDelay = intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS FIXME
-
-	double measDelay  = 0.0;
+	DBGMSG(debugStream,INFO,"Using CAB DLY = " << dly->cabDelay << " " << " REF DLY = " << dly->refDelay);
 	
 	int lowElevationCnt=0; // a few diagnostics
 	int highDSGCnt=0;
@@ -118,15 +116,19 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	
 	// Set indices into measurement arrays of RINEX observation codes
 	int obs1indx=-1,obs2indx=-1,obs3indx=-1;
+	double totdly1=0.0,totdly2=0.0,totdly3=0.0;
+	
 	obs1indx=meas->colIndexFromCode(rnxcode1);
-	dly1    = dly->getDelay(rnxcode1);
+	
+	totdly1 = 1.0E-9*(dly->getDelay(rnxcode1) + dly->cabDelay - dly->refDelay)*CLIGHT; // Note: in m! cabDly and refDly wll be zero ig eg the delay "rnxcode1" is a total delay
+	
 	if (!rnxcode2.empty()){
 		obs2indx = meas->colIndexFromCode(rnxcode2);
-		dly2    = dly->getDelay(rnxcode2);
+		totdly2 = 1.0E-9*(dly->getDelay(rnxcode2) + dly->cabDelay - dly->refDelay)*CLIGHT;
 	}
 	if (!rnxcode3.empty()){
 		obs3indx = meas->colIndexFromCode(rnxcode3);
-		dly3    = dly->getDelay(rnxcode3);
+		totdly3 = 1.0E-9*(dly->getDelay(rnxcode3) + dly->cabDelay - dly->refDelay)*CLIGHT;
 	}
 	
 	// a bit of checking
@@ -191,6 +193,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 		int iTrackStop  = trackStop/OBSINTERVAL;
 		
 		// CASE 1: single code 
+		// Observation in svtrk[][][INDX_OBSV1]
+		// MSIO in svtrk[][][INDX_OBSV2], if available
 		if (obs1indx >=0 and !isP3){
 			int measIndx = 0;
 			for (int m=iTrackStart;m<=iTrackStop;m++){
@@ -199,7 +203,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
 					if (!isnan(meas->meas[mGPSt][sv][obs1indx])){ 
 						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][obs1indx]);
-						svtrk[sv][measIndx][INDX_OBSV1]= meas->meas[mGPSt][sv][obs1indx];
+						svtrk[sv][measIndx][INDX_OBSV1]= meas->meas[mGPSt][sv][obs1indx] - totdly1; // delays here!
 						svtrk[sv][measIndx][INDX_TOD]= meas->meas[mGPSt][sv][indxTOD]; 
 						svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPSt][sv][indxMJD];
 					}
@@ -208,10 +212,12 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 						if (!isnan(meas->meas[mGPSt][sv][obs1indx]) && !isnan(meas->meas[mGPSt][sv][obs2indx]) && !isnan(meas->meas[mGPSt][sv][obs3indx])){ // got the lot so OK
 							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " msio pair");
 							// Measured ionosphere for the frequency we are reporting is just PR - PR_IF
-							svtrk[sv][measIndx][INDX_OBSV2] = (meas->meas[mGPSt][sv][obs1indx] - (aij*meas->meas[mGPSt][sv][obs2indx] + (1.0-aij)*meas->meas[mGPSt][sv][obs3indx]))/CLIGHT;
+							svtrk[sv][measIndx][INDX_OBSV2] = ( meas->meas[mGPSt][sv][obs1indx] - totdly1 
+							  - (aij*(meas->meas[mGPSt][sv][obs2indx] - totdly2)
+								 + (1.0-aij)*(meas->meas[mGPSt][sv][obs3indx] - totdly3)))/CLIGHT;
 							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPSt][sv][indxMJD] << " " << meas->meas[mGPSt][sv][indxTOD] << " " << svtrk[sv][measIndx][INDX_OBSV2] 
 							//	<< std::setprecision(14) << " " << meas->meas[mGPSt][sv][obs1indx] << " " << meas->meas[mGPSt][sv][obs2indx] << " " << meas->meas[mGPSt][sv][obs3indx]);
-							
+						
 							svtrk[sv][measIndx][INDX_TOD] = meas->meas[mGPSt][sv][indxTOD];  // in case these haven't been set yet
 							svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPSt][sv][indxMJD];
 						}
@@ -220,7 +226,28 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 			}
 		}
 		
-		// CASE 2: dual frequency code
+		// CASE 2: ionosphere free combination
+		// Observation in svtrk[][][INDX_OBSV1]
+		// MSIO in svtrk[][][INDX_OBSV2]
+		if (isP3){
+			int measIndx = 0;
+			for (int m=iTrackStart;m<=iTrackStop;m++){
+				measIndx = m - iTrackStart;
+				int mGPSt = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+				for (int sv = 1; sv <= meas->maxSVN;sv++){
+					if (!isnan(meas->meas[mGPSt][sv][obs1indx]) && !isnan(meas->meas[mGPSt][sv][obs2indx])){
+					
+						svtrk[sv][measIndx][INDX_OBSV1] = (aij*(meas->meas[mGPSt][sv][obs1indx] - totdly1) // Ionosphere free code
+								 + (1.0-aij)*(meas->meas[mGPSt][sv][obs2indx] - totdly2))/CLIGHT;
+						
+						svtrk[sv][measIndx][INDX_OBSV2] = (1.0 -aij)*(( meas->meas[mGPSt][sv][obs1indx] - totdly1) - (meas->meas[mGPSt][sv][obs2indx] - totdly2) )/CLIGHT;  // MSIO sans GD
+						
+						svtrk[sv][measIndx][INDX_TOD]= meas->meas[mGPSt][sv][indxTOD]; 
+						svtrk[sv][measIndx][INDX_MJD] = meas->meas[mGPSt][sv][indxMJD];
+					}
+				}
+			}
+		}
 		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
 			
@@ -326,12 +353,12 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				
 				double refsvtc,refsvc,refsvm,refsvresid;
 				Utility::linearFit(tutc,refsv,nfitpts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
-				refsvtc=rint((refsvtc-measDelay)*10); // apply total measurement system delay
+				refsvtc=rint(refsvtc*10); 
 				refsvm=rint(refsvm*10000);
 				
 				double refsystc,refsysc,refsysm,refsysresid;
 				Utility::linearFit(tutc,refsys,nfitpts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
-				refsystc=rint((refsystc-measDelay)*10); // apply total measurement system delay
+				refsystc=rint(refsystc*10); 
 				refsysm=rint(refsysm*10000);
 				refsysresid=rint(refsysresid*10);
 				
@@ -521,6 +548,10 @@ void CGGTTS::writeHeader(FILE *fout,GNSSSystem *gnss,GNSSDelay *dly)
 	dly1Code = gnss->rnxCodeToCGGTTSCode(rnxcode1);
 	dly2Code = gnss->rnxCodeToCGGTTSCode(rnxcode2);
 	dly3Code = gnss->rnxCodeToCGGTTSCode(rnxcode3);
+	
+	double dly1 = dly->getDelay(rnxcode1);
+	double dly2 = dly->getDelay(rnxcode2);
+	//double dly3    = dly->getDelay(rnxcode3);
 	
 	if (isP3) // FIXME presuming that the logical thing happens here ...
 		std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)     CAL_ID = %s",dlyName.c_str(),

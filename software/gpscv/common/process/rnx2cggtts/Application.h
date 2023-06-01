@@ -66,6 +66,11 @@ class Application
 		int mjd;
 		
 		bool r2cggttsMode; // r2cggtts compatibility mode - set on the command line
+		std::string r2cParamsFile;
+		
+		// some r2cggtts parameters
+		int r2cLeapSeconds;
+		double r2cCabDly,r2cRefDly;
 		
 		std::string homeDir;
 		std::string rootDir;
