@@ -24,6 +24,7 @@
 // THE SOFTWARE.
 
 #include <cmath>
+#include <iostream>
 #include "Troposphere.h"
 
 double Troposphere::delayModel(double elev, double height)
@@ -47,12 +48,17 @@ double Troposphere::delayModel(double elev, double height)
 	else {f=1.0;}
 
 	deltaN =-7.32*exp(0.005577*Ns);
-
-	deltaR = (Ns + 0.5*deltaN - Ns*height - 
-			0.5*deltaN*pow(height,2) + 1430 + 732 )*0.001;
-
+	
+	if (height < 1.0){
+		deltaR = (2162.0 + Ns*(1.0 - height) + 0.5*deltaN*(1.0 - height*height))*0.001;
+	}
+	else{
+		deltaR = (Ns + 0.5*deltaN - Ns*height - 
+				0.5*deltaN*pow(height,2) + 1430 + 732 )*0.001;
+	}
+	
 	R = f*deltaR; // range error caused by troposphere
-
+	
 	return(R/c * 1e9); 
 
 }

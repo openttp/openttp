@@ -46,6 +46,8 @@
 extern Application *app;
 extern std::ostream *debugStream;
 
+using boost::lexical_cast;
+
 #define NTRACKS 89      // maximum number of tracks in a day
 #define NTRACKPOINTS 26 // 30 s sampling
 #define OBSINTERVAL 30  // 30 s
@@ -131,6 +133,13 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 		totdly3 = 1.0E-9*(dly->getDelay(rnxcode3) + dly->cabDelay - dly->refDelay)*CLIGHT;
 	}
 	
+	int freqBand;
+	if (isP3){
+		freqBand = 0; // unfortunately '3' is a Beidou band so use 0 to flag a P3 combination
+	}
+	else{
+		freqBand = lexical_cast<int>(rnxcode1[1]);
+	}
 	// a bit of checking
 	reportMSIO = (obs2indx != -1)  && (obs3indx != -1);
 	writeHeader(fout,gnss,dly);
@@ -199,7 +208,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 			int measIndx = 0;
 			for (int m=iTrackStart;m<=iTrackStop;m++){
 				measIndx = m - iTrackStart;
-				int mGPSt = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+				int mGPSt = m - leapOffset1 + 1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+																				 // Add one so that the first point is AFTER the start of the track
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
 					if (!isnan(meas->meas[mGPSt][sv][obs1indx])){ 
 						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][obs1indx]);
@@ -233,12 +243,12 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 			int measIndx = 0;
 			for (int m=iTrackStart;m<=iTrackStop;m++){
 				measIndx = m - iTrackStart;
-				int mGPSt = m - leapOffset1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
+				int mGPSt = m - leapOffset1 + 1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
 					if (!isnan(meas->meas[mGPSt][sv][obs1indx]) && !isnan(meas->meas[mGPSt][sv][obs2indx])){
 					
 						svtrk[sv][measIndx][INDX_OBSV1] = (aij*(meas->meas[mGPSt][sv][obs1indx] - totdly1) // Ionosphere free code
-								 + (1.0-aij)*(meas->meas[mGPSt][sv][obs2indx] - totdly2))/CLIGHT;
+								 + (1.0-aij)*(meas->meas[mGPSt][sv][obs2indx] - totdly2));
 						
 						svtrk[sv][measIndx][INDX_OBSV2] = (1.0 -aij)*(( meas->meas[mGPSt][sv][obs1indx] - totdly1) - (meas->meas[mGPSt][sv][obs2indx] - totdly2) )/CLIGHT;  // MSIO sans GD
 						
@@ -270,7 +280,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				
 				// Don't mask out MSIO if there is no corresponding code measurement
 				// Even if you did, you would still have to separately store timestamps (unless you dropped code measurements) 
-				if (reportMSIO){
+				if (reportMSIO || isP3){
 					if (!isnan(svtrk[sv][tt][INDX_OBSV2])){
 						msio[msiofitpts] = svtrk[sv][tt][INDX_OBSV2];
 						msiotutc[msiofitpts] = (svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
@@ -309,7 +319,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				pr = svtrk[sv][tt][INDX_OBSV1]; // convert to seconds
 				//DBGMSG(debugStream,INFO,tow << " " << pr << " " << antenna->x << " " << antenna->y  << " " << antenna->z << " " << ed->iod());
 				prcount++;
-				if (gnss->getPseudorangeCorrections(tow,pr,antenna,ed,rnxcode1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+				if (gnss->getPseudorangeCorrections(tow,pr,antenna,ed,freqBand,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
 					tutc[nfitpts]=(svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
 					svaz[nfitpts]=az;
 					svel[nfitpts]=el;
@@ -317,6 +327,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					mdio[nfitpts]=iono;
 					
 					if (isP3){
+						refsv[nfitpts]  = pr*1.0E9/CLIGHT + refsvcorr  - tropo ; // units are ns, for CGGTTS
+						refsys[nfitpts] = pr*1.0E9/CLIGHT + refsyscorr - tropo ;
 					}
 					else{ // used modelled ionosphere
 						refsv[nfitpts]  = pr*1.0E9/CLIGHT + refsvcorr  - iono - tropo ; // units are ns, for CGGTTS
@@ -336,16 +348,18 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 			
 			if (nfitpts*OBSINTERVAL >= minTrackLength){
 				
-				double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
+				//double tc=(trackStart+trackStop)/2.0; // FIXME may need to add MJD to allow rollovers
+				double tc=trackStart + 390;
+				//std::cerr << "** " << trackStart << " " << trackStop << " " << tc << std::endl;
 				
 				double aztc,azc,azm,azresid;
 				Utility::linearFit(tutc,svaz,nfitpts,tc,&aztc,&azc,&azm,&azresid);
-				aztc=rint(aztc*10); // CGGTTS liketh integers
+				aztc=rint(aztc*10); // CGGTTS liketh integers nb r2cggtts also rounds to the nearest integer using nint()
 				
 				double eltc,elc,elm,elresid;
 				Utility::linearFit(tutc,svel,nfitpts,tc,&eltc,&elc,&elm,&elresid);
 				eltc=rint(eltc*10);
-				
+			
 				double mdtrtc,mdtrc,mdtrm,mdtrresid;
 				Utility::linearFit(tutc,mdtr,nfitpts,tc,&mdtrtc,&mdtrc,&mdtrm,&mdtrresid);
 				mdtrtc=rint(mdtrtc*10);
@@ -368,10 +382,10 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				mdiom=rint(mdiom*10000);
 				
 				double msiotc=0.0,msioc=0.0,msiom=0.0,msioresid=0.0;
-				if (reportMSIO){
+				if (reportMSIO || isP3){
 					Utility::linearFit(msiotutc,msio,msiofitpts,tc,&msiotc,&msioc,&msiom,&msioresid);
 					//DBGMSG(debugStream,INFO,"MSIO " << rint(msiotc*1.0E10) << " " << rint(ed->tgd()*1.0E10));
-					msiotc=rint((msiotc-ed->tgd())*10*1.0E9); // FIXME frequenyc correction
+					msiotc=rint((msiotc - ed->tgd())*10*1.0E9); // FIXME frequency correction
 					if (msiotc < -999)
 						msiotc=-999;
 					else if (msiotc > 9999)
