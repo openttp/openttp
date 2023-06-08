@@ -34,8 +34,8 @@ double Troposphere::delayModel(double elev, double height)
 	// height = height of GPS antenna above sea level in metres
 	// result in ns
 	
-	float Ns = 324.8; // surface refractivity at mean sea level
-	float el,deltaN,deltaR, R, f;
+	double Ns = 324.8; // surface refractivity at mean sea level
+	double el,deltaN,deltaR, R, f;
 	double c = 299792458; 
 	
 	// Convert elev to radians

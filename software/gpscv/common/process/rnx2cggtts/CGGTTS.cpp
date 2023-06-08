@@ -261,6 +261,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 		
 		for (unsigned int sv=1;sv<=MAXSV;sv++){
 			
+			
+			
 			int nfitpts=0; // count of number of points for the linear fit
 			int msiofitpts=0; // separately tracked for single code+ MSIO
 			int ioe;    // issue of ephemeris
@@ -291,6 +293,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 						
 				if (isnan(svtrk[sv][tt][INDX_OBSV1])) continue; // no OBSV1 data, so move along
 				nSVObs++;
+				
+				//std::cerr << "G" << sv << " " << svtrk[sv][tt][INDX_TOD] << " ";
 				
 				Utility::MJDToGPSTime(svtrk[sv][tt][INDX_MJD],svtrk[sv][tt][INDX_TOD],&fwn,&tow);
 				//DBGMSG(debugStream,INFO,svtrk[sv][tt][INDX_MJD] << " " << svtrk[sv][tt][INDX_TOD] << " " << fwn << " " << tow);

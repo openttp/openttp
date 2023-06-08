@@ -1210,14 +1210,12 @@ bool Application::splitDualCode(std::string &codeStr,std::string &c1,std::string
 	
 	std::vector<std::string> codes;
 	boost::split(codes,codeStr,boost::is_any_of(",+"), boost::token_compress_on);
-	std::cerr << codeStr << std::endl;
 	if (codes.size() == 2){
 		
 		c1 = codes[0];
 		boost::trim(c1);
 		c2 = codes[1];
 		boost::trim(c2);
-		std::cerr << c1 << " " << c2 << std::endl;
 		return (c1[1] != c2[1]);
 	}
 	return false;
@@ -1256,7 +1254,6 @@ bool Application::CodesToFRC(int constellation,std::string &c1,std::string &c2,s
 		case GNSSSystem::GPS: // true for GLONASS too
 				c1of = c1.substr(0,2);
 				c2of = c2.substr(0,2);
-				std::cerr << c1of << " " << c2of << std::endl;
 				if (( c1of == "C1" and c2of == "C2") or 
 					(c1of == "C2" and c2of == "C1")){
 					frc="L3P";

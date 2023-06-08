@@ -58,6 +58,35 @@ const double  GPS::fL1 = 1575420000.0; // 154*10.23 MHz
 const double  GPS::fL2 = 1227620000.0; // 120*10.23 MHz
 
 
+
+static void azel(double xsat[3],Antenna *ant, double *az, double *el)
+{
+	// convert from ECF to ENU coords
+	// See eg https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+	
+	double slat= sin(ant->latitude*M_PI/180.0);
+	double clat= cos(ant->latitude*M_PI/180.0);
+	double slon= sin(ant->longitude*M_PI/180.0);
+	double clon= cos(ant->longitude*M_PI/180.0);
+	
+	double dx = xsat[0] - ant->x;
+	double dy = xsat[1] - ant->y;
+	double dz = xsat[2] - ant->z;
+
+	double rS = -slat*clon*dx - slat*slon*dy + clat*dz; // south
+	double rE = -slon*dx + clon*dy;                     // east
+	double rZ =  clat*clon*dx + clat*slon*dy + slat*dz;  // height
+
+	double R = sqrt(dx*dx + dy*dy + dz*dz);
+	*az = 180.0*atan2(rE,rS)/M_PI;
+	*el = 180.0*asin(rZ/R)/M_PI;
+	
+	if (*az < 0.0) *az += 360.0;
+	if (*el < 0.0) *el = 0.0; // can't see a satellite below the horizon ...
+	
+}
+       
+
 void GPSEphemeris::dump()
 {
 	char buf[81];
@@ -241,18 +270,7 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 	double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek); // of order a few tens of ns
 	
 	// Azimuth and elevation of SV
-	double R=sqrt(ant->x*ant->x+ant->y*ant->y+ant->z*ant->z); 
-	double p=sqrt(ant->x*ant->x+ant->y*ant->y);
-	//*elevation = 57.296*asin((ant->x*(x[0] - ant->x) + ant->y*(x[1] - ant->y) + ant->z*(x[2] - ant->z))/(R*rsv));
-	//*azimuth = 57.296 * atan2( (-(x[0] - ant->x)*ant->y +(x[1] - ant->y)*ant->x) * R,	 
-	//					-(x[0] - ant->x)*ant->x*ant->z -(x[1] - ant->y)*ant->y*ant->z +(x[2] - ant->z)*p*p);
-
-	*elevation = 57.296*asin((ant->x*(xsv[0] - ant->x) + ant->y*(xsv[1] - ant->y) + ant->z*(xsv[2] - ant->z))/(R*rsv));
-	*azimuth = 57.296 * atan2( (-(xsv[0] - ant->x)*ant->y +(xsv[1] - ant->y)*ant->x) * R,	 
-						-(xsv[0] - ant->x)*ant->x*ant->z -(xsv[1] - ant->y)*ant->y*ant->z +(xsv[2] - ant->z)*p*p);
-	
-	if(*azimuth < 0) *azimuth += 360;
-	
+	azel(xsv,ant,azimuth,elevation);
 	
 	*refsyscorr=(clockCorrection + relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
 	*refsvcorr =(                  relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
@@ -262,7 +280,9 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 	*iono = ionoFreqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
 		ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
 		ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
-			
+	
+	
+
 	return true;
 	
 }
