@@ -56,37 +56,7 @@ static const double URAvalues[] = {2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,
 const double* GPS::URA = URAvalues;
 const double  GPS::fL1 = 1575420000.0; // 154*10.23 MHz
 const double  GPS::fL2 = 1227620000.0; // 120*10.23 MHz
-
-
-
-static void azel(double xsat[3],Antenna *ant, double *az, double *el)
-{
-	// convert from ECF to ENU coords
-	// See eg https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
-	
-	double slat= sin(ant->latitude*M_PI/180.0);
-	double clat= cos(ant->latitude*M_PI/180.0);
-	double slon= sin(ant->longitude*M_PI/180.0);
-	double clon= cos(ant->longitude*M_PI/180.0);
-	
-	double dx = xsat[0] - ant->x;
-	double dy = xsat[1] - ant->y;
-	double dz = xsat[2] - ant->z;
-
-	double rS = -slat*clon*dx - slat*slon*dy + clat*dz; // south
-	double rE = -slon*dx + clon*dy;                     // east
-	double rZ =  clat*clon*dx + clat*slon*dy + slat*dz;  // height
-
-	double R = sqrt(dx*dx + dy*dy + dz*dz);
-	*az = 180.0*atan2(rE,rS)/M_PI;
-	*el = 180.0*asin(rZ/R)/M_PI;
-	
-	if (*az < 0.0) *az += 360.0;
-	if (*el < 0.0) *el = 0.0; // can't see a satellite below the horizon ...
-	
-}
        
-
 void GPSEphemeris::dump()
 {
 	char buf[81];
@@ -270,7 +240,7 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 	double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek); // of order a few tens of ns
 	
 	// Azimuth and elevation of SV
-	azel(xsv,ant,azimuth,elevation);
+	satAzEl(xsv,ant,azimuth,elevation);
 	
 	*refsyscorr=(clockCorrection + relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
 	*refsvcorr =(                  relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;

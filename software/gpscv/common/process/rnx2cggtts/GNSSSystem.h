@@ -74,6 +74,8 @@ class GNSSSystem
 		GNSSSystem();
 		~GNSSSystem();
 		
+		void satAzEl(double *,Antenna *, double *, double *);
+		
 		virtual int maxSVN(){return -1;}
 		virtual int strToCode(std::string){return 0;}
 		virtual std::string rnxCodeToCGGTTSCode(std::string){return "";}
