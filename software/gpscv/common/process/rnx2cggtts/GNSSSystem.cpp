@@ -44,6 +44,7 @@ GNSSSystem::~GNSSSystem()
 void GNSSSystem::satAzEl(double xsat[3],Antenna *ant, double *az, double *el)
 {
 	// convert from ECEF to ENU coords, given the antenna position
+	// Az,El in degrees
 	// See eg https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
 	
 	double slat= sin(ant->latitude*M_PI/180.0);
@@ -137,16 +138,17 @@ Ephemeris *GNSSSystem::nearestEphemeris(int,double,double)
 //
 
 bool GNSSSystem::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int freqBand,
-			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
-			double *azimuth,double *elevation, int *ioe)
+			double *corrRange,double *clockCorr,double *modIonoCorr,double *tropoCorr,double *gdCorr, double *relCorr,
+			double *azimuth,double *elevation)
 {
-	*refsyscorr = 0.0;
-	*refsvcorr = 0.0;
-	*iono = 0.0;
-	*tropo = 0.0;
+	*corrRange = 0.0;
+	*clockCorr = 0.0;
+	*modIonoCorr = 0.0;
+	*tropoCorr = 0.0;
+	*gdCorr = 0.0;
+	*relCorr = 0.0;
 	*azimuth = 0.0;
 	*elevation = 0.0;
-	*ioe = 0;
 	
 	return false; // well, we didn't do much, did we ?
 }

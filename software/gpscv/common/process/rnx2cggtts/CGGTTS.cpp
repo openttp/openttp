@@ -265,7 +265,6 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 			
 			int nfitpts=0; // count of number of points for the linear fit
 			int msiofitpts=0; // separately tracked for single code+ MSIO
-			int ioe;    // issue of ephemeris
 			
 			//DBGMSG(debugStream,INFO,sv);
 			
@@ -318,25 +317,28 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					//ed->dump();
 				}
 				
-				double refsyscorr,refsvcorr,iono,tropo,az,el,pr;
+				double corrRange,clockCorr,modIonoCorr,tropoCorr,gdCorr,relCorr,az,el;
 				
-				pr = svtrk[sv][tt][INDX_OBSV1]; // convert to seconds
-				//DBGMSG(debugStream,INFO,tow << " " << pr << " " << antenna->x << " " << antenna->y  << " " << antenna->z << " " << ed->iod());
+				double pr = svtrk[sv][tt][INDX_OBSV1]; 
+		
 				prcount++;
-				if (gnss->getPseudorangeCorrections(tow,pr,antenna,ed,freqBand,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
-					tutc[nfitpts]=(svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
-					svaz[nfitpts]=az;
-					svel[nfitpts]=el;
-					mdtr[nfitpts]=tropo;
-					mdio[nfitpts]=iono;
+				if (gnss->getPseudorangeCorrections(tow,pr,antenna,ed,freqBand,&corrRange,&clockCorr,&modIonoCorr,&tropoCorr,&gdCorr,&relCorr,&az,&el)){
+					tutc[nfitpts] = (svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
+					svaz[nfitpts] = az;
+					svel[nfitpts] = el;
+					mdtr[nfitpts] = tropoCorr * 1.0E9;
+					mdio[nfitpts] = modIonoCorr * 1.0E9;
 					
-					if (isP3){
-						refsv[nfitpts]  = pr*1.0E9/CLIGHT + refsvcorr  - tropo ; // units are ns, for CGGTTS
-						refsys[nfitpts] = pr*1.0E9/CLIGHT + refsyscorr - tropo ;
+					double refsvcorr =  relCorr - gdCorr - corrRange - tropoCorr;
+					double refsyscorr=  refsvcorr + clockCorr;
+					
+					if (isP3){ // ionosphere has been removed
+						refsv[nfitpts]  = 1.0E9*(pr/CLIGHT  + refsvcorr ); // units are ns, for CGGTTS
+						refsys[nfitpts] = 1.0E9*(pr/CLIGHT  + refsyscorr);
 					}
-					else{ // used modelled ionosphere
-						refsv[nfitpts]  = pr*1.0E9/CLIGHT + refsvcorr  - iono - tropo ; // units are ns, for CGGTTS
-						refsys[nfitpts] = pr*1.0E9/CLIGHT + refsyscorr - iono - tropo ;
+					else{ // use modelled ionosphere
+						refsv[nfitpts]  = 1.0E9*(pr/CLIGHT + refsvcorr  - modIonoCorr ); // units are ns, for CGGTTS
+						refsys[nfitpts] = 1.0E9*(pr/CLIGHT + refsyscorr - modIonoCorr );
 					
 					}
 					
@@ -425,11 +427,11 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					if (isP3 or reportMSIO)
 						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %4i %4i %3i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
-									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRC.c_str());
+									ed->iod(),(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRC.c_str());
 					else 
 						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
-									ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRC.c_str());
+									ed->iod(),(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRC.c_str());
 					std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
 						
 				} // if (eltc >= minElevation*10 && refsysresid <= maxDSG*10)

@@ -125,8 +125,8 @@ class GPS: public GNSSSystem
 	
 	virtual Ephemeris *nearestEphemeris(int,double,double);
 	virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int freqBand,
-			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
-			double *azimuth,double *elevation, int *ioe);
+			double *corrRange,double *clockCorr,double *modIonoCorr,double *tropoCorr,double *gdCorr, double *relCorr,
+			double *azimuth,double *elevation);
 	
 	bool gotUTCdata,gotIonoData;
 	IonosphereData ionoData;

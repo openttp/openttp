@@ -152,8 +152,8 @@ Ephemeris* GPS::nearestEphemeris(int svn,double tow,double maxURA)
 
 // prange is raw pseudorange (in metres!)
 bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int freqBand,
-			double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
-			double *azimuth,double *elevation, int *ioe)
+			double *corrRange,double *clockCorr,double *modIonoCorr,double *tropoCorr,double *gdCorr, double *relCorr,
+			double *azimuth,double *elevation)
 {
 	
 	GPSEphemeris *ed  = dynamic_cast<GPSEphemeris *>(ephd);
@@ -162,7 +162,6 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 		return false;
 	}
 	
-	*refsyscorr=*refsvcorr=0.0;
 	bool ok=false;
 	
 	// ICD 20.3.3.3.3.2 apropos 'single frequency' users
@@ -175,8 +174,6 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 	}
 	
 	double x[3],Ek;
-	
-	*ioe=ed->IODE;
 	
 	int igpslt = gpsTOW; // take integer part of GPS local time (but it's integer anyway ...) 
 	int gpsDayOfWeek = igpslt/86400; 
@@ -235,24 +232,26 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 	
 	//
 	
-	double clockCorrection = ed->a_f0 + ed->a_f1*(tTransmit - toc) + ed->a_f2*(tTransmit - toc)*(tTransmit - toc); // SV PRN code phase offset (ICD 20.3.3.3.3.1)
+	*clockCorr = ed->a_f0 + ed->a_f1*(tTransmit - toc) + ed->a_f2*(tTransmit - toc)*(tTransmit - toc); // SV PRN code phase offset (ICD 20.3.3.3.3.1)
 		
-	double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek); // of order a few tens of ns
+	*relCorr =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek); // of order a few tens of ns
 	
 	// Azimuth and elevation of SV
 	satAzEl(xsv,ant,azimuth,elevation);
 	
-	*refsyscorr=(clockCorrection + relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
-	*refsvcorr =(                  relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
-						
-	*tropo = Troposphere::delayModel(*elevation,ant->height);
+	//*refsyscorr=(clockCorrection + relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
+	//*refsvcorr =(                  relativisticCorrection - gdFreqCorr*ed->t_GD - rsv/CLIGHT)*1.0E9;
 	
-	*iono = ionoFreqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
+	*corrRange = rsv/CLIGHT; // note ! in seconds
+	
+	*gdCorr = gdFreqCorr*ed->t_GD;
+	
+	*tropoCorr = Troposphere::delayModel(*elevation,ant->height);
+	
+	*modIonoCorr = ionoFreqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
 		ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
 		ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
 	
-	
-
 	return true;
 	
 }
@@ -347,7 +346,7 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 	else
 		Tiono = F*5e-9;
 
-	return(Tiono*1e9);
+	return Tiono; // in seconds
 
 } 
 
