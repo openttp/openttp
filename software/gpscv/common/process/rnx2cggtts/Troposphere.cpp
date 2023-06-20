@@ -35,7 +35,7 @@ double Troposphere::delayModel(double elev, double height)
 	// result in s
 	
 	double Ns = 324.8; // surface refractivity at mean sea level
-	double el,deltaN,deltaR, R, f;
+	double el,deltaN,deltaR, R, f, Nslog;
 	double c = 299792458; 
 	
 	// Convert elev to radians
@@ -48,13 +48,13 @@ double Troposphere::delayModel(double elev, double height)
 	else {f=1.0;}
 
 	deltaN =-7.32*exp(0.005577*Ns);
+	Nslog = log((Ns + deltaN)/105.0);
 	
 	if (height < 1.0){
 		deltaR = (2162.0 + Ns*(1.0 - height) + 0.5*deltaN*(1.0 - height*height))*0.001;
 	}
 	else{
-		deltaR = (Ns + 0.5*deltaN - Ns*height - 
-				0.5*deltaN*pow(height,2) + 1430 + 732 )*0.001;
+		deltaR = (732 - 8.0*(Ns + deltaN)*(exp(-Nslog) - exp((1.0-height)*Nslog/8.0))/Nslog)*0.001;
 	}
 	
 	R = f*deltaR; // range error caused by troposphere
