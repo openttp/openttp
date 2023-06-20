@@ -545,7 +545,6 @@ void Application::init()
 	receiverPath= rootDir+"/raw";
 	receiverExtension="rx";
 	RINEXPath=rootDir+"/rinex";
-	CGGTTSPath=rootDir+"/cggtts";
 	CGGTTSnamingConvention=Plain;
 	tmpPath=rootDir+"/tmp";
 	
@@ -741,10 +740,6 @@ bool Application::loadConfig()
 		tmpPath=relativeToAbsolutePath(path);
 	
 	path="";
-	if (setConfig(last,"paths","cggtts",path,&configOK))
-		CGGTTSPath=relativeToAbsolutePath(path);
-	
-	path="";
 	if (setConfig(last,"paths","processing log",path,&configOK,false))
 		processingLogPath=relativeToAbsolutePath(path);
 	
@@ -881,7 +876,7 @@ bool Application::loadConfig()
 		setConfig(last,"cggtts","reference",CGGTTSref,&configOK);
 		setConfig(last,"cggtts","lab",CGGTTSlab,&configOK);
 		setConfig(last,"cggtts","comments",CGGTTScomment,&configOK,false);
-		setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength,&configOK,false);
+		setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength,&configOK,false); 
 		setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG,&configOK,false);
 		setConfig(last,"cggtts","maximum ura",&CGGTTSmaxURA,&configOK,false);
 		setConfig(last,"cggtts","minimum elevation",&CGGTTSminElevation,&configOK,false);

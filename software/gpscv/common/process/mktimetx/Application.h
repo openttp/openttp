@@ -36,7 +36,7 @@
 
 #define APP_NAME "mktimetx"
 #define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Louis Marais,Malcolm Lawn"
-#define APP_VERSION "0.1.14"
+#define APP_VERSION "0.1.15"
 #define APP_CONFIG "gpscv.conf"
 
 #define CVACUUM 299792458
@@ -161,7 +161,6 @@ class Application
 		std::string counterPath,counterExtension,counterFile;
 		std::string receiverPath,receiverExtension,receiverFile;
 		std::string RINEXPath,RINEXnavFile,RINEXobsFile;
-		std::string CGGTTSPath;
 		int CGGTTSnamingConvention;
 		std::string timingDiagnosticsFile;
 		std::string processingLogPath,processingLog;
