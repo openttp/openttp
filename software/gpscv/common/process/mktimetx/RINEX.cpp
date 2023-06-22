@@ -151,8 +151,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 			if (rx->constellations & GNSSSystem::GPS) {
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->gps.codes & c){
-						nobs++;
-						obsTypes += " " + rx->gps.observationCodeToStr(c,RINEX::V3);
+						if (!(!allObservations && c >= GNSSSystem::L1C)){
+							nobs++;
+							obsTypes += " " + rx->gps.observationCodeToStr(c,RINEX::V3);
+						}
 					}
 				}
 				// Less than 13 observations so no linewrap
@@ -165,8 +167,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 			if (rx->constellations & GNSSSystem::BEIDOU) {
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->beidou.codes & c){
-						nobs++;
-						obsTypes += " " + rx->beidou.observationCodeToStr(c,RINEX::V3);
+						if (!(!allObservations && c >= GNSSSystem::L1C)){
+							nobs++;
+							obsTypes += " " + rx->beidou.observationCodeToStr(c,RINEX::V3);
+						}
 					}
 				}
 				if (nobs > 0)
@@ -178,8 +182,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 			if (rx->constellations & GNSSSystem::GLONASS) {
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->glonass.codes & c){
-						nobs++;
-						obsTypes += " " + rx->glonass.observationCodeToStr(c,RINEX::V3);
+						if (!(!allObservations && c >= GNSSSystem::L1C)){
+							nobs++;
+							obsTypes += " " + rx->glonass.observationCodeToStr(c,RINEX::V3);
+						}
 					}
 				}
 				if ((nobs) > 0)
@@ -191,8 +197,10 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 			if (rx->constellations & GNSSSystem::GALILEO) {
 				for (int c=GNSSSystem::C1C;c<GNSSSystem::NONE;c<<=1){
 					if (rx->galileo.codes & c){
-						nobs++;
-						obsTypes += " " + rx->galileo.observationCodeToStr(c,RINEX::V3);
+						if (!(!allObservations && c >= GNSSSystem::L1C)){
+							nobs++;
+							obsTypes += " " + rx->galileo.observationCodeToStr(c,RINEX::V3);
+						}
 					}
 				}
 				if ((nobs) > 0)
