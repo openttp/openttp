@@ -711,7 +711,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 		nDropped[i]=0;
 	
 	for (int g=GNSSSystem::GPS;g<=GNSSSystem::GALILEO;(g <<= 1)){
-		if (!(g & constellations)) continue;
+		if (!(g & constellations)) continue; // skip the ones we're not tracking
 		if (app->positioningMode)  continue; // measurements as reported by the receiver are untouched
 		DBGMSG(debugStream,INFO,"Fixing ms ambiguities for " << g);
 		GNSSSystem *gnss;
@@ -722,55 +722,64 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			case GNSSSystem::GPS:gnss=&gps;break;
 			default:break;
 		}
-		for (int svn=1;svn<=gnss->maxSVN();svn++){
-			unsigned int lasttow=99999999,currtow=99999999;
-			double lastmeas=0,currmeas;
-			double corr=0.0;
-			bool first=true;
-			bool ok=false;
-			for (unsigned int i=0;i<measurements.size();i++){
-				unsigned int m=0;
-				while (m < measurements[i]->meas.size()){
-					// This solves the issue of the software confuding GNSS systems (What does this mean? I am a bit confuded)
-					if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == GNSSSystem::C1C) && (measurements[i]->meas[m]->constellation ==g )){
-						lasttow=currtow;
-						lastmeas=currmeas;
-						currmeas=measurements[i]->meas[m]->meas;
-						currtow=measurements[i]->gpstow;
-						
-						DBGMSG(debugStream,TRACE,svn << " " << currtow << " " << currmeas << " ");
-						if (first){
-							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-							if (ok){
-								first=false;
+		for (int svn=1;svn<=gnss->maxSVN();svn++){ // loop over all SVN
+			
+			for (unsigned int code = GNSSSystem::C1C; code < GNSSSystem::L1C; (code <<= 1)){ // loop over all code measurements
+				
+				if (!(code & gnss->codes)){continue;}
+				
+				//DBGMSG(debugStream,INFO,svn << " " << code); 
+				
+				unsigned int lasttow=99999999,currtow=99999999;
+				double lastmeas=0,currmeas;
+				double corr=0.0;
+				bool first=true;
+				bool ok=false;
+			
+				for (unsigned int i=0;i<measurements.size();i++){ // loop over all measurement epochs
+					unsigned int m=0;
+					while (m < measurements[i]->meas.size()){ // loop over measurements at each epoch
+						// This solves the issue of the software confuding GNSS systems (What does this mean? I am a bit confuded)
+						if ((svn==measurements[i]->meas[m]->svn) && (measurements[i]->meas[m]->code == code) && (measurements[i]->meas[m]->constellation ==g )){
+							lasttow=currtow;
+							lastmeas=currmeas;
+							currmeas=measurements[i]->meas[m]->meas;
+							currtow=measurements[i]->gpstow;
+							
+							DBGMSG(debugStream,TRACE,svn << " " << measurements[i]->meas[m]->code << " " << currtow << " " << currmeas << " ");
+							if (first){
+								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+								if (ok){
+									first=false;
+								}
 							}
-						}
-						else if (currtow - lasttow > MAX_GAP){
-							DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
-							ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
-						}
-						else if (currtow > lasttow){
-							if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
-								DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+							else if (currtow - lasttow > MAX_GAP){
+								DBGMSG(debugStream,TRACE,"gap " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
 								ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
 							}
+							else if (currtow > lasttow){
+								if (fabs(currmeas-lastmeas) > CLOCKSTEP*SLOPPINESS){
+									DBGMSG(debugStream,TRACE,"first/step " << svn << " " << lasttow << "," << lastmeas << "->" << currtow << "," << currmeas);
+									ok = gnss->resolveMsAmbiguity(antenna,measurements[i],measurements[i]->meas[m],&corr);
+								}
+							}
+							if (ok){ 
+								measurements[i]->meas[m]->meas += corr;
+								m++;
+							}
+							else{ // ambiguity correction failed, so drop the measurement
+								DBGMSG(debugStream,TRACE,"failed!");
+								nDropped[g] += 1;
+								measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
+							}
+							break;
 						}
-						if (ok){ 
-							measurements[i]->meas[m]->meas += corr;
+						else
 							m++;
-						}
-						else{ // ambiguity correction failed, so drop the measurement
-							DBGMSG(debugStream,TRACE,"failed!");
-							nDropped[g] += 1;
-							measurements[i]->meas.erase(measurements[i]->meas.begin()+m); // FIXME memory leak
-						}
-						break;
-					}
-					else
-						m++; // skip over other GNSS systems (for now)
-					
-				} // 
-			} // for (unsigned int i=0;i<measurements.size();i++){
+						
+					} // 
+				} // for (unsigned int i=0;i<measurements.size();i++){
+			} // loop over code
 		}
 	}
 	
@@ -789,7 +798,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			case GNSSSystem::GPS:gnss=&gps;break;
 			default:break;
 		}
-		DBGMSG(debugStream,INFO,"dropped " << nDropped[g] << " " << gnss->name() << " SV measurements (ms ambiguity failure)"); 
+		DBGMSG(debugStream,INFO,"dropped " << nDropped[g] << " " << gnss->name() << " SV measurements (all codes)  - ms ambiguity resolution failure"); 
 	}
 	DBGMSG(debugStream,INFO,alertPagesCnt << " alert pages in navigation data");
 	return true;
