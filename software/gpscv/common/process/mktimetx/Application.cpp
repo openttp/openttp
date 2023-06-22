@@ -365,7 +365,7 @@ void Application::run()
 			cggtts.revDateMM=CGGTTSRevDateMM;
 			cggtts.revDateDD=CGGTTSRevDateDD;
 			cggtts.cabDly=antCableDelay;
-			cggtts.intDly=CGGTTSoutputs.at(i).internalDelay;
+			cggtts.intDly1=CGGTTSoutputs.at(i).internalDelay;
 			cggtts.intDly2=CGGTTSoutputs.at(i).internalDelay2;
 			cggtts.delayKind=CGGTTSoutputs.at(i).delayKind;
 			cggtts.refDly=refCableDelay;
@@ -377,8 +377,7 @@ void Application::run()
 			cggtts.constellation=CGGTTSoutputs.at(i).constellation;
 			cggtts.code=CGGTTSoutputs.at(i).code;
 			cggtts.calID=CGGTTSoutputs.at(i).calID;
-			cggtts.isP3=CGGTTSoutputs.at(i).isP3;
-			cggtts.useMSIO=cggtts.isP3; // FIXME not the whole story
+			cggtts.reportMSIO=false; // FIXME disabled for the moment
 			std::string CGGTTSfile =makeCGGTTSFilename(CGGTTSoutputs.at(i),MJD);
 			cggtts.writeObservationFile(CGGTTSfile,MJD,startTime,stopTime,mpairs,TICenabled);
 	
@@ -389,7 +388,7 @@ void Application::run()
 		RINEX rnx;
 		rnx.agency = agency;
 		rnx.observer=observer;
-		rnx.allObservations=allObservations;
+		rnx.allObservations = allObservations;
 		
 		if (generateNavigationFile) {
 			if (RINEXmajorVersion == 2){
@@ -802,19 +801,19 @@ bool Application::loadConfig()
 				if (setConfig(last,configs.at(i).c_str(),"code",stmp,&configOK)){
 					boost::to_upper(stmp);
 					
-					if (0== (code = CGGTTS::strToCode(stmp,&isP3))){
+					if (0== (code = CGGTTS::strToCode(stmp))){
 						std::cerr << "unknown code " << stmp << " in [" << configs.at(i) << "]" << std::endl;
 						configOK=false;
 						continue;
 					}
 				}
 				setConfig(last,configs.at(i).c_str(),"bipm cal id",calID,&configOK,false);
-				double intdly=0.0,intdly2=0.0;
+				double intdly1=0.0,intdly2=0.0;
 				int delayKind = CGGTTS::INTDLY; 
 				
 				switch (CGGTTSversion){
 					case CGGTTS::V1:
-						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK)){
+						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly1,&configOK)){
 							continue;
 						}
 						setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
@@ -822,10 +821,10 @@ bool Application::loadConfig()
 					case CGGTTS::V2E:
 						if (isP3)
 							setConfig(last,configs.at(i).c_str(),"internal delay 2",&intdly2,&configOK,false);
-						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly,&configOK,false)){
-							if (!setConfig(last,configs.at(i).c_str(),"system delay",&intdly,&configOK,false)){
+						if (!setConfig(last,configs.at(i).c_str(),"internal delay",&intdly1,&configOK,false)){
+							if (!setConfig(last,configs.at(i).c_str(),"system delay",&intdly1,&configOK,false)){
 								DBGMSG(debugStream,INFO,"Got there");
-								if (setConfig(last,configs.at(i).c_str(),"total delay",&intdly,&configOK)){
+								if (setConfig(last,configs.at(i).c_str(),"total delay",&intdly1,&configOK)){
 									delayKind=CGGTTS::TOTDLY;
 								}
 								else{
@@ -865,7 +864,7 @@ bool Application::loadConfig()
 					// FIXME check compatibility of constellation+code
 					stmp=relativeToAbsolutePath(stmp);
 					ephemerisPath = relativeToAbsolutePath(ephemerisPath);
-					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,isP3,stmp,calID,intdly,intdly2,delayKind,
+					CGGTTSoutputs.push_back(CGGTTSOutput(constellation,code,isP3,stmp,calID,intdly1,intdly2,delayKind,
 						ephemerisSource,ephemerisPath,ephemerisFile));
 				}
 				

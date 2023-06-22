@@ -36,7 +36,7 @@
 
 #define APP_NAME "mktimetx"
 #define APP_AUTHORS "Michael Wouters,Peter Fisk,Bruce Warrington,Louis Marais,Malcolm Lawn"
-#define APP_VERSION "0.1.15"
+#define APP_VERSION "0.1.16"
 #define APP_CONFIG "gpscv.conf"
 
 #define CVACUUM 299792458
@@ -58,13 +58,12 @@ class CGGTTSOutput{
 			double internalDelay,double internalDelay2,int delayKind,
 			int ephemerisSource,std::string ephemerisPath,std::string ephemerisFile
 			):
-			constellation(constellation),code(code),isP3(isP3),path(path),
+			constellation(constellation),code(code),path(path),
 			calID(calID),internalDelay(internalDelay),internalDelay2(internalDelay2),delayKind(delayKind),
 			ephemerisSource(ephemerisSource),ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile){};
 		
 		int constellation;
 		int code;
-		bool isP3; // for convenience
 		std::string path;
 		std::string calID;
 		double internalDelay,internalDelay2;
