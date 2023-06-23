@@ -90,18 +90,22 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 	time_t tnow = time(NULL);
 	struct tm *tgmt = gmtime(&tnow);
 	
+	char appName[21];
+	
+	std::snprintf(appName,20,"%s %s",APP_NAME,APP_VERSION);
+	
 	switch (majorVer){
 		case V2:
 		{
 			std::strftime(buf,80,"%d-%b-%y %T",tgmt);
-			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
+			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",appName,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			break;
 		}
 		case V3:
 		{
 			std::snprintf(buf,80,"%04d%02d%02d %02d%02d%02d UTC",tgmt->tm_year+1900,tgmt->tm_mon+1,tgmt->tm_mday,
 					 tgmt->tm_hour,tgmt->tm_min,tgmt->tm_sec);
-			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",APP_NAME,agency.c_str(),buf,"PGM / RUN BY / DATE");
+			std::fprintf(fout,"%-20s%-20s%-20s%-20s\n",appName,agency.c_str(),buf,"PGM / RUN BY / DATE");
 			break;
 		}
 		default:break;
