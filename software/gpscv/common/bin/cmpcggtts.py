@@ -48,7 +48,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import cggttslib
 
-VERSION = "0.6.2"
+VERSION = "0.6.3"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -219,6 +219,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 	Debug('CGGTTS version ' + header['version'])
 	
 	hasMSIO = False
+	hasFRC  = False # some older 
 	# Eat the header
 	while True:
 		l = fin.readline()
@@ -229,6 +230,9 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 			if (re.search('MSIO',l)):
 				hasMSIO=True
 				Debug('MSIO present')
+			if (re.search('FRC',l)):
+				hasFRC=True
+				Debug('FRC present')
 			continue
 		match = re.match('\s+hhmmss',l)
 		if match:
@@ -248,7 +252,10 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 			cksumend=101
 	elif (ver == CGGTTS_V2):
 		if (hasMSIO):
-			cksumend=125
+			if hasFRC:
+				cksumend=125
+			else: # some versions do not include FR HC FRC
+				cksumend=115
 		else:
 			cksumend=111
 	elif (ver ==CGGTTS_V2E):
@@ -295,6 +302,7 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 			if (ver != CGGTTS_RAW): # should have a checksum 
 				
 				cksum = int(l[cksumend:cksumend+2],16)
+				
 				if (not(cksum == (cggttslib.CheckSum(l[:cksumend])))):
 					if (enforceChecksum):
 						sys.stderr.write('Bad checksum in data of ' + fname + '\n')
