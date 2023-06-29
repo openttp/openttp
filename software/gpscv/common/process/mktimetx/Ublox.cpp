@@ -263,8 +263,9 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						
 						// GPSTOW is used for pseudorange estimations
 						// Note: this is rounded because that's what works for time-transfer :-)
-						if (app->positioningMode)
-							rmeas->gpstow = measTOW; // truncate fractional part
+						if (app->positioningMode){
+							rmeas->gpstow = measTOW; // truncate fractional part (this will be saved later)
+						}
 						else
 							rmeas->gpstow = rint(measTOW); 
 						rmeas->gpswn=measGPSWN % 1024; // Converted to truncated WN.  
@@ -285,8 +286,9 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						struct tm *tmGPS = gmtime(&tgps);
 						rmeas->tmGPS=*tmGPS;
 						
-						if (app->positioningMode)
+						if (app->positioningMode){
 							rmeas->tmfracs = measTOW - (int)(measTOW); 
+						}
 							//if (rmeas->tmfracs > 0.5) rmeas->tmfracs -= 1.0; // place in the previous second
 						else
 							rmeas->tmfracs=0.0;
@@ -298,26 +300,19 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 						//if (constellations & GNSSSystem::GPS){
 							for (unsigned int sv=0;sv<svmeas.size();sv++){
 								svmeas.at(sv)->dbuf3 = svmeas.at(sv)->meas; // save for debugging
+								svmeas.at(sv)->dbuf2 = clockBias*1.0E-9;
+								svmeas.at(sv)->dbuf1 = measTOW;
 								if (!app->positioningMode){ // corrections only add noise, in principle
-									if (svmeas.at(sv)->code < GNSSSystem::L1C)
+									if (svmeas.at(sv)->code < GNSSSystem::L1C){
 										svmeas.at(sv)->meas -= clockBias*1.0E-9; // evidently it is subtracted
-									else{ // carrier phase, so have to convert the clock bias to cycles
-										double f=1.0; // a fudge for the GNSS for which freqFromCode is not implemented
-										switch (svmeas.at(sv)->constellation)
-										{
-											case GNSSSystem::BEIDOU:  f=beidou.codeToFreq(svmeas.at(sv)->code );break;
-											case GNSSSystem::GALILEO: f=galileo.codeToFreq(svmeas.at(sv)->code );break;
-											case GNSSSystem::GLONASS: f=glonass.codeToFreq(svmeas.at(sv)->code,0);break;
-											case GNSSSystem::GPS:     f=gps.codeToFreq(svmeas.at(sv)->code );break;
+
+										// Now subtract the ms part so that ms ambiguity resolution works:
+										// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
+										// resolution. We could only keep the ms part, but for now only do this for
+										// GPS because we do get the necessary data for GPS from the ublox.
+										if(svmeas.at(sv)->constellation == GNSSSystem::GPS){ // FIXME
+											svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
 										}
-										svmeas.at(sv)->meas -= clockBias*1.0E-9*f;
-									}
-									// Now subtract the ms part so that ms ambiguity resolution works:
-									// Need to obtain ephemeris, etc. for other GNSS to do proper ms ambiguity
-									// resolution. We could only keep the ms part, but for now only do this for
-									// GPS because we do get the necessary data for GPS from the ublox.
-									if(svmeas.at(sv)->constellation == GNSSSystem::GPS){
-										svmeas.at(sv)->meas -= 1.0E-3*floor(svmeas.at(sv)->meas/1.0E-3);
 									}
 								}
 								svmeas.at(sv)->rm=rmeas;
@@ -326,11 +321,10 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 							svmeas.clear(); // don't delete - we only made a shallow copy!
 						//}
 						
-						
 						// KEEP THIS it's useful for debugging measurement-time related problems
 					//fprintf(stderr,"PC=%02d:%02d:%02d tmUTC=%02d:%02d:%02d tmGPS=%4d %02d:%02d:%02d gpstow=%d gpswn=%d measTOW=%.12lf tmfracs=%g clockbias=%g\n",
-						//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_year+1900,rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
-						//(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
+					//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_year+1900,rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
+					//(int) rmeas->gpstow,(int) rmeas->gpswn,measTOW,rmeas->tmfracs,clockBias*1.0E-9  );
 					
 					//fprintf(stderr,"%02d:%02d:%02d %02d:%02d:%02d %02d:%02d:%02d %d %d %.12lf %g %g\n",
 					//pchh,pcmm,pcss,UTChour,UTCmin,UTCsec, rmeas->tmGPS.tm_hour, rmeas->tmGPS.tm_min,rmeas->tmGPS.tm_sec,
@@ -444,7 +438,7 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 									}
 									if (sig > 0){
 										SVMeasurement *svm = new SVMeasurement(svID,gnssSys,sig,r8buf/CLIGHT,NULL);
-										svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
+										//svm->dbuf1=0.01*pow(2.0,prStdDev); // used offset 46 instead of offset 43 above
 										svmeas.push_back(svm);
 										if (app->allObservations && cpsig > 0){ // FIXME until all CP used ...
 											SVMeasurement *svm = new SVMeasurement(svID,gnssSys,cpsig,cpmeas,NULL);
@@ -516,12 +510,13 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 			}
 			
 			// 0x0122 UBX-NAV-CLOCK clock solution  (clock bias)
+			// clock bias ranges from 0 to 1 ms and is reported with 1 ns resolution
 			if(msgid == "0122"){
 				if (msg.size()==(20+2)*2){
 						HexToBin((char *) msg.substr(0*2,2*sizeof(U4)).c_str(),sizeof(U4),(unsigned char *) &u4buf); // GPS tow of navigation epoch (ms)
 						HexToBin((char *) msg.substr(4*2,2*sizeof(I4)).c_str(),sizeof(I4),(unsigned char *) &clockBias); // in ns
 						
-						DBGMSG(debugStream,TRACE,"GPS tow=" << u4buf << "ms" << " clock bias=" << clockBias << " ns");
+						DBGMSG(debugStream,TRACE,"GPS tow=" << u4buf << "ms" << " clock bias=" << clockBias << " ns" << " measTow " << measTOW);
 						currentMsgs |= MSG0122;
 				}
 				else{
@@ -764,6 +759,8 @@ bool Ublox::readLog(std::string fname,int mjd,int startTime,int stopTime,int rin
 								}
 							}
 							if (ok){ 
+								//DBGMSG(debugStream,INFO,svn << " " << code << " " << currtow <<  " " << measurements[i]->meas[m]->dbuf1 <<  std::setprecision(12) << " " << 	measurements[i]->meas[m]->meas << " " << measurements[i]->meas[m]->dbuf3 << " " << corr  << " " << measurements[i]->meas[m]->dbuf2);
+								
 								measurements[i]->meas[m]->meas += corr;
 								m++;
 							}

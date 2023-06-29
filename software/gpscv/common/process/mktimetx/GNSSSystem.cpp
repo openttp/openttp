@@ -22,7 +22,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <cmath>
+
 #include "Application.h"
+#include "Antenna.h"
 #include "Debug.h"
 #include "GNSSSystem.h"
 #include "RINEX.h"
@@ -236,6 +239,55 @@ bool GNSSSystem::addEphemeris(Ephemeris *ed)
 		return true;
 	}
 	return true;
+}
+
+// This is just a stub
+// It must be reimplemented for each GNSS
+// Note : units for all of the corrections must be 'seconds'
+
+bool GNSSSystem::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int freqBand,
+			double *corrRange,double *clockCorr,double *modIonoCorr,double *tropoCorr,double *gdCorr, double *relCorr,
+			double *azimuth,double *elevation)
+{
+	
+	*corrRange = 0.0;
+	*clockCorr = 0.0;
+	*modIonoCorr = 0.0;
+	*tropoCorr = 0.0;
+	*gdCorr = 0.0;
+	*relCorr = 0.0;
+	*azimuth = 0.0;
+	*elevation = 0.0;
+	
+	return false; // well, we didn't do much, did we ?
+}
+
+void GNSSSystem::satAzEl(double xsat[3],Antenna *ant, double *az, double *el)
+{
+	// convert from ECEF to ENU coords, given the antenna position
+	// Az,El in degrees
+	// See eg https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+	
+	double slat= sin(ant->latitude*M_PI/180.0);
+	double clat= cos(ant->latitude*M_PI/180.0);
+	double slon= sin(ant->longitude*M_PI/180.0);
+	double clon= cos(ant->longitude*M_PI/180.0);
+	
+	double dx = xsat[0] - ant->x;
+	double dy = xsat[1] - ant->y;
+	double dz = xsat[2] - ant->z;
+
+	double rS = -slat*clon*dx - slat*slon*dy + clat*dz; // south
+	double rE = -slon*dx + clon*dy;                     // east
+	double rZ =  clat*clon*dx + clat*slon*dy + slat*dz;  // height
+
+	double R = sqrt(dx*dx + dy*dy + dz*dz);
+	*az = 180.0*atan2(rE,rS)/M_PI; // and the rest is just trig
+	*el = 180.0*asin(rZ/R)/M_PI;
+	
+	if (*az < 0.0) *az += 360.0;
+	if (*el < 0.0) *el = 0.0; // can't see a satellite below the horizon ...
+	
 }
 
 // FIXME Badly named,  and a bodge, really 

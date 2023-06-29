@@ -37,7 +37,7 @@ Galileo.o: Galileo.cpp  Antenna.h Debug.h Galileo.h Application.h GNSSSystem.h  
 GLONASS.o: GLONASS.cpp  Antenna.h Debug.h GLONASS.h Application.h GNSSSystem.h  Troposphere.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GLONASS.cpp
 
-GNSSSystem.o: GNSSSystem.cpp GNSSSystem.h
+GNSSSystem.o: GNSSSystem.cpp GNSSSystem.h Antenna.h
 	$(CXX) $(CXXFLAGS) $(CFGFLAGS) $(INCLUDE)  -c GNSSSystem.cpp
 	
 GPS.o: GPS.cpp  Antenna.h Debug.h GPS.h Application.h GNSSSystem.h  ReceiverMeasurement.h SVMeasurement.h Troposphere.h

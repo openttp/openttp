@@ -446,7 +446,7 @@ bool RINEX::writeObservationFile(Antenna *ant, Counter *cntr, Receiver *rx,int m
 											std::fprintf(fout,"%14.3lf%2s",(rm->meas[svc]->meas+ppsTime)*CVACUUM,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
 										else if (c >= 0x10000 && allObservations){ // phase observations, which can be masked out
-											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas+ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
+											std::fprintf(fout,"%14.3lf%2s",rm->meas[svc]->meas + ppsTime*freq,formatFlags(rm->meas[svc]->lli,rm->meas[svc]->signal));
 										}
 										foundit=true;
 										break;

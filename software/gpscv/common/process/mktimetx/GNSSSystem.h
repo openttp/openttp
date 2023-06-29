@@ -93,26 +93,32 @@ class GNSSSystem
 		GNSSSystem(){};
 		~GNSSSystem(){};
 		
-		int codes; // observation codes
-		static std::string observationCodeToStr(int c,int RINEXmajorVersion,int RINEXminorVersion=-1);
-		static unsigned int strToObservationCode(std::string, int RINEXversion);
-		std::vector<Ephemeris *> ephemeris;
-		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
-		//virtual Ephemeris *nearestEphemeris(int,int,double);
-		
-		virtual double codeToFreq(int){return 0.0;}
-		
-		virtual int maxSVN(){return -1;}
-		std::string oneLetterCode(){return olc;}
-	
-		virtual void deleteEphemerides();
-		virtual bool addEphemeris(Ephemeris *);
-		virtual bool fixWeekRollovers();
-		virtual void setAbsT0c(int){};
 		
 		std::string name(){return n;}
 		
+		virtual int maxSVN(){return -1;}
+		
+		int codes; // observation codes
+		static std::string observationCodeToStr(int c,int RINEXmajorVersion,int RINEXminorVersion=-1);
+		static unsigned int strToObservationCode(std::string, int RINEXversion);
+		std::string oneLetterCode(){return olc;}
+		virtual double codeToFreq(int){return 0.0;}
+		
+		std::vector<Ephemeris *> ephemeris;
+		std::vector<Ephemeris *> sortedEphemeris[37+1]; // FIXME this is the maximum number of SVNs (BDS currently)
+		//virtual Ephemeris *nearestEphemeris(int,int,double);
+		virtual void deleteEphemerides();
+		virtual bool addEphemeris(Ephemeris *);
+		
+		virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int freqBand,
+			double *corrRange,double *clockCorr,double *modIonoCorr,double *tropoCorr,double *gdCorr, double *relCorr,
+			double *azimuth,double *elevation);
+		void satAzEl(double *,Antenna *, double *, double *);
+		
 		virtual bool resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *,SVMeasurement *,double *){return true;}
+		
+		virtual bool fixWeekRollovers();
+		virtual void setAbsT0c(int){};
 		
 	protected:
 		std::string n; // system name

@@ -40,15 +40,17 @@
 #define MU 3.986005e14 // WGS 84 value of the earth's gravitational constant for GPS USER
 #define OMEGA_E_DOT 7.2921151467e-5
 #define F -4.442807633e-10
+#define CLIGHT 299792458.0
+
 #define MAX_ITERATIONS 10 // for solution of the Kepler equation
+#define MAX_SV_XYZ_ERROR 1E-2 // maximum error tolerated in satellite  position, in metres. Usually 3 iterations for 1 cm
+#define MAX_SV_XYZ_ITERATIONS 10 // for iterative solution of position
 
 extern Application *app;
 extern std::ostream *debugStream;
 extern std::string   debugFileName;
 extern std::ofstream debugLog;
 extern int verbosity;
-
-#define CLIGHT 299792458.0
 
 // Lookup table to convert URA index [0,15] to URA value in m for SV accuracy
 
@@ -82,64 +84,6 @@ double GPS::codeToFreq(int c)
 	}
 	return f;
 }
-
-// bool GPS::addEphemeris(EphemerisData *ed)
-// {
-// 	// Check whether this is a duplicate
-// 	int issue;
-// 	for (issue=0;issue < (int) sortedEphemeris[ed->SVN].size();issue++){
-// 		if (sortedEphemeris[ed->SVN][issue]->t_0e == ed->t_0e){
-// 			DBGMSG(debugStream,4,"ephemeris: duplicate SVN= "<< (unsigned int) ed->SVN << " toe= " << ed->t_0e);
-// 			return false;
-// 		}
-// 	}
-// 	
-// 	if (ephemeris.size()>0){
-// 
-// 		// Update the ephemeris list - this is time-ordered
-// 		
-// 		std::vector<EphemerisData *>::iterator it;
-// 		for (it=ephemeris.begin(); it<ephemeris.end(); it++){
-// 			if (ed->t_OC < (*it)->t_OC){ // RINEX uses t_OC
-// 				DBGMSG(debugStream,4,"list inserting " << ed->t_OC << " " << (*it)->t_OC);
-// 				ephemeris.insert(it,ed);
-// 				break;
-// 			}
-// 		}
-// 		
-// 		if (it == ephemeris.end()){ // got to end, so append
-// 			DBGMSG(debugStream,4,"appending " << ed->t_OC);
-// 			ephemeris.push_back(ed);
-// 		}
-// 		
-// 		// Update the ephemeris hash - 
-// 		if (sortedEphemeris[ed->SVN].size() > 0){
-// 			std::vector<EphemerisData *>::iterator it;
-// 			for (it=sortedEphemeris[ed->SVN].begin(); it<sortedEphemeris[ed->SVN].end(); it++){
-// 				if (ed->t_OC < (*it)->t_OC){ 
-// 					DBGMSG(debugStream,4,"hash inserting " << ed->t_OC << " " << (*it)->t_OC);
-// 					sortedEphemeris[ed->SVN].insert(it,ed);
-// 					break;
-// 				}
-// 			}
-// 			if (it == sortedEphemeris[ed->SVN].end()){ // got to end, so append
-// 				DBGMSG(debugStream,4,"hash appending " << ed->t_OC);
-// 				sortedEphemeris[ed->SVN].push_back(ed);
-// 			}
-// 		}
-// 		else{ // first one for this SVN
-// 			DBGMSG(debugStream,4,"first for svn " << (int) ed->SVN);
-// 			sortedEphemeris[ed->SVN].push_back(ed);
-// 		}
-// 	}
-// 	else{ //first one
-// 		DBGMSG(debugStream,4,"first eph ");
-// 		ephemeris.push_back(ed);
-// 		sortedEphemeris[ed->SVN].push_back(ed);
-// 		return true;
-// 	}
-// 	return true;
-// }
 
 GPSEphemeris* GPS::nearestEphemeris(int svn,int tow,double maxURA)
 {
@@ -177,139 +121,109 @@ GPSEphemeris* GPS::nearestEphemeris(int svn,int tow,double maxURA)
 }
 
 
-
-bool GPS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *rxm,SVMeasurement *svm,double *corr)
+// prange is raw pseudorange (in metres!)
+bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int freqBand,
+			double *corrRange,double *clockCorr,double *modIonoCorr,double *tropoCorr,double *gdCorr, double *relCorr,
+			double *azimuth,double *elevation)
 {
-	*corr=0.0;
-	bool ok=false;
-	// find closest ephemeris entry
-	GPSEphemeris *ed = nearestEphemeris(svm->svn,rxm->gpstow,3.0); // max URA probably not important
-	if (ed != NULL){
-		double x[3],Ek;
-		
-		int igpslt = rxm->gpstow; // take integer part of GPS local time (but it's integer anyway ...) 
-		int gpsDayOfWeek = igpslt/86400; 
-		//  if it is near the end of the day and toc->hour is < 6, then the ephemeris is from the next day.
-		int tmpgpslt = igpslt % 86400;
-		double toc=ed->t_OC; // toc is clock data reference time
-		int tocDay=(int) toc/86400;
-		toc-=86400*tocDay;
-		int tocHour=(int) toc/3600;
-		toc-=3600*tocHour;
-		int tocMinute=(int) toc/60;
-		toc-=60*tocMinute;
-		int tocSecond=toc;
-		if (tmpgpslt >= (86400 - 6*3600) && (tocHour < 6))
-			  gpsDayOfWeek++;
-		toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
 	
-		// Calculate clock corrections (ICD 20.3.3.3.3.1)
-		double gpssvt= rxm->gpstow - svm->meas;
-		double clockCorrection = ed->a_f0 + ed->a_f1*(gpssvt - toc) + ed->a_f2*(gpssvt - toc)*(gpssvt - toc); // SV PRN code phase offset
-		double tk = gpssvt - clockCorrection;
-		
-		double range,ms,svdist,svrange,ax,ay,az;
-		if (satXYZ(ed,tk,&Ek,x)){
-			double trel =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
-			range = svm->meas + clockCorrection + trel - ed->t_GD;
-			// Correction for Earth rotation (Sagnac) (ICD 20.3.3.4.3.4)
-			ax = antenna->x - OMEGA_E_DOT * antenna->y * range;
-			ay = antenna->y + OMEGA_E_DOT * antenna->x * range;
-			az = antenna->z ;
+	GPSEphemeris *ed  = dynamic_cast<GPSEphemeris *>(ephd);
+	
+	if (ed == NULL){
+		return false;
+	}
+	
+	bool ok=false;
+	
+	// ICD 20.3.3.3.3.2 apropos 'single frequency' users
+	double ionoFreqCorr=1.0,gdFreqCorr=1.0;
+	switch (freqBand){
+		case 0: ionoFreqCorr = 1.0;gdFreqCorr = 0.0;break; // P3 
+		case 1: ionoFreqCorr = gdFreqCorr = 1.0;break;
+		case 2: ionoFreqCorr = gdFreqCorr = 77.0*77.0/(60.0*60.0);break;
+		default:break;
+	}
+	
+	double x[3],Ek;
+	
+	int igpslt = gpsTOW; // take integer part of GPS local time (but it's integer anyway ...) 
+	int gpsDayOfWeek = igpslt/86400; 
+	//  if it is near the end of the day and toc->hour is < 6, then the ephemeris is from the next day.
+	int tmpgpslt = igpslt % 86400;
+	double toc=ed->t_OC; // toc is clock data reference time
+	int tocDay=(int) toc/86400;
+	toc-=86400*tocDay;
+	int tocHour=(int) toc/3600;
+	toc-=3600*tocHour;
+	int tocMinute=(int) toc/60;
+	toc-=60*tocMinute;
+	int tocSecond=(int) toc;
+	if (tmpgpslt >= (86400 - 6*3600) && (tocHour < 6))
+			gpsDayOfWeek++;
+	toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
+
+	double rsv,xsv[3];
+	
+	double tTransmit; 
+	double range = pRange; // initial guess
+	double rangePrev = pRange;
+	
+	// We have to iteratively remove the receiver clock offset
+	// Note that mktimetx is used with receivers that have their timescale referenced to GPS/UTC so this is not necessary
+	
+	for (int i=0;i<MAX_SV_XYZ_ITERATIONS;i++){
+		if (satXYZ(ed,tTransmit = gpsTOW - range/CLIGHT,&Ek,x)){
 			
-			svrange= (svm->meas+clockCorrection) * CLIGHT;
-			svdist = sqrt( (x[0]-ax)*(x[0]-ax) + (x[1]-ay)*(x[1]-ay) + (x[2]-az)*(x[2]-az));
-			double err  = (svrange - svdist);
-			ms   = (int)((-err/CLIGHT *1000)+0.5)/1000.0;
-			*corr = ms;
-			ok=true;
+			// Sagnac corrected SV position
+			double alpha = range*OMEGA_E_DOT/CLIGHT;
+			
+			xsv[0] =  x[0]*cos(alpha) + x[1]*sin(alpha);
+			xsv[1] = -x[0]*sin(alpha) + x[1]*cos(alpha);
+			xsv[2] =  x[2];
+			
+			rsv = sqrt((ant->x - xsv[0])*(ant->x - xsv[0]) + (ant->y - xsv[1])*(ant->y - xsv[1]) + (ant->z - xsv[2])*(ant->z - xsv[2]));
+	
+			rangePrev = range;
+			range = rsv;
+			if (fabs(range - rangePrev) < MAX_SV_XYZ_ERROR){
+				//DBGMSG(debugStream,INFO,"satXYZ OK in " << i+1);
+				break;
+			}
 		}
 		else{
-			DBGMSG(debugStream,1,"Failed");
-			ok=false;
+			DBGMSG(debugStream,INFO,"satXYZ failed to converge");
+			return false;
 		}
-		DBGMSG(debugStream,3, (int) svm->svn << " " << svm->meas << " " << std::fixed << std::setprecision(6) << " " << rxm->gpstow << " " << tk << " " 
-		  << gpsDayOfWeek << " " << toc << " " << clockCorrection << " " << range << " " << (int) (ms*1000) << " " << svdist << " " << svrange
-			<< " " << sqrt((antenna->x-ax)*(antenna->x-ax)+(antenna->y-ay)*(antenna->y-ay)+(antenna->z-az)*(antenna->z-az))
-			<< " " << Ek << " " << x[0] << " " << x[1] << " " << x[2]);
-
 	}
-	return ok;
+	
+	if (fabs(range - rangePrev) >= MAX_SV_XYZ_ERROR){
+		DBGMSG(debugStream,INFO,"satXYZ error too big");
+			return false;
+	}
+	
+	//
+	
+	*clockCorr = ed->a_f0 + ed->a_f1*(tTransmit - toc) + ed->a_f2*(tTransmit - toc)*(tTransmit - toc); // SV PRN code phase offset (ICD 20.3.3.3.3.1)
+		
+	*relCorr =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek); // of order a few tens of ns
+	
+	// Azimuth and elevation of SV
+	satAzEl(xsv,ant,azimuth,elevation);
+		
+	*corrRange = rsv/CLIGHT; // note ! in seconds
+	
+	*gdCorr = gdFreqCorr*ed->t_GD;
+	
+	*tropoCorr = Troposphere::delayModel(*elevation,ant->height);
+	
+	*modIonoCorr = ionoFreqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
+		ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
+		ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
+	
+	return true;
+	
 }
 
-void GPS::setAbsT0c(int mjd)
-{
-	// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
-	int gpsWeek=int ((mjd-44244)/7);
-	
-	int lastGPSWeek=-1;
-	int lastToc=-1;
-	int weekRollovers=0;
-	
-	// GPS epoch as a struct tm
-	struct tm tmGPS0;
-	tmGPS0.tm_sec=tmGPS0.tm_min=tmGPS0.tm_hour=0;
-	tmGPS0.tm_mday=6;tmGPS0.tm_mon=0;tmGPS0.tm_year=1980-1900,tmGPS0.tm_isdst=0;
-	time_t tGPS0=std::mktime(&tmGPS0);
-	
-	for (unsigned int i=0;i<ephemeris.size();i++){
-		
-		GPSEphemeris *eph = dynamic_cast<GPSEphemeris *>(ephemeris[i]);
-		
-		// Account for GPS rollover:
-		// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
-		// GPS week 1024 begins midnight 21/22 Aug 1999, MJD 51412
-		// GPS week 2048 begins midnight 6/7 Apr 2019, MJD 58580
-		
-		int tmjd=mjd;
-		int GPSWeek=eph->week_number;
-		
-		while (tmjd>=51412) {
-			GPSWeek+=1024;
-			tmjd-=(7*1024);
-		}
-		if (-1==lastGPSWeek){lastGPSWeek=GPSWeek;}
-		// Convert GPS week + $Toc to epoch as year, month, day, hour, min, sec
-		// Note that the epoch should be specified in GPS time
-		double Toc=eph->t_OC;
-		if (-1==lastToc) {lastToc = Toc;}
-		// If GPS week is unchanged and Toc has gone backwards by more than 2 days, increment GPS week
-		// It is assumed that ephemeris entries have been correctly ordered (using fixWeeKRollovers() prior to writing out
-		if ((GPSWeek == lastGPSWeek) && (Toc-lastToc < -2*86400)){
-			weekRollovers=1;
-		}
-		else if (GPSWeek == lastGPSWeek+1){//OK now 
-			weekRollovers=0; 	
-		}
-		
-		lastGPSWeek=GPSWeek;
-		lastToc=Toc;
-		
-		GPSWeek = GPSWeek + weekRollovers;
-		
-		eph->t0cAbs = tGPS0+GPSWeek*86400*7+Toc;
-		eph->correctedWeek= GPSWeek;
-	}
-}
-
-bool GPS::currentLeapSeconds(int mjd,int *leapsecs)
-{
-	if (!(UTCdata.dt_LS == 0 && UTCdata.dt_LSF == 0)){ 
-		// Figure out when the leap second is/was scheduled; we only have the low
-		// 8 bits of the week number in WN_LSF, but we know that "the
-		// absolute value of the difference between the untruncated WN and Wlsf
-		// values shall not exceed 127" (ICD 20.3.3.5.2.4, p122)
-		int gpsWeek=int ((mjd-44244)/7);
-		int gpsSchedWeek=(gpsWeek & ~0xFF) | UTCdata.WN_LSF;
-		while ((gpsWeek-gpsSchedWeek)> 127) {gpsSchedWeek+=256;}
-		while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
-		int gpsSchedMJD=44244+7*gpsSchedWeek+UTCdata.DN;
-		// leap seconds is either tls or tlsf depending on past/future schedule
-		(*leapsecs)=(mjd>=gpsSchedMJD? UTCdata.dt_LSF : UTCdata.dt_LS);
-		return true;
-	}
-	return false;
-}
 
 bool GPS::satXYZ(GPSEphemeris *ed,double t,double *Ek,double x[3])
 {
@@ -408,7 +322,7 @@ double GPS::ionoDelay(double az, double elev, double lat, double longitude, doub
 	else
 		Tiono = F*5e-9;
 
-	return(Tiono*1e9);
+	return Tiono; // in seconds
 
 } // ionnodelay
 
@@ -445,33 +359,16 @@ double GPS::measIonoDelay(unsigned int code1,unsigned int code2,double tpr1,doub
 }
 
 
-bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
-	GPSEphemeris *ed,int signal,
-	double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
-	double *azimuth,double *elevation,int *ioe){
-	
-	*refsyscorr=*refsvcorr=0.0;
+bool GPS::resolveMsAmbiguity(Antenna* antenna,ReceiverMeasurement *rxm,SVMeasurement *svm,double *corr)
+{
+	*corr=0.0;
 	bool ok=false;
-	
-	// ICD 20.3.3.3.3.2
-	double freqCorr=1.0; 
-	switch (signal){
-		case GNSSSystem::C1C: case GNSSSystem::C1P:
-			freqCorr=1.0;
-			break;
-		case GNSSSystem::C2P: case GNSSSystem::C2C:
-			freqCorr=77.0*77.0/(60.0*60.0);
-			break;
-		default:
-			break;
-	}
-	
+	// find closest ephemeris entry
+	GPSEphemeris *ed = nearestEphemeris(svm->svn,rxm->gpstow,3.0); // max URA probably not important
 	if (ed != NULL){
 		double x[3],Ek;
 		
-		*ioe=ed->IODE;
-		
-		int igpslt = gpsTOW; // take integer part of GPS local time (but it's integer anyway ...) 
+		int igpslt = rxm->gpstow; // take integer part of GPS local time (but it's integer anyway ...) 
 		int gpsDayOfWeek = igpslt/86400; 
 		//  if it is near the end of the day and toc->hour is < 6, then the ephemeris is from the next day.
 		int tmpgpslt = igpslt % 86400;
@@ -482,66 +379,117 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,
 		toc-=3600*tocHour;
 		int tocMinute=(int) toc/60;
 		toc-=60*tocMinute;
-		int tocSecond=(int) toc;
+		int tocSecond=toc;
 		if (tmpgpslt >= (86400 - 6*3600) && (tocHour < 6))
 			  gpsDayOfWeek++;
 		toc = gpsDayOfWeek*86400 + tocHour*3600 + tocMinute*60 + tocSecond;
 	
 		// Calculate clock corrections (ICD 20.3.3.3.3.1)
-		double gpssvt= gpsTOW - pRange;
+		double gpssvt= rxm->gpstow - svm->meas;
 		double clockCorrection = ed->a_f0 + ed->a_f1*(gpssvt - toc) + ed->a_f2*(gpssvt - toc)*(gpssvt - toc); // SV PRN code phase offset
 		double tk = gpssvt - clockCorrection;
 		
-		double range,svdist,svrange,ax,ay,az;
-		if (GPS::satXYZ(ed,tk,&Ek,x)){
-			double relativisticCorrection =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
-			range = pRange + clockCorrection + relativisticCorrection - freqCorr*ed->t_GD;
-			// Sagnac correction (ICD 20.3.3.4.3.4)
-			ax = ant->x - OMEGA_E_DOT * ant->y * range;
-			ay = ant->y + OMEGA_E_DOT * ant->x * range;
-			az = ant->z ;
+		double range,ms,svdist,svrange,ax,ay,az;
+		if (satXYZ(ed,tk,&Ek,x)){
+			double trel =  -4.442807633e-10*ed->e*ed->sqrtA*sin(Ek);
+			range = svm->meas + clockCorrection + trel - ed->t_GD;
+			// Correction for Earth rotation (Sagnac) (ICD 20.3.3.4.3.4)
+			ax = antenna->x - OMEGA_E_DOT * antenna->y * range;
+			ay = antenna->y + OMEGA_E_DOT * antenna->x * range;
+			az = antenna->z ;
 			
-			svrange= (pRange+clockCorrection) * CLIGHT;
+			svrange= (svm->meas+clockCorrection) * CLIGHT;
 			svdist = sqrt( (x[0]-ax)*(x[0]-ax) + (x[1]-ay)*(x[1]-ay) + (x[2]-az)*(x[2]-az));
 			double err  = (svrange - svdist);
-			
-			// Azimuth and elevation of SV
-			double R=sqrt(ant->x*ant->x+ant->y*ant->y+ant->z*ant->z); 
-			double p=sqrt(ant->x*ant->x+ant->y*ant->y);
-			*elevation = 57.296*asin((ant->x*(x[0] - ant->x) + ant->y*(x[1] - ant->y) + ant->z*(x[2] - ant->z))/(R*svdist));
-			*azimuth = 57.296 * atan2( (-(x[0] - ant->x)*ant->y +(x[1] - ant->y)*ant->x) * R,	 
-								-(x[0] - ant->x)*ant->x*ant->z -(x[1] - ant->y)*ant->y*ant->z +(x[2] - ant->z)*p*p);
-
-			if(*azimuth < 0) *azimuth += 360;
-			
-			if(fabs(err/CLIGHT) < 1000.0e-9){
-			
-				*refsyscorr=(clockCorrection + relativisticCorrection - freqCorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
-				*refsvcorr =(                  relativisticCorrection - freqCorr*ed->t_GD - svdist/CLIGHT)*1.0E9;
-									
-				*tropo = Troposphere::delayModel(*elevation,ant->height);
-				
-				*iono = freqCorr*ionoDelay(*azimuth, *elevation, ant->latitude, ant->longitude,gpsTOW,
-					ionoData.a0,ionoData.a1,ionoData.a2,ionoData.a3,
-					ionoData.B0,ionoData.B1,ionoData.B2,ionoData.B3);
-				
-				ok=true;
-			}
-			else{
-				DBGMSG(debugStream,WARNING,"Error too big : " << 1.0E9*fabs(err/CLIGHT) << "ns");
-			}
+			ms   = (int)((-err/CLIGHT *1000)+0.5)/1000.0;
+			*corr = ms;
+			ok=true;
 		}
 		else{
-			DBGMSG(debugStream,WARNING,"Failed");
+			DBGMSG(debugStream,1,"Failed");
 			ok=false;
-		}	
+		}
+		DBGMSG(debugStream,3, (int) svm->svn << " " << svm->meas << " " << std::fixed << std::setprecision(6) << " " << rxm->gpstow << " " << tk << " " 
+		  << gpsDayOfWeek << " " << toc << " " << clockCorrection << " " << range << " " << (int) (ms*1000) << " " << svdist << " " << svrange
+			<< " " << sqrt((antenna->x-ax)*(antenna->x-ax)+(antenna->y-ay)*(antenna->y-ay)+(antenna->z-az)*(antenna->z-az))
+			<< " " << Ek << " " << x[0] << " " << x[1] << " " << x[2]);
+
 	}
-	else{
-		ok=false;
-	}
-		
 	return ok;
+}
+
+bool GPS::currentLeapSeconds(int mjd,int *leapsecs)
+{
+	if (!(UTCdata.dt_LS == 0 && UTCdata.dt_LSF == 0)){ 
+		// Figure out when the leap second is/was scheduled; we only have the low
+		// 8 bits of the week number in WN_LSF, but we know that "the
+		// absolute value of the difference between the untruncated WN and Wlsf
+		// values shall not exceed 127" (ICD 20.3.3.5.2.4, p122)
+		int gpsWeek=int ((mjd-44244)/7);
+		int gpsSchedWeek=(gpsWeek & ~0xFF) | UTCdata.WN_LSF;
+		while ((gpsWeek-gpsSchedWeek)> 127) {gpsSchedWeek+=256;}
+		while ((gpsWeek-gpsSchedWeek)<-127) {gpsSchedWeek-=256;}
+		int gpsSchedMJD=44244+7*gpsSchedWeek+UTCdata.DN;
+		// leap seconds is either tls or tlsf depending on past/future schedule
+		(*leapsecs)=(mjd>=gpsSchedMJD? UTCdata.dt_LSF : UTCdata.dt_LS);
+		return true;
+	}
+	return false;
+}
+
+void GPS::setAbsT0c(int mjd)
+{
+	// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
+	int gpsWeek=int ((mjd-44244)/7);
+	
+	int lastGPSWeek=-1;
+	int lastToc=-1;
+	int weekRollovers=0;
+	
+	// GPS epoch as a struct tm
+	struct tm tmGPS0;
+	tmGPS0.tm_sec=tmGPS0.tm_min=tmGPS0.tm_hour=0;
+	tmGPS0.tm_mday=6;tmGPS0.tm_mon=0;tmGPS0.tm_year=1980-1900,tmGPS0.tm_isdst=0;
+	time_t tGPS0=std::mktime(&tmGPS0);
+	
+	for (unsigned int i=0;i<ephemeris.size();i++){
 		
+		GPSEphemeris *eph = dynamic_cast<GPSEphemeris *>(ephemeris[i]);
+		
+		// Account for GPS rollover:
+		// GPS week 0 begins midnight 5/6 Jan 1980, MJD 44244
+		// GPS week 1024 begins midnight 21/22 Aug 1999, MJD 51412
+		// GPS week 2048 begins midnight 6/7 Apr 2019, MJD 58580
+		
+		int tmjd=mjd;
+		int GPSWeek=eph->week_number;
+		
+		while (tmjd>=51412) {
+			GPSWeek+=1024;
+			tmjd-=(7*1024);
+		}
+		if (-1==lastGPSWeek){lastGPSWeek=GPSWeek;}
+		// Convert GPS week + $Toc to epoch as year, month, day, hour, min, sec
+		// Note that the epoch should be specified in GPS time
+		double Toc=eph->t_OC;
+		if (-1==lastToc) {lastToc = Toc;}
+		// If GPS week is unchanged and Toc has gone backwards by more than 2 days, increment GPS week
+		// It is assumed that ephemeris entries have been correctly ordered (using fixWeeKRollovers() prior to writing out
+		if ((GPSWeek == lastGPSWeek) && (Toc-lastToc < -2*86400)){
+			weekRollovers=1;
+		}
+		else if (GPSWeek == lastGPSWeek+1){//OK now 
+			weekRollovers=0; 	
+		}
+		
+		lastGPSWeek=GPSWeek;
+		lastToc=Toc;
+		
+		GPSWeek = GPSWeek + weekRollovers;
+		
+		eph->t0cAbs = tGPS0+GPSWeek*86400*7+Toc;
+		eph->correctedWeek= GPSWeek;
+	}
 }
 
 // Convert UTC time to GPS time of week

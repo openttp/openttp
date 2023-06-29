@@ -124,29 +124,37 @@ class GPS: public GNSSSystem
 	GPS();
 	~GPS();
 	
-	virtual double codeToFreq(int);
-	virtual int maxSVN(){return NSATS;}
 
 	IonosphereData ionoData;
 	UTCData UTCdata;
+	bool gotUTCdata,gotIonoData;
 	
-	bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
+	time_t L1lastunlock[NSATS+1]; // used for tracking loss of carrier-phase lock
+	
+	virtual double codeToFreq(int);
+	virtual int maxSVN(){return NSATS;}
+
 	GPSEphemeris *nearestEphemeris(int,int,double);
-	virtual void setAbsT0c(int);
+	
+	virtual bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,Ephemeris *ephd,int freqBand,
+			double *corrRange,double *clockCorr,double *modIonoCorr,double *tropoCorr,double *gdCorr, double *relCorr,
+			double *azimuth,double *elevation);
 	
 	bool satXYZ(GPSEphemeris *ed,double t,double *Ek,double x[3]);
 	
 	double sattime(GPSEphemeris *ed,double Ek,double tsv,double toc);
 	
+	double measIonoDelay(unsigned int code1,unsigned int code2,double tpr1, double tpr2,double calDelay1,double calDelay2,GPSEphemeris *ed);
+	
 	double ionoDelay(double az, double elev, double lat, double longitude, double GPSt,
 		float alpha0,float alpha1,float alpha2,float alpha3,
 		float beta0,float beta1,float beta2,float beta3);
 	
-	double measIonoDelay(unsigned int code1,unsigned int code2,double tpr1, double tpr2,double calDelay1,double calDelay2,GPSEphemeris *ed);
+	bool resolveMsAmbiguity(Antenna *,ReceiverMeasurement *,SVMeasurement *,double *);
 	
-	bool getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,GPSEphemeris *ed,int signal,
-		double *refsyscorr,double *refsvcorr,double *iono,double *tropo,
-		double *azimuth,double *elevation, int *ioe);
+	bool currentLeapSeconds(int mjd,int *leapsecs);
+	
+	virtual void setAbsT0c(int);
 	
 	static void UTCtoGPS(struct tm *tmUTC, unsigned int nLeapSeconds,
 		unsigned int *tow,unsigned int *truncatedWN=NULL,unsigned int*fullWN=NULL);
@@ -155,11 +163,6 @@ class GPS: public GNSSSystem
 		struct tm *tmUTC,long refTime);
 	static time_t GPStoUnix(unsigned int tow, unsigned int truncatedWN,long refTime);
 	
-	bool currentLeapSeconds(int mjd,int *leapsecs);
-	
-	time_t L1lastunlock[NSATS+1]; // used for tracking loss of carrier-phase lock
-	
-	bool gotUTCdata,gotIonoData;
 	
 };
 

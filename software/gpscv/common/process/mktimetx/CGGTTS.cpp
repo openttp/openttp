@@ -55,6 +55,8 @@ extern std::ostream *debugStream;
 #define OBSV2    1
 #define OBSV3    2
 
+#define CLIGHT 299792458.0
+
 static unsigned int str2ToCode(std::string s)
 {
 	int c=0;
@@ -89,37 +91,22 @@ CGGTTS::CGGTTS(Antenna *a,Counter *c,Receiver *r)
 	init();
 }
 
-unsigned int CGGTTS::strToCode(std::string str, bool *isP3)
+unsigned int CGGTTS::strToCode(std::string str)
 {
 	// Convert CGGTTS code string (usually from the configuration file) to RINEX observation code(s)
-	// Dual frequency combinations are of the form 'code1+code2'
 	// Valid formats are 
 	// (1) CGGTTS 2 letter codes
 	// (2) RINEX  3 letter codes
 	// but not mixed!
-	// so valid string lengths are 2 and 5 (CGGTTS)  or 3 and 7 (RINEX)
 	unsigned int c=0;
 	if (str.length()==2){
 		c = str2ToCode(str);
 	}
-	else if (str.length()==5){ // dual frequency, specified using 2 letter codes
-		unsigned int c1=str2ToCode(str.substr(0,2));
-		unsigned int c2=str2ToCode(str.substr(3,2));
-		c = c1 | c2;
-		*isP3=true;
-	} 
 	else if (str.length()==3){ // single frequency, specified using 3 letter RINEX code
 		c=GNSSSystem::strToObservationCode(str,RINEX::V3);
 	}
-	else if (str.length()==7){ // dual frequency, specified using 3 letter RINEX codes
-		unsigned int c1=GNSSSystem::strToObservationCode(str.substr(0,3),RINEX::V3);
-		unsigned int c2=GNSSSystem::strToObservationCode(str.substr(4,3),RINEX::V3);
-		c = c1 | c2;
-		*isP3=true;
-	}
 	else{
 		c= 0;
-		*isP3=false;
 	}
 	
 	return c;
@@ -135,10 +122,12 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 	
 	app->logMessage("generating CGGTTS file " + fname);
 	
-	double measDelay = rx->ppsOffset + intDly + cabDly - refDly; // the measurement system delay to be subtracted from REFSV and REFSYS
+	// Correction for any programmed delay in the receiver PPS output and the reference delay
+	// This is treated separately from SYSDLY because it does not affect the raw pseudorange
+	double ppsDelay  = rx->ppsOffset - refDly;   
+	
 	int useTIC = (TICenabled?1:0);
 	DBGMSG(debugStream,1,"Using TIC = " << (TICenabled? "yes":"no"));
-	DBGMSG(debugStream,1,"P3 = " << (isP3 ? "yes":"no"));
 	
 	int lowElevationCnt=0; // a few diagnostics
 	int highDSGCnt=0;
@@ -150,6 +139,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 	int badMeasurementCnt=0;
 	
 	// Constellation/code identifiers as per V2E
+	int freqBand=0;
 	
 	std::string GNSSsys;
 	std::string FRCcode="";
@@ -163,6 +153,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 			else{
 				FRCcode="L1C";
 				code1Str="C1";
+				freqBand = 1;
 			}
 			break;
 		case GNSSSystem::C1B:
@@ -172,10 +163,12 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 		case GNSSSystem::C1P:
 			FRCcode="L1P";
 			code1Str="P1";
+			freqBand = 1;
 			break;
 		case GNSSSystem::C2P:
 			FRCcode="L2P";
 			code1Str="P2";
+			freqBand = 2;
 			break;
 		case GNSSSystem::C2I:
 			FRCcode="B1i";
@@ -187,19 +180,22 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 			code2 = GNSSSystem::C2P;
 			code1Str = "P1";
 			code2Str = "P2";
-			FRCcode="L3P";break;
+			FRCcode="L3P";
+			freqBand=0;break;
 		case GNSSSystem::C1C | GNSSSystem::C2P:
 			code1 = GNSSSystem::C1C;
 			code2 = GNSSSystem::C2P;
 			code1Str = "C1";
 			code2Str = "P2";
-			FRCcode="L3P";break;
+			FRCcode="L3P";
+			freqBand=0;break;
 		case GNSSSystem::C1C | GNSSSystem::C2C:
 			code1 = GNSSSystem::C1C;
 			code2 = GNSSSystem::C2C;
 			code1Str = "C1";
 			code2Str = "C2";
-			FRCcode="L3P";break;
+			FRCcode="L3P";
+			freqBand=0;break;
 		default:break;
 	}
 	
@@ -217,6 +213,10 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 			aij = 77.0*77.0/(77.0*77.0-60*60);break;
 		default:break;
 	}
+	
+	// System delays - these should be subtracted from the raw pseudoranges
+	double sysdly1 = 1.0E-9*(intDly1  + cabDly)*CLIGHT; // Note: in m!
+	double sysdly2 = 1.0E-9*(intDly2  + cabDly)*CLIGHT;
 	
 	writeHeader(fout);
 	
@@ -272,9 +272,11 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 					svtrk[s][t][o]=NULL;
 		}
 		
-		if (!isP3 && !useMSIO){ // CASE 1: single code + MDIO
+		if (reportMSIO){
+		}
+		else {
 			for (int m=trackStart;m<=trackStop;m++){
-				if ((mpairs[m]->flags==0x03)){
+				if (mpairs[m]->flags==0x03){
 					ReceiverMeasurement *rm = mpairs[m]->rm;
 					for (unsigned int sv=0;sv<rm->meas.size();sv++){
 						SVMeasurement * svm = rm->meas.at(sv);
@@ -282,24 +284,6 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 							svtrk[svm->svn][m-trackStart][OBSV1]=svm;
 							svObsCount[svm->svn] += 1;
 						}
-					}
-				} 
-			}
-		}
-		else if (!isP3 && useMSIO){// CASE 2: single code + MSIO
-		}
-		else if (isP3){// CASE 3: dual frequency
-			for (int m=trackStart;m<=trackStop;m++){
-				if ((mpairs[m]->flags==0x03)){
-					ReceiverMeasurement *rm = mpairs[m]->rm;
-					for (unsigned int sv=0;sv<rm->meas.size();sv++){
-						SVMeasurement * svm = rm->meas.at(sv);
-						if (svm->constellation == constellation && svm->code == code1){
-							svtrk[svm->svn][m-trackStart][OBSV1]=svm;
-							svObsCount[svm->svn] += 1;
-						}
-						if (svm->constellation == constellation && svm->code == code2)
-							svtrk[svm->svn][m-trackStart][OBSV2]=svm;
 					}
 				} 
 			}
@@ -319,10 +303,11 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 			if (0 == svObsCount[sv]) continue;
 			
 			int npts=0;
-			int ioe;
+			GPSEphemeris *ed=NULL;
+			
 			if (quadFits){
 				double qprange[15],qtutc[15],qrefpps[15]; // for the 15s fits
-				double uncorrprange[52], refpps[52]; // for the results of the 15s fits
+				double pr[52], refpps[52]; // for the results of the 15s fits
 				unsigned int nqfitpts=0,nqfits=0,gpsTOW[52];
 				int t=trackStart;
 				ReceiverMeasurement *rxm;
@@ -338,8 +323,9 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 							exit(EXIT_FAILURE);
 						}
 						// smooth the counter measurements - this helps clean up any residual sawtooth error
+						// FIXME should just fold into the pseudorange ...
 						qrefpps[nqfitpts]= useTIC*(rxm->cm->rdg + rxm->sawtooth)*1.0E9;
-						qprange[nqfitpts]=svm1->meas;
+						qprange[nqfitpts]=svm1->meas*CLIGHT - sysdly1; // back to m!
 						qtutc[nqfitpts]=tmeas;
 						nqfitpts++;
 					}
@@ -370,7 +356,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 							}
 							// FIXME as a kludge could just drop points at the week rollover
 							gpsTOW[nqfits] =  tc + rx->leapsecs + gpsDay*86400;
-							Utility::quadFit(qtutc,qprange,nqfitpts,tc,&(uncorrprange[nqfits]) );
+							Utility::quadFit(qtutc,qprange,nqfitpts,tc,&(pr[nqfits]) );
 							Utility::quadFit(qtutc,qrefpps,nqfitpts,tc,&(refpps[nqfits]) );
 							nqfits++;
 						}
@@ -382,7 +368,6 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				
 				// Now we can compute the pr corrections etc for the fitted prs
 
-				GPSEphemeris *ed=NULL;
 				npts=0;
 				for ( unsigned int q=0;q<nqfits;q++){
 					if (ed==NULL) // use only one ephemeris for each track
@@ -397,18 +382,26 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 						}
 					}
 					
-					double refsyscorr,refsvcorr,iono,tropo,az,el;
+					double corrRange,clockCorr,modIonoCorr,tropoCorr,gdCorr,relCorr,az,el;
 					// FIXME MDIO needs to change for L2
 					// getPseudorangeCorrections will check for NULL ephemeris
-					if (rx->gps.getPseudorangeCorrections(gpsTOW[q],uncorrprange[q],ant,ed,code,
-							&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+					//if (rx->gps.getPseudorangeCorrections(gpsTOW[q],uncorrprange[q],ant,ed,code,
+					//		&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+					if (rx->gps.getPseudorangeCorrections(gpsTOW[q],pr[q],ant,ed,freqBand,&corrRange,&clockCorr,&modIonoCorr,&tropoCorr,&gdCorr,&relCorr,&az,&el)){
 						tutc[npts]=tutc[q]; // ok to overwrite, because npts <= q
 						svaz[npts]=az;
 						svel[npts]=el;
-						mdtr[npts]=tropo;
-						mdio[npts]=iono;
-						refsv[npts]  = uncorrprange[q]*1.0E9 + refsvcorr  - iono - tropo + refpps[q];
-						refsys[npts] = uncorrprange[q]*1.0E9 + refsyscorr - iono - tropo + refpps[q];
+						mdtr[npts]=tropoCorr * 1.0E9;
+						mdio[npts]=modIonoCorr * 1.0E9;
+						
+						double refsvcorr =  relCorr - gdCorr - corrRange - tropoCorr;
+						double refsyscorr=  refsvcorr + clockCorr;
+						
+						refsv[npts]  = 1.0E9*(pr[q]/CLIGHT + refsvcorr  - modIonoCorr ) + refpps[q]; // units are ns, for CGGTTS
+						refsys[npts] = 1.0E9*(pr[q]/CLIGHT + refsyscorr - modIonoCorr ) + refpps[q];
+						
+						//refsv[npts]  = uncorrprange[q]*1.0E9 + refsvcorr  - iono - tropo + refpps[q];
+						//refsys[npts] = uncorrprange[q]*1.0E9 + refsyscorr - iono - tropo + refpps[q];
 						npts++;
 					}
 					else{
@@ -420,7 +413,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				int tsearch=trackStart;
 				int t=0;
 				
-				GPSEphemeris *ed=NULL;
+				
 				while (t< NTRACKPOINTS){
 					SVMeasurement *svm1  = svtrk[sv][t][OBSV1];
 					SVMeasurement *svm2  = NULL;
@@ -428,14 +421,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 						t++;
 						continue;
 					}
-					if (isP3){
-						svm2  = svtrk[sv][t][OBSV2];
-						if (NULL == svm2){
-							t++;
-							continue;
-						}
-					}
-					
+			
 					svm1->dbuf2=0.0;
 					ReceiverMeasurement *rxmt = svm1->rm;
 					int tmeas=rint(rxmt->tmUTC.tm_sec + rxmt->tmUTC.tm_min*60+ rxmt->tmUTC.tm_hour*3600+rxmt->tmfracs);
@@ -457,32 +443,33 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 							}
 						}
 					
-						double refsyscorr,refsvcorr,iono,tropo,az,el,refpps,pr;
+						double pr,corrRange,clockCorr,modIonoCorr,tropoCorr,gdCorr,relCorr,az,el;
 						
 						// FIXME MDIO needs to change for L2
 						// getPseudorangeCorrections will check for NULL ephemeris
-						pr = svm1->meas;
-						if (isP3)
-							pr = aij*svm1->meas + (1.0-aij)*svm2->meas + ed->t_GD; // FUDGE
-						if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,pr,ant,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						pr = svm1->meas*CLIGHT - sysdly1; // back to metres !
+						
+						//if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,pr,ant,ed,code1,&refsyscorr,&refsvcorr,&iono,&tropo,&az,&el,&ioe)){
+						if (rx->gps.getPseudorangeCorrections(rxmt->gpstow,pr,ant,ed,freqBand,&corrRange,&clockCorr,&modIonoCorr,&tropoCorr,&gdCorr,&relCorr,&az,&el)){
 							tutc[npts]=tmeas;
 							svaz[npts]=az;
 							svel[npts]=el;
-							mdtr[npts]=tropo;
-							mdio[npts]=iono;
-							if (useMSIO){
+							mdtr[npts]=tropoCorr*1.0E9;
+							mdio[npts]=modIonoCorr*1.0E9;
+							if (reportMSIO){
 								msio[npts]=1.0E9*rx->gps.measIonoDelay(code1,code2,svm1->meas,svm2->meas,0,0,ed);// FIXME calibrated delays ....
 								//DBGMSG(debugStream,INFO,tmeas << " " <<"G"<<(int) svm1->svn << "G" << (int)svm2->svn <<  " " << (svm2->meas - svm1->meas)*1.0E9 << " " << msio[npts])
 							}
-							refpps= useTIC*(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
-							if (isP3){ // ionosphere free so don't use mdio
-								refsv[npts]  = pr*1.0E9 + refsvcorr  - tropo + refpps;
-								refsys[npts] = pr*1.0E9 + refsyscorr - tropo + refpps;
-							}
-							else{
-								refsv[npts]  = pr*1.0E9 + refsvcorr  - iono - tropo + refpps;
-								refsys[npts] = pr*1.0E9 + refsyscorr - iono - tropo + refpps;
-							}
+							
+							double refpps= useTIC*(rxmt->cm->rdg + rxmt->sawtooth)*1.0E9;
+							
+							double refsvcorr =  relCorr - gdCorr - corrRange - tropoCorr;
+							double refsyscorr=  refsvcorr + clockCorr;
+						
+							refsv[npts]  = 1.0E9*(pr/CLIGHT + refsvcorr  - modIonoCorr ) + refpps; // units are ns, for CGGTTS
+							refsys[npts] = 1.0E9*(pr/CLIGHT + refsyscorr - modIonoCorr ) + refpps;
+							
+							//DBGMSG(debugStream,INFO,sv << " " << relCorr*1.0E9 << " " << gdCorr*1.0E9 << " " << corrRange * 1.0E9 <<  " " << tropoCorr *1.0E9 << " " <<  modIonoCorr*1.0E9 << " " << refpps);
 							svm1->dbuf2 = refsv[npts]/1.0E9; // back to seconds !
 							npts++;
 						}
@@ -522,12 +509,12 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				
 				double refsvtc,refsvc,refsvm,refsvresid;
 				Utility::linearFit(tutc,refsv,npts,tc,&refsvtc,&refsvc,&refsvm,&refsvresid);
-				refsvtc=rint((refsvtc-measDelay)*10); // apply total measurement system delay
+				refsvtc=rint((refsvtc-ppsDelay)*10); // apply total measurement system delay
 				refsvm=rint(refsvm*10000);
 				
 				double refsystc,refsysc,refsysm,refsysresid;
 				Utility::linearFit(tutc,refsys,npts,tc,&refsystc,&refsysc,&refsysm,&refsysresid);
-				refsystc=rint((refsystc-measDelay)*10); // apply total measurement system delay
+				refsystc=rint((refsystc-ppsDelay)*10); // apply total measurement system delay
 				refsysm=rint(refsysm*10000);
 				refsysresid=rint(refsysresid*10);
 				
@@ -537,7 +524,7 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 				mdiom=rint(mdiom*10000);
 				
 				double msiotc=0.0,msioc=0.0,msiom=0.0,msioresid=0.0;
-				if (useMSIO){
+				if (reportMSIO){
 					Utility::linearFit(tutc,msio,npts,tc,&msiotc,&msioc,&msiom,&msioresid);
 					msiotc=rint(msiotc*10);
 					if (msiotc < -999)
@@ -574,18 +561,14 @@ bool CGGTTS::writeObservationFile(std::string fname,int mjd,int startTime,int st
 						case V1:
 							std::snprintf(sout,128," %02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i ",sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (long int) refsvtc ,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
-											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
+											ed->iod(),(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom);
 							std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256);
 							break;
 						case V2E:
-							if (isP3)
-								std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %4i %4i %3i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
+							
+							std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 											npts*linFitInterval,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
-											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRCcode.c_str());
-							else 
-								std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
-											npts*linFitInterval,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
-											ioe,(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRCcode.c_str());
+											ed->iod(),(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,0,0,FRCcode.c_str());
 							std::fprintf(fout,"%s%02X\n",sout,checkSum(sout) % 256); // FIXME
 							break;
 					} // switch
@@ -631,15 +614,14 @@ void CGGTTS::init()
 	lab="";
 	comment="";
 	calID="";
-	intDly=intDly2=cabDly=refDly=0.0;
+	intDly1=intDly2=cabDly=refDly=0.0;
 	delayKind=INTDLY;
 	quadFits=false;
 	minTrackLength=390;
 	minElevation=10.0;
 	maxDSG=100.0;
 	maxURA=3.0; // as reported by receivers, typically 2.0 m, with a few at 2.8 m
-	useMSIO=false;
-	isP3=false;
+	reportMSIO=false;
 }
 
 
@@ -676,7 +658,7 @@ void CGGTTS::writeHeader(FILE *fout)
 	std::snprintf(buf,MAXCHARS,"CH = %02d",rx->channels); 
 	cksum += checkSum(buf);
 	std::fprintf(fout,"%s\n",buf);
-	if (useMSIO)
+	if (reportMSIO)
 		std::snprintf(buf,MAXCHARS,"IMS =%s %s %s %4d %s,v%s",rx->manufacturer.c_str(),rx->modelName.c_str(),rx->serialNumber.c_str(),
 			rx->commissionYYYY,APP_NAME, APP_VERSION);
 	else
@@ -714,7 +696,7 @@ void CGGTTS::writeHeader(FILE *fout)
 	switch (ver){
 		case V1:
 		{
-			std::snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly);
+			std::snprintf(buf,MAXCHARS,"INT DLY = %.1f ns",intDly1);
 			break;
 		}
 		case V2E:
@@ -732,12 +714,7 @@ void CGGTTS::writeHeader(FILE *fout)
 				case SYSDLY:dly="SYS";break;
 				case TOTDLY:dly="TOT";break;
 			}
-			if (isP3) // FIXME presuming that the logical thing happens here ...
-				std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s),%.1f ns (%s %s)      CAL_ID = %s",dly.c_str(),
-					intDly,cons.c_str(),code1Str.c_str(),
-					intDly2,cons.c_str(),code2Str.c_str(),calID.c_str());
-			else
-				std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly,cons.c_str(),code1Str.c_str(),calID.c_str());
+			std::snprintf(buf,MAXCHARS,"%s DLY = %.1f ns (%s %s)     CAL_ID = %s",dly.c_str(),intDly1,cons.c_str(),code1Str.c_str(),calID.c_str());
 			break;
 		}
 	}
@@ -768,7 +745,7 @@ void CGGTTS::writeHeader(FILE *fout)
 	
 	switch (ver){
 		case V1:
-			if (useMSIO){
+			if (reportMSIO){
 				std::fprintf(fout,"PRN CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFGPS    SRGPS  DSG IOE MDTR SMDT MDIO SMDI MSIO SMSI ISG CK\n");
 				std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s.1ns.1ps/s.1ns  \n");
 			}
@@ -778,7 +755,7 @@ void CGGTTS::writeHeader(FILE *fout)
 			}
 			break;
 		case V2E:
-			if (useMSIO){
+			if (reportMSIO){
 				std::fprintf(fout,"SAT CL  MJD  STTIME TRKL ELV AZTH   REFSV      SRSV     REFSYS    SRSYS  DSG IOE MDTR SMDT MDIO SMDI MSIO SMSI ISG FR HC FRC CK\n");
 				std::fprintf(fout,"             hhmmss  s  .1dg .1dg    .1ns     .1ps/s     .1ns    .1ps/s .1ns     .1ns.1ps/s.1ns.1ps/s.1ns.1ps/s.1ns            \n");
 			}
