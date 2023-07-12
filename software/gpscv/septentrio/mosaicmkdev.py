@@ -24,14 +24,16 @@ import re
 import sys
 import time
 
-sys.path.append("/usr/local/lib/python3.8/site-packages")
+sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+
 import ottplib
 
 # Globals
 debug = False
 log   = False
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 AUTHORS = "Michael Wouters"
 
 LOGFILE = '/var/log/mosaicmkdev.log'

@@ -35,10 +35,10 @@ import time
 
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20
-sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 22
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22
 import ottplib
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 AUTHORS = "Michael Wouters"
 
 debug = False
