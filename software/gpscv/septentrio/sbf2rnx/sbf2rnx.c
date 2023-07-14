@@ -610,13 +610,12 @@ main(
 	struct tm tmGPS;	
 	if (0==strlen(rnxObsFileName)){
 		GPS_to_date(firstObsTOW/1000,firstObsWN,&tmGPS); 
-		sprintf(rnxObsFileName,"%s_%s_%4d%03d%02d%02d_%s_%02d%s_%s.rnx","SEPT00AUS","R",
-			tmGPS.tm_year+1900,tmGPS.tm_yday+1,tmGPS.tm_hour,tmGPS.tm_min,"01D",obsInterval,"S","MO");
-		sprintf(rnxNavFileName,"%s_%s_%4d%03d%02d%02d_%s_%s.rnx","SEPT00AUS","R",
-			tmGPS.tm_year+1900,tmGPS.tm_yday+1,tmGPS.tm_hour,tmGPS.tm_min,"01D","MN");
+		// sbf2rin defaults to V2 names so we dutifully follow
+		sprintf(rnxObsFileName,"SEPT%03d0.%02dO",tmGPS.tm_yday+1,tmGPS.tm_year % 100);
+		sprintf(rnxNavFileName,"SEPT%03d0.%02dP",tmGPS.tm_yday+1, tmGPS.tm_year % 100);
 	}
 	else{
-		strncpy(rnxNavFileName,"SEPT.nav",MAXSTR-1);
+		sprintf(rnxNavFileName,"SEPT%03d0.%02dP",tmGPS.tm_yday+1, tmGPS.tm_year % 100);
 	}
 	
 	strncpy(tmpRnxObsFileName,"SEPT.rnx.tmp",MAXSTR-1); // FIXME unique name ?
