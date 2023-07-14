@@ -36,7 +36,7 @@
 
 #define APP_AUTHORS "Michael Wouters"
 #define APP_NAME    "sbf2rnx"
-#define APP_VERSION "0.2.0"
+#define APP_VERSION "0.2.1"
 
 #define MAXSTR 4097 // this is accomodates longest file path on Linux 
 
@@ -328,15 +328,20 @@ static void
 sbf2rnx_print_help()
 {
 	printf("\n%s version %s\n",APP_NAME,APP_VERSION);
-	printf("Usage: %s [-hvdi:o:] sbffile\n",APP_NAME);
+	printf("Usage: %s [-hvdi:o:] [sbffile]\n",APP_NAME);
 	printf("-h print this help message\n");
 	printf("-v print version\n");
 	printf("-d enable debugging\n");
-	
-	printf("-H FILE  use FILE as template for the RINEX observation file header\n");
+	printf("-f FILE     name of SBF file (for compatibility with sbf2rin)\n");
+	printf("-H FILE     use FILE as template for the RINEX observation file header\n");
 	printf("-i INTERVAL interval in the RINEX file (default is 30 s)\n");
-	printf("-n          create a navigation file\n");
+	printf("-n TYPE     set output types.\n");
+	printf("            O=observation (default)\n");
+	printf("            P=mixed navigation\n");
 	printf("-o FILE     set the file name for RINEX output\n");
+	printf("-r VERSION  set the RINEX version (only '3' at present)\n");
+	printf("-x SYSTEMS  exclude the specified GNSS systems (from both observation and navigation files). \n");
+	printf("             G=GPS, R=GLONASS, E=GALILEO, C=BEIDOU, S=SBAS, J=QZSS, I=IRNSS\n");
 }
 
 static int
@@ -391,6 +396,7 @@ sbf2rnx_get_int_opt
 	return 0;
 }
 
+
 int
 main(
 	int argc,
@@ -398,7 +404,10 @@ main(
 {
 	
 	int c;
+	int rnxMajorVersion;
+	int excludedGNSS;
 	
+	int makeObsFile= TRUE;
 	char rnxObsFileName[MAXSTR];
 	char tmpRnxObsFileName[MAXSTR];
 	char *rnxObsHeaderFileName = NULL;
@@ -406,6 +415,7 @@ main(
 	int  makeNavFile = FALSE;
 	char rnxNavFileName[MAXSTR];
 	
+	int optf = FALSE;
 	char *sbfLogFileName;
 	
 	int obsInterval = 30;
@@ -414,7 +424,7 @@ main(
 	
 	/* Process the command line options */
 
-	while ((c=getopt(argc,argv,"dhH:vi:no:")) != -1){
+	while ((c=getopt(argc,argv,"df:hH:vi:n:o:x:")) != -1){
 		switch(c){
 			case 'd':	// enable debugging 
 				printf("Debugging is ON\n");
@@ -427,25 +437,62 @@ main(
 			case 'H': // use as template for RINEX obs header
 				rnxObsHeaderFileName = strdup(optarg);
 				break;
+			case 'f': // use as template for RINEX obs header
+				sbfLogFileName = strdup(optarg);
+				optf=TRUE;
+				break;
 			case 'i': // observation interval
 				if (!sbf2rnx_get_int_opt("-i",optarg,&obsInterval)){
 					sbf2rnx_print_help();
 					return EXIT_FAILURE;
 				}
 				break;
-			case 'n':	// make navigation file
+			
+			case 'n':	// set ouput files
+			{
+				makeObsFile = FALSE; // override the default
+				if (0==strlen(optarg)){
+					fprintf(stderr,"Bad file spec in -n\n");
+							sbf2rnx_print_help();
+							return EXIT_FAILURE;
+				}
+				for (int index=0;index < strlen(optarg);index++){
+					switch (optarg[index]){
+						case 'O': makeObsFile = TRUE; break;
+						case 'P': makeNavFile = TRUE;break;
+						default:
+							fprintf(stderr,"Bad file spec in -n\n");
+							sbf2rnx_print_help();
+							return EXIT_FAILURE;
+							break;
+					}
+				}
 				makeNavFile = TRUE;
 				break;
+			}
 			case 'o': // set output file name 
 				strncpy(rnxObsFileName,optarg,MAXSTR-1);
 				strncpy(tmpRnxObsFileName,optarg,MAXSTR-1);
 				strncat(tmpRnxObsFileName,".tmp",MAXSTR-1);
+				break;
+			case 'r': // RINEX version FIXME this is just for compatibility
+				if (!sbf2rnx_get_int_opt("-r",optarg,&rnxMajorVersion)){
+					sbf2rnx_print_help();
+					return EXIT_FAILURE;
+				}
+				if (3 != rnxMajorVersion){
+					fprintf(stderr,"Only version 3 RINEX is supported\n");
+					return EXIT_FAILURE;
+				}
 				break;
 			case 'v': // print version 
 				printf("\n %s version %s\n",APP_NAME,APP_VERSION);
 				printf(" Written by %s\n",APP_AUTHORS);
 				printf(" This ain't no stinkin' Perl script!\n");
 				return EXIT_SUCCESS;
+				break;
+			case 'x':
+				excludedGNSS = 0; // FIXME does nothing 
 				break;
 			case '?': // WTF 
 				sbf2rnx_print_help();
@@ -454,13 +501,16 @@ main(
 		}
 	}
  
-	if (optind >= argc){
-		fprintf(stderr,"Expected SBF file name!");
-		sbf2rnx_print_help();
-		return EXIT_FAILURE;
-	}
+	if (!optf){// if no opt f, then expect name
+		if (optind >= argc){
+			fprintf(stderr,"Expected SBF file name!");
+			sbf2rnx_print_help();
+			return EXIT_FAILURE;
+		}
 	
-	sbfLogFileName = strdup(argv[optind]);
+		sbfLogFileName = strdup(argv[optind]);
+	}
+
 	FILE *fd = fopen(sbfLogFileName,"r");
 	if (!fd){
 		fprintf(stderr,"Unable to open %s for reading\n",sbfLogFileName);
@@ -571,16 +621,20 @@ main(
 	
 	strncpy(tmpRnxObsFileName,"SEPT.rnx.tmp",MAXSTR-1); // FIXME unique name ?
 	
-	FILE *obsFile = fopen(rnxObsFileName,"w");
-	if (!obsFile){
-		fprintf(stderr,"Unable to open %s for writing\n",rnxObsFileName);
-		return EXIT_FAILURE;
-	}
-	
-	FILE *tmpObsFile = fopen(tmpRnxObsFileName,"w");
-	if (!obsFile){
-		fprintf(stderr,"Unable to open %s for writing\n",tmpRnxObsFileName);
-		return EXIT_FAILURE;
+	FILE *obsFile = NULL;
+	FILE *tmpObsFile = NULL;
+	if (makeObsFile){
+		obsFile = fopen(rnxObsFileName,"w");
+		if (!obsFile){
+			fprintf(stderr,"Unable to open %s for writing\n",rnxObsFileName);
+			return EXIT_FAILURE;
+		}
+		
+		tmpObsFile = fopen(tmpRnxObsFileName,"w");
+		if (!obsFile){
+			fprintf(stderr,"Unable to open %s for writing\n",tmpRnxObsFileName);
+			return EXIT_FAILURE;
+		}
 	}
 	
 	FILE *fnav = NULL;
@@ -627,8 +681,13 @@ main(
 	while (GetNextBlock(&SBFData, SBFBlock, BLOCKNUMBER_ALL, BLOCKNUMBER_ALL,START_POS_CURRENT | END_POS_AFTER_BLOCK) == 0){
 		memset((void *) prnIDs,-1,(MAX_PRN+1)*sizeof(int));
 		
+		// There are many kinds of measurement blocks and this is multiplied by the number of antennas
+		// so it's easiest just to decode and then skip
 		if (sbfread_MeasCollectAndDecode(&SBFData, SBFBlock, &MeasEpoch, SBFREAD_ALLMEAS_ENABLED)){
 		//if (0){
+			if (!makeObsFile){
+				continue;
+			}
 			int i,tow;
 			tow = MeasEpoch.TOW_ms;
 			if (tow/1000 % obsInterval == 0){
@@ -771,27 +830,29 @@ main(
 		}
 	}
 	
-	fclose(tmpObsFile);
-	
 	if (makeNavFile){
 		fclose(fnav);
 	}
+	
 	// Assemble the observation file
-	
-	// Write the header
-	rinex_write_obs_header(obsFile,rnxObsHeaderFile,user,rxSignals,obsInterval,firstObsTOW,firstObsWN,lastObsTOW,lastObsWN);
+	if (makeObsFile){
+		
+		fclose(tmpObsFile);
+		
+		// Write the header
+		rinex_write_obs_header(obsFile,rnxObsHeaderFile,user,rxSignals,obsInterval,firstObsTOW,firstObsWN,lastObsTOW,lastObsWN);
 
-	// Append the observations
-	tmpObsFile = fopen(tmpRnxObsFileName,"r");
-	char bigBuf[MAXSTR];
-	while (fgets(bigBuf,MAXSTR,tmpObsFile)){
-		fprintf(obsFile,"%s",bigBuf);
+		// Append the observations
+		tmpObsFile = fopen(tmpRnxObsFileName,"r");
+		char bigBuf[MAXSTR];
+		while (fgets(bigBuf,MAXSTR,tmpObsFile)){
+			fprintf(obsFile,"%s",bigBuf);
+		}
+		
+		fclose(tmpObsFile);
+		fclose(obsFile);
+		unlink(tmpRnxObsFileName);
 	}
-	
-	fclose(tmpObsFile);
-	fclose(obsFile);
-	unlink(tmpRnxObsFileName);
-	
 	
 	return EXIT_SUCCESS;
  
