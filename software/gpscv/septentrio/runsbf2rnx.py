@@ -49,7 +49,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -181,13 +181,13 @@ if 'rinex:version' in cfg:
 	rnxVersion = cfg['rinex:version']
 
 if 'main:exec' in cfg:
-	SBF2RIN = cfg['main:exec']
+	SBF2RIN = ottplib.MakeAbsoluteFilePath(cfg['main:exec'],root,os.path.join(root,'bin'))
 
 if 'main:sbf station name' in cfg:
 	defRnxStation = cfg['main:sbf station name']
 
-if 'main:name format' in cfg:
-	nameFormat = cfg['main:name format']
+if 'rinex:name format' in cfg:
+	nameFormat = cfg['rinex:name format']
 	
 createNav = False
 if 'rinex:create nav file' in cfg:
@@ -251,6 +251,7 @@ for mjd in range(firstMJD,lastMJD+1):
 			continue
 	
 	# sbf2rin defaults to file names in V2 format
+	# sbf2rnx follows the same convention
 	
 	fObs = '{}{:03d}0.{:02d}O'.format(defRnxStation,doy,yy)
 	fNav = '{}{:03d}0.{:02d}P'.format(defRnxStation,doy,yy) # mixed navigation file
