@@ -424,7 +424,7 @@ main(
 	
 	/* Process the command line options */
 
-	while ((c=getopt(argc,argv,"df:hH:vi:n:o:x:")) != -1){
+	while ((c=getopt(argc,argv,"df:hH:vi:n:o:R:x:")) != -1){
 		switch(c){
 			case 'd':	// enable debugging 
 				printf("Debugging is ON\n");
@@ -475,7 +475,7 @@ main(
 				strncpy(tmpRnxObsFileName,optarg,MAXSTR-1);
 				strncat(tmpRnxObsFileName,".tmp",MAXSTR-1);
 				break;
-			case 'r': // RINEX version FIXME this is just for compatibility
+			case 'R': // RINEX version FIXME this is just for compatibility
 				if (!sbf2rnx_get_int_opt("-r",optarg,&rnxMajorVersion)){
 					sbf2rnx_print_help();
 					return EXIT_FAILURE;
