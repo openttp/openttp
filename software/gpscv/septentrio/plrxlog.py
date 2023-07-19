@@ -55,7 +55,7 @@ import time
 
 import ottplib
 
-VERSION = '0.0.4'
+VERSION = '0.1.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -201,40 +201,44 @@ def OpenDataFile(mjd):
 #----------------------------------------------------------------------------
 def SendCommand(cmd):
 	
-	Debug('SendCommand: ' + cmd)
+	
 	bcmd = cmd.encode('utf-8') + b'\r'
-	serport.write(bcmd)
-	# RS232 ports on the Septentrio4 need a pause between commands
-	# Problem may be commands with long responses like lstInternal
-	# No pause needed for USB though
-	
-	time.sleep(0.2)
-	
-	# Replies with $R: <command> for set,get,exe
-	#              $R; <command> for lst
-	#              STOP> for halts/resets
-	#              $R? <msg> for errors
-	
-	ansre = re.compile(rb'(STOP>|\$R[:;\?])')
-	inp=b''
-	ntries=0
-	# FIXME the Sepentrio4 was failing to configure 
-	while ntries < 20: # ie try for 2s, given timeout in the next line
-		select.select([serport],[],[],0.1)
-		ntries += 1
-		if (serport.in_waiting == 0):
-			continue
-		else:
-			newinp = serport.read(serport.in_waiting)
-			inp = inp + newinp
-			match = ansre.search(inp)
-			if match:
-				if (match[1] == b'$R?'):
-					Debug('Error in command')
-					# FIXME this should be fatal
-				else:
-					Debug('Command OK')
-				return True # otherwise, OK
+	nSendTries = 0
+	while nSendTries < 3:
+		Debug('SendCommand: ' + cmd)
+		serport.write(bcmd)
+		nSendTries += 1
+		# RS232 ports on the Septentrio4 need a pause between commands
+		# Problem may be commands with long responses like lstInternal
+		# No pause needed for USB though
+		
+		time.sleep(0.2)
+		
+		# Replies with $R: <command> for set,get,exe
+		#              $R; <command> for lst
+		#              STOP> for halts/resets
+		#              $R? <msg> for errors
+		
+		ansre = re.compile(rb'(STOP>|\$R[:;\?])')
+		inp=b''
+		nReadTries=0
+		# FIXME the Septentrio4 was failing to configure 
+		while nReadTries < 20: # ie try for 2s, given timeout in the next line
+			select.select([serport],[],[],0.1)
+			nReadTries += 1
+			if (serport.in_waiting == 0):
+				continue
+			else:
+				newinp = serport.read(serport.in_waiting)
+				inp = inp + newinp
+				match = ansre.search(inp)
+				if match:
+					if (match[1] == b'$R?'):
+						Debug('Error in command')
+					else:
+						Debug('Command OK')
+						return True # otherwise, OK
+
 	Debug('Command failed')
 	return False
 
@@ -244,12 +248,10 @@ def ConfigureReceiver(rxcfg):
 	if (args.reset):
 		Debug('Resetting: Hard,PVTData+SatData')
 		SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
-		# A hard reset closes the serial port 
-		# For the moment, just reset and then exit
-		# NB mosaicT takes about 12 s to reboot
-		Cleanup()
+		# A hard reset closes the serial port so no need to deal with that
+		ottplib.RemoveProcessLock(lockFile)
 		sys.exit(0)
-	
+		
 	# FIXME This assumes that there is only Stream1  enabled
 	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',none') # turn off output
 
@@ -272,7 +274,7 @@ def ConfigureReceiver(rxcfg):
 	cmd = 'SetAntennaOffset,Main,' + deltaE + ',' + deltaN + ',' + deltaH + ','  + antType + ',' + antSerialNum + ',0'
 	SendCommand(cmd)
 	
-	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility,sec1') # default setup
+	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility+ReceiverStatus,sec1') # default setup
 	
 	comment_re = re.compile(r'^\s*#')
 	fin = open(rxcfg,'r') # already checked its OK
@@ -359,6 +361,13 @@ def ParseSatVisibility(d,dlen):
 		else:
 			GNSS[SVID]=[constellation,prn,Azimuth,Elevation,-1]
 
+#----------------------------------------------------------------------------
+# Receiver Status Block 4014
+# This is used for status reporting and broadcasting
+def ParseReceiverStatus(d,dlen):
+	TOW,WNc,CPULoad,ExtErrror,UpTime,RxState = struct.unpack_from('IHBBII',d) # u4,u2,u1,u1,u4,u4
+	return RxState
+	
 #----------------------------------------------------------------------------
 # MeasEpoch Block 4027
 # This block defines what satellites we are actually tracking
@@ -467,6 +476,7 @@ def UpdateStatusFile(rxStatus):
 	Debug('GPS = ' + gps )
 	Debug('QZSS = ' + qzss )
 	Debug('SBAS = ' + sbas )
+	Debug('status = {:04x}'.format(receiverStatus))
 	
 	fstat.write('nsats = ' + str(nSats) + '\n')
 	fstat.write('BDS = ' + bds + '\n')
@@ -475,6 +485,8 @@ def UpdateStatusFile(rxStatus):
 	fstat.write('GPS = ' + gps + '\n')
 	fstat.write('QZSS = ' + qzss + '\n')
 	fstat.write('SBAS = ' + sbas + '\n')
+	fstat.write('status = {:04x}\n'.format(receiverStatus))
+
 	fstat.close()
 
 # ---------------------------------------------------------------------------
@@ -560,7 +572,10 @@ else:
 commInterface = 'USB1'
 if ('receiver:communication interface' in cfg):
 	commInterface = cfg['receiver:communication interface'].upper()
-	
+
+# 
+syncAlarmTimeout = 60
+
 # Create the process lock		
 lockFile = ottplib.MakeAbsoluteFilePath(cfg['receiver:lock file'],home,home + '/etc')
 Debug('Creating lock ' + lockFile)
@@ -614,6 +629,7 @@ fdata = OpenDataFile(mjd)
 tNext=(mjd-40587+1)*86400
 tThen = 0
 tLastStatusUpdate=0
+tLastSyncOK = time.time() # assume OK on startup
 
 tLastMsg=time.time()
 inp = b''
@@ -633,9 +649,12 @@ for s in range(0,MAXSVID+1):
 	GNSS.append([-1,-1,-1,-1,-1])
 
 gotVis = 0
+gotReceiverStatus = 0
+receiverStatus = 0
 gotCN0 = 0
 nBadCRC = 0
 nBadLength = 0
+
 while (not killed):
 	
 	# Check for timeout
@@ -731,6 +750,20 @@ while (not killed):
 				Debug('pkt 4027 ' + str(pktLen))
 				ParseMeasEpoch(data);
 				gotCN0=1
+			elif ((pktID & 8191) == 4014):
+				Debug('pkt 4014 ' + str(pktLen))
+				receiverStatus = ParseReceiverStatus(data,pktLen-8)
+				gotReceiverStatus = 1
+				tt = time.time()
+				if ((receiverStatus & 0x04) and (receiverStatus & 0x08)): # bit 2 is EXT_FREQ, bit 3 is EXT_TIME
+					tLastSyncOK = tt
+				else:
+					Debug('Bad sync')
+					if ((tt - tLastSyncOK) > syncAlarmTimeout):
+						print('Sync timeout : status = 0x{:04x}'.format(receiverStatus))
+						SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
+						ottplib.RemoveProcessLock(lockFile) 
+						sys.exit(0)
 			elif (broadcast and ((pktID & 8191) == 4012)):
 				Debug('pkt 4012 ' + str(pktLen))
 				ParseSatVisibility(data,pktLen-8)
@@ -757,7 +790,7 @@ while (not killed):
 			if broadcast and gotVis:
 				BroadcastStatus()
 			ClearGNSS()
-			gotVis, gotCN0 = 0,0
+			gotVis, gotReceiverStatus, gotCN0 = 0,0,0
 					
 	
 Cleanup()
