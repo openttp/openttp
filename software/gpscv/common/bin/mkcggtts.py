@@ -35,11 +35,13 @@ import subprocess
 import sys
 import time
 # This is where ottplib is installed
-sys.path.append("/usr/local/lib/python3.8/site-packages")
+sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -152,7 +154,9 @@ if (not os.path.isfile(configFile)):
 	ottp.ErrorExit(configFile + ' not found')
 	
 cfg=ottp.Initialise(configFile,['tool:executable','tool:version','rinex:obs sta','cggtts:outputs'])
-	
+
+toolExec = ottp.MakeAbsoluteFilePath(cfg['tool:executable'],root,root + 'bin')
+
 toolVersion = float(cfg['tool:version'])
 if (toolVersion < 8):
 	ottp.ErrorExit('r2cggtts version is unsupported (>=8 only)')
@@ -365,11 +369,11 @@ for mjd in mjdsToDo:
 		SetLeapSeconds('paramCGGTTS.dat',leapSecs)
 	
 	# Do it
-	ottp.Debug('Running ' + cfg['tool:executable'])
+	ottp.Debug('Running ' + toolExec)
 	try:
-		x = subprocess.check_output([cfg['tool:executable']]) # eat the output
+		x = subprocess.check_output([toolExec]) # eat the output
 	except Exception as e:
-		ottp.ErrorExit('Failed to run ' + cfg['tool:executable'])
+		ottp.ErrorExit('Failed to run ' + toolExec)
 	ottp.Debug(x.decode('utf-8'))
 		
 	# Copy and rename files
