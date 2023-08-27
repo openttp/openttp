@@ -1232,11 +1232,11 @@ bool Application::CodesToFRC(int constellation,std::string &c1,std::string &c2,s
 		}
 		switch (constellation){
 			case GNSSSystem::GPS:
-				if (c1=="C1P" or c1=="C1W"){
+				if (c1=="C1P" || c1=="C1W"){
 					frc = "L1P";
 					return true;
 				}
-				else if (c2 == "C2P" or c2=="C2W"){
+				else if (c2 == "C2P" || c2=="C2W"){
 					frc = "L2P"; // FIXME not actually defined in CGGTTS spec
 					return true;
 				}
@@ -1254,8 +1254,8 @@ bool Application::CodesToFRC(int constellation,std::string &c1,std::string &c2,s
 		case GNSSSystem::GPS: // true for GLONASS too
 				c1of = c1.substr(0,2);
 				c2of = c2.substr(0,2);
-				if (( c1of == "C1" and c2of == "C2") or 
-					(c1of == "C2" and c2of == "C1")){
+				if (( c1of == "C1" && c2of == "C2") || 
+					(c1of == "C2" && c2of == "C1")){
 					frc="L3P";
 					*isP3 = true;
 					return true;

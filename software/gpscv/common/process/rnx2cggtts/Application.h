@@ -38,7 +38,7 @@
 
 #define APP_NAME "rnx2cggtts"
 #define APP_AUTHORS "Michael Wouters"
-#define APP_VERSION "0.0.2"
+#define APP_VERSION "0.0.3"
 #define APP_CONFIG "rnx2cggtts.conf"
 
 class Antenna;

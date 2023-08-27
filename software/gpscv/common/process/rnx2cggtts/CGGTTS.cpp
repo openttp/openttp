@@ -61,13 +61,9 @@ using boost::lexical_cast;
 
 #define CLIGHT 299792458.0
 
-
-
 //
 //	public
 //
-
-
 
 CGGTTS::CGGTTS()
 {
@@ -171,7 +167,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	
 	// Data structures for accumulating data at each track time
 	// Use a fixed array so that we can use the index for the SVN. Memory is cheap
-	// and svtrk is only 780 points long anyway
+	// and svtrk is only 36 points long anyway
 	double svtrk[MAXSV+1][NTRACKPOINTS][INDX_MJD+1]; 
 	
 	int leapOffset1 = leapsecs1/30.0; // measurements are assumed to be in GPS time so we'll need to shift the lookup index back by this
@@ -343,7 +339,8 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					}
 					
 					nfitpts++;
-					
+					DBGMSG(debugStream,INFO,svtrk[sv][tt][INDX_TOD] << " " << sv << std::setprecision(16) << " PR: " << corrRange << " C: " << clockCorr*1.0E10 << " T: " << tropoCorr*1.0E10 << " R: " << relCorr*1.0E10  << " G: " << gdCorr );
+	
 				}
 				else{
 					pseudoRangeFailures++;
@@ -424,7 +421,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					char sout[155]; // V2E
 					goodTrackCnt++;
 						
-					if (isP3 or reportMSIO)
+					if (isP3 || reportMSIO)
 						std::snprintf(sout,154,"%s%02i %2s %5i %02i%02i00 %4i %3i %4i %11li %6i %11li %6i %4i %3i %4i %4i %4i %4i %4i %4i %3i %2i %2i %3s ",GNSSsys.c_str(),sv,"FF",mjd,hh,mm,
 									nfitpts*OBSINTERVAL,(int) eltc,(int) aztc, (long int) refsvtc,(int) refsvm,(long int)refsystc,(int) refsysm,(int) refsysresid,
 									ed->iod(),(int) mdtrtc, (int) mdtrm, (int) mdiotc, (int) mdiom,(int) msiotc,(int) msiom,(int) msioresid,0,0,FRC.c_str());
