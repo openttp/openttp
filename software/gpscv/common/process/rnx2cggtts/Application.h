@@ -53,6 +53,7 @@ class Application
 		~Application();
 		
 		void run();
+		void fatalError(std::string msg,bool displayHelp=false);
 		
 		void logMessage(std::string msg);
 		

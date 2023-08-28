@@ -65,15 +65,26 @@ bool RINEXObsFile::read(std::string fname,int tstart,int tstop)
 	RINEXFile::readRINEXVersion(fname);
 	
 	if (version < 3){
-		readV2File(fname);
+		return false;
 	}	
 	else if (version < 4){
 		readV3File(fname);
 	}
-	else if (version < 1){
+	else if (version < 5){
 		return false;
 	}
-	
+	return true;
+}
+
+
+bool RINEXObsFile::merge(RINEXObsFile &obs)
+{
+	DBGMSG(debugStream,TRACE,"merging");
+	// some basic compatibility checks
+	if (obsInterval != obs.obsInterval){
+		app->logMessage("Failed to merge observation file");
+		return false;
+	}
 	return true;
 }
 
@@ -84,13 +95,10 @@ bool RINEXObsFile::read(std::string fname,int tstart,int tstop)
 void RINEXObsFile::init()
 {
 	obsInterval = -1;
+	ttFirstObs = 0; // flags invalid
+	ttLastObs = 0; // flags invalid
 }
 
-
-bool RINEXObsFile::readV2File(std::string)
-{
-	return false;
-}
 
 bool RINEXObsFile::readV3File(std::string fname)
 {
@@ -171,7 +179,7 @@ bool RINEXObsFile::readV3File(std::string fname)
 					}
 				}
 				// Now we can allocate memory for the observation data
-				meas->allocateStorage(1440*2*MAXDAYS);// memory is cheap - allow 2 days of data
+				meas->allocateStorage(1440*2*MAXDAYS);// memory is cheap - allow 2 days of data. 1440 minutes per day * 2 observations per minute
 				meas->nCodeObs = meas->codes.size();
 				DBGMSG(debugStream,INFO,"read SYS/OBS TYP: " << satSysCode);
 				DBGMSG(debugStream,INFO,obsCodes );
@@ -190,21 +198,15 @@ bool RINEXObsFile::readV3File(std::string fname)
 			continue;
 		}
 		
-		if (std::string::npos != line.find("TIME OF FIRST OBS",60)){ // format is 5I6,F12.6,6X,A3 
+		if (std::string::npos != line.find("TIME OF FIRST OBS",60)){ // format is 5I6,F13.7,5X,A3 
 			
-			readParam(line,1,6,&obs1yr);
-			yrOffset = (obs1yr/100)*100;
-			readParam(line,7,6,&obs1mon);
-			readParam(line,13,6,&obs1day);
-			readParam(line,19,6,&obs1hr);
-			readParam(line,25,6,&obs1min);
-			readParam(line,31,12,&obs1sec);
-			//std::strncpy(sbuf,line+48,3);// remember, subtract 1 from start index !
+			// we're going to determine the first (and last) observation time ourselves
+			// but we need the time system
 			if (std::string::npos != line.find("GPS"))
 				timeSystem = GNSSSystem::GPS;
 			else if (std::string::npos != line.find("GLONASS"))
 				timeSystem = GNSSSystem::GLONASS;
-			DBGMSG(debugStream,TRACE,"read TIME OF FIRST OBS: " << obs1yr << "-" << obs1mon << "-" << obs1day);
+			DBGMSG(debugStream,TRACE,"read TIME OF FIRST OBS");
 			continue;
 		}
 		
@@ -231,6 +233,34 @@ bool RINEXObsFile::readV3File(std::string fname)
 			readParam(line,33,3,&nObs);
 			DBGMSG(debugStream,TRACE,nObs << " obs at " << hour << ":"<< mins << ":" << secs);
 			
+			if (nObs > 0){
+				if (ttFirstObs == 0){
+					tmFirstObs.tm_year = year - 1900;
+					tmFirstObs.tm_mon = mon - 1 ;
+					tmFirstObs.tm_mday = mday;
+					tmFirstObs.tm_hour = hour;
+					tmFirstObs.tm_min = mins;
+					tmFirstObs.tm_sec = rint(secs); /// but .. we need a double
+					firstObsSecs = secs;
+					tmFirstObs.tm_isdst = - 1;
+					
+					if (-1 == (ttFirstObs = mktime(&tmFirstObs))){
+						app->fatalError("mktime failed on first observation");
+					}
+			
+				}
+				
+				tmLastObs.tm_year = year - 1900;
+				tmLastObs.tm_mon = mon - 1 ;
+				tmLastObs.tm_mday = mday;
+				tmLastObs.tm_hour = hour;
+				tmLastObs.tm_min = mins;
+				tmLastObs.tm_sec = rint(secs); /// but .. we need a double
+				lastObsSecs = secs;
+				tmLastObs.tm_isdst = - 1;
+				
+			}
+			
 			int itod = (hour *3600 + mins* 60 + rint(secs))/30; // GPS time, usually
 			int mjd  = Utility::DateToMJD(year,mon,mday);       // ditto
 			// FIXME should I test epochFlag ?
@@ -251,6 +281,9 @@ bool RINEXObsFile::readV3File(std::string fname)
 	
 	fin.close();
 	//gps.dump();
+	if (-1 == (ttLastObs = mktime(&tmLastObs))){
+		app->fatalError("mktime failed on last observation");
+	}
 	
 	return true;
 }

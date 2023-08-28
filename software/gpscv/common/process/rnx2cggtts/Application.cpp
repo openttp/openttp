@@ -127,8 +127,7 @@ Application::Application(int argc,char **argv)
 										debugFileName = dbgout;
 										debugLog.open(debugFileName.c_str(),std::ios_base::out);
 										if (!debugLog.is_open()){
-											std::cerr << "Error! Unable to open " << dbgout << std::endl;
-											exit(EXIT_FAILURE);
+											fatalError("Error! Unable to open " + dbgout);
 										}
 										debugStream = & debugLog;
 									}
@@ -142,18 +141,14 @@ Application::Application(int argc,char **argv)
 						case 3: // --mjd
 							{
 								if (1!=std::sscanf(optarg,"%i",&mjd)){
-									std::cerr << "Error! Bad value for option --mjd" << std::endl;
-									showHelp();
-									exit(EXIT_FAILURE);
+									fatalError("Error! Bad value for option --mjd",true);
 								}
 								break;
 							}
 						case 4: // --verbosity
 							{
 								if (1!=std::sscanf(optarg,"%i",&verbosity)){
-									std::cerr << "Error! Bad value for option --verbosity" << std::endl;
-									showHelp();
-									exit(EXIT_FAILURE);
+									fatalError("Error! Bad value for option --verbosity",true);
 								}
 								break;
 							}
@@ -170,8 +165,7 @@ Application::Application(int argc,char **argv)
 							break;
 						case 8:// --licence
 							r2cggttsMode = true;
-							std::cerr << "r2cggtts compatibility mode not available yet" << std::endl;
-							exit(EXIT_FAILURE);
+							fatalError("r2cggtts compatibility mode not available yet");
 							break;
 						default:
 							showHelp();
@@ -198,8 +192,7 @@ Application::Application(int argc,char **argv)
 						debugFileName = dbgout;
 						debugLog.open(debugFileName.c_str(),std::ios_base::out);
 						if (!debugLog.is_open()){
-							std::cerr << "Error! Unable to open " << dbgout << std::endl;
-							exit(EXIT_FAILURE);
+							fatalError("! Unable to open " + dbgout);
 						}
 						debugStream = & debugLog;
 					}
@@ -213,9 +206,7 @@ Application::Application(int argc,char **argv)
 			case 'm':
 				{
 					if (1!=std::sscanf(optarg,"%i",&mjd)){
-						std::cerr << "Error! Bad value for option --mjd" << std::endl;
-						showHelp();
-						exit(EXIT_FAILURE);
+						fatalError("Error! Bad value for option --mjd",true);
 					}
 				}
 				break;
@@ -231,8 +222,7 @@ Application::Application(int argc,char **argv)
 	// r2cggtts compatibility mode, which uses the standard r2cggtts configuration file and naming conventions for input and output files
 	if (!r2cggttsMode){
 		if (!loadConfig()){
-			std::cerr << "Error! Configuration failed" << std::endl;
-			exit(EXIT_FAILURE);
+			fatalError("Error! Configuration failed");
 		}
 	}
 	
@@ -259,6 +249,14 @@ void Application::run()
 	}
 	timer.stop();
 	DBGMSG(debugStream,INFO,"elapsed time: " << timer.elapsedTime(Timer::SECS) << " s");
+}
+
+void Application::fatalError(std::string msg,bool displayHelp){
+	if (displayHelp){
+		showHelp();
+	}
+	std::cerr << msg << std::endl;
+	exit(EXIT_FAILURE);
 }
 
 void Application::logMessage(std::string msg)
@@ -778,8 +776,7 @@ void Application::runNativeMode()
 	obsFileExtensions.push_back("rnx.Z");
 	std::string obsFile1 = FindRINEXObsFile(mjd,mjd,obsFileExtensions);
 	if (obsFile1.empty()){
-		std::cerr << "Error! Unable to find a RINEX observation file" << std::endl;
-		exit(EXIT_FAILURE);
+		fatalError("Error! Unable to find a RINEX observation file");
 	}
 	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
 	
@@ -808,8 +805,7 @@ void Application::runNativeMode()
 	
 	std::string navFile1 = FindRINEXNavFile(mjd,mjd,navFileExtensions);
 	if (navFile1.empty()){
-		std::cerr << "Error! Unable to find a RINEX navigation file" << std::endl;
-		exit(EXIT_FAILURE);
+		fatalError("Error! Unable to find a RINEX navigation file");
 	}
 	DBGMSG(debugStream,INFO,"Got RINEX nav file " << navFile1);
 	RINEXNavFile nav1;
@@ -891,8 +887,7 @@ void Application::runR2CGGTTSMode()
 	
 	
 	if (!readR2CGGTTSParams(r2cParamsFile)){
-		std::cerr << "Error! Unable to params.dat file" << std::endl;
-		exit(EXIT_FAILURE);
+		fatalError("Error! Unable to params.dat file");
 	}
 	
 	
@@ -900,8 +895,7 @@ void Application::runR2CGGTTSMode()
 	// All required files are presumed to be in the current directory
 	std::string obsFile1 = "rinex_obs";
 	if (!(canOpenFile(obsFile1))){
-		std::cerr << "Error! Unable to find  RINEX observation file" << std::endl;
-		exit(EXIT_FAILURE);
+		fatalError("Error! Unable to find  RINEX observation file");
 	}
 	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
 	

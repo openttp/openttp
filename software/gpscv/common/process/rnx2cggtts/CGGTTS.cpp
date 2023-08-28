@@ -339,7 +339,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					}
 					
 					nfitpts++;
-					DBGMSG(debugStream,INFO,svtrk[sv][tt][INDX_TOD] << " " << sv << std::setprecision(16) << " PR: " << corrRange << " C: " << clockCorr*1.0E10 << " T: " << tropoCorr*1.0E10 << " R: " << relCorr*1.0E10  << " G: " << gdCorr );
+					DBGMSG(debugStream,TRACE,svtrk[sv][tt][INDX_TOD] << " " << sv << std::setprecision(16) << " PR: " << corrRange << " C: " << clockCorr*1.0E10 << " T: " << tropoCorr*1.0E10 << " R: " << relCorr*1.0E10  << " G: " << gdCorr );
 	
 				}
 				else{
