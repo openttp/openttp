@@ -780,7 +780,7 @@ void Application::runNativeMode()
 	}
 	DBGMSG(debugStream,INFO,"Got RINEX obs file " << obsFile1);
 	
-	RINEXObsFile obs1;
+	RINEXObsFile obs1,obs2;
 	obs1.read(obsFile1,0,86400);
 	
 	std::string obsFile2 = FindRINEXObsFile(mjd,mjd+1,obsFileExtensions);
@@ -789,6 +789,8 @@ void Application::runNativeMode()
 	}
 	else{
 		DBGMSG(debugStream,INFO,"Got RINEX obs file for succeeding day " << obsFile2);
+		obs2.read(obsFile2,0,86400);
+		obs1.merge(obs2);
 	}
 	
 	//exit(0);
@@ -799,6 +801,14 @@ void Application::runNativeMode()
 	navFileExtensions.push_back("n");
 	navFileExtensions.push_back("n.gz");
 	navFileExtensions.push_back("n.Z");
+	
+	navFileExtensions.push_back("P");
+	navFileExtensions.push_back("P.gz");
+	navFileExtensions.push_back("P.Z");
+	navFileExtensions.push_back("p");
+	navFileExtensions.push_back("p.gz");
+	navFileExtensions.push_back("p.Z");
+
 	navFileExtensions.push_back("rnx");
 	navFileExtensions.push_back("rnx.gz");
 	navFileExtensions.push_back("rnx.Z");

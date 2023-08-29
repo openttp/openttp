@@ -168,7 +168,7 @@ bool GPS::getPseudorangeCorrections(double gpsTOW, double pRange, Antenna *ant,E
 	double ionoFreqCorr=1.0,gdFreqCorr=1.0;
 	switch (freqBand){
 		case 0: ionoFreqCorr = 1.0;gdFreqCorr = 0.0;break; // P3 
-		case 1: ionoFreqCorr = gdFreqCorr = 0.0;break;
+		case 1: ionoFreqCorr = gdFreqCorr = 1.0;break;
 		case 2: ionoFreqCorr = gdFreqCorr = 77.0*77.0/(60.0*60.0);break;
 		default:break;
 	}
