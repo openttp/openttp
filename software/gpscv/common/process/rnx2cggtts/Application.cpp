@@ -1204,8 +1204,10 @@ std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 			case GNSSSystem::BEIDOU:constellation="E";break;
 			case GNSSSystem::GALILEO:constellation="C";break;
 		}
-		// FIXME single frequency observation files only
-		ss << cggtts.path << "/" << constellation << "M" << CGGTTSlabCode << CGGTTSreceiverID << fname;
+		char obsCode = 'Z';
+		if (!(cggtts.isP3))
+			obsCode = 'M';
+		ss << cggtts.path << "/" << constellation << obsCode << CGGTTSlabCode << CGGTTSreceiverID << fname;
 	}
 	return ss.str();
 }
