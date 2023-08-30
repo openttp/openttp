@@ -41,10 +41,12 @@ class RINEXObsFile:public RINEXFile
 		RINEXObsFile();
 		virtual ~RINEXObsFile();
 		virtual bool read(std::string,int,int);
-		bool merge(RINEXObsFile &);
+		RINEXObsFile* merge(RINEXObsFile &);
 		
 		double obsInterval;
-	
+		std::vector<std::string> rnxCodes; 
+		std::vector<int> rnxCols; // index into data columns that we want to extract from the RINEX file
+		
 		struct tm tmFirstObs,tmLastObs; // time (Unix) of first and last observations          
 		double firstObsSecs,lastObsSecs; // alas, can't represent correctly in struct tm
 		time_t ttFirstObs,ttLastObs;
@@ -66,10 +68,6 @@ class RINEXObsFile:public RINEXFile
 		int readV3Obs(Measurements &, int, int,std::string);
 
 		int code2RNXcol(std::string c);
-		std::vector<std::string> rnxCodes; 
-		std::vector<int> rnxCols; // index into data columns that we want to extract from the RINEX file
-		
-		
 		
 };
 

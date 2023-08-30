@@ -77,15 +77,33 @@ bool RINEXObsFile::read(std::string fname,int tstart,int tstop)
 }
 
 
-bool RINEXObsFile::merge(RINEXObsFile &obs)
+RINEXObsFile* RINEXObsFile::merge(RINEXObsFile &obs)
 {
 	DBGMSG(debugStream,TRACE,"merging");
+	
+	RINEXObsFile *mobs = NULL;
+	
 	// some basic compatibility checks
 	if (obsInterval != obs.obsInterval){
 		app->logMessage("Failed to merge observation file");
 		return false;
 	}
-	return true;
+	
+	
+	// determine roughly how much data there is
+	int startMJD = Utility::DateToMJD(tmFirstObs.tm_year + 1900, tmFirstObs.tm_mon + 1, tmFirstObs.tm_mday);
+	int mjd = Utility::DateToMJD(obs.tmFirstObs.tm_year + 1900, obs.tmFirstObs.tm_mon + 1, obs.tmFirstObs.tm_mday);
+	if (mjd < startMJD)
+		startMJD = mjd;
+	
+	int stopMJD = Utility::DateToMJD(tmLastObs.tm_year + 1900, tmLastObs.tm_mon + 1, tmLastObs.tm_mday);
+	mjd = Utility::DateToMJD(obs.tmLastObs.tm_year + 1900, obs.tmLastObs.tm_mon + 1, obs.tmLastObs.tm_mday);
+	if (mjd > stopMJD)
+		stopMJD = mjd;
+	
+	DBGMSG(debugStream,INFO, startMJD << " " << stopMJD);
+	
+	return mobs;
 }
 
 //
