@@ -86,7 +86,7 @@ RINEXObsFile* RINEXObsFile::merge(RINEXObsFile &obs)
 	// some basic compatibility checks
 	if (obsInterval != obs.obsInterval){
 		app->logMessage("Failed to merge observation file");
-		return false;
+		return mobs;
 	}
 	
 	
