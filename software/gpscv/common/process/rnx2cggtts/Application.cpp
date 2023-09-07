@@ -448,7 +448,7 @@ bool Application::loadConfig()
 	setConfig(last,"antenna","x",&(antenna->x),&configOK);
 	setConfig(last,"antenna","y",&(antenna->y),&configOK);
 	setConfig(last,"antenna","z",&(antenna->z),&configOK);
-	setConfig(last,"antenna","frame",antenna->frame,&configOK);
+	setConfig(last,"antenna","frame",antenna->frame,&configOK,false);
 	
 	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z, // latitude and longitude used in ionosphere model
 		&(antenna->latitude),&(antenna->longitude),&(antenna->height));
@@ -456,11 +456,11 @@ bool Application::loadConfig()
 	//
 	// Receiver
 	//
-	setConfig(last,"receiver","manufacturer",receiver->manufacturer,&configOK);
-	setConfig(last,"receiver","model",receiver->model,&configOK);
-	setConfig(last,"receiver","serial number",receiver->serialNumber,&configOK);
-	setConfig(last,"receiver","commissioning year",&(receiver->commissionYYYY),&configOK);
-	setConfig(last,"receiver","channels",&(receiver->nChannels),&configOK);
+	setConfig(last,"receiver","manufacturer",receiver->manufacturer,&configOK,false);
+	setConfig(last,"receiver","model",receiver->model,&configOK,false);
+	setConfig(last,"receiver","serial number",receiver->serialNumber,&configOK,false);
+	setConfig(last,"receiver","commissioning year",&(receiver->commissionYYYY),&configOK,false);
+	setConfig(last,"receiver","channels",&(receiver->nChannels),&configOK,false);
 	//
 	// CGGTTS output
 	//
@@ -566,8 +566,8 @@ bool Application::loadConfig()
 		} // for
 	} // if setConfig
 		
-	setConfig(last,"cggtts","reference",CGGTTSref,&configOK);
-	setConfig(last,"cggtts","lab",CGGTTSlab,&configOK);
+	setConfig(last,"cggtts","reference",CGGTTSref,&configOK,false);
+	setConfig(last,"cggtts","lab",CGGTTSlab,&configOK,false);
 	setConfig(last,"cggtts","comments",CGGTTScomment,&configOK,false);
 	setConfig(last,"cggtts","minimum track length",&CGGTTSminTrackLength,&configOK,false);
 	setConfig(last,"cggtts","maximum dsg",&CGGTTSmaxDSG,&configOK,false);
@@ -589,7 +589,7 @@ bool Application::loadConfig()
 		}
 	}
 	
-	if (setConfig(last,"cggtts","revision date",stmp,&configOK)){
+	if (setConfig(last,"cggtts","revision date",stmp,&configOK,false)){
 		std::vector<std::string> vals;
 		boost::split(vals, stmp,boost::is_any_of("-"), boost::token_compress_on);
 		if (vals.size()==3){

@@ -1,0 +1,77 @@
+\section{rnx2cggtts \label{s:rnx2cggtts}}
+
+\cc{rnx2cggtts} generates CGGTTS files from RINEX observation and navigation files.
+Currently, it will only generate CGGTTS from GPS measurements. RINEX files must be version 3.
+
+CGGTTTS outputs have been compared with the output of \cc{r2cggtts}.
+Known differences are:
+\begin{enumerate}
+\item Occasionally, a different IODE will be chosen. When comparing CGGTTS between r2cggtts and rnx2cggtts, 
+tracks should be matched on IODE, otherwise there will be outliers at the 5 to 10 ns level.
+\item In P3 files, MDIO is modelled ionosphere, and not MSIO
+\item Satellite ELV and AZM are evaluated from a fit to the trajectory, rather than the middle point from the data set for a track. 
+\end{enumerate}
+
+\subsection{usage}
+
+To run \cc{kickstart.py} on the command line, use:
+\begin{lstlisting}[mathescape=true]
+rnx2cggtts [option] $\ldots$
+\end{lstlisting}
+The command line options are:
+\begin{description*}
+	\item[--configuration FILE, -c  FILE] use the specified configuration file
+	\item[--debug FILE, -d FILE]	print debugging infomration to file-
+	\item[--shorten] shorten debugging messages
+	\item[--verbosity <n>]  set debugging verbosity
+	\item[--help, -h]	show help and exit
+	\item[--licence] show the software licence and exit
+	\item[--version, -v]	print version information and exit
+\end{description*}
+
+\subsection{configuration file}
+
+The configuration file is similar to \cc{gpscv.conf}.
+A minimal configuration file for P3 output is:
+
+\begin{lstlisting}
+[RINEX]
+station = MOST01AUS
+
+[Antenna]
+X = -4648240.85 
+Y = +2560636.45 
+Z = -3526317.79 
+
+[CGGTTS]
+outputs = CGGTTS-GPS-P3
+
+[GPS delays]
+kind = internal
+codes =  C1C,C1W,C2W
+delays = 0.0,0.0,0.0
+BIPM cal id = UNCALIBRATED
+
+[CGGTTS-GPS-P3]
+constellation=GPS
+code=C1W+C2W
+path=cggtts
+
+[Paths]
+rinex observations = RINEX
+rinex navigation   = RINEX
+
+\end{lstlisting}
+
+\subsubsection{[RINEX] section }
+
+\subsubsection{[Antenna] section }
+
+\subsubsection{[CGGTTS] section }
+
+\subsubsection{[GPS delays] section }
+
+\subsubsection{[Paths] section }
+
+
+
