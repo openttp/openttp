@@ -23,7 +23,7 @@ The command line options are:
 	\item[--configuration FILE, -c  FILE] use the specified configuration file
 	\item[--debug FILE, -d FILE]	print debugging infomration to file-
 	\item[--shorten] shorten debugging messages
-	\item[--verbosity <n>]  set debugging verbosity
+	\item[--verbosity \textless{n}\textgreater ]  set debugging verbosity
 	\item[--help, -h]	show help and exit
 	\item[--licence] show the software licence and exit
 	\item[--version, -v]	print version information and exit
@@ -65,13 +65,282 @@ rinex navigation   = RINEX
 
 \subsubsection{[RINEX] section }
 
+{\bfseries station}\\
+This the RINEX station name. 
+Both V2 (4 characters) and V3 (9 characters) are allowed.
+The station name is used to construct RINEX file names.
+Currently, these files are expected to be decompressed.\\
+\textit{Example:}
+\begin{lstlisting}
+station = MOST01AUS
+\end{lstlisting}
+
 \subsubsection{[Antenna] section }
+
+{\bfseries X,Y,Z}\\
+These are the ECEF antenna coordinates, in metres.
+They are used in the calculations and are written to the CGGTTS header.\\
+\textit{Example:}
+\begin{lstlisting}
+X = -4648240.85 
+Y = +2560636.45 
+Z = -3526317.79
+\end{lstlisting}
+
+
+{\bfseries frame}\\
+This is the reference frame applicable to the antenna coordinates.
+It is only used in the CGGTTS header and is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+frame = ITRF2014
+\end{lstlisting}
+	
+\subsubsection{[Receiver] section }
+
+{\bfseries manufacturer}\\
+This is identifies the manufacturer of the GNSS receiver.
+It is only used in the CGGTTS header in the RCVR line and is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+manufacturer = Septentrio
+\end{lstlisting}
+
+
+{\bfseries model}\\
+This identifies the GNSS receiver model.
+It is only used in the CGGTTS header in the RCVR line and is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+model = mosaic-T
+\end{lstlisting}
+
+{\bfseries serial number}\\
+This identifies the GNSS receiver serial number.
+It is only used in the CGGTTS header in the RCVR line and is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+serial number = 123456
+\end{lstlisting}
+
+{\bfseries commissioning year}\\
+This identifies year the GNSS receiver started operation.
+It is only used in the CGGTTS header in the RCVR line  and is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+commissioning year = 2022
+\end{lstlisting}
+
+{\bfseries channels}\\
+This identifies the number of receiver channels.
+It is only used in the CGGTTS header and is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+channels = 768
+\end{lstlisting}
 
 \subsubsection{[CGGTTS] section }
 
+{\bfseries outputs}\\
+This is a comma-separated list of CGGTTS output sections.
+Each item in the list must have a corresponding section.
+\\
+\textit{Example:}
+\begin{lstlisting}
+outputs = CGGTTS-GPS-P3
+\end{lstlisting}
+
+{\bfseries version}\\
+This is the CGGTTS version. 
+Only V2E is supported at present.
+The version is optional and the default is V2E.
+\\
+\textit{Example:}
+\begin{lstlisting}
+version = V2E
+\end{lstlisting}
+
+{\bfseries naming convention}\\
+This specifies the style of the CGGTTS file name.
+\cc{Plain} specifies a filename in the format \cc{MJD.cctf}.
+\cc{BIPM} specifies a filename in the format used by the BIPM.
+This is optional and the default is \cc{Plain}.\\
+\textit{Example:}
+\begin{lstlisting}
+naming convention = BIPM
+\end{lstlisting}
+
+
+{\bfseries reference}\\
+This specifies the laboratory reference.
+This is used in the CGGTTS header and is optional; the default is \cc{UTC(XLAB)}.\\
+\textit{Example:}
+\begin{lstlisting}
+reference = UTC(AUS)
+\end{lstlisting}
+
+{\bfseries lab}\\
+This specifies the laboratory.
+This is used in the CGGTTS header and is optional;the default is \cc{XLAB}.\\
+\textit{Example:}
+\begin{lstlisting}
+lab = NMIA
+\end{lstlisting}
+
+{\bfseries comments}\\
+This is used in the CGGTTS header and is optional;the default is an empty string.
+\textit{Example:}
+\begin{lstlisting}
+comments = antenna moved MJD 59601
+\end{lstlisting}
+
+{\bfseries ref dly}\\
+This is the reference delay (REF DLY).
+Its units are nanoseconds.
+Its use is optional and the default value is zero.
+\textit{Example:}
+\begin{lstlisting}
+ref dly = 99.3
+\end{lstlisting}
+
+{\bfseries cab dly}\\
+This is the cable delay (CAB DLY).
+Its units are nanoseconds.
+Its use is optional and the default value is zero.
+\textit{Example:}
+\begin{lstlisting}
+cab dly = 120.2
+\end{lstlisting}
+
+{\bfseries minimum track length}\\
+This sets the minimum track length that is acceptable for reporting a satellite track.
+The units are seconds.
+This is optional and the default is 390 s.\\
+\textit{Example:}
+\begin{lstlisting}
+minimum track length = 750
+\end{lstlisting}
+
+{\bfseries maximum dsg}\\
+This sets the maximum value of DSG that is acceptable for reporting a satellite track.
+The units are nanoseconds.
+This is optional and the default is 100 ns.\\
+\textit{Example:}
+\begin{lstlisting}
+maximum dsg = 10
+\end{lstlisting}
+
+{\bfseries minimum elevation}\\
+This sets the minimum satellite elevation (at the middle of the track) that is acceptable for reporting a satellite track.
+The units for this option are degrees.
+This is optional and the default is 10 degrees.\\
+\textit{Example:}
+\begin{lstlisting}
+minimum elevation = 15
+\end{lstlisting}
+
+{\bfseries maximum ura}\\
+This sets the maximum URA for a broadcast ephemeris to be acceptable for use in calculations.
+Typically, a receiver will report 2 metres, with a few reported at 2.8 metres.
+IGS ephemerides however  will sometimes contain entries with very high URA and these should not be used.
+The units for this option are metres.
+This is optional and the default is 3 metres.
+\textit{Example:}
+\begin{lstlisting}
+maximum ura = 3.0
+\end{lstlisting}
+	
 \subsubsection{[GPS delays] section }
+
+
+{\bfseries kind}\\
+This specifies the kind of delay for the specified . Valid values are \cc{internal},\cc{system} and \cc{total}.\\
+\textit{Example:}
+\begin{lstlisting}
+kind = internal
+\end{lstlisting}
+
+{\bfseries codes}\\
+This defines a comma-separated list of codes for which delays are defined.
+Use RINEX V3 pseudorange observation codes, as per page 17 of the RINEX V3.04 specification.\\
+\textit{Example:}
+\begin{lstlisting}
+codes =  C1C,C1W,C2W
+\end{lstlisting}
+
+{\bfseries delays}\\
+This sets the value of each delay defined by \cc{codes}, given as a comma-separated list in the same order as in \cc{codes}. The units are ns.  \\
+\textit{Example:}
+\begin{lstlisting}
+delays = 23.0,22.0,24.0
+\end{lstlisting}
+
+{\bfseries BIPM cal id}\\
+This sets the BIPM calibration identifier, written to the CGGTTS header.
+It overrides the global [CGGTTS] option of the same name.
+Its use is optional.\\
+\textit{Example:}
+\begin{lstlisting}
+BIPM cal id = UNCALIBRATED
+\end{lstlisting}
 
 \subsubsection{[Paths] section }
 
+{\bfseries rinex observations}\\
+The specifies the path to the RINEX observation files.\\
+\textit{Example:}
+\begin{lstlisting}
+rinex observations = RINEX
+\end{lstlisting}
+
+{\bfseries rinex navigation}\\
+The specifies the path to the RINEX navigation files.\\
+\textit{Example:}
+\begin{lstlisting}
+rinex navigation = RINEX
+\end{lstlisting}
+
+\subsubsection{CGGTTS output sections }
+
+{\bfseries constellation}\\
+Valid values are GPS, Galileo, GLONASS and Beidou.
+Only GPS is supported at present though.\\
+\textit{Example:}
+\begin{lstlisting}
+constellation = GPS
+\end{lstlisting}
+
+{\bfseries code}\\
+This specifies the code combination to use in the CGGTTS output.
+For ionosphere-free combinations, both codes are specified, separated by a '+'.
+Use RINEXV3 pseudorange observation codes, as per page 17 of the RINEX V3.04 specification.
+These need to be the same as used in the RINEX observation file.\\
+\textit{Example:}
+\begin{lstlisting}
+code = C1W + C2W
+\end{lstlisting}
+
+
+{\bfseries path}\\
+This specifies the path that the files will be written to.\\
+\textit{Example:}
+\begin{lstlisting}
+path = cggtts\C1
+\end{lstlisting}
+
+{\bfseries report msio}\\
+For single frequency outputs, this indicates whether or not to use MSIO.\\
+\textit{Example:}
+\begin{lstlisting}
+report msio = yes
+\end{lstlisting}
+
+{\bfseries msio codes}\\
+For single frequency outputs where use of MSIO is enabled, this specifies the codes to use for calculating MSIO.
+Use RINEX V3 pseudorange observation codes, as per page 17 of the RINEX V3.04 specification.\\
+\textit{Example:}
+\begin{lstlisting}
+msio codes = C1W + C2W
+\end{lstlisting}
 
 
