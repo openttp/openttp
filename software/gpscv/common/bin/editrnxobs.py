@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 
 #
@@ -39,7 +39,7 @@ import re
 import sys
 import time
 
-VERSION = "0.1.4"
+VERSION = "1.0.0"
 AUTHORS = "Michael Wouters"
 
 BEIDOU='C'
@@ -57,7 +57,7 @@ def Debug(msg):
 
 # ------------------------------------------
 def ErrorExit(msg):
-	print msg
+	print(msg)
 	sys.exit(0)
 
 # ------------------------------------------
