@@ -136,13 +136,22 @@ def AddHeaderComments(hdr,comments):
 			break
 
 # ------------------------------------------
-def WriteObservations(fout,obs):
-	for o in obs:
-		for l in o[2]:
-			fout.write(l)
-		for l in o[1]:
-			fout.write(l)
-
+def WriteObservations(fout,ver,obs):
+	
+	if (ver==2):
+		for o in obs:
+			for l in o[2]:
+				fout.write(l)
+			for l in o[1]:
+				fout.write(l)
+	if (ver==3):
+		for o in obs:
+			for l in o[1]: # comments
+				fout.write(l)
+			fout.write(o[2]) # record header
+			for l in o[3]: # measurements
+				fout.write(l)
+				
 # ------------------------------------------
 def ReadV2Observations(fin,nobs):
 	reading = True
@@ -178,7 +187,7 @@ def ReadV2Record(fin,nobs):
 			nsv = int(match.group(7))
 			rec=[]
 			rec.append(l)
-			#  if nsv > 12, there are more SV identifiesr to read
+			#  if nsv > 12, there are more SV identifiers to read
 			ntodo = nsv - 12
 			while (ntodo > 0):
 				l=fin.readline()
@@ -212,13 +221,18 @@ def ReadV3Observations(fin):
 	return obs
 
 # ------------------------------------------
+# Used by ReadV3Observations
+# Preserves comments and the record header
+# ------------------------------------------
 def ReadV3Rec(fin):
 	comments=''
+	recHeader = ''
 	while True:
 		l = fin.readline()
 		if (len(l) == 0): #EOF
 			return None
 		if (l[0]=='>'):
+			recHeader = l
 			year = int(l[2:6])
 			mon = int(l[6:10])
 			day = int(l[9:13])
@@ -231,7 +245,7 @@ def ReadV3Rec(fin):
 			for m in range(0,nmeas):
 				l=fin.readline()
 				rec.append(l)
-			return (tod,rec,comments)
+			return (tod,comments,ts,recHeader)
 		else:
 			comments += l
 	return None
@@ -309,23 +323,32 @@ def FixMissing(infiles):
 			
 			hdr1 = ReadHeader(fin)
 			nobs = 1
-			if (ver1 == 2):
-				hdrField = GetHeaderField(hdr1,'# / TYPES OF OBSERV')
+			
+			hdrField = GetHeaderField(hdr1,'# / TYPES OF OBSERV')
+			if hdrField: # it be V2
+				ver1 = 2
 				nobs = int(str(hdrField[0][0:6]))
 				Debug('Number of observations ' + str(nobs))
 			else:
 				hdrField = GetHeaderField(hdr1,'SYS / # / OBS TYPES')
-				# FIXME
+				if hdrField:
+					ver1=3
+					Debug("V3:no check on matching observations!")
+					
 				
 			hdr2 = ReadHeader(finNext)
 			nobs2 = 1
-			if (ver1 == 2):
-				hdrField = GetHeaderField(hdr2,'# / TYPES OF OBSERV')
+			hdrField = GetHeaderField(hdr2,'# / TYPES OF OBSERV')
+			if hdrField: # it be V2
+				ver2 = 2
 				nobs2 = int(str(hdrField[0][0:6]))
-				Debug('Number of observations ' + str(nobs2))
+				Debug('Number of observations ' + str(nobs))
 			else:
 				hdrField = GetHeaderField(hdr2,'SYS / # / OBS TYPES')
-			
+				if hdrField:
+					ver2=3
+					Debug("V3:no check on matching observations!")
+					
 			if (not nobs == nobs2):
 				ErrorExit('# of observations do not match')
 			obs1=[]
@@ -362,7 +385,7 @@ def FixMissing(infiles):
 						'TIME OF LAST OBS')
 					EditHeader(hdr1,'TIME OF LAST OBS',lastObs)
 				WriteHeader(tmpFout,hdr1)
-				WriteObservations(tmpFout,obsTmp)
+				WriteObservations(tmpFout,ver1,obsTmp)
 				tmpFout.close()
 				
 				# Rename the old file
@@ -375,7 +398,7 @@ def FixMissing(infiles):
 				# Now examine the next file
 				# Already read the header to do some checks
 				obs2=[]
-				if (ver1 == 2):
+				if (ver2 == 2):
 					obs2 = ReadV2Observations(finNext,nobs)
 				else:
 					obs2 = ReadV3Observations(finNext)
@@ -399,8 +422,8 @@ def FixMissing(infiles):
 						'TIME OF FIRST OBS')
 					EditHeader(hdr2,'TIME OF FIRST OBS',fObs)
 					WriteHeader(tmpFout,hdr2)
-					WriteObservations(tmpFout,insRecs)
-					WriteObservations(tmpFout,obs2)
+					WriteObservations(tmpFout,ver2,insRecs)
+					WriteObservations(tmpFout,ver2,obs2)
 					tmpFout.close()
 					# Rename files
 					# if (args.replace):
