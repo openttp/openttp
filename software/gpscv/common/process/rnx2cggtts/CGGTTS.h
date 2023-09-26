@@ -28,6 +28,10 @@
 #include <string>
 #include <boost/concept_check.hpp>
 
+#define NTRACKS 89      // maximum number of tracks in a day
+#define NTRACKPOINTS 26 // 30 s sampling
+#define OBSINTERVAL 30  // 30 s
+
 class Antenna;
 class Receiver;
 class Measurements;
@@ -43,9 +47,9 @@ class CGGTTS
 		
 		
 		CGGTTS();
-	
+		
+		void generateSchedule(int mjd);
 		bool write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime);
-
 		
 		Antenna *antenna;
 		Receiver *receiver;
@@ -71,6 +75,8 @@ class CGGTTS
 		double maxURA; // in m
 		
 	private:
+		int schedule[NTRACKS+1];
+		int ntracks;
 		
 		void init();
 		void writeHeader(FILE *fout,GNSSSystem *gnss,GNSSDelay *dly);

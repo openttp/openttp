@@ -33,7 +33,7 @@ class CGGTTSOutput{
 		CGGTTSOutput();
 		CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,std::string rnxcode3,
 			bool isP3,bool reportMSIO,std::string frc,std::string path,
-			std::string ephemerisPath,std::string ephemerisFile
+			std::string ephemerisPath,std::string ephemerisFile,bool genCTTS
 			);
 		
 		int constellation;
@@ -48,6 +48,8 @@ class CGGTTSOutput{
 		std::string ephemerisPath;
 		std::string ephemerisFile;
 		bool reportMSIO; // report MSIO in single frequency output
+		
+		bool genCTTS;
 };
 
 #endif

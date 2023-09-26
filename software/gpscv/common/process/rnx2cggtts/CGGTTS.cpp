@@ -48,10 +48,6 @@ extern std::ostream *debugStream;
 
 using boost::lexical_cast;
 
-#define NTRACKS 89      // maximum number of tracks in a day
-#define NTRACKPOINTS 26 // 30 s sampling
-#define OBSINTERVAL 30  // 30 s
-
 #define MAXSV   37 // GPS 1-32, BDS 1-37, GALILEO 1-36 
 // indices into svtrk
 #define INDX_OBSV1    0  
@@ -69,7 +65,34 @@ CGGTTS::CGGTTS()
 {
 	init();
 }
+
+void CGGTTS::generateSchedule(int mjd){
+
+	// Generate the observation schedule as per DefraignePetit2015 pg3
+	ntracks=NTRACKS;
 	
+	// There will be a 28 minute gap between two observations (32-4 mins)
+	// which means that you can't just find the first and then add n*16 minutes
+	// Track start times are all UTC, of course
+	for (int i=0,mins=2; i<NTRACKS; i++,mins+=16){
+		schedule[i]=mins-4*(mjd-50722);
+		if (schedule[i] < 0){ // always negative in practice anyway 
+			int ndays = abs(schedule[i]/1436) + 1;
+			schedule[i] += ndays*1436;
+		}
+	}
+	
+	// The schedule is not in ascending order so fix this 
+	std::sort(schedule,schedule+NTRACKS); // don't include the last element, which may or may not be used
+	
+	// Fixup - one more track possibly at the end of the day
+	// Will need the next day's data to use this properly though
+	if ((schedule[NTRACKS-1]%60) < 43){
+		schedule[NTRACKS]=schedule[NTRACKS-1]+16;
+		ntracks++;
+	}
+}
+
 bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime)
 {
 	FILE *fout;
@@ -140,30 +163,6 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	reportMSIO = (obs2indx != -1)  && (obs3indx != -1);
 	writeHeader(fout,gnss,dly);
 	
-	// Generate the observation schedule as per DefraignePetit2015 pg3
-
-	int schedule[NTRACKS+1];
-	int ntracks=NTRACKS;
-	// There will be a 28 minute gap between two observations (32-4 mins)
-	// which means that you can't just find the first and then add n*16 minutes
-	// Track start times are all UTC, of course
-	for (int i=0,mins=2; i<NTRACKS; i++,mins+=16){
-		schedule[i]=mins-4*(mjd-50722);
-		if (schedule[i] < 0){ // always negative in practice anyway 
-			int ndays = abs(schedule[i]/1436) + 1;
-			schedule[i] += ndays*1436;
-		}
-	}
-	
-	// The schedule is not in ascending order so fix this 
-	std::sort(schedule,schedule+NTRACKS); // don't include the last element, which may or may not be used
-	
-	// Fixup - one more track possibly at the end of the day
-	// Will need the next day's data to use this properly though
-	if ((schedule[NTRACKS-1]%60) < 43){
-		schedule[NTRACKS]=schedule[NTRACKS-1]+16;
-		ntracks++;
-	}
 	
 	// Data structures for accumulating data at each track time
 	// Use a fixed array so that we can use the index for the SVN. Memory is cheap
@@ -270,7 +269,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 			double refsv[26],refsys[26],mdtr[26],mdio[26],msio[26],tutc[26],svaz[26],svel[26],msiotutc[26]; //buffers for the data used for the linear fits
 			
 			Ephemeris *ed=NULL;
-			int nSVObs = 0; // keep track of SV observations in track so we can dsistinguish misisng data from pseudorange failures etc ..
+			int nSVObs = 0; // keep track of SV observations in track so we can disstinguish missing data from pseudorange failures etc ..
 			for (unsigned int tt=0;tt<NTRACKPOINTS;tt++){
 				int fwn;
 				double tow;
@@ -460,6 +459,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 	
 	return true;
 }
+
 
 //
 // private

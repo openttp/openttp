@@ -38,7 +38,7 @@
 
 #define APP_NAME "rnx2cggtts"
 #define APP_AUTHORS "Michael Wouters"
-#define APP_VERSION "0.0.3"
+#define APP_VERSION "0.0.4"
 #define APP_CONFIG "rnx2cggtts.conf"
 
 class Antenna;
@@ -72,6 +72,7 @@ class Application
 		// some r2cggtts parameters
 		int r2cLeapSeconds;
 		double r2cCabDly,r2cRefDly;
+		std::string r2cCalRef;
 		
 		std::string homeDir;
 		std::string rootDir;
@@ -127,6 +128,7 @@ class Application
 		std::string FindRINEXNavFile(int,int,std::vector<std::string> &);
 		
 		std::string makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD);
+		std::string makeCTTSFilename(CGGTTSOutput & cggtts, int MJD);
 		
 		bool splitDualCode(std::string &codeStr,std::string &c1,std::string &c2);
 		bool CodesToFRC(int constellation,std::string &c1,std::string &c2,std::string &frc,bool *isP3);

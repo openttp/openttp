@@ -99,7 +99,7 @@ Application::Application(int argc,char **argv)
 	int longIndex;
 	int c;
 	
-	while ((c=getopt_long(argc,argv,"c:d:hm:",longOptions,&longIndex)) != -1)
+	while ((c=getopt_long(argc,argv,"c:d:hm:r",longOptions,&longIndex)) != -1)
 	{
 		
 		switch(c)
@@ -165,7 +165,6 @@ Application::Application(int argc,char **argv)
 							break;
 						case 8:// --licence
 							r2cggttsMode = true;
-							fatalError("r2cggtts compatibility mode not available yet");
 							break;
 						default:
 							showHelp();
@@ -209,6 +208,9 @@ Application::Application(int argc,char **argv)
 						fatalError("Error! Bad value for option --mjd",true);
 					}
 				}
+				break;
+			case 'r':
+				r2cggttsMode = true;
 				break;
 			default:
 				showHelp();
@@ -276,6 +278,10 @@ void Application::logMessage(std::string msg)
 void Application::init()
 {
 	r2cggttsMode = false;
+	r2cParamsFile = "paramCGGTTS.dat";
+	r2cCalRef = "NONE";
+	r2cCabDly = 0.0;
+	r2cRefDly = 0.0;
 	
 	antenna = new Antenna();
 	receiver = new Receiver();
@@ -358,6 +364,7 @@ void Application::showHelp()
 	std::cout << "-d,--debug <file>         turn on debugging to <file> (use 'stderr' for output to stderr)" << std::endl;
 	std::cout << "-h,--help                 print this help message" << std::endl;
 	std::cout << "-m,--mjd <n>              set the mjd" << std::endl;
+	std::cout << "-r,--r2cggtts             r2cggtts mode" << std::endl;
 	std::cout << "--shorten                 shorten debugging messages" << std::endl;
 	std::cout << "--verbosity <n>           set debugging verbosity" << std::endl;
 	std::cout << "--version                 show version" << std::endl;
@@ -483,6 +490,7 @@ bool Application::loadConfig()
 		int constellation=0,code=0;
 		bool isP3=false;
 		std::string ephemerisFile,ephemerisPath;
+		bool genCTTS=false;
 		
 		for (unsigned int i=0;i<configs.size();i++){
 			std::string calID="";
@@ -553,13 +561,19 @@ bool Application::loadConfig()
 				}
 			}
 			
-		
+			if (setConfig(last,configs.at(i).c_str(),"generate 30s file",stmp,&configOK,false)){
+				boost::to_upper(stmp);
+				if (stmp=="YES" or stmp=="TRUE"){
+					genCTTS = true;
+				}
+			}
+			
 			if (setConfig(last,configs.at(i).c_str(),"path",stmp,&configOK)){ // got everything
 				// FIXME check compatibility of constellation+code
 				stmp=relativeToAbsolutePath(stmp);
 				ephemerisPath = relativeToAbsolutePath(ephemerisPath);
 				CGGTTSoutputs.push_back(CGGTTSOutput(constellation,rnxcode1,rnxcode2,rnxcode3,isP3,reportMSIO,frc,stmp,
-					ephemerisPath,ephemerisFile));
+					ephemerisPath,ephemerisFile,genCTTS));
 			}
 			
 			
@@ -858,8 +872,8 @@ void Application::runNativeMode()
 	cggtts.maxURA = CGGTTSmaxURA;
 	cggtts.minTrackLength = CGGTTSminTrackLength;
 	cggtts.ver = CGGTTSversion;
-	//cggtts.cabDly=antCableDelay;
-		//cggtts.refDly=refCableDelay;
+	
+	cggtts.generateSchedule(mjd);  // only need to do this once 
 	
 	for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
 
@@ -873,6 +887,7 @@ void Application::runNativeMode()
 		
 		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
 		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
+		std::string CTTSfile;
 		
 		switch (cggtts.constellation)
 		{
@@ -895,11 +910,9 @@ void Application::runNativeMode()
 void Application::runR2CGGTTSMode()
 {
 	
-	
 	if (!readR2CGGTTSParams(r2cParamsFile)){
-		fatalError("Error! Unable to params.dat file");
+		fatalError("Error! Unable to open paramCGGTTS.dat");
 	}
-	
 	
 	// We're going on a file hunt
 	// All required files are presumed to be in the current directory
@@ -924,7 +937,7 @@ void Application::runR2CGGTTSMode()
 	// FIXME not read yet
 	
 	std::string mixNavFile1 = "rinex_nav_mix";
-	if (!(canOpenFile(obsFile2))){
+	if (!(canOpenFile(mixNavFile1))){
 		DBGMSG(debugStream,INFO,"Didn't get mixed  RINEX nav file");
 		mixNavFile1 ="";
 		// not fatal
@@ -988,13 +1001,20 @@ void Application::runR2CGGTTSMode()
 		}
 	}
 	
+	// Now we generate all possible CGGTTS outputs
+	
+	// But that's just GPS at the moment ...
+	// For GPS, try to construct
+	// CGGTTS: C1, P1 and L3P
+	// CTTS  : C1, C2, C5, P1, P2, L3P
+	
 	
 }
 		
 
 bool Application::readR2CGGTTSParams(std::string paramsFile)
 {
-	DBGMSG(debugStream,INFO,"reading" << paramsFile);
+	DBGMSG(debugStream,INFO,"reading " << paramsFile);
 	std::ifstream fin(paramsFile.c_str());
 	std::string line;
 	
@@ -1005,6 +1025,7 @@ bool Application::readR2CGGTTSParams(std::string paramsFile)
 	
 	bool ok =true;
 	std::string stmp;
+	double dtmp;
 	while (!fin.eof()){
 		// This file should be strictly formatted but the keywords
 		// may be in arbitrary order
@@ -1021,14 +1042,19 @@ bool Application::readR2CGGTTSParams(std::string paramsFile)
 		ok = ok && getR2CGGTTSParam(fin,line,"COMMENTS",CGGTTScomment);
 		ok = ok && getR2CGGTTSParam(fin,line,"FRAME",antenna->frame);
 		ok = ok && getR2CGGTTSParam(fin,line,"REF",CGGTTSref);
-		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P1 XR+XS (in ns)",&P1delay);
-		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P1 GLO (in ns)",&P2delayGLO);
-		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY C1 XR+XS (in ns)",&P1delay); // FIXME WTF
-		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P2 XR+XS (in ns)",&P2delay);
-		//ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P2 GLO (in ns)",&P2delayGLO);
-		//ok = ok && getR2CGGTTSParam(fin,line,"ANT CAB DELAY (in ns)",&cabDelay);
-		//ok = ok && getR2CGGTTSParam(fin,line,"LEAP SECOND",&leapSeconds);
-		//ok = ok && getR2CGGTTSParam(fin,line,"CLOCK CAB DELAY XP+XO (in ns)",&refDelay);
+		ok = ok && getR2CGGTTSParam(fin,line,"CALIBRATION REFERENCE",r2cCalRef);
+		
+		ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY C1 GPS",&dtmp);
+		
+		ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P1 GPS",&dtmp);
+		
+		ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P2 GPS",&dtmp);
+		
+		ok = ok && getR2CGGTTSParam(fin,line,"ANT CAB DELAY",&r2cCabDly);
+		ok = ok && getR2CGGTTSParam(fin,line,"CLOCK CAB DELAY XP+XO",&r2cRefDly);
+		
+		ok = ok && getR2CGGTTSParam(fin,line,"LEAP SECOND",&r2cLeapSeconds);
+		
 	}
 	fin.close();
 	return ok;
@@ -1036,8 +1062,7 @@ bool Application::readR2CGGTTSParams(std::string paramsFile)
 
 bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,std::string &val)
 {
-	if (currParam == param)
-	{
+	if (0==currParam.find(param)){
 		std::string line;
 		if (fin.good()){
 			getline(fin,line);
@@ -1050,13 +1075,13 @@ bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std
 			return false;
 		}
 	}
+	//DBGMSG(debugStream,INFO,currParam << "?" << param);
 	return true;
 }
 
 bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,double *val)
 {
-	if (currParam==param)
-	{
+	if (0==currParam.find(param)){
 		std::string line;
 		if (fin.good()){
 			getline(fin,line);
@@ -1074,8 +1099,7 @@ bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std
 
 bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,int *val)
 {
-	if (currParam==param)
-	{
+	if (0==currParam.find(param)){
 		std::string line;
 		if (fin.good()){
 			getline(fin,line);
@@ -1197,6 +1221,28 @@ std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 		ss << cggtts.path << "/" << MJD << ".cctf";
 	else if (CGGTTSnamingConvention == BIPM){
 		std::snprintf(fname,15,"%2i.%03i",MJD/1000,MJD%1000); // tested for 57400,57000
+		std::string constellation;
+		switch (cggtts.constellation){
+			case GNSSSystem::GPS:constellation="G";break;
+			case GNSSSystem::GLONASS:constellation="R";break;
+			case GNSSSystem::BEIDOU:constellation="E";break;
+			case GNSSSystem::GALILEO:constellation="C";break;
+		}
+		char obsCode = 'Z';
+		if (!(cggtts.isP3))
+			obsCode = 'M';
+		ss << cggtts.path << "/" << constellation << obsCode << CGGTTSlabCode << CGGTTSreceiverID << fname;
+	}
+	return ss.str();
+}
+
+std::string Application::makeCTTSFilename(CGGTTSOutput & cggtts, int MJD){
+	std::ostringstream ss;
+	char fname[16];
+	if (CGGTTSnamingConvention == Plain)
+		ss << cggtts.path << "/" << MJD << ".ctts";
+	else if (CGGTTSnamingConvention == BIPM){
+		std::snprintf(fname,15,"%2i.%03i.ctts",MJD/1000,MJD%1000); // tested for 57400,57000
 		std::string constellation;
 		switch (cggtts.constellation){
 			case GNSSSystem::GPS:constellation="G";break;

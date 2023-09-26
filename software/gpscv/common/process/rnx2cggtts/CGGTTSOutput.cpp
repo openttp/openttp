@@ -33,10 +33,10 @@ CGGTTSOutput::CGGTTSOutput()
 }
 		
 CGGTTSOutput::CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,std::string rnxcode3,bool isP3,bool reportMSIO,std::string frc,std::string path,
-		std::string ephemerisPath,std::string ephemerisFile
+		std::string ephemerisPath,std::string ephemerisFile,bool genCTTS
 		):
 		constellation(constellation),rnxcode1(rnxcode1),rnxcode2(rnxcode2),rnxcode3(rnxcode3),isP3(isP3),FRC(frc),path(path),
-		ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile),reportMSIO(reportMSIO)
+		ephemerisPath(ephemerisPath),ephemerisFile(ephemerisFile),reportMSIO(reportMSIO),genCTTS(genCTTS)
 {
 }
 		
