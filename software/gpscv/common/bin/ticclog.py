@@ -51,7 +51,7 @@ import time
 
 import ottplib as ottp
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -135,7 +135,7 @@ if ('counter:timestamp format' in cfg):
 		tsformat = TS_TOD
 		
 # Create the process lock		
-lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
+lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/logs')
 Debug("Creating lock " + lockFile)
 if (not ottp.CreateProcessLock(lockFile)):
 	ottp.ErrorExit("Couldn't create a lock")
