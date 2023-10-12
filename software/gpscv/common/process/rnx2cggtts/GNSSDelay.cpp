@@ -46,4 +46,16 @@ double GNSSDelay::getDelay(std::string c)
 }
 
 		
+void GNSSDelay::addDelay(std::string c, double v)
+{
+	for (unsigned int i=0;i<code.size();i++){ // is it already there ?
+		if (code[i] == c){
+			delay.at(i) = v;
+			return;
+		}
+	}
+	// not there so add it
+	code.push_back(c);
+	delay.push_back(v);
+}
 

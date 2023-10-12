@@ -62,7 +62,7 @@ class Application
 		
 	private:
 		
-		enum CGGTTSNamingConvention {Plain,BIPM};
+		enum CGGTTSNamingConvention {Plain,BIPM,R2CGGTTS};
 		
 		int mjd;
 		

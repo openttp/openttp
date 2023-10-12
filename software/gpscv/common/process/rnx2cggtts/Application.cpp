@@ -220,14 +220,19 @@ Application::Application(int argc,char **argv)
 	}
 
 	// Two modes of operation 
-	// Use a configuration file, which allows a bit more flexibility and removes the need for pre- and post- processing of files
-	// r2cggtts compatibility mode, which uses the standard r2cggtts configuration file and naming conventions for input and output files
-	if (!r2cggttsMode){
+	// (1) Use a configuration file, which allows a bit more flexibility and removes the need for pre- and post- processing of files
+	// (2) r2cggtts compatibility mode, which uses the standard r2cggtts configuration file and naming conventions for input and output files
+	if (r2cggttsMode){
+		configurationFile = "r2cggtts.conf";
 		if (!loadConfig()){
 			fatalError("Error! Configuration failed");
 		}
 	}
-	
+	else{
+		if (!loadConfig()){
+			fatalError("Error! Configuration failed");
+		}
+	}
 }
 
 Application::~Application()
@@ -593,6 +598,8 @@ bool Application::loadConfig()
 			CGGTTSnamingConvention = BIPM;
 		else if (stmp=="PLAIN")
 			CGGTTSnamingConvention = Plain;
+		else if (stmp=="R2CGGTTS")
+			CGGTTSnamingConvention = R2CGGTTS;
 		else{
 			std::cerr << "unknown value for cggtts::naming convention " << std::endl;
 			configOK=false;
@@ -632,8 +639,9 @@ bool Application::loadConfig()
 	
 	DBGMSG(debugStream,TRACE,"parsed CGGTTS config ");
 	
-	
-	setDelay(last,"gps delays",&gpsDelay,CGGTTScalID,refdly,cabdly);
+	if (!r2cggttsMode){
+		setDelay(last,"gps delays",&gpsDelay,CGGTTScalID,refdly,cabdly);
+	}
 	
 	return configOK;
 }
@@ -780,14 +788,9 @@ void Application::runNativeMode()
 	// Files for the next day are used if available
 	std::vector<std::string> obsFileExtensions;
 	obsFileExtensions.push_back("O");
-	obsFileExtensions.push_back("O.gz");
-	obsFileExtensions.push_back("O.Z");
 	obsFileExtensions.push_back("o");
-	obsFileExtensions.push_back("o.gz");
-	obsFileExtensions.push_back("o.Z");
 	obsFileExtensions.push_back("rnx");
-	obsFileExtensions.push_back("rnx.gz");
-	obsFileExtensions.push_back("rnx.Z");
+	
 	std::string obsFile1 = FindRINEXObsFile(mjd,mjd,obsFileExtensions);
 	if (obsFile1.empty()){
 		fatalError("Error! Unable to find a RINEX observation file");
@@ -810,22 +813,12 @@ void Application::runNativeMode()
 	//exit(0);
 	std::vector<std::string> navFileExtensions;
 	navFileExtensions.push_back("N");
-	navFileExtensions.push_back("N.gz");
-	navFileExtensions.push_back("N.Z");
 	navFileExtensions.push_back("n");
-	navFileExtensions.push_back("n.gz");
-	navFileExtensions.push_back("n.Z");
 	
 	navFileExtensions.push_back("P");
-	navFileExtensions.push_back("P.gz");
-	navFileExtensions.push_back("P.Z");
 	navFileExtensions.push_back("p");
-	navFileExtensions.push_back("p.gz");
-	navFileExtensions.push_back("p.Z");
 
 	navFileExtensions.push_back("rnx");
-	navFileExtensions.push_back("rnx.gz");
-	navFileExtensions.push_back("rnx.Z");
 	
 	std::string navFile1 = FindRINEXNavFile(mjd,mjd,navFileExtensions);
 	if (navFile1.empty()){
@@ -934,8 +927,17 @@ void Application::runR2CGGTTSMode()
 		DBGMSG(debugStream,INFO,"Got RINEX obs file for succeeding day " << obsFile2);
 	}
 	
-	// FIXME not read yet
-	
+	// Fiddle with leap seconds
+	if (obs1.leapSecsValid()){
+		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
+	}
+	else{
+		obs1.leapsecs = 18; 
+		DBGMSG(debugStream,INFO, obsFile1 << " leap secs " << obs1.leapsecs);
+	}
+	int leapsecs1 = obs1.leapsecs;
+		
+	RINEXNavFile nav1;
 	std::string mixNavFile1 = "rinex_nav_mix";
 	if (!(canOpenFile(mixNavFile1))){
 		DBGMSG(debugStream,INFO,"Didn't get mixed  RINEX nav file");
@@ -944,11 +946,11 @@ void Application::runR2CGGTTSMode()
 	}
 	else{
 		DBGMSG(debugStream,INFO,"Got mixed RINEX nav file");
+		nav1.read(mixNavFile1);
 	}
 	
 	if (!mixNavFile1.empty()){ // look for next day 
 	}
-	
 	
 	std::string gpsNavFile1="rinex_nav_gps";
 	std::string gpsNavFile2="rinex_nav_p_gps";
@@ -1001,14 +1003,57 @@ void Application::runR2CGGTTSMode()
 		}
 	}
 	
-	// Now we generate all possible CGGTTS outputs
-	
-	// But that's just GPS at the moment ...
-	// For GPS, try to construct
-	// CGGTTS: C1, P1 and L3P
-	// CTTS  : C1, C2, C5, P1, P2, L3P
+	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
 	
 	
+	CGGTTS cggtts;
+	cggtts.antenna = antenna;
+	cggtts.receiver = receiver;
+	cggtts.ref = CGGTTSref;
+	cggtts.lab = CGGTTSlab;
+	cggtts.comment = CGGTTScomment;
+	cggtts.revDateYYYY = CGGTTSRevDateYYYY;
+	cggtts.revDateMM = CGGTTSRevDateMM;
+	cggtts.revDateDD = CGGTTSRevDateDD;
+	cggtts.minElevation = CGGTTSminElevation;
+	cggtts.maxDSG = CGGTTSmaxDSG;
+	cggtts.maxURA = CGGTTSmaxURA;
+	cggtts.minTrackLength = CGGTTSminTrackLength;
+	cggtts.ver = CGGTTSversion;
+	
+	cggtts.generateSchedule(mjd);  // only need to do this once 
+	
+	for (unsigned int i=0;i<CGGTTSoutputs.size();i++){
+
+		cggtts.constellation = CGGTTSoutputs.at(i).constellation;
+		cggtts.rnxcode1 = CGGTTSoutputs.at(i).rnxcode1;
+		cggtts.rnxcode2 = CGGTTSoutputs.at(i).rnxcode2;
+		cggtts.rnxcode3 = CGGTTSoutputs.at(i).rnxcode3;
+		cggtts.isP3 = CGGTTSoutputs.at(i).isP3;
+		cggtts.FRC = CGGTTSoutputs.at(i).FRC;
+		cggtts.reportMSIO = CGGTTSoutputs.at(i).reportMSIO;
+		
+		std::string CGGTTSfile = makeCGGTTSFilename(CGGTTSoutputs.at(i),mjd);
+		DBGMSG(debugStream,INFO,"Creating CGGTTS file " << CGGTTSfile);
+		std::string CTTSfile;
+		
+		switch (cggtts.constellation)
+		{
+			case GNSSSystem::BEIDOU:
+				break;
+			case GNSSSystem::GALILEO:
+				break;
+			case GNSSSystem::GLONASS:
+				break;
+			case GNSSSystem::GPS:
+				cggtts.write(&(obs1.gps),&(nav1.gps),&gpsDelay,leapsecs1,CGGTTSfile,mjd,0,86400);
+				break;
+			default:
+				break;
+		}
+	}
+
+
 }
 		
 
@@ -1024,8 +1069,21 @@ bool Application::readR2CGGTTSParams(std::string paramsFile)
 	}
 	
 	bool ok =true;
+	bool gotParam;
+	
+	// define all the delays we need
+	gpsDelay.code.push_back("C1C");
+	gpsDelay.addDelay("C1C",0.0);
+	
+	gpsDelay.code.push_back("C1W");
+	gpsDelay.addDelay("C1W",0.0);
+	
+	gpsDelay.code.push_back("C2W");
+	gpsDelay.addDelay("C2W",0.0);
+	
 	std::string stmp;
 	double dtmp;
+	
 	while (!fin.eof()){
 		// This file should be strictly formatted but the keywords
 		// may be in arbitrary order
@@ -1035,20 +1093,40 @@ bool Application::readR2CGGTTSParams(std::string paramsFile)
 		
 		ok = ok && getR2CGGTTSParam(fin,line,"RCVR",receiver->model); // bit of a fudge since we have separated into manufacturer+model+s/n
 		ok = ok && getR2CGGTTSParam(fin,line,"CH",&receiver->nChannels);
+		// no placeholder for these 
+		receiver->manufacturer = "";
+		receiver->serialNumber = "";
 		ok = ok && getR2CGGTTSParam(fin,line,"LAB NAME",CGGTTSlab);
 		ok = ok && getR2CGGTTSParam(fin,line,"X COORDINATE",&(antenna->x));
 		ok = ok && getR2CGGTTSParam(fin,line,"Y COORDINATE",&(antenna->y));
 		ok = ok && getR2CGGTTSParam(fin,line,"Z COORDINATE",&(antenna->z));
+		
 		ok = ok && getR2CGGTTSParam(fin,line,"COMMENTS",CGGTTScomment);
 		ok = ok && getR2CGGTTSParam(fin,line,"FRAME",antenna->frame);
 		ok = ok && getR2CGGTTSParam(fin,line,"REF",CGGTTSref);
 		ok = ok && getR2CGGTTSParam(fin,line,"CALIBRATION REFERENCE",r2cCalRef);
 		
-		ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY C1 GPS",&dtmp);
+		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY C1 GPS",&dtmp);
+		if (gotParam){
+			gpsDelay.addDelay("C1C",dtmp);
+		}
+		ok = ok && gotParam;
 		
-		ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P1 GPS",&dtmp);
+		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY P1 GPS",&dtmp);
+		if (gotParam){
+			gpsDelay.addDelay("C1W",dtmp);
+		}
+		ok = ok && gotParam;
 		
-		ok = ok && getR2CGGTTSParam(fin,line,"INT DELAY P2 GPS",&dtmp);
+		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY P2 GPS",&dtmp);
+		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY P1 GPS",&dtmp);
+		if (gotParam){
+			gpsDelay.addDelay("C2W",dtmp);
+		}
+		ok = ok && gotParam;
+		
+		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY C5 GPS",&dtmp);
+		ok = ok && gotParam;
 		
 		ok = ok && getR2CGGTTSParam(fin,line,"ANT CAB DELAY",&r2cCabDly);
 		ok = ok && getR2CGGTTSParam(fin,line,"CLOCK CAB DELAY XP+XO",&r2cRefDly);
@@ -1057,6 +1135,18 @@ bool Application::readR2CGGTTSParams(std::string paramsFile)
 		
 	}
 	fin.close();
+	
+	// don't forget to do this!
+	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z, // latitude and longitude used in ionosphere model
+	&(antenna->latitude),&(antenna->longitude),&(antenna->height));
+	
+	// or this
+	
+	gpsDelay.refDelay = r2cRefDly;
+	gpsDelay.cabDelay = r2cCabDly;
+	gpsDelay.calID    = r2cCalRef;
+	
+	
 	return ok;
 }
 
@@ -1233,6 +1323,16 @@ std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 			obsCode = 'M';
 		ss << cggtts.path << "/" << constellation << obsCode << CGGTTSlabCode << CGGTTSreceiverID << fname;
 	}
+	else if (CGGTTSnamingConvention == R2CGGTTS){
+		std::string constellation;
+		switch (cggtts.constellation){
+			case GNSSSystem::GPS:constellation="GPS";break;
+			case GNSSSystem::GLONASS:constellation="GLO";break;
+			case GNSSSystem::BEIDOU:constellation="BDS";break;
+			case GNSSSystem::GALILEO:constellation="GAL";break;
+		}
+		ss << "CGGTTS_" << constellation;
+	}
 	return ss.str();
 }
 
@@ -1254,6 +1354,16 @@ std::string Application::makeCTTSFilename(CGGTTSOutput & cggtts, int MJD){
 		if (!(cggtts.isP3))
 			obsCode = 'M';
 		ss << cggtts.path << "/" << constellation << obsCode << CGGTTSlabCode << CGGTTSreceiverID << fname;
+	}
+	else if (CGGTTSnamingConvention == R2CGGTTS){
+		std::string constellation;
+		switch (cggtts.constellation){
+			case GNSSSystem::GPS:constellation="GPS";break;
+			case GNSSSystem::GLONASS:constellation="GLO";break;
+			case GNSSSystem::BEIDOU:constellation="BDS";break;
+			case GNSSSystem::GALILEO:constellation="GAL";break;
+		}
+		ss << "CTTS_" << constellation << "30s_";
 	}
 	return ss.str();
 }

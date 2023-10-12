@@ -50,7 +50,7 @@ class CGGTTS
 		
 		void generateSchedule(int mjd);
 		bool write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapsecs1, std::string fname,int mjd,int startTime,int stopTime);
-		
+	
 		Antenna *antenna;
 		Receiver *receiver;
 		
