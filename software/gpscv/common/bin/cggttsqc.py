@@ -40,14 +40,40 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import cggttslib as cggtts
 import ottplib as ottp
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 AUTHORS = "Michael Wouters"
+
+NTRACKS = 89
 
 # ------------------------------------------
 def Warn(msg):
 	if (not args.nowarn):
 		sys.stderr.write(msg+'\n')
 	return
+
+# ------------------------------------------
+#
+def MakeSchedule(mjd,schedule):
+# Generate the observation schedule as per DefraignePetit2015 pg3
+	
+# There will be a 28 minute gap between two observations (32-4 mins)
+# which means that you can't just find the first and then add n*16 minutes
+# Track start times are all UTC, of course
+	mins = 2
+	for i in range (0,NTRACKS):
+		
+		schedule[i]=mins-4*(mjd-50722)
+		if (schedule[i] < 0):  # always negative in practice anyway 
+			ndays = int(abs(schedule[i]/1436)) + 1
+			schedule[i] += ndays*1436;
+		mins += 16
+		
+	# The schedule is not in ascending order so fix this 
+	schedule.sort()
+	
+	# Fixup - possibly one more track at the end of the day
+	if ((schedule[NTRACKS-1]%60) < 43):
+		schedule.append(schedule[NTRACKS-1]+16) 
 
 # ------------------------------------------
 #
@@ -81,24 +107,34 @@ def CheckFile(fname):
 	stats['lowelv']  = 0
 	stats['highdsg']  = 0
 	stats['shorttracks'] = 0
+	stats['visibility'] = [0]*(NTRACKS+1) # adding that bonus track 
 	
 	satcnt=0
 	sttime=''
 	first=True
+	mjd = -1
+	schedule = [None] * NTRACKS # the bonus track will be appended if present
+	
 	for l in fin:
 		lineCount = lineCount +1
 		l.strip()
 		track = l.split()
-		if (track[3] != sttime):
+		if (mjd == -1): # reading the first line
+			mjd = int(track[2]) # extract the MJD - note we can't assume that this is guessable from the name ...
+			MakeSchedule(mjd,schedule)
+		if (track[3] != sttime): # starting a new track
 			if (first):
 				first = False
-			else:
+			else: # finished a track
 				if (satcnt > stats['maxsats']):
 					stats['maxsats']=satcnt
 				if (satcnt < stats['minsats']): 
 					stats['minsats']=satcnt
+				stats['visibility'][isched] = satcnt
 			satcnt=1
 			sttime = track[3]
+			sttimemins = int(sttime[0:2]) * 60 + int(sttime[2:4])
+			isched = schedule.index(sttimemins)
 		else:
 			satcnt=satcnt+1
 		stats['ntracks']  = stats['ntracks']  + 1
@@ -114,9 +150,10 @@ def CheckFile(fname):
 		stats['maxsats']=satcnt
 	if (satcnt < stats['minsats']): # not initialized yet
 		stats['minsats']=satcnt
-					
-	fin.close()
+	stats['visibility'][isched] = satcnt
 	
+	fin.close()
+
 	return (header,stats)
 
 # ------------------------------------------
@@ -152,7 +189,23 @@ def CompareHeaders(prevFile,prevHeader,currFile,currHeader):
 def PrettyPrintStats(fname,stats):
 	print('{:12} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format(fname,stats['ntracks'],stats['shorttracks'],
 		stats['minsats'],stats['maxsats'],stats['highdsg'],stats['lowelv']))
-	
+
+def PrettyPlot(fname,stats):
+	maxcnt = max(stats)
+	if (maxcnt < 10):
+		maxcnt = 10
+	print('')
+	print(fname)
+	for i in range(maxcnt,0,-1):
+		s=''
+		for cnt in stats:
+			if cnt >= i:
+				s += '+'
+			else:
+				s += ' '
+		print(s)
+	s = '-'*len(stats)
+	print(s)
 # ------------------------------------------
 # Main
 
@@ -171,13 +224,16 @@ parser.add_argument('--elevation',help='lowerlimit for elevation, in degrees',de
 parser.add_argument('--tracklength',help='lower limit for track length, in s',default=780)
 parser.add_argument('--checkheader',help='check for header changes',action='store_true')
 parser.add_argument('--nosequence',help='do not interpret (two) input files as a sequence',action='store_true')
+parser.add_argument('--plotvis',help='plot satellite visibility at each track time',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS);
+
 
 args = parser.parse_args()
 
 debug = args.debug
 ottp.SetDebugging(debug)
 cggtts.SetDebugging(debug)
+cggtts.SetWarnings(not(args.nowarn))
 
 minElevation = int(args.elevation) * 10 # in units of 0.1 ns
 minTrackLength = int(args.tracklength)
@@ -189,7 +245,7 @@ if (2==len(args.infile)):
 	if (args.nosequence ): 
 		infiles = args.infile
 	else:
-		(infiles,warnings,badSequence) = cggttslib.MakeFileSequence(args.infile[0],args.infile[1])
+		(infiles,warnings,badSequence) = cggtts.MakeFileSequence(args.infile[0],args.infile[1])
 		if (badSequence):
 			Warn(warnings)
 			sys.exit(0)
@@ -201,15 +257,19 @@ stats = {}
 prevHeader = {}
 prevFile = ''
 
-if (not args.checkheader):
+printStats = not(args.checkheader or args.plotvis)
+
+if (printStats):
 	print('{:12} {:6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format('File','Tracks','Short','min SV','max SV','DSG','elv'))
 
 for f in infiles:
 	(currHeader,stats) = CheckFile(f)
 	if (currHeader and stats): # may not be readable
 		currFile = os.path.basename(f)
-		if (not args.checkheader):
+		if (printStats):
 			PrettyPrintStats(currFile,stats)
+		if (args.plotvis):
+			PrettyPlot(currFile,stats['visibility'])
 		if (prevHeader and args.checkheader):
 			CompareHeaders(prevFile,prevHeader,currFile,currHeader)
 		prevHeader = currHeader
