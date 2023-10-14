@@ -441,11 +441,11 @@ bool Application::loadConfig()
 	
 	if (setConfig(last,"paths","rinex observations",path,&configOK))
 		RINEXobsPath=relativeToAbsolutePath(path);
-	DBGMSG(debugStream,TRACE,"RINEX observations: " << RINEXobsPath);
+	DBGMSG(debugStream,TRACE,"RINEX observation path: " << RINEXobsPath);
 	
 	if (setConfig(last,"paths","rinex navigation",path,&configOK))
 		RINEXnavPath=relativeToAbsolutePath(path);
-	DBGMSG(debugStream,TRACE,"RINEX navigation: " << RINEXobsPath);
+	DBGMSG(debugStream,TRACE,"RINEX navigation path: " << RINEXobsPath);
 	
 	
 	//
@@ -1068,142 +1068,128 @@ bool Application::readR2CGGTTSParams(std::string paramsFile)
 		return false;
 	}
 	
+	// This file should be strictly formatted but the keywords
+	// may be in arbitrary order
+	// Read all key value pairs
+	
+	std::vector<std::string> keys;
+	std::vector<std::string> vals;
+	
+
+	while (!fin.eof()){
+		
+		getline(fin,line);
+		boost::trim(line);
+		keys.push_back(line);
+		
+		//if (fin.good()){
+		//}
+		getline(fin,line);
+		boost::trim(line);
+		vals.push_back(line);
+	}
+	
+	fin.close();
+	
 	bool ok =true;
 	bool gotParam;
 	
 	// define all the delays we need
-	gpsDelay.code.push_back("C1C");
+	gpsDelay.kind = GNSSDelay::INTDLY;
 	gpsDelay.addDelay("C1C",0.0);
-	
-	gpsDelay.code.push_back("C1W");
 	gpsDelay.addDelay("C1W",0.0);
-	
-	gpsDelay.code.push_back("C2W");
 	gpsDelay.addDelay("C2W",0.0);
 	
 	std::string stmp;
 	double dtmp;
 	
-	while (!fin.eof()){
-		// This file should be strictly formatted but the keywords
-		// may be in arbitrary order
-		getline(fin,line);
-		boost::trim(line);
-		ok = ok && getR2CGGTTSParam(fin,line,"REV DATE",stmp);
-		
-		ok = ok && getR2CGGTTSParam(fin,line,"RCVR",receiver->model); // bit of a fudge since we have separated into manufacturer+model+s/n
-		ok = ok && getR2CGGTTSParam(fin,line,"CH",&receiver->nChannels);
-		// no placeholder for these 
-		receiver->manufacturer = "";
-		receiver->serialNumber = "";
-		ok = ok && getR2CGGTTSParam(fin,line,"LAB NAME",CGGTTSlab);
-		ok = ok && getR2CGGTTSParam(fin,line,"X COORDINATE",&(antenna->x));
-		ok = ok && getR2CGGTTSParam(fin,line,"Y COORDINATE",&(antenna->y));
-		ok = ok && getR2CGGTTSParam(fin,line,"Z COORDINATE",&(antenna->z));
-		
-		ok = ok && getR2CGGTTSParam(fin,line,"COMMENTS",CGGTTScomment);
-		ok = ok && getR2CGGTTSParam(fin,line,"FRAME",antenna->frame);
-		ok = ok && getR2CGGTTSParam(fin,line,"REF",CGGTTSref);
-		ok = ok && getR2CGGTTSParam(fin,line,"CALIBRATION REFERENCE",r2cCalRef);
-		
-		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY C1 GPS",&dtmp);
-		if (gotParam){
-			gpsDelay.addDelay("C1C",dtmp);
-		}
-		ok = ok && gotParam;
-		
-		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY P1 GPS",&dtmp);
-		if (gotParam){
-			gpsDelay.addDelay("C1W",dtmp);
-		}
-		ok = ok && gotParam;
-		
-		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY P2 GPS",&dtmp);
-		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY P1 GPS",&dtmp);
-		if (gotParam){
-			gpsDelay.addDelay("C2W",dtmp);
-		}
-		ok = ok && gotParam;
-		
-		gotParam = getR2CGGTTSParam(fin,line,"INT DELAY C5 GPS",&dtmp);
-		ok = ok && gotParam;
-		
-		ok = ok && getR2CGGTTSParam(fin,line,"ANT CAB DELAY",&r2cCabDly);
-		ok = ok && getR2CGGTTSParam(fin,line,"CLOCK CAB DELAY XP+XO",&r2cRefDly);
-		
-		ok = ok && getR2CGGTTSParam(fin,line,"LEAP SECOND",&r2cLeapSeconds);
-		
+	getR2CGGTTSParam(keys,vals,"REV DATE",stmp);
+	getR2CGGTTSParam(keys,vals,"RCVR",receiver->model); // bit of a fudge since we have separated into manufacturer+model+s/n
+	getR2CGGTTSParam(keys,vals,"CH",&receiver->nChannels);
+
+	// no placeholder for these 
+	receiver->manufacturer = "";
+	receiver->serialNumber = "";
+	getR2CGGTTSParam(keys,vals,"LAB NAME",CGGTTSlab);
+	
+	ok = ok && getR2CGGTTSParam(keys,vals,"X COORDINATE",&(antenna->x));
+	ok = ok && getR2CGGTTSParam(keys,vals,"Y COORDINATE",&(antenna->y));
+	ok = ok && getR2CGGTTSParam(keys,vals,"Z COORDINATE",&(antenna->z));
+
+	getR2CGGTTSParam(keys,vals,"COMMENTS",CGGTTScomment);
+	
+	getR2CGGTTSParam(keys,vals,"FRAME",antenna->frame);
+	getR2CGGTTSParam(keys,vals,"REF",CGGTTSref);
+	getR2CGGTTSParam(keys,vals,"CALIBRATION REFERENCE",r2cCalRef);
+	
+	if (getR2CGGTTSParam(keys,vals,"INT DELAY C1 GPS",&dtmp)){
+		gpsDelay.addDelay("C1C",dtmp);
 	}
-	fin.close();
+	
+	if (getR2CGGTTSParam(keys,vals,"INT DELAY P1 GPS",&dtmp)){
+		gpsDelay.addDelay("C1W",dtmp);
+	}
+	
+	if (getR2CGGTTSParam(keys,vals,"INT DELAY P2 GPS",&dtmp)){
+		gpsDelay.addDelay("C2W",dtmp);
+	}
+	
+	getR2CGGTTSParam(keys,vals,"ANT CAB DELAY",&r2cCabDly);
+	getR2CGGTTSParam(keys,vals,"CLOCK CAB DELAY XP+XO",&r2cRefDly);
+	getR2CGGTTSParam(keys,vals,"LEAP SECOND",&r2cLeapSeconds);
+
 	
 	// don't forget to do this!
 	Utility::ECEFtoLatLonH(antenna->x,antenna->y,antenna->z, // latitude and longitude used in ionosphere model
 	&(antenna->latitude),&(antenna->longitude),&(antenna->height));
 	
 	// or this
-	
 	gpsDelay.refDelay = r2cRefDly;
 	gpsDelay.cabDelay = r2cCabDly;
 	gpsDelay.calID    = r2cCalRef;
 	
-	
 	return ok;
 }
 
-bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,std::string &val)
+bool Application::getR2CGGTTSParam(std::vector<std::string> &keys,std::vector<std::string> &vals,std::string param,std::string &val)
 {
-	if (0==currParam.find(param)){
-		std::string line;
-		if (fin.good()){
-			getline(fin,line);
-			boost::trim(line);
-			val=line;
-			DBGMSG(debugStream,TRACE,currParam << " = " << val);
-		}
-		else{
-			DBGMSG(debugStream,INFO,"Missing parameter for " << param);
-			return false;
+	for (unsigned int i=0;i<keys.size();i++){
+		if (0==keys.at(i).find(param)){
+			val=vals.at(i);
+			DBGMSG(debugStream,INFO,param << " = " << val);
+			return true;
 		}
 	}
-	//DBGMSG(debugStream,INFO,currParam << "?" << param);
-	return true;
+	return false;
 }
 
-bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,double *val)
+bool Application::getR2CGGTTSParam(std::vector<std::string> &keys,std::vector<std::string> &vals,std::string param,int *val)
 {
-	if (0==currParam.find(param)){
-		std::string line;
-		if (fin.good()){
-			getline(fin,line);
-			std::stringstream ss(line);
+	for (unsigned int i=0;i<keys.size();i++){
+		if (0==keys.at(i).find(param)){
+			std::stringstream ss(vals.at(i));
 			ss >> *val;
-			DBGMSG(debugStream,TRACE,currParam << " = " << std::fixed << *val);
-		}
-		else{
-			DBGMSG(debugStream,INFO,"Missing parameter for " << param);
-			return false;
+			DBGMSG(debugStream,INFO,param << " = " << *val);
+			return true;
 		}
 	}
-	return true;
+	return false;
 }
 
-bool Application::getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,int *val)
+
+bool Application::getR2CGGTTSParam(std::vector<std::string> &keys,std::vector<std::string> &vals,std::string param,double *val)
 {
-	if (0==currParam.find(param)){
-		std::string line;
-		if (fin.good()){
-			getline(fin,line);
-			std::stringstream ss(line);
+	for (unsigned int i=0;i<keys.size();i++){
+		if (0==keys.at(i).find(param)){
+			std::stringstream ss(vals.at(i));
 			ss >> *val;
-			DBGMSG(debugStream,3,currParam << " = " << *val);
-		}
-		else{
-			DBGMSG(debugStream,1,"Missing parameter for " << param);
-			return false;
+			DBGMSG(debugStream,INFO,param << " = " << std::fixed << *val);
+			return true;
 		}
 	}
-	return true;
+	return false;
 }
+
 
 std::string Application::FindRINEXObsFile(int nomMJD,int reqMJD,std::vector<std::string> &ext)
 {
@@ -1324,14 +1310,21 @@ std::string Application::makeCGGTTSFilename(CGGTTSOutput & cggtts, int MJD){
 		ss << cggtts.path << "/" << constellation << obsCode << CGGTTSlabCode << CGGTTSreceiverID << fname;
 	}
 	else if (CGGTTSnamingConvention == R2CGGTTS){
-		std::string constellation;
+		std::string constellation,code;
 		switch (cggtts.constellation){
-			case GNSSSystem::GPS:constellation="GPS";break;
-			case GNSSSystem::GLONASS:constellation="GLO";break;
-			case GNSSSystem::BEIDOU:constellation="BDS";break;
-			case GNSSSystem::GALILEO:constellation="GAL";break;
+			case GNSSSystem::GPS:
+				constellation="GPS";
+				if (cggtts.rnxcode1 == "C1C")
+					code = "C1";
+				break;
+			case GNSSSystem::GLONASS:constellation="GLO";
+				break;
+			case GNSSSystem::BEIDOU:constellation="BDS";
+				break;
+			case GNSSSystem::GALILEO:constellation="GAL";
+				break;
 		}
-		ss << "CGGTTS_" << constellation;
+		ss << "CGGTTS_" << constellation << "_" << code;
 	}
 	return ss.str();
 }

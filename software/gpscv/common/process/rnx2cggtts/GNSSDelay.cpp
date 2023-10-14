@@ -23,8 +23,12 @@
 // THE SOFTWARE.
 
 
+#include <ostream>
+
+#include "Debug.h"
 #include "GNSSDelay.h"
 
+extern std::ostream *debugStream;
 
 //
 //	Public
@@ -39,9 +43,12 @@ double GNSSDelay::getDelay(std::string c)
 {
 	
 	for (unsigned int i=0;i<code.size();i++){
-		if (code[i] == c)
+		if (code[i] == c){
+			DBGMSG(debugStream,INFO,"Got delay " << c);
 			return delay[i];
+		}
 	}
+	DBGMSG(debugStream,INFO,"Failed to get delay " << c);
 	return 0.0;
 }
 
@@ -51,6 +58,7 @@ void GNSSDelay::addDelay(std::string c, double v)
 	for (unsigned int i=0;i<code.size();i++){ // is it already there ?
 		if (code[i] == c){
 			delay.at(i) = v;
+			DBGMSG(debugStream,INFO,"Set delay " << c << " " << v);
 			return;
 		}
 	}

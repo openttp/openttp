@@ -120,9 +120,10 @@ class Application
 		void runNativeMode();
 		void runR2CGGTTSMode();
 		bool readR2CGGTTSParams(std::string paramsFile);
-		bool getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,std::string &val);
-		bool getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,double *val);
-		bool getR2CGGTTSParam(std::ifstream &fin,std::string &currParam,std::string param,int *val);
+		bool getR2CGGTTSParam(std::vector<std::string> &keys,std::vector<std::string> &vals,std::string param,std::string &val);
+		bool getR2CGGTTSParam(std::vector<std::string> &keys,std::vector<std::string> &vals,std::string param,int *val);
+		bool getR2CGGTTSParam(std::vector<std::string> &keys,std::vector<std::string> &vals,std::string param,double *val);
+		
 		
 		std::string FindRINEXObsFile(int,int,std::vector<std::string> &);
 		std::string FindRINEXNavFile(int,int,std::vector<std::string> &);
