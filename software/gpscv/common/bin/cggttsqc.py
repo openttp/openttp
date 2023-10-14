@@ -38,9 +38,9 @@ sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import cggttslib as cggtts
-import ottplib as ottp
+import ottplib   as ottp
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 AUTHORS = "Michael Wouters"
 
 NTRACKS = 89
@@ -52,10 +52,10 @@ def Warn(msg):
 	return
 
 # ------------------------------------------
-#
+# # Generate the observation schedule as per DefraignePetit2015 pg3
+
 def MakeSchedule(mjd,schedule):
-# Generate the observation schedule as per DefraignePetit2015 pg3
-	
+
 # There will be a 28 minute gap between two observations (32-4 mins)
 # which means that you can't just find the first and then add n*16 minutes
 # Track start times are all UTC, of course
@@ -107,13 +107,15 @@ def CheckFile(fname):
 	stats['lowelv']  = 0
 	stats['highdsg']  = 0
 	stats['shorttracks'] = 0
+	stats['bad'] = 0
 	stats['visibility'] = [0]*(NTRACKS+1) # adding that bonus track 
 	
 	satcnt=0
 	sttime=''
 	first=True
 	mjd = -1
-	schedule = [None] * NTRACKS # the bonus track will be appended if present
+	schedule = [0] * NTRACKS # the bonus track will be appended if present
+	isched = 0 # fixes complaint if file is empty
 	
 	for l in fin:
 		lineCount = lineCount +1
@@ -187,13 +189,16 @@ def CompareHeaders(prevFile,prevHeader,currFile,currHeader):
 	
 # ------------------------------------------
 def PrettyPrintStats(fname,stats):
-	print('{:12} {:>6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format(fname,stats['ntracks'],stats['shorttracks'],
+	print('{:12} {:>8} {:>8} {:>8} {:>8} {:>11} {:>8}'.format(fname,stats['ntracks'],stats['shorttracks'],
 		stats['minsats'],stats['maxsats'],stats['highdsg'],stats['lowelv']))
+
+# ------------------------------------------
+# Prints a histogram of satellite count
 
 def PrettyPlot(fname,stats):
 	maxcnt = max(stats)
-	if (maxcnt < 10):
-		maxcnt = 10
+	if (maxcnt < 8):
+		maxcnt = 8
 	print('')
 	print(fname)
 	for i in range(maxcnt,0,-1):
@@ -219,14 +224,13 @@ parser = argparse.ArgumentParser(description='Quality check CGGTTS files',
 parser.add_argument('infile',nargs='+',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
-parser.add_argument('--dsg',help='upper limit for DSG, in ns',default=20)
-parser.add_argument('--elevation',help='lowerlimit for elevation, in degrees',default=10)
-parser.add_argument('--tracklength',help='lower limit for track length, in s',default=780)
+parser.add_argument('--dsg',help='upper limit for DSG, in ns (default 20)',default=20)
+parser.add_argument('--elevation',help='lower limit for elevation, in degrees (default 10)',default=10)
+parser.add_argument('--tracklength',help='lower limit for track length, in s (default 780)',default=780)
 parser.add_argument('--checkheader',help='check for header changes',action='store_true')
 parser.add_argument('--nosequence',help='do not interpret (two) input files as a sequence',action='store_true')
-parser.add_argument('--plotvis',help='plot satellite visibility at each track time',action='store_true')
+parser.add_argument('--plotcount',help='plot satellite count at each track time',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS);
-
 
 args = parser.parse_args()
 
@@ -257,10 +261,10 @@ stats = {}
 prevHeader = {}
 prevFile = ''
 
-printStats = not(args.checkheader or args.plotvis)
+printStats = not(args.checkheader or args.plotcount)
 
 if (printStats):
-	print('{:12} {:6} {:>6} {:>6} {:>6} {:>6} {:>6}'.format('File','Tracks','Short','min SV','max SV','DSG','elv'))
+	print('{:12} {:>8} {:>8} {:>8} {:>8} {:>11} {:>8}'.format('File','Tracks','Short','Min SV','Max SV','High DSG','Low ELV'))
 
 for f in infiles:
 	(currHeader,stats) = CheckFile(f)
@@ -268,7 +272,7 @@ for f in infiles:
 		currFile = os.path.basename(f)
 		if (printStats):
 			PrettyPrintStats(currFile,stats)
-		if (args.plotvis):
+		if (args.plotcount):
 			PrettyPlot(currFile,stats['visibility'])
 		if (prevHeader and args.checkheader):
 			CompareHeaders(prevFile,prevHeader,currFile,currHeader)

@@ -6,17 +6,17 @@
 Running it on a single CGGTTS file with no options will produce output like:
 
 \begin{tabular}{lrrrrrr}
-File         & Tracks  & Short & min SV & max SV   &  DSG  &  elv \\
+File         & Tracks  & Short & Min SV & Max SV   &  High DSG  &  Low ELV \\
 57401.cctf   &   706   &  71   &   3    &  11      & 0     &  0   \\
 \end{tabular}
 
 where:\\
 `Tracks' is the total number of tracks\\
 `Short'  is the number of tracks with length less than a specified threshold (default 780 s)\\
-`min SV' is the minimum number of SVs visible\\
-`max SV' is the maximum number of SVs visible \\
-`DSG'    is the number of tracks with DSG above a specified threshold (default 20 ns)\\
-`elv'    is the number of tracks with elevation below a specified threshold (default 10 degrees)\\
+`Min SV' is the minimum number of SVs visible\\
+`Max SV' is the maximum number of SVs visible \\
+`High DSG'    is the number of tracks with DSG above a specified threshold (default 20 ns)\\
+`Low ELV'    is the number of tracks with elevation below a specified threshold (default 10 degrees)\\
 
 \subsubsection{usage}
 
@@ -33,6 +33,7 @@ The command line options are:
 	\item[-{}-tracklength  \textless{value}\textgreater] set the lower limit for acceptable track length. The units are seconds.
 	\item[-{}-checkheader] show when significant fields in the header change, for example the delays.
 	\item[-{}-nosequence] do not interpret (two) input filenames as a sequence.
+	\item[-{}-plotcount]  plot a histogram of satellite count at each scheduled track time
 	\item[-{}-version,-v] show the version information and exit
 \end{description*}
 
