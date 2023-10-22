@@ -221,14 +221,8 @@ Application::Application(int argc,char **argv)
 
 	// Two modes of operation 
 	// (1) Use a configuration file, which allows a bit more flexibility and removes the need for pre- and post- processing of files
-	// (2) r2cggtts compatibility mode, which uses the standard r2cggtts configuration file and naming conventions for input and output files
-	if (r2cggttsMode){
-		configurationFile = "r2cggtts.conf";
-		if (!loadConfig()){
-			fatalError("Error! Configuration failed");
-		}
-	}
-	else{
+	// (2) r2cggtts compatibility mode, which has a hard-coded setup
+	if (!r2cggttsMode){
 		if (!loadConfig()){
 			fatalError("Error! Configuration failed");
 		}
@@ -325,7 +319,7 @@ void Application::init()
 	CGGTTSRevDateDD = cdef.revDateDD;
 	CGGTTSRevDateYYYY = cdef.revDateYYYY;
 		
-	CGGTTSPath=rootDir+"/cggtts";
+	CGGTTSPath=rootDir + "/cggtts";
 	CGGTTSnamingConvention=Plain;
 	
 	gpsDelay.constellation = GNSSSystem::GPS;
@@ -851,6 +845,7 @@ void Application::runNativeMode()
 	
 	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
 	
+	
 	CGGTTS cggtts;
 	cggtts.antenna = antenna;
 	cggtts.receiver = receiver;
@@ -1003,8 +998,19 @@ void Application::runR2CGGTTSMode()
 		}
 	}
 	
-	DBGMSG(debugStream,INFO,"Creating CGGTTS outputs ");	
+	CGGTTSnamingConvention = R2CGGTTS;
+
+	// Create the CGGTTS outputs
+	CGGTTSOutput *op;
 	
+	//	CGGTTSOutput(int constellation,std::string rnxcode1,std::string rnxcode2,std::string rnxcode3,
+	//		bool isP3,bool reportMSIO,std::string frc,std::string path,
+	//		std::string ephemerisPath,std::string ephemerisFile,bool genCTTS
+	//		);
+	if (obs1.gps.nCodeObs > 0){
+		op = new CGGTTSOutput(GNSSSystem::GPS,"C1C","","",false,false,"L1C","./","./","",false);
+		CGGTTSoutputs.push_back(*op);
+	}
 	
 	CGGTTS cggtts;
 	cggtts.antenna = antenna;
