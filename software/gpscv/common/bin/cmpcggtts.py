@@ -48,7 +48,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
 import cggttslib
 
-VERSION = "0.6.3"
+VERSION = "0.6.4"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -614,6 +614,8 @@ for a in sys.argv:
 	currlen += len(a) + 1
 
 debug = args.debug
+cggttslib.SetDebugging(debug)
+cggttslib.SetWarnings(not(args.nowarn))
 
 if (args.starttime):
 	match = re.search('(\d+):(\d+):(\d+)',args.starttime)
