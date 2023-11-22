@@ -40,7 +40,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import cggttslib as cggtts
 import ottplib   as ottp
 
-VERSION = "0.6.0"
+VERSION = "0.6.2"
 AUTHORS = "Michael Wouters"
 
 NTRACKS = 89
@@ -122,7 +122,11 @@ def CheckFile(fname):
 		l.strip()
 		track = l.split()
 		if (mjd == -1): # reading the first line
-			mjd = int(track[2]) # extract the MJD - note we can't assume that this is guessable from the name ...
+			try:
+				mjd = int(track[2]) # extract the MJD - note we can't assume that this is guessable from the name ...
+			except:
+				Warn('Bad file format ' + fname + " - couldn't read MJD in first track")
+				return ({},{})
 			MakeSchedule(mjd,schedule)
 		if (track[3] != sttime): # starting a new track
 			if (first):
@@ -144,8 +148,11 @@ def CheckFile(fname):
 			stats['shorttracks'] = stats['shorttracks'] + 1
 		if (int(track[5]) < minElevation):
 			stats['lowelv'] = stats['lowelv'] + 1
-		if (int(track[11]) > maxDSG):
+		if '*' in track[11]:
 			stats['highdsg'] = stats['highdsg'] + 1
+		else:
+			if (int(track[11]) > maxDSG):
+				stats['highdsg'] = stats['highdsg'] + 1
 			
 	# Last block of tracks TESTED
 	if (satcnt > stats['maxsats']):
