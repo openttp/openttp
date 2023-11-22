@@ -40,7 +40,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import cggttslib as cggtts
 import ottplib   as ottp
 
-VERSION = "0.5.1"
+VERSION = "0.6.0"
 AUTHORS = "Michael Wouters"
 
 NTRACKS = 89
@@ -169,7 +169,7 @@ def CheckHeaderKey(prevFile,prevHeader,currFile,currHeader,key,msg):
 def CompareHeaders(prevFile,prevHeader,currFile,currHeader):
 	
 	CheckHeaderKey(prevFile,prevHeader,currFile,currHeader,'rev date','REV DATE changed')
-	
+	CheckHeaderKey(prevFile,prevHeader,currFile,currHeader,'rcvr','RCVR changed')
 	# Antenna co-ordinates
 	if ( (prevHeader['x'] != currHeader['x']) or
 		   (prevHeader['y'] != currHeader['y']) or
