@@ -42,13 +42,16 @@ import re
 import sys
 
 # This is where cggttslib is installed
-sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
-sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
+sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
+sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 
-import cggttslib
+try: 
+	import cggttslib
+except ImportError:
+	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.6.4"
+VERSION = "0.6.5"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
