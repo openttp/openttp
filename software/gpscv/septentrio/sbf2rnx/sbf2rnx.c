@@ -25,6 +25,10 @@
  */
 
 
+/* Notes
+ * Tested on PolaRx2, PolaRx4, PolaRx5, mosaicT
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +40,7 @@
 
 #define APP_AUTHORS "Michael Wouters"
 #define APP_NAME    "sbf2rnx"
-#define APP_VERSION "0.2.1"
+#define APP_VERSION "0.3.0"
 
 #define MAXSTR 4097 // this is accomodates longest file path on Linux 
 
@@ -58,6 +62,15 @@ static const double GPSURA[] = {2,2.8,4,5.7,8,11.3,16,32,64,128,256,512,1024,204
 /* globals */
 
 int debugOn = FALSE;
+
+typedef struct
+{
+	int valid;
+	char * serialNumber;  // all packets
+	char * FWVersion;  
+	char * GNSSFWVersion; // packet version >= 2
+	char * productName;   // packet version >= 3
+}Receiver_t;
 
 
 // Candidates for moving to another file
@@ -133,6 +146,7 @@ rinex_write_obs_header
 (
 	FILE *fobs,
 	FILE *rnxObsHeaderFile,
+	Receiver_t *rx,
 	char *user,
 	int rxSignals[],
 	int obsInterval,
@@ -191,9 +205,15 @@ rinex_write_obs_header
 		if ((txt = rinex_get_header(rnxObsHeaderFile,"REC # / TYPE / VERS")))
 			fprintf(fobs,"%s",txt);
 	}
-	if (!txt)
-		fprintf(fobs,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN","UNKNOWN","REC # / TYPE / VERS");
-	
+	if (!txt){
+		if (rx->valid){
+			fprintf(fobs,"%-20s%-20s%-20s%-20s\n",rx->serialNumber,rx->productName,rx->FWVersion,"REC # / TYPE / VERS");
+		}
+		else{
+			fprintf(fobs,"%-20s%-20s%-20s%-20s\n","UNKNOWN","UNKNOWN","UNKNOWN","REC # / TYPE / VERS");
+		}
+	}
+
 	//
 	if (rnxObsHeaderFile){
 		if ((txt = rinex_get_header(rnxObsHeaderFile,"ANT # / TYPE")))
@@ -397,11 +417,49 @@ sbf2rnx_get_int_opt
 }
 
 
+static void
+rx_read_setup(
+	void * SBFBlock,
+	Receiver_t * rx)
+{
+	
+	int rev = SBF_ID_TO_REV(((VoidBlock_t*)SBFBlock)->ID);
+	fprintf(stderr,"ReceiverSetup! REV=%d\n",rev);
+	switch (rev){
+		case 0:
+		{
+			rx->valid=1;
+			ReceiverSetup_1_0_t *rxsetup = (ReceiverSetup_1_0_t *) SBFBlock;
+			rx->serialNumber = strdup(rxsetup->RxSerialNbr);
+			rx->FWVersion = strdup(rxsetup->RxVersion);
+			rx->GNSSFWVersion = strdup(rxsetup->RxVersion); // 
+			rx->productName = strdup("UNKNOWN");
+			break;
+		}
+		case 3:
+		{
+			rx->valid=1;
+			ReceiverSetup_1_3_t *rxsetup = (ReceiverSetup_1_3_t *) SBFBlock;
+			rx->serialNumber = strdup(rxsetup->RxSerialNbr);
+			rx->FWVersion = strdup(rxsetup->RxVersion);
+			rx->GNSSFWVersion = strdup(rxsetup->GNSSFWVersion);
+			rx->productName = strdup(rxsetup->ProductName);
+			//fprintf(stderr,"%s %s\n",rxsetup->ProductName,rxsetup->GNSSFWVersion);
+			break;
+		}
+		default:
+			break;
+	}
+}
+
+
 int
 main(
 	int argc,
 	char **argv)
 {
+	
+	Receiver_t rx;
 	
 	int c;
 	int rnxMajorVersion;
@@ -417,6 +475,8 @@ main(
 	
 	int optf = FALSE;
 	char *sbfLogFileName;
+	
+	rx.valid = 0;
 	
 	int obsInterval = 30;
 	
@@ -467,7 +527,6 @@ main(
 							break;
 					}
 				}
-				makeNavFile = TRUE;
 				break;
 			}
 			case 'o': // set output file name 
@@ -596,6 +655,7 @@ main(
 					//}
 					break;
 				case sbfnr_ReceiverSetup_1:
+					rx_read_setup((void *) SBFBlock, &rx);
 					break;
 				default:
 					break;
@@ -812,8 +872,10 @@ main(
 		// 5893 GPSIon
 		// 5894 GPSUtc
 		// 5896 GEONav
+		// 5902 ReceiverSetup
 		{
 			//fprintf(stderr,"%d\n",SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID));
+			int rev = SBF_ID_TO_REV(((VoidBlock_t*)SBFBlock)->ID);
 			switch (SBF_ID_TO_NUMBER(((VoidBlock_t*)SBFBlock)->ID))
 			{
 				case sbfnr_GPSNav_1:
@@ -823,6 +885,7 @@ main(
 					}
 					break;
 				}
+			
 				default:
 					break;
 			}
@@ -839,7 +902,7 @@ main(
 		fclose(tmpObsFile);
 		
 		// Write the header
-		rinex_write_obs_header(obsFile,rnxObsHeaderFile,user,rxSignals,obsInterval,firstObsTOW,firstObsWN,lastObsTOW,lastObsWN);
+		rinex_write_obs_header(obsFile,rnxObsHeaderFile,&rx,user,rxSignals,obsInterval,firstObsTOW,firstObsWN,lastObsTOW,lastObsWN);
 
 		// Append the observations
 		tmpObsFile = fopen(tmpRnxObsFileName,"r");
