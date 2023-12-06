@@ -39,7 +39,7 @@ import re
 import sys
 import time
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 AUTHORS = "Michael Wouters"
 
 BEIDOU='C'
@@ -114,17 +114,32 @@ def WriteHeader(fout,hdr):
 	for l in hdr:
 		fout.write(l)
 
-# ------------------------------------------
+# ------------------------------------------ 
+# Note that this will return multiple lines
+#
 def GetHeaderField(hdr,key):
 	return [ l for l in hdr if (l.find(key) == 60)]
 
 # ------------------------------------------
-def EditHeader(hdr,key,newValue):
+def ReplaceHeaderField(hdr,key,newValue):
 	for li,l in enumerate(hdr):
 		if (l.find(key) == 60):
 			hdr[li]=newValue
 			break
-		
+
+# -------------------------------------------
+def GetRinexVersion(hdr):
+	vMajor = None
+	vMinor = None
+	hdrField = GetHeaderField(hdr,'RINEX VERSION / TYPE')
+	if hdrField:
+		match = re.search('(\d+)\.(\d+)',hdrField[0][0:9])
+		if match:
+			vMajor = int(match.group(1))
+			vMinor = int(match.group(2))
+			Debug('GetRinexVersion {:d}.{:02d}'.format(vMajor,vMinor))
+	return [vMajor,vMinor]
+	
 # ------------------------------------------
 def AddHeaderComments(hdr,comments):
 	# hdr and comments are lists
@@ -383,7 +398,7 @@ def FixMissing(infiles):
 					lastObs = '{:6d}{:6d}{:6d}{:6d}{:6d}{:13.7f}{:5}{:3}{:9}{:20}\n'.format(tLast.date().year,tLast.date().month,tLast.date().day,
 						tLast.time().hour,tLast.time().minute,tLast.time().second,' ',timeRef,' ',
 						'TIME OF LAST OBS')
-					EditHeader(hdr1,'TIME OF LAST OBS',lastObs)
+					ReplaceHeaderField(hdr1,'TIME OF LAST OBS',lastObs)
 				WriteHeader(tmpFout,hdr1)
 				WriteObservations(tmpFout,ver1,obsTmp)
 				tmpFout.close()
@@ -420,7 +435,7 @@ def FixMissing(infiles):
 					fObs = '{:6d}{:6d}{:6d}{:6d}{:6d}{:13.7f}{:5}{:3}{:9}{:20}\n'.format(tFirst.date().year,tFirst.date().month,tFirst.date().day,
 						tFirst.time().hour,tFirst.time().minute,tFirst.time().second,' ',timeRef,' ',
 						'TIME OF FIRST OBS')
-					EditHeader(hdr2,'TIME OF FIRST OBS',fObs)
+					ReplaceHeaderField(hdr2,'TIME OF FIRST OBS',fObs)
 					WriteHeader(tmpFout,hdr2)
 					WriteObservations(tmpFout,ver2,insRecs)
 					WriteObservations(tmpFout,ver2,obs2)
@@ -431,7 +446,103 @@ def FixMissing(infiles):
 					# 	os.rename(tmpName,finName)
 					# 	if not args.keep:
 					#			os.remove(finName+'.bak')
-					
+
+
+# ------------------------------------------
+def Catenate(infiles,foutName):
+
+	fi = 0
+	if not(foutName):
+		foutName = 'ALL.rnx'
+	Debug(foutName)
+	
+	try:
+		fout = open(foutName,'w')
+	except:
+		ErrorExit('Unable to open ' + foutName)
+	
+	# How fussy will we be about fixing the header ??
+	# V2 does not require time of last observation, number of satellites
+	# V3 ditto
+	# So much that could go wrong here  ...
+	
+	headers = []
+	for f in infiles:
+		Debug('Trying ' + f)
+		finName = f
+		try:
+			fin = open(finName,'r')
+		except:
+			ErrorExit('Unable to open ' + finName)
+		headers.append(ReadHeader(fin))
+		fin.close()
+	
+	# Check what's in them
+	# Versions must match
+	[vMajor0,vMinor0] = GetRinexVersion(headers[0])
+	for h in headers:
+		[vMajor,vMinor] = GetRinexVersion(h)
+		if not(vMajor0 == vMajor):
+			ErrorExit('RINEX versions do not match!')
+	
+	# Observations must match
+	if (vMajor0 == 2):
+		obs0 = GetHeaderField(headers[0],'# / TYPES OF OBSERV')
+		for h in headers:
+			obs = GetHeaderField(h,'# / TYPES OF OBSERV')
+			if not(len(obs0) == len(obs)): # check for same number of lines
+				ErrorExit('RINEX observations do not match')
+			for o0,o in zip(obs0,obs):
+				if not(o0[0:60].strip() == o[0:60].strip()):
+					ErrorExit('RINEX observations do not match')
+	
+	if (vMajor0 == 3):
+		obs0 = GetHeaderField(headers[0],'SYS / # / OBS TYPES')
+		for h in headers:
+			obs = GetHeaderField(h,'SYS / # / OBS TYPES')
+			if not(len(obs0) == len(obs)): # check for same number of lines
+				ErrorExit('RINEX observations do not match')
+			for o0,o in zip(obs0,obs): # lazy - assuming they are in the same order
+				if not(o0[0:60].strip() == o[0:60].strip()):
+					ErrorExit('RINEX observations do not match')
+
+	# Fix up the header
+	outputHeader = headers[0]
+	if GetHeaderField(outputHeader,'TIME OF LAST OBS'):
+		hdrField = GetHeaderField(headers[-1],'TIME OF LAST OBS')
+		if hdrField:
+			ReplaceHeaderField(outputHeader,'TIME OF LAST OBS',hdrField[0][0:80]+'\n')
+		else:
+			Debug('TIME OF LAST OBS not fixed')
+	
+	hdrField = GetHeaderField(outputHeader,'# OF SATELLITES')
+	if hdrField:
+		maxSats = int(hdrField[0][0:6])
+		for h in headers:
+			hdrField = GetHeaderField(h,'# OF SATELLITES')
+			if hdrField:
+				nSats = int(hdrField[0][0:6])
+				if nSats > maxSats:
+					Debug('SATS {:d} -> {:d}'.format(maxSats,nSats))
+					maxSats = nSats
+		ReplaceHeaderField(outputHeader,'# OF SATELLITES','{:6d}{:54}{:20}\n'.format(maxSats,' ','# OF SATELLITES'))
+	
+	# Write the output file
+	WriteHeader(fout,outputHeader)
+	
+	for f in infiles:
+		fin = open(finName,'r')
+		readingHeader = True
+		for l in fin:
+			if readingHeader:
+				if 'END OF HEADER' in l:
+					readingHeader = False
+			else:
+				fout.write(l)
+		fin.close()
+	
+	fout.close()
+	
 # ------------------------------------------
 # Main
 
@@ -447,10 +558,13 @@ parser = argparse.ArgumentParser(description='Edit a RINEX observation file',
 
 parser.add_argument('infile',nargs='+',help='input file',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
+parser.add_argument('--catenate',help='catenate input files',action='store_true')
+
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--output','-o',help='output to file/directory',default='')
 group.add_argument('--keep','-k',help='keep intermediate files',action='store_true')
 group.add_argument('--replace','-r',help='replace edited file',action='store_true')
+
 parser.add_argument('--system',help='satellite system (BeiDou,Galileo,GPS,GLONASS)')
 parser.add_argument('--obstype',help='observation type (C2I,L2I,...)')
 parser.add_argument('--fixms',help='fix ms ambiguities (ref RINEX file required)',action='store_true')
@@ -464,7 +578,7 @@ args = parser.parse_args()
 debug = args.debug
 
 # Check arguments
-if not(args.fixmissing or args.fixms):
+if not(args.fixmissing or args.fixms or args.catenate):
 	sys.stderr.write('Nothing to do!\n')
 	sys.exit()
 
@@ -540,7 +654,7 @@ else:
 	else:
 		pass
 
-if (args.output and len(args.infile) >1):
+if (args.output and len(args.infile) >1 and not(args.catenate)):
 	if not(os.path.isdir(args.output)):
 		sys.stderr.write('The --output option must specify a directory  when there is more than one input file\n')
 		exit()
@@ -550,6 +664,10 @@ if (args.output and len(args.infile) >1):
 
 if (args.fixmissing):
 	FixMissing(infiles)
+	sys.exit(0)
+
+if (args.catenate):
+	Catenate(infiles,args.output)
 	sys.exit(0)
 	
 fi=0
