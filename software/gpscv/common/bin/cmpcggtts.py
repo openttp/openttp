@@ -35,7 +35,6 @@
 
 import argparse
 from   datetime import datetime
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import re
@@ -51,7 +50,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.6.5"
+VERSION = "0.7.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -545,7 +544,7 @@ examples =  'Usage examples:\n'
 examples += '1. Common-view time and frequency transfer\n'
 examples += '    cmpcggtts.py ref cal 58418 58419\n'
 examples += '2. Delay calibration with no prompts for delays\n'
-examples += '    cmpcggtts.py --delaycal --acceptdelays ref cal 58418 58419\n'
+examples += '    cmpcggtts.py --display --delaycal --acceptdelays ref cal 58418 58419\n'
 examples += '\nVersion 02 CGGTTS may require the use of extra options to be read correctly\n'
 examples += 'For example, there can be multiple signals within a single file so you will need to specify\n'
 examples += 'the one you want. Similary, you may need to specify the delay to extract from INT DLY.\n'
@@ -599,6 +598,7 @@ parser.add_argument('--calext',help='file extension for calibration receiver (de
 
 parser.add_argument('--comment',help='set comment on displayed plot')
 
+parser.add_argument('--display',help='display plots',action='store_true')
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--nowarn',help='suppress warnings',action='store_true')
 parser.add_argument('--quiet',help='suppress all output to the terminal',action='store_true')
@@ -620,6 +620,13 @@ debug = args.debug
 cggttslib.SetDebugging(debug)
 cggttslib.SetWarnings(not(args.nowarn))
 
+if args.display:
+	import matplotlib.pyplot as plt
+else:
+	import matplotlib as mplt # this (and the next line) stops warnings about being unable to connect to a display
+	mplt.use('Agg') 
+	import matplotlib.pyplot as plt
+	
 if (args.starttime):
 	match = re.search('(\d+):(\d+):(\d+)',args.starttime)
 	if match:
@@ -1191,7 +1198,7 @@ if (MODE_DELAY_CAL==mode ):
 	
 	plt.savefig('ref.cal.ps',papertype='a4')
 	
-	if (not args.quiet):
+	if (not(args.quiet) and args.display):
 		plt.show()
 
 elif (MODE_TT == mode):
