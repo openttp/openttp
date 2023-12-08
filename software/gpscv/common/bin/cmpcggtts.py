@@ -50,7 +50,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -527,6 +527,7 @@ calIonosphere=MODELED_IONOSPHERE
 weighting=NO_WEIGHT
 enforceChecksum=False
 
+outputDir = './'
 comment = ''
 
 startTime=0 # in seconds, from the start of the day
@@ -595,6 +596,8 @@ parser.add_argument('--refprefix',help='file prefix for reference receiver (defa
 parser.add_argument('--calprefix',help='file prefix for calibration receiver (default = MJD)')
 parser.add_argument('--refext',help='file extension for reference receiver (default = cctf)')
 parser.add_argument('--calext',help='file extension for calibration receiver (default = cctf)')
+
+parser.add_argument('--outputdir',help='directory to write output to (default = current directory)')
 
 parser.add_argument('--comment',help='set comment on displayed plot')
 
@@ -725,7 +728,11 @@ if (args.calintdelays):
 	calintdelays = [ r.strip() for r in calintdelays]
 	if len(calintdelays) > 2:
 		ErrorExit('Too many delays in  --calintdelays ' + args.calintdelays + ' (max. 2)')
-		
+
+outputdir = './'
+if (args.outputdir):
+	outputDir = args.outputdir
+
 comment = ''
 if (args.comment):
 	comment = args.comment
@@ -938,14 +945,14 @@ calMatch=[]
 tAvMatches=[]
 avMatches=[]
 
-foutName = 'ref.cal.av.matches.txt'
+foutName = os.path.join(outputDir,'ref.cal.av.matches.txt')
 try:
 	favmatches = open(foutName,'w')
 except:
 	sys.stderr.write('Unable to open ' + foutName +'\n')
 	exit()
 
-foutName = 'ref.cal.matches.txt'
+foutName = os.path.join(outputDir,'ref.cal.matches.txt')
 try:
 	fmatches = open(foutName,'w')
 except:
@@ -1196,7 +1203,7 @@ if (MODE_DELAY_CAL==mode ):
 	ax3.set_ylabel('REFSYS (ns)')
 	ax3.set_xlabel('MJD - '+str(firstMJD))
 	
-	plt.savefig('ref.cal.ps',papertype='a4')
+	plt.savefig(os.path.join(outputDir,'ref.cal.ps'),papertype='a4')
 	
 	if (not(args.quiet) and args.display):
 		plt.show()
