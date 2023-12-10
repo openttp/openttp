@@ -144,7 +144,6 @@ def PlotEventMarkers(ax,rxev,evcol):
 	rR = fgR * fgA / rA + bgR * bgA * (1 - fgA) / rA
 	rG = fgG * fgA / rA + bgG * bgA * (1 - fgA) / rA
 	rB = fgB * fgA / rA + bgB * bgA * (1 - fgA) / rA
-	print(badEvColour)
 	rBad = (rR,rG,rB,1)
 	for ev in rxev:
 		if (ev[1] == 'STEP'):
