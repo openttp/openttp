@@ -31,7 +31,6 @@ import copy
 from   datetime import datetime
 
 import numpy as np
-import pandas as pd
 import os
 import re
 import subprocess
@@ -50,7 +49,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0
@@ -298,6 +297,9 @@ for i in range(0,len(rx1list)):
 				tcmd.append(str(startMJD))
 				tcmd.append(str(stopMJD))
 			
+				if debug:
+					print(tcmd)
+				
 				ottp.Debug('Running ' + cggttsTool)
 	
 				try:
@@ -310,15 +312,29 @@ for i in range(0,len(rx1list)):
 				# ref.cal.matches.txt
 				# ref.cal.av.matches.txt
 				# ref.cal.ps
-				
+
 				# but we only want the second one which we will rename so that the files can be used for debugging
-				dataFile  = os.path.join(tmpDir,'{}.{}.{}.av.matches.txt'.format(rx1,rx2,c))
-				os.rename(os.path.join(tmpDir,'ref.cal.av.matches.txt'),dataFile)
-				td = LoadRefCalAvMatches(dataFile)
 				
-				if len(td[0]) < 2*TRACKS_PER_DAY/3: # not much we can do with that (why 2/3? - so the convolve() for running mean doesn't result in truncation of the output)
-					pass # FIXME
-				
+				# cmppcggtts can produce no output
+				matchFile = os.path.join(tmpDir,'ref.cal.av.matches.txt')
+				sufficientData = True
+				if os.path.isfile(matchFile):
+					dataFile  = os.path.join(tmpDir,'{}.{}.{}.av.matches.txt'.format(rx1,rx2,c))
+					os.rename(matchFile,dataFile)
+					td = LoadRefCalAvMatches(dataFile)
+					sufficientData = len(td[0]) >= 2*TRACKS_PER_DAY/3
+					ottp.Debug('Matched tracks = {:d}'.format(len(td[0])))
+				else:
+					ottp.Debug('No output from cmpcggtts.py')
+					sufficientData = False
+					
+				if not(sufficientData): # not much we can do with that (why 2/3? - so the convolve() for running mean doesn't result in truncation of the output)
+					fig,(ax1,ax2)= plt.subplots(2,sharex=False,figsize=(8,11))
+					title = rx1.upper() + ' - ' + rx2.upper() + ' ' + c.upper() + 'NO DATA'
+					fig.suptitle(title,ha='left',x=0.02,size='medium')	
+					plt.savefig(os.path.join(tmpDir,rx1 + '.' + rx2 + '.' + c + '.ps'),papertype='a4')
+					continue
+					
 				# Now we fix up for known events 
 				td = ProcessEvents(td,rx1events, 1)
 				td = ProcessEvents(td,rx2events,-1)
