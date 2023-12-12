@@ -55,7 +55,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0
@@ -63,13 +63,18 @@ MODE_CMPREF = 1
 
 TRACKS_PER_DAY = 78
 
-
 # ------------------------------------------
-def Warn(msg):
-	if (not args.nowarn):
-		sys.stderr.write('WARNING! '+ msg+'\n')
-	return
-
+def ParseDataSpec(dataSpec):
+	path = None
+	prefix = None
+	if '*' == dataSpec[-1]: 
+		path,prefix = os.path.split(dataSpec)
+		path = ottp.MakeAbsolutePath(path,root)
+		prefix = prefix[:-1] # chop off the asterix
+	else:
+		path = ottp.MakeAbsolutePath(dataSpec,root)
+	return path,prefix
+	
 # ------------------------------------------
 def LoadRefCalAvMatches(fName):
 	t=[]
@@ -130,13 +135,14 @@ def RemoveOutliers(d):
 	cd0 = d[0][~np.isnan(d[0])]
 	cd1 = d[1][~np.isnan(d[1])]
 	ottp.Debug('Removed {:d} outliers'.format(outlierCnt))
-	return np.array([cd0,cd1])
+	return np.array([cd0,cd1]),outlierCnt
 
 # ------------------------------------------
 def PlotEventMarkers(ax,rxev,evcol):
 	ymin,ymax = ax.get_ylim()
 	badEvColour = mplt.colors.to_rgb(evcol)
 	# Can't do transparency in postscript so do DIY alpha composite
+	# NB now using PNGs so don't need this 
 	fgR = badEvColour[0]
 	fgG = badEvColour[1]
 	fgB = badEvColour[2]
@@ -159,6 +165,7 @@ def PlotEventMarkers(ax,rxev,evcol):
 			tStart = float(ev[0])
 			tStop  = float(ev[2])
 			ax.add_patch(mplt.patches.Rectangle([tStart,ymin],tStop-tStart,ymax - ymin,facecolor=rBad))
+			
 # ------------------------------------------
 
 appName = os.path.basename(sys.argv[0])
@@ -337,15 +344,25 @@ for i in range(0,len(rx1list)):
 			rx1c = rx1 + ':' + c
 			rx2c = rx2 + ':' + c
 			if (rx1c in cfg and rx2c in cfg):
-			
-				rx1cPath = ottp.MakeAbsoluteFilePath(cfg[rx1c],root,'./');
-				rx2cPath = ottp.MakeAbsoluteFilePath(cfg[rx2c],root,'./');
+				
+				rx1Prefix = None
+				rx2Prefix = None
+				rx1cPath,rx1Prefix = ParseDataSpec(cfg[rx1c])
+				rx2cPath,rx2Prefix = ParseDataSpec(cfg[rx2c])
+				
 				tcmd = copy.deepcopy(cmd)
 				tcmd.append(rx1cPath)
 				tcmd.append(rx2cPath)
+				if rx1Prefix:
+					tcmd.append('--refprefix')
+					tcmd.append(rx1Prefix)
+				if rx2Prefix:
+					tcmd.append('--calprefix')
+					tcmd.append(rx2Prefix)
+					
 				tcmd.append(str(startMJD))
 				tcmd.append(str(stopMJD))
-			
+				
 				if debug:
 					print(tcmd)
 				
@@ -389,7 +406,7 @@ for i in range(0,len(rx1list)):
 				td = ProcessEvents(td,rx1events, 1)
 				td = ProcessEvents(td,rx2events,-1)
 				# and then remove outliers, since known steps have been fixed and known bad data removed
-				td = RemoveOutliers(td)
+				td,nOutliers = RemoveOutliers(td)
 				
 				# The timescales might be
 				# week = 7*80 = 560
@@ -409,7 +426,7 @@ for i in range(0,len(rx1list)):
 				
 				fig,(ax1,ax2)= plt.subplots(2,sharex=False,figsize=(8,9))
 				plt.subplots_adjust(bottom=0.07,right=0.85)
-				title = rx1.upper() + ' - ' + rx2.upper() + ' ' + c.upper()
+				title = '{}-{} {}    OUTLIERS = {:d}'.format(rx1.upper(),rx2.upper(),c.upper(),nOutliers) 
 				fig.suptitle(title,ha='left',x=0.02,size='medium')
 				
 				ax1.set_title(r'$\Delta$ REFSYS (unweighted track average)')
@@ -454,6 +471,7 @@ if (args.report):
 	html += 'Notes:<br>'
 	html += '<ol>'
 	html += '<li>Running average (in orange) is over 12 hours.</li>'
+	html += '<li>Outliers greater than {:g} ns from the median have been removed.</li>'.format(outlierThreshold)
 	html += '<li>Known  steps have been fixed using event data.</li>'
 	html += '<li>Events are marked with green lines for the first receiver, and with purple lines for the second receiver.</li>'
 	html += '<li>Excluded data are marked as shaded rectangles, in lighter shades of green and purple.</li>'
@@ -512,7 +530,7 @@ if args.email and args.report:
 		print('Exception:',e)
 		ottp.ErrorExit('Unable to connect to ' + smtpServer)
 			
-	s.sendmail([emailSender],[emailRecipients], msg.as_string())
+	s.sendmail(emailSender,emailRecipients.split(','), msg.as_string())
 	s.quit()
 
 	
