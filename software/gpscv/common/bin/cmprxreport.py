@@ -55,7 +55,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0
@@ -493,7 +493,7 @@ if (args.report):
 		repBody = repBody.replace('cid:'+plotCID,pf[0])
 	repName = 'rep.{:d}{:02d}{:02d}'.format(yyyy,mm,dd)
 	repHTML = os.path.join(tmpDir,repName + '.html')
-	repPDF  = os.path.join(tmpDir,repName + '.pdf')
+	repPDF  = os.path.join(repDir,repName + '.pdf')
 	fout = open(repHTML,'w')
 	fout.write(repBody)
 	fout.close()
