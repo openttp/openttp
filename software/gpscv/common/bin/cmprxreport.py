@@ -55,7 +55,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0
@@ -281,7 +281,7 @@ if (args.yearly):
 	startMJD = stopMJD - 365
 	repInterval = 'last year'
 	
-if args.ndays: # overrides args.mjd
+if args. # overrides args.mjd
 	currMJD = ottp.MJD(time.time()) - 1
 	startMJD = currMJD - 1 - int(args.ndays) - 1
 	stopMJD =  currMJD - 1
@@ -390,7 +390,7 @@ for i in range(0,len(rx1list)):
 					td = LoadRefCalAvMatches(dataFile)
 					sufficientData = len(td[0]) >= 2*TRACKS_PER_DAY/3
 					ottp.Debug('Matched tracks = {:d}'.format(len(td[0])))
-				else:
+						else:
 					ottp.Debug('No output from cmpcggtts.py')
 					sufficientData = False
 					
@@ -506,7 +506,7 @@ if args.email and args.report:
 	
 
 	msg = MIMEMultipart('related')
-	msg['Subject'] = 'GNSS receiver time-transfer performance for {} (MJD {:d} to {:d})'.format(repInterval,startMJD,stopMJD) 
+	msg['Subject'] = '[REPORT] GNSS receiver time-transfer performance for {} (MJD {:d} to {:d})'.format(repInterval,startMJD,stopMJD) 
 	msg['From'] = emailSender
 	msg['To'] = emailRecipients
 	msg['Reply-To'] = emailSender
@@ -539,4 +539,4 @@ if not(debug):
 	for f in tmpFiles:
 		os.unlink(f)
 	if args.report:
-		os.unlink(repHTMl)
+		os.unlink(repHTML)
