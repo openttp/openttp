@@ -390,7 +390,7 @@ for i in range(0,len(rx1list)):
 					td = LoadRefCalAvMatches(dataFile)
 					sufficientData = len(td[0]) >= 2*TRACKS_PER_DAY/3
 					ottp.Debug('Matched tracks = {:d}'.format(len(td[0])))
-						else:
+				else:
 					ottp.Debug('No output from cmpcggtts.py')
 					sufficientData = False
 					
