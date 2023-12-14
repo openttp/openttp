@@ -281,7 +281,7 @@ if (args.yearly):
 	startMJD = stopMJD - 365
 	repInterval = 'last year'
 	
-if args. # overrides args.mjd
+if (args.ndays): # overrides args.mjd
 	currMJD = ottp.MJD(time.time()) - 1
 	startMJD = currMJD - 1 - int(args.ndays) - 1
 	stopMJD =  currMJD - 1
