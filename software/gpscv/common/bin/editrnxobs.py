@@ -32,6 +32,7 @@ import datetime
 import math
 import os
 import re
+import shutil
 import sys
 import time
 
@@ -103,12 +104,80 @@ def ReadHeader(fin):
 			readingHeader = False
 	return hdr
 
+# ------------------------------------------
+def UpdateHeader(hdr,nsv):
+	
+	newHeader=[]
+	i=0
+	while i < len(hdr):
+		if args.excludegnss:
+			if 'SYS / # / OBS TYPES' in hdr[i]:
+				if hdr[i][0] in args.excludegnss: # may have continuation lines
+					nsats = hdr[i][3:6].strip()
+					if nsats:
+						ncontinuation = int(math.ceil(int(nsats)/13)) - 1
+					else:
+						ncontinuation = 0
+					i = i + 1 + ncontinuation
+					continue
+			if  'SYS / PHASE SHIFT' in hdr[i]:
+				if hdr[i][0] in args.excludegnss: # may have continuation lines
+					nsats = hdr[i][15:17].strip()
+					if nsats:
+						ncontinuation = int(math.ceil(int(nsats)/10)) - 1
+					else:
+						ncontinuation = 0
+					i = i + 1 + ncontinuation
+					continue
+			if '# OF SATELLITES' in hdr[i]:
+				newHeader.append('{:6d}{:54}{:20}\n'.format(nsv,' ','# OF SATELLITES'))
+				i = i + 1
+				continue
+			if 'GLONASS' in hdr[i][60:-1]:
+				if 'R' in args.excludegnss:
+					i = i + 1
+					continue
+		newHeader.append(hdr[i])
+		i = i + 1
+		
+	return newHeader
+
+# ------------------------------------------
+def WriteTmpHeaderFile(tmpHeaderFile,hdr):
+	try:
+		fout = open(tmpHeaderFile,'w')
+	except:
+		ErrorExit('Unable to create temporary file ' + tmpHeaderFile)
+		
+	for l in hdr:
+		fout.write(l)
+	fout.close()
+	
 # ------------------------------------------ 
 # Note that this will return multiple lines
 #
 def GetHeaderField(hdr,key):
-	return [ l for l in hdr if (l.find(key) == 60)]
+	return [ l[0:60] for l in hdr if (l.find(key) == 60)]
 
+# ------------------------------------------
+# Note that newValue needs to correctly formatted
+
+def ReplaceHeaderField(hdr,key,newValue):
+	for li,l in enumerate(hdr):
+		if (l.find(key) == 60):
+			hdr[li]='{:<60}{:<20}\n'.format(newValue,key) # since other stuff assumes retention of the newline
+			break
+
+# ------------------------------------------
+def AddHeaderComments(hdr,comments):
+	# hdr and comments are lists
+	# comments are inserted before any existing comments
+	for li,l in enumerate(hdr):
+		if (l.find('PGM / RUN BY / DATE') == 60):
+			for ci,c in enumerate(comments):
+				hdr.insert(li+1+ci,'{:<60}{:<20}\n'.format(c,'COMMENT'));
+			break
+		
 # -------------------------------------------
 def GetRinexVersion(hdr):
 	vMajor = None
@@ -122,15 +191,6 @@ def GetRinexVersion(hdr):
 			Debug('GetRinexVersion {:d}.{:02d}'.format(vMajor,vMinor))
 	return [vMajor,vMinor]
 	
-# ------------------------------------------
-def InsertHeaderComments(hdr,comments):
-	# hdr and comments are lists
-	# comments are inserted before any existing comments
-	for li,l in enumerate(hdr):
-		if (l.find('PGM / RUN BY / DATE') == 60):
-			for ci,c in enumerate(comments):
-				hdr.insert(li+1+ci,'{:60}{:20}\n'.format(c,'COMMENT'));
-			break
 
 # ------------------------------------------
 def MJDtoRINEXObsName(mjd,template):
@@ -159,9 +219,38 @@ def MJDtoRINEXObsName(mjd,template):
 	return fname
 
 # ------------------------------------------
+def WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxFile,finName):
+	
+	Debug('Writing RINEX')
+	with open(os.path.join(tmpDir,tmpRnxFile),'wb') as fout:
+		with open(tmpHeaderFile,'rb') as f:
+			fout.write(f.read())
+		with open(tmpDataFile,'rb') as f:
+			fout.write(f.read())
+			
+	os.unlink(tmpHeaderFile)
+	os.unlink(tmpDataFile)
+	
+	if finName:
+		if args.replace:
+			if args.backup: 
+				fBackup = finName + '.original'
+				shutil.copyfile(finName,fBackup)
+				Debug('{} backed up to {}'.format(finName,fBackup))
+			shutil.copyfile(tmpRnxFile,finName)
+		else:
+			shutil.copyfile(tmpRnxFile,os.path.join(args.output,os.path.basename(finName)))
+	
+	if args.output:
+		shutil.copy(tmpRnxFile,args.output)
+		os.unlink(tmpRnxFile)
+	
+	Debug('Writing RINEX done')
+		
+# ------------------------------------------
 # Main
 
-progName = os.path.basename(sys.argv[0])+ ' ' + VERSION
+appName= os.path.basename(sys.argv[0])+ ' ' + VERSION
 
 examples =  'Usage examples\n'
 examples += '  \n'
@@ -173,8 +262,9 @@ parser.add_argument('infile',nargs='+',help='input file or MJD',type=str)
 
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 
-parser.add_argument('--catenate',help='catenate input files',action='store_true')
-parser.add_argument('--excludegnss',help='remove specified GNSS (BEGRJI)',default='')
+parser.add_argument('--catenate','-c',help='catenate input files',action='store_true')
+parser.add_argument('--excludegnss','-x',help='remove specified GNSS (BEGRJI)',default='')
+parser.add_argument('--fixmissing','-f',help='fix missing observations due to UTC/GPS day rollover mismatch',action='store_true')
 
 parser.add_argument('--template',help='template for RINEX file names',default='')
 parser.add_argument('--obsdir',help='RINEX file directory',default='./')
@@ -182,10 +272,11 @@ parser.add_argument('--tmpdir',help='directory for temporary files',default='./'
 
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--output','-o',help='output to file/directory',default='')
-group.add_argument('--keep','-k',help='keep intermediate files',action='store_true')
 group.add_argument('--replace','-r',help='replace edited file',action='store_true')
 
-parser.add_argument('--nosequence',help='do not interpret (two) input files as a sequence',action='store_true')
+parser.add_argument('--backup','-b',help='create backup of edited file',action='store_true')
+
+parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
@@ -209,22 +300,23 @@ if (1==len(args.infile)):
 	if IsMJD(args.infile[0]):
 		mjdStart = int(args.infile[0])
 		infiles.append(str(mjdStart)) # we will process MJDs later
+		if args.fixmissing:
+			mjdStop = mjdStart
+			mjdStart = mjdStart -1
+			infiles = [mjdStart] + infiles
 elif (2==len(args.infile)):
-	if (args.nosequence and not args.fixmissing): 
-		if IsMJD(args.infile[0]):
-			mjd1 = int(args.infile[0])
-			mjd2 = int(args.infile[1])
-			infiles.append(str(mjd1))
-			infiles.append(str(mjd2))
-	else:
-		if IsMJD(args.infile[0]):
-			mjdStart = int(args.infile[0])
-			mjdStop = int(args.infile[1])
-			if (mjdStop < mjdStart):
-				ErrorExit('Stop MJD is before Start MJD')
-			for m in range(mjdStart,mjdStop+1):
-				infiles.append(str(m))
-				
+	if IsMJD(args.infile[0]):
+		mjdStart = int(args.infile[0])
+		mjdStop = int(args.infile[1])
+		if args.fixmissing:
+			mjdStart -= 1
+		if (mjdStop < mjdStart):
+			ErrorExit('Stop MJD is before Start MJD')
+		for m in range(mjdStart,mjdStop+1):
+			infiles.append(str(m))
+else:
+	ErrorExit('Too many files!')
+	
 if infiles:
 	if not(args.template):
 		ErrorExit('You need to define a template for the RINEX file names (--template)')
@@ -239,55 +331,67 @@ if infiles:
 if not(infiles):
 	if (1==len(args.infile)):
 		infiles.append(os.path.join(args.obsdir,args.infile[0]))
-	elif (2==len(args.infile)):
-		if args.nosequence: 
-			infiles = args.infile
-			for fi in args.infile:
-				os.path.join(args.obsdir,fi)
-		else:
-			(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0]) # version here is naming convention
-			(path2,ver2,st2,doy2,yy2,yyyy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
-			if not(path1 == path2):
-				ErrorExit('The files must be in the same directory for the --sequence/--fixmissing  option\n')
-			if not(ver1 == ver2):
-				ErrorExit('The RINEX files must have the same naming convention for the --sequence/--fixmissing option\n')
-			if not(st1==st2):
-				ErrorExit('The station names must match with the --sequence/--fixmissing option\n')
-			if not(ft1==ft2):
-				ErrorExit('The file types must match with the --sequence/--fixmissing option\n')
-				
-			if ((yyyy1 > yyyy2) or (yyyy1 == yyyy2 and doy1 > doy2)):
-				ErrorExit('The files appear to be in the wrong order for the --sequence/--fixmissing option\n')
-				
-			# it appears we have a valid sequence so generate it
+		if args.fixmissing:
+			(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
 			date1=datetime.datetime(yyyy1, 1, 1) + datetime.timedelta(doy1 - 1)
-			date2=datetime.datetime(yyyy2, 1, 1) + datetime.timedelta(doy2 - 1)
-			td =  date2-date1
 			
-			obsdir = path1
-			if args.obsdir:
-				obsdir = args.obsdir
-				
-			for d in range(0,td.days+1):
-				ddate = date1 +  datetime.timedelta(d)
-				if (ver1 == 2):
-					yystr = ddate.strftime('%y')
-					doystr=ddate.strftime('%j')
-					fname = '{}{}0.{}{}'.format(st1,doystr,yystr,ext1) 
-					infiles.append(os.path.join(obsdir,fname))	
-				elif (ver1 == 3):
-					yystr = ddate.strftime('%Y')
-					doystr= ddate.strftime('%j')
-					fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(st1,dataSource1,yystr,int(doystr),hhmm1,filePeriod1,dataFrequency1,ft1,ext1) 
-					infiles.append(os.path.join(obsdir,fname))
+	elif (2==len(args.infile)):
+		
+		(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0]) # version here is naming convention
+		(path2,ver2,st2,doy2,yy2,yyyy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
+		if not(path1 == path2):
+			ErrorExit('The files must be in the same directory for the --sequence/--fixmissing  option\n')
+		if not(ver1 == ver2):
+			ErrorExit('The RINEX files must have the same naming convention for the --sequence/--fixmissing option\n')
+		if not(st1==st2):
+			ErrorExit('The station names must match with the --sequence/--fixmissing option\n')
+		if not(ft1==ft2):
+			ErrorExit('The file types must match with the --sequence/--fixmissing option\n')
+			
+		if ((yyyy1 > yyyy2) or (yyyy1 == yyyy2 and doy1 > doy2)):
+			ErrorExit('The files appear to be in the wrong order for the --sequence/--fixmissing option\n')
+			
+		# it appears we have a valid sequence so generate it
+		if args.fixmissing:
+			date1=datetime.datetime(yyyy1, 1, 1) + datetime.timedelta(doy1 - 2)
+		else:
+			date1=datetime.datetime(yyyy1, 1, 1) + datetime.timedelta(doy1 - 1)
+		date2=datetime.datetime(yyyy2, 1, 1) + datetime.timedelta(doy2 - 1)
+		td =  date2-date1
+		
+		obsdir = path1
+		if args.obsdir:
+			obsdir = args.obsdir
+			
+		for d in range(0,td.days+1):
+			ddate = date1 +  datetime.timedelta(d)
+			if (ver1 == 2):
+				yystr = ddate.strftime('%y')
+				doystr=ddate.strftime('%j')
+				fname = '{}{}0.{}{}'.format(st1,doystr,yystr,ext1) 
+				infiles.append(os.path.join(obsdir,fname))	
+			elif (ver1 == 3):
+				yystr = ddate.strftime('%Y')
+				doystr= ddate.strftime('%j')
+				fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(st1,dataSource1,yystr,int(doystr),hhmm1,filePeriod1,dataFrequency1,ft1,ext1) 
+				infiles.append(os.path.join(obsdir,fname))
 	else:
-		pass
+		ErrorExit('Too many files!')
 
 #if (args.output and len(args.infile) >1 and not(args.catenate)):
 	#if not(os.path.isdir(args.output)):
 		#sys.stderr.write('The --output option must specify a directory  when there is more than one input file\n')
 		#exit()
 
+# The way we handle fixmissing is to catenate the files
+# and then disassemble into the individual files. This is a simple way of ensuring that everything is in sequence.
+# For this to work, we add the file previous to the first in the nominal sequence
+# It will be rewritten as well, with entries belonging to the next day moved to the succeeding day
+# Entries after the end of the day in the last file are not touched.
+
+if args.fixmissing:
+	args.catenate = True
+	
 # Preliminary stuff done.
 
 # First, a quick check on RINEX version
@@ -304,7 +408,8 @@ if (majorVer < 3):
 # Now do stuff!
 headers = []
 svn     = []
-if args.catenate: # open the file for output
+
+if args.catenate: # open the measurement file for output
 	try:
 		fout = open(tmpDataFile,'w')
 	except:
@@ -319,6 +424,8 @@ for f in infiles:
 		svn=[]
 	except:
 		ErrorExit('Unable to open ' + finName)
+	
+	Debug('Opened ' + finName)
 	
 	if not(args.catenate): # open file for output of measurements
 		try:
@@ -371,56 +478,109 @@ for f in infiles:
 	
 	if not(args.catenate): # writing individual files ...
 		fout.close()
-		# Output header to the final file
-		# and then stick it all back together
-		try:
-			fout = open(tmpHeaderFile,'w')
-		except:
-			ErrorExit('Unable to create temporary file ' + tmpHeaderFile)
-			
-		i=0
-		while i < len(hdr):
-			if args.excludegnss:
-				if 'SYS / # / OBS TYPES' in hdr[i]:
-					if hdr[i][0] in args.excludegnss: # may have continuation lines
-						nsats = hdr[i][3:6].strip()
-						if nsats:
-							ncontinuation = int(math.ceil(int(nsats)/13)) - 1
-						else:
-							ncontinuation = 0
-						i = i + 1 + ncontinuation
-						continue
-				if  'SYS / PHASE SHIFT' in hdr[i]:
-					if hdr[i][0] in args.excludegnss: # may have continuation lines
-						nsats = hdr[i][15:17].strip()
-						if nsats:
-							ncontinuation = int(math.ceil(int(nsats)/10)) - 1
-						else:
-							ncontinuation = 0
-						i = i + 1 + ncontinuation
-						continue
-				if '# OF SATELLITES' in hdr[i]:
-					fout.write('{:6d}{:54}{:20}\n'.format(len(svn),' ','# OF SATELLITES'))
-					i = i + 1
-					continue
-				if 'GLONASS' in hdr[i][60:-1]:
-					if 'R' in args.excludegnss:
-						i = i + 1
-						continue
-			fout.write(hdr[i])
-			i = i + 1
+		newHdr = UpdateHeader(hdr,len(svn))
+		AddHeaderComments(newHdr,['Processed by {}'.format(appName)])
+		WriteTmpHeaderFile(tmpHeaderFile,newHdr)
+		WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxFile,finName)
+
+if args.catenate:
+	fout.close() # this is tmpDataFile
+	
+if (args.catenate and not(args.fixmissing)):
+	
+	# Write a new header, using the first as a template
+	newHdr = UpdateHeader(headers[0],len(svn))
+	AddHeaderComments(newHdr,['Processed by {}'.format(appName)])
+	# Now we need to update the time of the last observation, but only do it if it's defined
+	if GetHeaderField(newHdr,'TIME OF LAST OBS'):
+		lastObs = GetHeaderField(headers[-1],'TIME OF LAST OBS') # remember, this returns a list
+		ReplaceHeaderField(newHdr,'TIME OF LAST OBS',lastObs[0])
+	
+	WriteTmpHeaderFile(tmpHeaderFile,newHdr)
+	WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxFile,'')
+	
+if args.fixmissing:
+	
+	fin = open(tmpDataFile,'r') # this is catenated data
+
+	rolloverTOD = datetime.datetime(1980,1,6,0,0,0,tzinfo=datetime.timezone.utc) # no data before this !
+	skipRead = False
+	fileCount = 0
+	reading = True
+	
+	for f in infiles:
 		
+		svn = [] 
+		firstObs = []
+		
+		tmpDailyDataFile = os.path.join(tmpDir,'rnxdailymeas.{:d}.tmp'.format(fileCount))
+		try:
+			fout = open(tmpDailyDataFile,'w')
+			ftmp = open(f,'r') # we know it exists
+			hdr = ReadHeader(ftmp)
+			ftmp.close() 
+		except:
+			ErrorExit('Unable to create temporary file ' + tmpDailyDataFile)
+		fileCount += 1
+		
+		while reading:
+		
+			if not skipRead:
+				l = fin.readline()
+			skipRead = False
+			if (len(l) == 0): #EOF
+				break
+			
+			if (l[0]=='>'): # process a measurement block
+				year = int(l[2:6])
+				mon  = int(l[6:10])
+				day  = int(l[9:13])
+				hours= int(l[12:16])
+				mins = int(l[15:19])
+				secs = float(l[19:30])
+				tod  = datetime.datetime(year,mon,day,hours,mins,int(secs),tzinfo=datetime.timezone.utc)
+			
+				if not firstObs:
+					firstObs = [year,mon,day,hours,mins,secs]
+					rolloverTOD = datetime.datetime(year,mon,day,tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1)
+		
+				if (tod >= rolloverTOD and fileCount < len(infiles)): # time to write!
+					#print(tod,rolloverTOD)
+					skipRead = True # we want to process this line again for the new file
+					break
+				
+				fout.write(l)
+				
+				nmeas = int(l[32:36]) # cols 32-35
+				epochFlag = int(l[31])
+				for m in range(0,nmeas):
+					l = fin.readline()
+					fout.write(l)
+					if epochFlag < 2: # there will be a SV identifier
+						svid = l[0:3]
+						if not(svid in svn):
+							svn.append(svid)
+						
+				lastObs = [year,mon,day,hours,mins,secs]
+				
 		fout.close()
 		
-		# Now stick it all together
-		with open(os.path.join(tmpDir,tmpRnxFile),'wb') as fout:
-			with open(tmpHeaderFile,'rb') as f:
-				fout.write(f.read())
-			with open(tmpDataFile,'rb') as f:
-				fout.write(f.read())
-		os.unlink(tmpHeaderFile)
-		os.unlink(tmpDataFile)
+		newHdr = UpdateHeader(hdr,len(svn))
+		AddHeaderComments(newHdr,['Processed by {}'.format(appName)])
+		hdrField = GetHeaderField(newHdr,'TIME OF FIRST OBS') # mandatory field
+		timeSys = hdrField[0][48:51]
+		ReplaceHeaderField(newHdr,'TIME OF FIRST OBS',
+				'{:6d}{:6d}{:6d}{:6d}{:6d}{:13.7f}     {}'.format(firstObs[0],firstObs[1],firstObs[2],firstObs[3],firstObs[4],firstObs[5],timeSys))
 		
-if args.catenate:
-	fout.close()
+		if GetHeaderField(newHdr,'TIME OF LAST OBS'):
+			ReplaceHeaderField(newHdr,'TIME OF LAST OBS',
+				'{:6d}{:6d}{:6d}{:6d}{:6d}{:13.7f}     {}'.format(lastObs[0],lastObs[1],lastObs[2],lastObs[3],lastObs[4],lastObs[5],timeSys))
+		WriteTmpHeaderFile(tmpHeaderFile,newHdr)
+		WriteRINEXFile(tmpDir,tmpDailyDataFile,tmpHeaderFile,tmpRnxFile,f)
+		
+				
+	fin.close()
+	
+# 
+
 	
