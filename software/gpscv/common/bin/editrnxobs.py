@@ -33,12 +33,19 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 AUTHORS = "Michael Wouters"
 
+# Compression algorithms
+
+C_HATANAKA = 0x01
+C_GZIP     = 0x02
+C_BZIP2    = 0x04
+C_COMPRESS = 0x08
 
 # ------------------------------------------
 def Debug(msg):
@@ -56,10 +63,144 @@ def IsMJD(txt):
 	return re.match(r'\d{5}',txt)
 
 # ------------------------------------------
+def Decompress(fin):
+	
+	algo = 0x00
+	
+	fBase,ext = os.path.splitext(fin)
+	
+	if not ext:
+		return [fin,'','',algo]
+	
+	fout = fBase
+	cmd = []
+	
+	if ext.lower() == '.gz':
+		algo = C_GZIP
+		cmd = ['gunzip',fin]
+	elif ext.lower() == '.bz2':
+		algo = C_BZIP2
+		cmd = ['bunzip2',fin] 
+	elif ext.lower() == '.z':
+		algo = C_COMPRESS     # can do this with gunzip
+		cmd = ['gunzip',fin]
+	elif ext.lower() == '.crx' or re.match(r'\.\d{2}d',ext.lower()):
+		algo = C_HATANAKA
+		cmd  = ['CRX2RNX',fin,'-d'] # delete input file
+		if ext == '.crx':
+			fout  = fBase + '.rnx'
+		elif ext == '.CRX':
+			fout  = fBase + '.RNX'
+		else:
+			m = re.match(r'\.(\d{2})[dD]',ext)
+			if m:
+				fout = fBase + '.' + m.group(1)
+				if ext[3] == 'd':
+					fout += 'o'
+				else:
+					fout += 'O'
+	else: # nothing to do, hopefully
+		return [fin,algo]
+	
+	# and do it
+	
+	Debug('Decompressing {} (ext {})'.format(fin,ext))
+	try:
+		x = subprocess.check_output(cmd) # eat the output
+	except Exception as e:
+		ErrorExit('Failed to run ')
+	print('Done')
+	
+	# CRX2RNX renames .crx to .rnx (and .CRX to .RNX)
+	# CRX2RNX renames .xxD to .xxO (and .xxd to .xxo)
+	
+	# and check for Hatanaka again
+	ext2=''
+	fBase2,ext2 = os.path.splitext(fBase)
+	if ext2.lower() == '.crx' or re.match(r'\.\d{2}d',ext2.lower()): 
+		
+		algo |= C_HATANAKA
+		cmd = ['CRX2RNX',fBase,'-d'] # delete input file
+		Debug('Decompressing {} format {}'.format(fBase,ext2))
+		
+		try:
+			x = subprocess.check_output(cmd) # eat the output
+		except Exception as e:
+			ErrorExit('Failed to run ')
+		
+		if ext2 == '.crx':
+			fout  = fBase2 + '.rnx'
+		elif ext2 == '.CRX':
+			fout  = fBase2 + '.RNX'
+		else:
+			m = re.match(r'\.(\d{2})[dD]',ext2)
+			if m:
+				fout = fBase2 + '.' + m.group(1)
+				if ext2[3] == 'd':
+					fout += 'o'
+				else:
+					fout += 'O'
+
+	return [fout,algo] 
+
+
+# ------------------------------------------
+def Compress(fin,fOriginal,algo):
+	
+	if not algo:
+		return
+			
+	fBase,ext = os.path.splitext(fin)
+	
+	if algo & C_HATANAKA: # HATANAKA first
+		cmd = ['RNX2CRX',fin,'-d'] # delete input file
+		Debug('Compressing (Hatanaka) {}'.format(fin))
+		try:
+			x = subprocess.check_output(cmd) # eat the output
+		except Exception as e:
+			ErrorExit('Failed to run ')
+		
+		if ext== '.rnx':
+			fin  = fBase + '.crx'
+		elif ext == '.RNX':
+			fin = fBase + '.CRX'
+		else:
+			m = re.match(r'\.(\d{2})[oO]',ext)
+			if m:
+				fin = fBase + '.' + m.group(1)
+				if ext[3] == 'o':
+					fin += 'd'
+				else:
+					fin += 'D'
+		
+	if (algo & C_GZIP):
+		cmd = ['gzip',fin]
+		ext = '.gz'
+	elif (algo & C_BZIP2):
+		cmd = ['bzip2',fin] 
+		ext = '.bz2'
+	elif (algo & C_COMPRESS):
+		pass
+	
+	Debug('Compressing {}'.format(fin))
+	try:
+		x = subprocess.check_output(cmd) # eat the output
+	except Exception as e:
+		ErrorExit('Failed to run ')
+	
+	fin += ext
+	
+	if not(fin == fOriginal): # Rename the file if necessary (to fix up case of file extensions)
+		Debug('{} <- {}'.format(fOriginal,fin))
+		os.rename(fin,fOriginal)
+	
+	return 
+	
+# ------------------------------------------
 def ParseRINEXFileName(fname):
 	ver = 0
 	p = os.path.dirname(fname)
-	match = re.search('(\w{4})(\d{3})0\.(\d{2})([oO])',fname) # version 2
+	match = re.search('(\w{4})(\d{3})0\.(\d{2})([oOdD]|[oOdD].\w{2,3})$',fname) # version 2 [dD] for Hatanaka compression
 	if match:
 		st = match.group(1)
 		doy = int(match.group(2))
@@ -73,7 +214,7 @@ def ParseRINEXFileName(fname):
 		ver=2
 		return (p,ver,st,doy,yy,yyyy,ext,'','','','','')
 	
-	match = re.search('(\w{9})_(\w)_(\d{4})(\d{3})(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(\w{2,3})',fname) # version 3
+	match = re.search('(\w{9})_(\w)_(\d{4})(\d{3})(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(\w{3}|\w{3}.\w{2,3})$',fname) # version 3
 	if match:
 		st = match.group(1)
 		dataSource = match.group(2)
@@ -395,16 +536,19 @@ if args.fixmissing:
 # Preliminary stuff done.
 
 # First, a quick check on RINEX version
+fDe,algo = Decompress(infiles[0])
 try:
-	fin = open(infiles[0],'r')
+	fin = open(fDe,'r')
 except:
-	ErrorExit('Unable to open ' + infiles[0])
+	ErrorExit('Unable to open ' + fDe)
 	
 hdr = ReadHeader(fin)
 majorVer,minorVer = GetRinexVersion(hdr)
 if (majorVer < 3):
 	ErrorExit('RINEX version {:d} detected in {}. Only V3 is supported'.format(majorVer,infiles[0]))
-	
+Compress(fDe,infiles[0],algo)
+
+
 # Now do stuff!
 headers = []
 svn     = []
@@ -415,9 +559,12 @@ if args.catenate: # open the measurement file for output
 	except:
 		ErrorExit('Unable to create temporary file ' + tmpDataFile)
 
+compressionJobs =[]
+
 for f in infiles:
 	
-	finName = f
+	finName,algo = Decompress(f)
+	compressionJobs.append([finName,f,algo])
 	
 	try:
 		fin = open(finName,'r')
@@ -508,8 +655,9 @@ if args.fixmissing:
 	fileCount = 0
 	reading = True
 	
-	for f in infiles:
+	for c in compressionJobs: 
 		
+		f = c[0] # decompressed file
 		svn = [] 
 		firstObs = []
 		
@@ -581,6 +729,8 @@ if args.fixmissing:
 				
 	fin.close()
 	
-# 
+# ... and recompress anything we decompressed
+for c in compressionJobs:
+	Compress(c[0],c[1],c[2])
 
 	
