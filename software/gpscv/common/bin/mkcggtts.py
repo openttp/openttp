@@ -41,7 +41,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -147,6 +147,7 @@ args = parser.parse_args()
 debug = args.debug
 ottp.SetDebugging(debug)
 rinex.SetDebugging(debug)
+print(rinex.LibVersion())
 
 configFile = args.config
 
@@ -197,8 +198,18 @@ if not(os.path.exists(tmpDir)):
 	ottp.ErrorExit(tmpDir + " doesn't exist - check the configuration file")
 			
 rnxVersion = 2
+
 if 'rinex:version' in cfg:
 	rnxVersion = int(cfg['rinex:version'])
+	
+rnxNavVersion = rnxVersion
+rnxObsVersion = rnxVersion
+
+if 'rinex:nav version' in cfg:
+	rnxNavVersion = int(cfg['rinex:nav version'])
+
+if 'rinex:obs version' in cfg:
+	rnxObsVersion = int(cfg['rinex:obs version'])
 	
 rnxObsDir = os.path.join(home,'rinex')
 if 'rinex:obs directory' in cfg:
@@ -319,7 +330,7 @@ for mjd in mjdsToDo:
 	doy2 = tod.tm_yday
 	
 	# Make RINEX file names
-	(rnx1,rnx1ext)=rinex.FindObservationFile(rnxObsDir,rnxObsSta,yyyy1,doy1,rnxVersion,False);
+	(rnx1,rnx1ext)=rinex.FindObservationFile(rnxObsDir,rnxObsSta,yyyy1,doy1,rnxObsVersion,False);
 	if not(rnx1):
 		ottp.Debug('Missing observation file')
 		continue
@@ -327,28 +338,28 @@ for mjd in mjdsToDo:
 	shutil.copy(rnx1 + rnx1ext,ftmp + rnx1ext)
 	ottp.DecompressFile(ftmp,rnx1ext)
 	
-	(nav1,nav1ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy1,doy1,rnxVersion,False);
-	if not(rnx1):
+	(nav1,nav1ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy1,doy1,rnxNavVersion,False);
+	if not(nav1):
 		ottp.Debug('Missing navigation file')
 		continue
 	# Need to copy the file to the current directory, decompress it if necessary and rename it
 	ftmp = 'rinex_nav_gps'  # version 2 is default
-	if (rnxVersion == 3):
+	if (rnxNavVersion == 3):
 		ftmp = 'rinex_nav_mix' 
 	tmpNavFile = ftmp
 	shutil.copy(nav1 + nav1ext,ftmp + nav1ext)
 	ottp.DecompressFile(ftmp,nav1ext)
 	
-	(rnx2,rnx2ext)=rinex.FindObservationFile(rnxObsDir,rnxObsSta,yyyy2,doy2,rnxVersion,False); 
+	(rnx2,rnx2ext)=rinex.FindObservationFile(rnxObsDir,rnxObsSta,yyyy2,doy2,rnxObsVersion,False); 
 	if rnx2: # don't require the next day's data
 		ftmp = 'rinex_obs_p' 
 		shutil.copy(rnx2 + rnx2ext,ftmp + rnx2ext)
 		ottp.DecompressFile(ftmp,rnx2ext)
 	
-	(nav2,nav2ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy2,doy2,rnxVersion,False);
+	(nav2,nav2ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy2,doy2,rnxNavVersion,False);
 	if nav2:
 		ftmp = 'rinex_nav_p_gps'  # version 2 is default
-		if (rnxVersion == 3):
+		if (rnxNavVersion == 3):
 			ftmp = 'rinex_nav_p_mix' 
 		shutil.copy(nav2 + nav2ext,ftmp + nav2ext)
 		ottp.DecompressFile(ftmp,nav2ext)
@@ -357,7 +368,7 @@ for mjd in mjdsToDo:
 	if (args.leapsecs):
 		leapSecs = int(args.leapsecs)
 	else:
-		leapSecs = rinex.GetLeapSeconds(tmpNavFile,rnxVersion) # already decompressed
+		leapSecs = rinex.GetLeapSeconds(tmpNavFile,rnxNavVersion) # already decompressed
 		
 	if (leapSecs <= 0):
 		ottp.ErrorExit('Invalid number of leap seconds')
@@ -411,11 +422,11 @@ for mjd in mjdsToDo:
 				F = 'Z' # dual frequency is default
 				if ('GPS'==constellation):
 					X='G'
-					if ('C1' == code or 'P1' == code):
+					if (code in ['C1','P1','P2']):
 						F='M'
 				elif ('GLO'==constellation):
 					X='R'
-					if ('C1' == code or 'P1' == code):
+					if (code in ['C1','P1','P2']):
 						F='M'
 				elif ('BDS'==constellation):
 					X='C'
