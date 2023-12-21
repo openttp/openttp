@@ -27,9 +27,10 @@ import re
 import sys
 
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION  = 2
+LIB_MINOR_VERSION  = 3
 LIB_PATCH_VERSION  = 0
 
+compressionExtensions = ['.gz','.GZ','.z','.Z']
 
 # ------------------------------------------
 # Return the library version
@@ -58,12 +59,12 @@ def FindObservationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 		yy = yyyy - int(yyyy/100)*100
 		
 		bname1 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname1,['.gz'])
+		(found,ext) = __FindFile(bname1,compressionExtensions)
 		if (found):
 			return (bname1,ext)
 		
 		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname2,['.gz'])
+		(found,ext) = __FindFile(bname2,compressionExtensions)
 		if (found):
 			return (bname2,ext)
 		
@@ -73,20 +74,20 @@ def FindObservationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 	elif (rnxver==3):
 		# Try a V3 name first
 		bname1 = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(staname,yyyy,doy))
-		(found,ext) = __FindFile(bname1,['.gz'])
+		(found,ext) = __FindFile(bname1,compressionExtensions)
 		if (found):
 			return (bname1,ext)
 		
 		# Try version 2
 		yy = yyyy - int(yyyy/100)*100
 		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname2,['.gz'])
+		(found,ext) = __FindFile(bname2,compressionExtensions)
 		if (found):
 			return (bname2,ext)
 		
 		# Another try at version 2
 		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname3,['.gz'])
+		(found,ext) = __FindFile(bname3,compressionExtensions)
 		if (found):
 			return (bname3,ext)
 		
@@ -101,12 +102,12 @@ def FindNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 		yy = yyyy - int(yyyy/100)*100
 		
 		bname1 = os.path.join(dirname,'{}{:03d}0.{:02d}n'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname1,['.gz'])
+		(found,ext) = __FindFile(bname1,compressionExtensions)
 		if (found):
 			return (bname1,ext)
 		
 		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}N'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname2,['.gz'])
+		(found,ext) = __FindFile(bname2,compressionExtensions)
 		if (found):
 			return (bname2,ext)
 		
@@ -116,20 +117,20 @@ def FindNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 	elif (rnxver == 3):
 		# Mixed navigation files only
 		bname1 = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_MN.rnx'.format(staname,yyyy,doy))
-		(found,ext) = __FindFile(bname1,['.gz'])
+		(found,ext) = __FindFile(bname1,compressionExtensions)
 		if (found):
 			return (bname1,ext)
 		
 		# Try version 2 name (typically produced by sbf2rin)
 		yy = yyyy - int(yyyy/100)*100
 		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}P'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname2,['.gz'])
+		(found,ext) = __FindFile(bname2,compressionExtensions)
 		if (found):
 			return (bname2,ext)
 		
 		# Try yet another version 2 name (typically produced by sbf2rin)
 		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}N'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname3,['.gz'])
+		(found,ext) = __FindFile(bname3,compressionExtensions)
 		if (found):
 			return (bname3,ext)
 		
