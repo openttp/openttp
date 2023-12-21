@@ -24,13 +24,19 @@
 
 import os
 import re
+import subprocess
 import sys
 
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION  = 3
-LIB_PATCH_VERSION  = 1
+LIB_MINOR_VERSION  = 4
+LIB_PATCH_VERSION  = 0
 
 compressionExtensions = ['.gz','.GZ','.z','.Z']
+
+C_HATANAKA = 0x01
+C_GZIP     = 0x02
+C_BZIP2    = 0x04
+C_COMPRESS = 0x08
 
 # ------------------------------------------
 # Return the library version
@@ -144,6 +150,142 @@ def FindNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 			
 	return ('','') 
 
+# -----------------------------------------
+def SetHatanakaTools(crx2rnx,rnx2crx):
+	__CRX2RNX = crx2rnx
+	__RNX2CRX = rnx2crx
+	
+# ------------------------------------------
+def Decompress(fin):
+	
+	algo = 0x00
+	
+	fBase,ext = os.path.splitext(fin)
+	
+	if not ext:
+		return [fin,'','',algo]
+	
+	fout = fBase
+	cmd = []
+	
+	if ext.lower() == '.gz':
+		algo = C_GZIP
+		cmd = ['gunzip',fin]
+	elif ext.lower() == '.bz2':
+		algo = C_BZIP2
+		cmd = ['bunzip2',fin] 
+	elif ext.lower() == '.z':
+		algo = C_COMPRESS     # can do this with gunzip
+		cmd = ['gunzip',fin]
+	elif ext.lower() == '.crx' or re.match(r'\.\d{2}d',ext.lower()):
+		algo = C_HATANAKA
+		cmd  = [__CRX2RNX,fin,'-d'] # delete input file
+		if ext == '.crx':
+			fout  = fBase + '.rnx'
+		elif ext == '.CRX':
+			fout  = fBase + '.RNX'
+		else:
+			m = re.match(r'\.(\d{2})[dD]',ext)
+			if m:
+				fout = fBase + '.' + m.group(1)
+				if ext[3] == 'd':
+					fout += 'o'
+				else:
+					fout += 'O'
+	else: # nothing to do, hopefully
+		return [fin,algo]
+	
+	# and do it
+	__Debug('Decompressing {} (ext {})'.format(fin,ext))
+	try:
+		x = subprocess.check_output(cmd) # eat the output
+	except Exception as e:
+		__ErrorExit('Failed to run ')
+	
+	# CRX2RNX renames .crx to .rnx (and .CRX to .RNX)
+	# CRX2RNX renames .xxD to .xxO (and .xxd to .xxo)
+	
+	# and check for Hatanaka again
+	ext2=''
+	fBase2,ext2 = os.path.splitext(fBase)
+	if ext2.lower() == '.crx' or re.match(r'\.\d{2}d',ext2.lower()): 
+		
+		algo |= C_HATANAKA
+		cmd = [__CRX2RNX,fBase,'-d'] # delete input file
+		__Debug('Decompressing {} format {}'.format(fBase,ext2))
+		
+		try:
+			x = subprocess.check_output(cmd) # eat the output
+		except Exception as e:
+			ErrorExit('Failed to run ')
+		
+		if ext2 == '.crx':
+			fout  = fBase2 + '.rnx'
+		elif ext2 == '.CRX':
+			fout  = fBase2 + '.RNX'
+		else:
+			m = re.match(r'\.(\d{2})[dD]',ext2)
+			if m:
+				fout = fBase2 + '.' + m.group(1)
+				if ext2[3] == 'd':
+					fout += 'o'
+				else:
+					fout += 'O'
+
+	return [fout,algo] 
+
+# ------------------------------------------
+def Compress(fin,fOriginal,algo):
+	
+	if not algo:
+		return
+			
+	fBase,ext = os.path.splitext(fin)
+	
+	if algo & C_HATANAKA: # HATANAKA first
+		cmd = [__RNX2CRX,fin,'-d'] # delete input file
+		Debug('Compressing (Hatanaka) {}'.format(fin))
+		try:
+			x = subprocess.check_output(cmd) # eat the output
+		except Exception as e:
+			ErrorExit('Failed to run ')
+		
+		if ext== '.rnx':
+			fin  = fBase + '.crx'
+		elif ext == '.RNX':
+			fin = fBase + '.CRX'
+		else:
+			m = re.match(r'\.(\d{2})[oO]',ext)
+			if m:
+				fin = fBase + '.' + m.group(1)
+				if ext[3] == 'o':
+					fin += 'd'
+				else:
+					fin += 'D'
+		
+	if (algo & C_GZIP):
+		cmd = ['gzip',fin]
+		ext = '.gz'
+	elif (algo & C_BZIP2):
+		cmd = ['bzip2',fin] 
+		ext = '.bz2'
+	elif (algo & C_COMPRESS):
+		pass
+	
+	__Debug('Compressing {}'.format(fin))
+	try:
+		x = subprocess.check_output(cmd) # eat the output
+	except Exception as e:
+		__ErrorExit('Failed to run ')
+	
+	fin += ext
+	
+	if not(fin == fOriginal): # Rename the file if necessary (to fix up case of file extensions)
+		__Debug('{} <- {}'.format(fOriginal,fin))
+		os.rename(fin,fOriginal)
+	
+	return 
+	
 # ------------------------------------------
 def GetLeapSeconds(navFileName,rnxVers):
 	# Expects decompressed file
@@ -163,6 +305,9 @@ def GetLeapSeconds(navFileName,rnxVers):
 # ------------------------------------------
 
 __debug = False
+
+__CRX2RNX = 'CRX2RNX'
+__RNX2CRX = 'RNX2CRX'
 
 # ------------------------------------------
 def __ErrorExit(msg):
