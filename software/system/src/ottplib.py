@@ -29,7 +29,7 @@ import sys
 import time
  
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION = 2
+LIB_MINOR_VERSION = 3
 LIB_PATCH_VERSION = 0
 
 debug=False
@@ -70,14 +70,17 @@ def ErrorExit(msg):
 	
 # ------------------------------------------
 def DecompressFile(basename,ext):
-	if (ext == '.gz'):
+	if (ext.lower() == '.gz' or ext.lower() == '.z'):
 		subprocess.check_output(['gunzip',basename + ext])
 		Debug('Decompressed ' + basename)
 
 # ------------------------------------------
 def RecompressFile(basename,ext):
-	if (ext == '.gz'):
+	if (ext.lower() == '.gz'):
 		subprocess.check_output(['gzip',basename])
+		Debug('Recompressed ' + basename)
+	elif (ext.lower() == '.z'):
+		subprocess.check_output(['compress',basename])
 		Debug('Recompressed ' + basename)
 
 # ------------------------------------------
