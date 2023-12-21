@@ -41,7 +41,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -147,7 +147,6 @@ args = parser.parse_args()
 debug = args.debug
 ottp.SetDebugging(debug)
 rinex.SetDebugging(debug)
-print(rinex.LibVersion())
 
 configFile = args.config
 
@@ -334,9 +333,13 @@ for mjd in mjdsToDo:
 	if not(rnx1):
 		ottp.Debug('Missing observation file')
 		continue
+	rnx1 = rnx1+rnx1ext
+	
+	shutil.copy(rnx1,'./')
+	rnx1 = os.path.basename(rnx1)
+	rnx1,algo = rinex.Decompress(rnx1)
 	ftmp = 'rinex_obs' 
-	shutil.copy(rnx1 + rnx1ext,ftmp + rnx1ext)
-	ottp.DecompressFile(ftmp,rnx1ext)
+	os.rename(rnx1,ftmp)
 	
 	(nav1,nav1ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy1,doy1,rnxNavVersion,False);
 	if not(nav1):
@@ -352,9 +355,12 @@ for mjd in mjdsToDo:
 	
 	(rnx2,rnx2ext)=rinex.FindObservationFile(rnxObsDir,rnxObsSta,yyyy2,doy2,rnxObsVersion,False); 
 	if rnx2: # don't require the next day's data
+		rnx2 = rnx2+rnx2ext
+		shutil.copy(rnx2,'./')
+		rnx2 = os.path.basename(rnx2)
+		rnx2,algo = rinex.Decompress(os.path.join(rnx2))
 		ftmp = 'rinex_obs_p' 
-		shutil.copy(rnx2 + rnx2ext,ftmp + rnx2ext)
-		ottp.DecompressFile(ftmp,rnx2ext)
+		os.rename(rnx2,ftmp)
 	
 	(nav2,nav2ext)=rinex.FindNavigationFile(rnxNavDir,rnxNavSta,yyyy2,doy2,rnxNavVersion,False);
 	if nav2:
