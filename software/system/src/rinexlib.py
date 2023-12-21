@@ -28,7 +28,7 @@ import sys
 
 LIB_MAJOR_VERSION  = 0
 LIB_MINOR_VERSION  = 3
-LIB_PATCH_VERSION  = 0
+LIB_PATCH_VERSION  = 1
 
 compressionExtensions = ['.gz','.GZ','.z','.Z']
 
@@ -121,21 +121,26 @@ def FindNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 		if (found):
 			return (bname1,ext)
 		
-		# Try version 2 name (typically produced by sbf2rin)
-		yy = yyyy - int(yyyy/100)*100
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}P'.format(staname,doy,yy))
+		bname2 = os.path.join(dirname,'{}_S_{:04d}{:03d}0000_01D_MN.rnx'.format(staname,yyyy,doy))
 		(found,ext) = __FindFile(bname2,compressionExtensions)
 		if (found):
 			return (bname2,ext)
-		
-		# Try yet another version 2 name (typically produced by sbf2rin)
-		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}N'.format(staname,doy,yy))
+			
+		# Try version 2 name (typically produced by sbf2rin)
+		yy = yyyy - int(yyyy/100)*100
+		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}P'.format(staname,doy,yy))
 		(found,ext) = __FindFile(bname3,compressionExtensions)
 		if (found):
 			return (bname3,ext)
 		
+		# Try yet another version 2 name (typically produced by sbf2rin)
+		bname4 = os.path.join(dirname,'{}{:03d}0.{:02d}N'.format(staname,doy,yy))
+		(found,ext) = __FindFile(bname4,compressionExtensions)
+		if (found):
+			return (bname4,ext)
+		
 		if (reqd):	
-			__ErrorExit("Can't find nav file:\n\t" + bname1 + "\n\t" + bname2 + "\n\t" + bname3)
+			__ErrorExit("Can't find nav file:\n\t" + bname1 + "\n\t" + bname2 + "\n\t" + bname3 + + "\n\t" + bname4)
 			
 	return ('','') 
 
