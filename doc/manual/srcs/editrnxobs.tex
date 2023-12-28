@@ -2,26 +2,60 @@
 
 \hypertarget{h:editrnxobs}{}
 
-\cc{editrnxobs.py} is used to edit RINEX observation files. 
+\cc{editrnxobs.py} is used to edit V3 RINEX observation files. 
+Currently, it can:
+\begin{enumerate}
+\item Remove observations for specified GNSS.
+\item Concatenate a sequence of daily files into a single file. 
+\item Fix up observations missing at the beginning of the day due to  data files being rotated at the beginning of the UTC day, and not the GPS day. Observations are moved from the preceding day
+\end{enumerate}
+
+Depending on the operation, some fixups in the header are made, including the observed GNSS, number of SV and
+the times of first and the last observations.
+
+Operations can be combined, for example concatenation with removal of specified GNSS.
+
 
 \subsubsection{usage}
 
 \begin{lstlisting}[mathescape=true]
-editrnxobs.py [option] $\ldots$ file [file $\ldots$] 
+editrnxobs.py [option] $\ldots$ file/MJD [file/MJD] 
 \end{lstlisting}
 The command line options are:
 \begin{description*}
 	\item[-{}-help, -h]            print the help information and exit
-  \item[-{}-debug, -d]           print debugging information to stderr
-  \item[-{}-output,-o \textless{file}\textgreater]  output to file/directory
-  \item[-{}-keep, -k]            keep intermediate files
-  \item[-{}-replace, -r]         replace edited file
-  \item[-{}-system \textless{system}\textgreater ]      gnss system (BeiDou,Galileo,GPS,GLONASS)
-  \item[-{}-obstype \textless{obstype}\textgreater]     observation type (C2I,L2I,...)
-  \item[-{}-fixms ]              fix ms ambiguities (ref RINEX file required)
-  \item[-{}-fixmissing ]         add observations missing at the beginning of the day
-  \item[-{}-sequence, -s ]       interpret input files as a sequence
-  \item[-{}-refrinex \textless{file}\textgreater ]  reference RINEX file for fixing ms ambiguities (name of first file if multiple input files are specified)
-  \item[-{}-version, -v ]        show the version information and exit
+	\item[-{}-debug, -d]           print debugging information to stderr
+	\item[-{}-catenate, -c ]       catenate input files
+	\item[-{}-excludegnss, -x  \textless{BEGRIJ}\textgreater]   remove specified satellite system	
+	\item[-{}-fixmissing ]         fix missing observations due to UTC/GPS day rollover mismatch
+  
+	\item[-{}-template \textless{dir}\textgreater]    template for RINEX file names
+	\item[-{}-obsdir   \textless{dir}\textgreater]    RINEX file directory
+	\item[-{}-tmpdir   \textless{dir}\textgreater]    directory for temporary files
+  
+	\item[-{}-output, -o \textless{path}\textgreater] write output to file or directory
+	 
+	\item[-{}-replace, -r]         replace edited file
+ 
+	\item[-{}-backup, -b  ]        create backup of edited file
+	\item[-{}-version, -v ]        show the version information and exit
 \end{description*}
+
+A sequence of daily files can be specified using the names of the first and  last files or by specifying a range of MJDs.
+When using MJDs, a template for the filename must be given. This can be a V2 or V3 style name.
+For V2 names use \cc{DDD} and \cc{YY} in the template for day of year and year.
+For V3 names, use \cc{DDD} and \cc{YYYY}  in the template for day of year and year.
+
+Input files can be compressed (\cc{gzip}, Unix \cc{compress} and Hatanaka). 
+
+They will be recompressed after processing.
+Do not include the compression extension in the template name.
+
+\subsubsection{examples}
+
+The following command
+\begin{lstlisting}[mathescape=true]
+editrnxobs.py --catenate --excludegnss IJ -o ALL.rnx  /home/gnss/RINEX/SYDN00AUS_R_20210400000_01D_30S_MO.gz /home/gnss/RINEX/SYDN00AUS_R_20210470000_01D_30S_MO.gz
+\end{lstlisting}
+concatenates the files from DOY 40 to 47 to the file \cc{ALL.rnx} and removes IRNSS and QZSS observations.
 
