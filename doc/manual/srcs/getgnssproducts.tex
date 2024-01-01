@@ -1,0 +1,128 @@
+\subsection{getgnssproducts.py}
+
+\hypertarget{h:fetchigs}{}
+
+\cc{getgnssproducts.py} uses the Python library \cc{request} to download GNSS products and station observation
+files from IGS data centres via http. You will need a configuration file that sets up downloads from at least one IGS data
+centre. The sample configuration file should be sufficient for most uses. 
+Note that IGS data centres are increasingly requiring authenticated login so you may need to set this up.
+
+\subsubsection{usage}
+
+\begin{lstlisting}[mathescape=true]
+getgnssproducts.py [option] $\ldots$ [start] [stop]
+\end{lstlisting}
+
+The \cc{start} and \cc{stop} times can be in the format:
+\begin{description*}
+\item[MJD] Modified Julian Date
+\item[yyyy-doy] year and day of year (1 \textellipsis)
+\item[yyyy-mm-dd] year, month (1-12) and day (1 \textellipsis)
+\end{description*}
+
+The command line options are:
+\begin{description*}
+	\item[-{}-help, -h] print help and exit
+	\item[-{}-config \textless{file}\textgreater] , -c use this configuration file
+	\item[-{}-debug, -d]           print debugging output to stderr
+	\item[-{}-outputdir \textless{dir}\textgreater] set the output directory
+	\item[-{}-ndays \textless{N}\textgreater] download previous N days
+	
+	\item[-{}-centre \textless{centre}\textgreater]       set data centres
+	\item[-{}-listcentres, -l]     list available data centres
+	\item[-{}-ephemeris]           get broadcast ephemeris
+	\item[-{}-observations]        get station observations (only mixed observations for V3)
+	\item[-{}-statid \textless{statid}\textgreater]      station identifier (eg V3 SYDN00AUS, V2 sydn)
+	\item[-{}-rinexversion \textless{2,3}\textgreater ]  rinex version of station observation files
+	\item[-{}-system \textless{system}\textgreater]      gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED)
+	
+	\item[-{}-clocks]              get clock products (.clk)
+	\item[-{}-orbits]              get orbit products (.sp3)
+	\item[-{}-erp]                 get ERP products (.erp)
+	\item[-{}-bias]                get bias products (BSX/DCB)
+	\item[-{}-biasformat   \textless{format}\textgreater] format of downloaded bias products (BSX/DCB)
+	\item[-{}-ppp]                 get products needed for PPP
+	\item[-{}-rapiddir \textless{dir}\textgreater]   output directory for rapid products
+  \item[-{}-finaldir \textless{dir}\textgreater]   output directory for final products
+  \item[-{}-biasdir  \textless{dir}\textgreater]   output directory for bias products
+  \item[-{}-force, -f ]          force download, overwriting existing files
+	\item[-{}-rapid]               get rapid products
+	\item[-{}-final]               get final products
+	
+	\item[-{}-noproxy]             disable use of proxy server
+	\item[-{}-proxy \textless{proxy}\textgreater]    set your proxy server (server:port)
+	\item[-{}-version, -v ]       print version information and exit
+\end{description*}
+
+\subsubsection{examples}
+
+This downloads V3 mixed observation files from the IGS station CEDU, with the identifier CEDU00AUS
+for MJDs 60300  to 60306.\\
+\begin{lstlisting}
+getgnssproducts.py --centre CDDIS --observations --statid CEDU00AUS --version 3 --system MIXED 60300 60306
+\end{lstlisting}
+
+This downloads final IGS clock and orbit products for MJD 58606 from the CDDIS data centre.\\
+\begin{lstlisting}
+getgnssproducts.py --centre CDDIS --clocks --orbits --final 58606
+\end{lstlisting}
+
+This downloads a \cc{brdc} broadcast ephemeris file.\\
+\begin{lstlisting}
+getgnssproducts.py --centre CDDIS --ephemeris --system MIXED --rinexversion 2 58606
+\end{lstlisting}
+
+\subsubsection{configuration file}
+
+The \cc{[Main]} section has two keys.
+
+{\bfseries Data centres}\\
+This is a comma-separated list of sections which define IGS data centres which can be used to download data.\\
+\textit{Example:}
+\begin{lstlisting}
+Data centres = CDDIS,GSSC
+\end{lstlisting}
+
+{\bfseries Proxy server}\\
+This sets a proxy server (and port) to be used for downloads.\\
+\textit{Example:}
+\begin{lstlisting}
+Proxy server = someproxy.in.megacorp.com:8080
+\end{lstlisting}
+
+Each defined IGS data centre has the following keys, defining various paths.
+
+{\bfseries Base URL}\\
+This sets the base URL for downloading files.\\
+\textit{Example:}
+\begin{lstlisting}
+Base URL = https://cddis.nasa.gov/archive/gnss
+\end{lstlisting}
+
+{\bfseries Broadcast ephemeris}\\
+This sets the path relative to the base URL for downloading broadcast ephemeris files.\\
+\textit{Example:}
+\begin{lstlisting}
+Broadcast ephemeris =data/daily
+\end{lstlisting}
+
+{\bfseries Products}\\
+This sets the path relative to the base URL for downloading IGS products.\\
+\textit{Example:}
+\begin{lstlisting}
+Products = products
+\end{lstlisting}
+
+{\bfseries Station data}\\
+This sets the path relative to the base URL for downloading IGS station RINEX files. \\
+\textit{Example:}
+\begin{lstlisting}
+Station Data = data/daily
+\end{lstlisting}
+
+{\bfseries Bias}\\
+This sets the path relative to the base URL for downloading IGS differential code bias files. \\
+\textit{Example:}
+\begin{lstlisting}
+Bias  = products/bias
+\end{lstlisting}
