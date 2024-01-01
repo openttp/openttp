@@ -41,12 +41,13 @@ import pycurl
 sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+
 try: 
 	import ottplib as ottp
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -100,6 +101,9 @@ def GNSStoNavDirectory(gnss):
 # ---------------------------------------------
 def FetchFile(session,url,destination,magicTag):
 	
+	if url[-1] =='/': # ugly hack to determine if we failed to contrsuct a file name
+		return False
+	
 	if not(args.force):
 		if os.path.isfile(destination):
 			if os.path.getsize(destination):
@@ -107,7 +111,9 @@ def FetchFile(session,url,destination,magicTag):
 				return True
 		
 	ottp.Debug('Downloading '+ url)
-	
+	ottp.Debug('Destination = ' + destination)
+	return True
+
 	r = session.get(url)
 	with open(destination,'wb') as fd:
 		for chunk in r.iter_content(chunk_size=1000):
@@ -181,7 +187,7 @@ parser.add_argument('--listcentres','-l',help='list the configured IGS data cent
 parser.add_argument('--ephemeris',help='get broadcast ephemeris (nb if v2, only the GPS ephemeris is fetched',action='store_true')
 parser.add_argument('--observations',help='get station observations',action='store_true')
 parser.add_argument('--statid',help='station identifier (eg V3 SYDN00AUS, V2 sydn)')
-parser.add_argument('--rinexversion',help='rinex version of station observation',default='3')
+parser.add_argument('--rinexversion',help='rinex version of station observation')
 parser.add_argument('--system',help='gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED')
 
 # IGS products
@@ -189,7 +195,7 @@ parser.add_argument('--clocks',help='get clock products (.clk)',action='store_tr
 parser.add_argument('--orbits',help='get orbit products (.sp3)',action='store_true')
 parser.add_argument('--erp',help='get ERP products (.erp)',action='store_true')
 parser.add_argument('--bias',help='get differential code bias products (.bsx/.dcb)',action='store_true')
-parser.add_argument('--biasformat',help='format of downloaded bias products (BSX/CODE)',default='code')
+parser.add_argument('--biasformat',help='format of downloaded bias products (BSX/DCB)',default='dcb')
 
 parser.add_argument('--ppp',help='get products needed for PPP',action='store_true')
 parser.add_argument('--rapiddir',help='output directory for rapid products',default ='')
@@ -261,11 +267,15 @@ for c in centres:
 if (not found):
 	ottp.ErrorExit('The data centre ' + dataCentre + ' is not defined in ' + configFile)
 
+if 'paths:root' in cfg:
+	root =  ottp.MakeAbsolutePath(cfg['paths:root'],home)
+	print(root)
+	
 if (args.outputdir):
 	outputdir = args.outputdir
 elif ('main:output directory' in cfg):
-	outputdir = cfg['main:output directory']
-
+	outputdir = ottp.MakeAbsolutePath(cfg['main:output directory'],root)
+	
 rapiddir = outputdir
 finaldir = outputdir
 biasdir  = outputdir
@@ -273,20 +283,21 @@ biasdir  = outputdir
 if (args.rapiddir):
 	rapiddir = args.rapiddir
 elif ('paths:rapid directory' in cfg):
-	rapiddir = ottp.MakeAbsoluteFilePath(cfg['paths:rapid directory'],root,rapiddir)
+	rapiddir = ottp.MakeAbsolutePath(cfg['paths:rapid directory'],root)
 
 if (args.finaldir):
 	finaldir = args.finaldir
 elif ('paths:final directory' in cfg):
-	finaldir = ottp.MakeAbsoluteFilePath(cfg['paths:final directory'],root,finaldir)
+	finaldir = ottp.MakeAbsolutePath(cfg['paths:final directory'],root)
 
 if (args.biasdir):
 	biasdir = args.biasdir
 elif ('paths:bias directory' in cfg):
-	biasdir = ottp.MakeAbsoluteFilePath(cfg['paths:bias directory'],root,biasdir)
+	biasdir = ottp.MakeAbsolutePath(cfg['paths:bias directory'],root)
 
-
-rnxVersion = int(args.rinexversion)
+rnxVersion = 3
+if args.rinexversion:
+	rnxVersion = int(args.rinexversion)
 
 if (args.statid):
 	stationID = args.statid
@@ -321,11 +332,13 @@ if (rnxVersion == 3 and args.system):
 		print('Unknown GNSS system')
 		exit()
 
-
 if args.clocks or args.orbits or args.erp or args.bias or args.ppp:
-	if not(args.rapid or args.final) and (args.bias and args.biasformat == 'bsx'): 
-		ottp.ErrorExit("You need to specify 'rapid' or 'final' products")
-
+	if not(args.rapid or args.final):
+		if args.bias and args.biasformat == 'bsx':
+			ottp.ErrorExit("You need to specify 'rapid' or 'final' products")
+		else:
+			ottp.ErrorExit("You need to specify 'rapid' or 'final' products")
+			
 if args.ppp: # configure download of all required products
 	args.clocks = True
 	args.orbits = True
@@ -495,9 +508,10 @@ for m in range(start,stop+1):
 			
 			FetchFile(session,url,'{}/{}'.format(outputdir,fname),magicTag)
 	
-	# Miscellanea - 
+	# Miscellanea - station observations
 	if (args.observations):
 		magicTag = 'gzip compressed'
+		gnss = MIXED # FIXME maybe
 		if (rnxVersion == 2):
 			if (gnss == MIXED):
 				yy = yyyy-100*int(yyyy/100)
