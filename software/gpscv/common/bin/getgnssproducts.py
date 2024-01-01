@@ -65,11 +65,11 @@ def DateToMJD(d):
 	match = re.match('^\d{4}-\d{1,3}$',d)
 	if (match): # YYYY-DOY
 		utctod = time.strptime(d,'%Y-%j')
-		return ottplib.MJD(calendar.timegm(utctod))
+		return ottp.MJD(calendar.timegm(utctod))
 	match = re.match('^\d{4}-\d{1,2}-\d{1,2}$',d) # YYYY-MM-DD
 	if (match): 
 		utctod = time.strptime(d,'%Y-%m-%d')
-		return ottplib.MJD(calendar.timegm(utctod))
+		return ottp.MJD(calendar.timegm(utctod))
 	return -1
 
 # ---------------------------------------------
@@ -112,7 +112,6 @@ def FetchFile(session,url,destination,magicTag):
 		
 	ottp.Debug('Downloading '+ url)
 	ottp.Debug('Destination = ' + destination)
-	return True
 
 	r = session.get(url)
 	with open(destination,'wb') as fd:
