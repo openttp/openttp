@@ -46,7 +46,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.9.0"
+VERSION = "0.9.1"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -285,7 +285,7 @@ if (args.biasdir):
 elif ('paths:bias directory' in cfg):
 	biasdir = ottp.MakeAbsoluteFilePath(cfg['paths:bias directory'],root,biasdir)
 
-print(biasdir)
+
 rnxVersion = int(args.rinexversion)
 
 if (args.statid):
@@ -295,12 +295,17 @@ if (args.observations): # station observations
 	if not args.statid:
 		ottp.ErrorExit('You must define the station identifier (--statid)')
 
+if (args.ephemeris and rnxVersion == 3): # station observations
+	if not args.statid:
+		ottp.ErrorExit('You must define the station identifier (--statid)')
+		
+# Defaults for broadcast ephemeris
 if (rnxVersion == 2):
-	gnss = GPS
+	gnss = GPS # actually, this does nothing ...
 elif (rnxVersion == 3):
 	gnss = MIXED
 	
-if (args.system):
+if (rnxVersion == 3 and args.system):
 	gnss = args.system.lower()
 	if (gnss =='beidou'):
 		gnss =BEIDOU
@@ -315,6 +320,7 @@ if (args.system):
 	else:
 		print('Unknown GNSS system')
 		exit()
+
 
 if args.clocks or args.orbits or args.erp or args.bias or args.ppp:
 	if not(args.rapid or args.final) and (args.bias and args.biasformat == 'bsx'): 
