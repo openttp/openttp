@@ -26,9 +26,10 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION  = 4
+LIB_MINOR_VERSION  = 5
 LIB_PATCH_VERSION  = 0
 
 compressionExtensions = ['.gz','.GZ','.z','.Z']
@@ -299,6 +300,32 @@ def GetLeapSeconds(navFileName,rnxVers):
 			break
 	fin.close()
 	return nLeap
+
+# ------------------------------------------
+def MJDtoRINEXObsName(mjd,template):
+	
+	fname = ''
+	t    = (mjd-40587)*86400.0
+	tod  = time.gmtime(t)
+	yyyy = tod.tm_year
+	yy   = tod.tm_year - int(tod.tm_year/100)*100
+	doy  = tod.tm_yday
+	
+	# Version 2 names are of the format
+	# xxxxDDDx.YY[oO]
+	m = re.match(r'(\w{4})DDD(\d)\.YY([oO])',template)
+	if m:
+		fname = '{}{:03d}{}.{:02d}{}'.format(m.group(1),doy,m.group(2),yy,m.group(3))
+		return fname
+	
+	# Next, try V3
+	# See the format spec!
+	m = re.match('(\w{9})_(\w)_YYYYDDD(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(rnx|RNX)',template)
+	if m:
+		fname='{}_{}_{:04d}{:03d}{}_{}_{}_{}.{}'.format(m.group(1),m.group(2),yyyy,doy,m.group(3),m.group(4),m.group(5),m.group(6),m.group(7))
+		return fname
+
+	return fname
 
 # ------------------------------------------
 # INTERNALS
