@@ -47,7 +47,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.9.2"
+VERSION = "0.10.0"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -71,19 +71,6 @@ def DateToMJD(d):
 		utctod = time.strptime(d,'%Y-%m-%d')
 		return ottp.MJD(calendar.timegm(utctod))
 	return -1
-
-# ---------------------------------------------
-def MJDtoYYYYDOY(mjd):
-	tt = (mjd - 40587)*86400
-	utctod = time.gmtime(tt)
-	return (utctod.tm_year,utctod.tm_yday,utctod.tm_mon)
-
-# ---------------------------------------------
-def MJDtoGPSWeekDay(mjd):
-	ttGPS = (mjd - 40587)*86400 - 315964800 # ignores leap seconds but this won't cause problems for a while :-)
-	GPSWn = int(ttGPS/(7*86400))
-	GPSday = int((ttGPS - GPSWn*86400*7)/86400)
-	return (GPSWn, GPSday)
 
 # ---------------------------------------------
 def GNSStoNavDirectory(gnss):
@@ -391,8 +378,8 @@ session.proxies.update(proxies)
 
 for m in range(start,stop+1):
 	
-	(yyyy,doy,mm) = MJDtoYYYYDOY(m)
-	(GPSWn,GPSday) = MJDtoGPSWeekDay(m)
+	(yyyy,doy,mm) = ottp.MJDtoYYYYDOY(m)
+	(GPSWn,GPSday) = ottp.MJDtoGPSWeekDay(m)
 	yy = yyyy-100*int(yyyy/100)
 	
 	ottp.Debug('fetching files for MJD {:d}, Y {:d} DOY {:d}, Wn {:d} Dn {:d}'.format(m,yyyy,doy,GPSWn,GPSday))
@@ -455,7 +442,7 @@ for m in range(start,stop+1):
 		elif (args.final):
 			dstdir = finaldir
 			if GPSWn > 2237: # published for first day of GPS week
-				(tmpyyyy,tmpdoy) = MJDtoYYYYDOY(m - GPSday)
+				(tmpyyyy,tmpdoy) = ottp.MJDtoYYYYDOY(m - GPSday)
 				fname = 'IGS0OPSFIN_{:04d}{:03d}0000_07D_01D_ERP.ERP.gz'.format(tmpyyyy,tmpdoy)
 			else:
 				fname = 'igs{:04d}{:1d}.erp.Z'.format(GPSWn,7) # published at end of week (GPSday == 7)
