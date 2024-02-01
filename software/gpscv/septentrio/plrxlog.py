@@ -55,7 +55,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -255,6 +255,8 @@ def ConfigureReceiver(rxcfg):
 	# FIXME This assumes that there is only Stream1  enabled
 	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',none') # turn off output
 
+	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility+ReceiverStatus,sec1') # default setup
+	
 	# Set up the Antenna
 	# This fixes up a bug in RINEX output in version IDK of sbf2rin
 	deltaH,deltaE,deltaN = '0.0','0.0','0.0'
@@ -273,8 +275,6 @@ def ConfigureReceiver(rxcfg):
 	# TBC when the antenna type is set, the receiver compensates for PCV. This may add noise to TT.
 	cmd = 'SetAntennaOffset,Main,' + deltaE + ',' + deltaN + ',' + deltaH + ','  + antType + ',' + antSerialNum + ',0'
 	SendCommand(cmd)
-	
-	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility+ReceiverStatus,sec1') # default setup
 	
 	comment_re = re.compile(r'^\s*#')
 	fin = open(rxcfg,'r') # already checked its OK

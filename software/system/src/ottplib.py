@@ -29,7 +29,7 @@ import sys
 import time
  
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION = 3
+LIB_MINOR_VERSION = 4
 LIB_PATCH_VERSION = 0
 
 debug=False
@@ -120,6 +120,20 @@ def Initialise(configFile,reqd):
 def MJD(unixtime):
 	return int(unixtime/86400) + 40587
 
+
+# ---------------------------------------------
+def MJDtoYYYYDOY(mjd):
+	tt = (mjd - 40587)*86400
+	utctod = time.gmtime(tt)
+	return (utctod.tm_year,utctod.tm_yday,utctod.tm_mon)
+
+# ---------------------------------------------
+def MJDtoGPSWeekDay(mjd):
+	ttGPS = (mjd - 40587)*86400 - 315964800 # ignores leap seconds but this won't cause problems for a while :-)
+	GPSWn = int(ttGPS/(7*86400))
+	GPSday = int((ttGPS - GPSWn*86400*7)/86400)
+	return (GPSWn, GPSday)
+	
 # ------------------------------------------
 # Make a path relative to root (which must be absolute), if needed
 # If a path starts with a '/' then it is not modified
