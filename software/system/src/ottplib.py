@@ -30,7 +30,7 @@ import time
  
 LIB_MAJOR_VERSION  = 0
 LIB_MINOR_VERSION = 4
-LIB_PATCH_VERSION = 0
+LIB_PATCH_VERSION = 1
 
 debug=False
 
@@ -282,7 +282,7 @@ def _LoadConfig(fname,options={}):
 				cfg[key]=value
 				key = ''
 				value = ''
-			key_val =line.split('=') # FIXME a regex would be better
+			key_val =line.split('=',1) # FIXME a regex would be better
 			if (len(key_val) == 2): # looks like a key->value pair
 				key_val[0]=" ".join(key_val[0].split()) # remove any superfluous whitespace
 				key_val[1]=key_val[1].strip()
