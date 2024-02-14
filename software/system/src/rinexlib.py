@@ -30,7 +30,7 @@ import time
 
 LIB_MAJOR_VERSION  = 0
 LIB_MINOR_VERSION  = 5
-LIB_PATCH_VERSION  = 0
+LIB_PATCH_VERSION  = 1
 
 compressionExtensions = ['.gz','.GZ','.z','.Z']
 
@@ -171,13 +171,13 @@ def Decompress(fin):
 	
 	if ext.lower() == '.gz':
 		algo = C_GZIP
-		cmd = ['gunzip',fin]
+		cmd = ['gunzip','-f',fin]
 	elif ext.lower() == '.bz2':
 		algo = C_BZIP2
-		cmd = ['bunzip2',fin] 
+		cmd = ['bunzip2','-f',fin] 
 	elif ext.lower() == '.z':
 		algo = C_COMPRESS     # can do this with gunzip
-		cmd = ['gunzip',fin]
+		cmd = ['gunzip','-f',fin]
 	elif ext.lower() == '.crx' or re.match(r'\.\d{2}d',ext.lower()):
 		algo = C_HATANAKA
 		cmd  = [__CRX2RNX,fin,'-d'] # delete input file
@@ -238,6 +238,8 @@ def Decompress(fin):
 # ------------------------------------------
 def Compress(fin,fOriginal,algo):
 	
+	# If fOriginal is empty, don't care about changes to case of the original file
+	
 	if not algo:
 		return
 			
@@ -245,11 +247,11 @@ def Compress(fin,fOriginal,algo):
 	
 	if algo & C_HATANAKA: # HATANAKA first
 		cmd = [__RNX2CRX,fin,'-d'] # delete input file
-		Debug('Compressing (Hatanaka) {}'.format(fin))
+		__Debug('Compressing (Hatanaka) {}'.format(fin))
 		try:
 			x = subprocess.check_output(cmd) # eat the output
 		except Exception as e:
-			ErrorExit('Failed to run ')
+			__ErrorExit('Failed to run ')
 		
 		if ext== '.rnx':
 			fin  = fBase + '.crx'
@@ -265,10 +267,10 @@ def Compress(fin,fOriginal,algo):
 					fin += 'D'
 		
 	if (algo & C_GZIP):
-		cmd = ['gzip',fin]
+		cmd = ['gzip','-f',fin] # force - overwrites existing
 		ext = '.gz'
 	elif (algo & C_BZIP2):
-		cmd = ['bzip2',fin] 
+		cmd = ['bzip2','-f',fin] # force - overwrites existing
 		ext = '.bz2'
 	elif (algo & C_COMPRESS):
 		pass
@@ -281,9 +283,10 @@ def Compress(fin,fOriginal,algo):
 	
 	fin += ext
 	
-	if not(fin == fOriginal): # Rename the file if necessary (to fix up case of file extensions)
-		__Debug('{} <- {}'.format(fOriginal,fin))
-		os.rename(fin,fOriginal)
+	if (fOriginal):
+		if not(fin == fOriginal): # Rename the file if necessary (to fix up case of file extensions)
+			__Debug('{} <- {}'.format(fOriginal,fin))
+			os.rename(fin,fOriginal)
 	
 	return 
 	
