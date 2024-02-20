@@ -47,7 +47,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.10.1"
+VERSION = "0.11.0"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -284,6 +284,7 @@ rnxVersion = 3
 if args.rinexversion:
 	rnxVersion = int(args.rinexversion)
 
+stationID=''
 if (args.statid):
 	stationID = args.statid
 		
@@ -291,9 +292,9 @@ if (args.observations): # station observations
 	if not args.statid:
 		ottp.ErrorExit('You must define the station identifier (--statid)')
 
-if (args.ephemeris and rnxVersion == 3): # station observations
-	if not args.statid:
-		ottp.ErrorExit('You must define the station identifier (--statid)')
+#if (args.ephemeris and rnxVersion == 3): # station observations
+#	if not args.statid:
+#		ottp.ErrorExit('You must define the station identifier (--statid)')
 		
 # Defaults for broadcast ephemeris
 if (rnxVersion == 2):
@@ -467,7 +468,7 @@ for m in range(start,stop+1):
 				url = '{}/{:04d}/{}'.format(cfg['bias:code'],yyyy,f)
 				FetchFile(session,url,'{}/{}'.format(biasdir,f),'compress\'d')
 				
-	# Miscellanea - IGS broadcast ephemeris
+	# Miscellanea - broadcast ephemeris
 	if (args.ephemeris):
 		magicTag = 'gzip compressed'
 		if (rnxVersion == 2): # GPS only!
@@ -486,11 +487,14 @@ for m in range(start,stop+1):
 			FetchFile(session,url,'{}/{}'.format(outputdir,fname),magicTag)
 		
 		elif (rnxVersion == 3):
-			fname = '{}_R_{:04d}{:03d}0000_01D_{}N.rnx.gz'.format(stationID,yyyy,doy,gnss)
-			yy = yyyy-100*int(yyyy/100)
-			url = '{}/{}/{:04d}/{:03d}/{:02d}{}/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,
-				GNSStoNavDirectory(gnss),fname)
-			
+			if args.statid:
+				fname = '{}_R_{:04d}{:03d}0000_01D_{}N.rnx.gz'.format(stationID,yyyy,doy,gnss)
+				yy = yyyy-100*int(yyyy/100)
+				url = '{}/{}/{:04d}/{:03d}/{:02d}{}/{}'.format(baseURL,stationDataPath,yyyy,doy,yy,
+					GNSStoNavDirectory(gnss),fname)
+			else: # we want the IGS combined ephemeris
+				fname = 'BRDC00IGS_R_{:04d}{:03d}0000_01D_MN.rnx.gz'.format(yyyy,doy)
+				url = '{}/{}/{:04d}/brdc/{}'.format(baseURL,stationDataPath,yyyy,fname)
 			FetchFile(session,url,'{}/{}'.format(outputdir,fname),magicTag)
 	
 	# Miscellanea - station observations
