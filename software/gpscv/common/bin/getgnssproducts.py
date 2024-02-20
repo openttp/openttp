@@ -47,7 +47,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.10.0"
+VERSION = "0.10.1"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -255,7 +255,6 @@ if (not found):
 
 if 'paths:root' in cfg:
 	root =  ottp.MakeAbsolutePath(cfg['paths:root'],home)
-	print(root)
 	
 if (args.outputdir):
 	outputdir = args.outputdir
