@@ -29,10 +29,10 @@ import sys
 import time
 
 LIB_MAJOR_VERSION  = 0
-LIB_MINOR_VERSION  = 5
+LIB_MINOR_VERSION  = 6
 LIB_PATCH_VERSION  = 1
 
-compressionExtensions = ['.gz','.GZ','.z','.Z']
+compressionExtensions = ['.gz','.z']
 
 C_HATANAKA = 0x01
 C_GZIP     = 0x02
@@ -62,45 +62,55 @@ def SetDebugging(debugOn):
 
 # ------------------------------------------
 def FindObservationFile(dirname,staname,yyyy,doy,rnxver,reqd):
-	if (rnxver == 2):
-		yy = yyyy - int(yyyy/100)*100
+	
+	guesses = ''
+	
+	if (rnxver==3):
 		
-		bname1 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname1,compressionExtensions)
-		if (found):
-			return (bname1,ext)
-		
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname2,compressionExtensions)
-		if (found):
-			return (bname2,ext)
-		
-		if (reqd):	
-			__ErrorExit("Can't find obs file:\n\t" + bname1 + '\n\t' + bname2 )
-			
-	elif (rnxver==3):
 		# Try a V3 name first
-		bname1 = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(staname,yyyy,doy))
-		(found,ext) = __FindFile(bname1,compressionExtensions)
+		bname = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_30S_MO.rnx'.format(staname,yyyy,doy))
+		(found,ext) = __FindFile(bname,compressionExtensions)
 		if (found):
-			return (bname1,ext)
+			return (bname,ext)
+		guesses += bname + '\t\n'
 		
-		# Try version 2
-		yy = yyyy - int(yyyy/100)*100
-		bname2 = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname2,compressionExtensions)
+		bname = os.path.join(dirname,'{}_R_{:04d}{:03d}0000_01D_30S_MO.crx'.format(staname,yyyy,doy))
+		(found,ext) = __FindFile(bname,compressionExtensions)
 		if (found):
-			return (bname2,ext)
+			return (bname,ext)
+		guesses += bname + '\t\n'
 		
-		# Another try at version 2
-		bname3 = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
-		(found,ext) = __FindFile(bname3,compressionExtensions)
-		if (found):
-			return (bname3,ext)
+	# OK, may have failed on V3 name so try V2
+	
+	yy = yyyy - int(yyyy/100)*100
+	
+	bname = os.path.join(dirname,'{}{:03d}0.{:02d}o'.format(staname,doy,yy))
+	(found,ext) = __FindFile(bname,compressionExtensions)
+	if (found):
+		return (bname,ext)
+	guesses += bname + '\t\n'
+	
+	bname = os.path.join(dirname,'{}{:03d}0.{:02d}d'.format(staname,doy,yy))
+	(found,ext) = __FindFile(bname,compressionExtensions)
+	if (found):
+		return (bname,ext)
+	guesses += bname + '\t\n'
+	
+	bname = os.path.join(dirname,'{}{:03d}0.{:02d}O'.format(staname,doy,yy))
+	(found,ext) = __FindFile(bname,compressionExtensions)
+	if (found):
+		return (bname,ext)
+	guesses += bname + '\t\n'
+	
+	bname = os.path.join(dirname,'{}{:03d}0.{:02d}D'.format(staname,doy,yy))
+	(found,ext) = __FindFile(bname,compressionExtensions)
+	if (found):
+		return (bname,ext)
+	guesses += bname + '\t\n'
+	
+	if (reqd):	
+		__ErrorExit("Can't find obs file:\n\t" + guesses)
 		
-		if (reqd):	
-			__ErrorExit("Can't find obs file:\n\t" + bname1 + '\n\t' + bname2 + '\n\t' + bname3)
-			
 	return ('','')
 
 # ------------------------------------------		
@@ -360,10 +370,17 @@ def __FindFile(basename,extensions):
 		return (True,'')
 	
 	for ext in extensions:
-		fname = basename + ext
+		
+		fname = basename + ext # lower case
 		__Debug('Trying ' + fname)
 		if (os.path.exists(fname)):
 			__Debug('Success')
 			return (True,ext)
 	
+		fname = basename + ext.upper() # upper  case
+		__Debug('Trying ' + fname)
+		if (os.path.exists(fname)):
+			__Debug('Success')
+			return (True,ext)
+			
 	return (False,'') # flag failure
