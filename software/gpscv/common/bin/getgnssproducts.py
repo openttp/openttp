@@ -154,8 +154,12 @@ home = os.environ['HOME'] + '/';
 root = home
 configFile = os.path.join(home,'etc/getgnssproducts.conf');
 
+examples =  'Examples:\n'
+examples += '1. Download combined IGS epehemeris files for 2022\n'
+examples += 'getgnssproducts.py--config ~/etc/getgnssproducts.conf --system MIXED --ephemeris --rinexversion 3 --outputdir ~/rinex/nav 2022-001 2022-365\n'
+
 parser = argparse.ArgumentParser(description='Downloads GNSS products',
-	formatter_class=argparse.RawDescriptionHelpFormatter)
+	formatter_class=argparse.RawDescriptionHelpFormatter,epilog = examples)
 
 parser.add_argument('start',nargs='?',help='start (MJD/yyyy-doy/yyyy-mm-dd, default = today)',type=str)
 parser.add_argument('stop',nargs='?',help='stop (MJD/yyyy-doy/yyyy-mm-dd, default = start)',type=str)
@@ -170,7 +174,7 @@ parser.add_argument('--centre',help='set the data centre',default='cddis')
 parser.add_argument('--listcentres','-l',help='list the configured IGS data centres',action='store_true')
 
 # RINEX files
-parser.add_argument('--ephemeris',help='get broadcast ephemeris (nb if v2, only the GPS ephemeris is fetched',action='store_true')
+parser.add_argument('--ephemeris',help='get broadcast ephemeris. If statid unspecified then the combined IGS file is fetched. If V2 , only the GPS ephemeris is fetched',action='store_true')
 parser.add_argument('--observations',help='get station observations',action='store_true')
 parser.add_argument('--statid',help='station identifier (eg V3 SYDN00AUS, V2 sydn)')
 parser.add_argument('--rinexversion',help='rinex version of station observation')
