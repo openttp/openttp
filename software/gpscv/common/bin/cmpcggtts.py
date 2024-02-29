@@ -50,7 +50,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -575,7 +575,7 @@ parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+'
 parser.add_argument('--maxsrsys',help='maximum SRSYS (in ns, default '+str(maxSRSYS)+')')
 parser.add_argument('--matchephemeris',help='match on ephemeris [CV only] (default no)',action='store_true')
 
-# parser.add_argument('--weighting', type=str,help='weighting of tracks (default=none)')
+parser.add_argument('--weighted', type=str,help='sin^2(ELV) weighting of tracks (default=none)')
 
 # analysis mode
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
@@ -929,6 +929,7 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 PRN = 0
 MJD = 1
 STTIME = 2
+ELV = 4
 REFSYS = 7
 IOE = 9
 CAL_IONO = 10
@@ -1058,9 +1059,15 @@ if (cmpMethod == USE_GPSCV):
 	# Calculate the average clock difference at each track time for plotting etc.
 	# These differences are not used for the linear fit	
 	ncols = 13
+	
+	nsv = 0
+	sumwts = 0
+	
 	lenmatch=len(matches)
 	mjd1=matches[0][MJD]
 	st1=matches[0][STTIME]
+	elv1=matches[0][ELV]
+	elv2=matches[0][ncols+ELV]
 	if (useRefMSIO):
 		avref = matches[0][REFSYS]  +  matches[0][REF_IONO] - matches[0][REF_MSIO] + refCorrection
 	else:
@@ -1069,13 +1076,21 @@ if (cmpMethod == USE_GPSCV):
 		avcal = matches[0][ncols + REFSYS] + matches[0][ncols+CAL_IONO] - matches[0][ncols+CAL_MSIO] + calCorrection
 	else:
 		avcal = matches[0][ncols + REFSYS] + IONO_OFF*matches[0][ncols+CAL_IONO] + calCorrection
-	nsv = 1
+	nsv += 1
+	if args.weighted:
+		sumwts += 0
+	else:
+		sumwts += 1
 	imatch=1
 	while imatch < lenmatch:
 		mjd2 = matches[imatch][MJD]
 		st2  = matches[imatch][STTIME]
 		if (mjd1==mjd2 and st1==st2):
 			nsv += 1
+			if args.weighted:
+				sumwts += 0
+			else:
+				sumwts += 1
 			if (useRefMSIO):
 				avref  += matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
 			else:
@@ -1090,7 +1105,8 @@ if (cmpMethod == USE_GPSCV):
 			avMatches.append((avref-avcal)/nsv)
 			mjd1 = mjd2
 			st1  = st2
-			nsv=1
+			nsv = 0
+			sumwts = 0
 			
 			if (useRefMSIO):
 				avref  = matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
@@ -1100,7 +1116,12 @@ if (cmpMethod == USE_GPSCV):
 				avcal  = matches[imatch][ncols + REFSYS] + matches[imatch][ncols+CAL_IONO] - matches[imatch][ncols+CAL_MSIO] + calCorrection
 			else:
 				avcal  = matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
-				
+			nsv += 1
+			if args.weighted:
+				sumwts += 0
+			else:
+				sumwts += 1
+			
 		imatch += 1
 	# last one
 	favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
