@@ -41,7 +41,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -268,11 +268,11 @@ if (args.missing):
 				F = 'Z' # dual frequency is default
 				if ('GPS'==constellation):
 					X='G'
-					if ('C1' == code or 'P1' == code):
+					if (code in ['C1','P1','P2','L5']):
 						F='M'
 				elif ('GLO'==constellation):
 					X='R'
-					if ('C1' == code or 'P1' == code):
+					if (code in ['C1','P1','P2']):
 						F='M'
 				elif ('BDS'==constellation):
 					X='C'
@@ -280,7 +280,7 @@ if (args.missing):
 						F='M'
 				elif ('GAL'==constellation):
 					X='E'
-					if ('E1' == code ):
+					if ('E1' == code or 'E5a' == code):
 						F='M'
 				mjdDD = int(mjd/1000)
 				mjdDDD = mjd - 1000*mjdDD
@@ -399,7 +399,7 @@ for mjd in mjdsToDo:
 		ottp.Debug('Processing ' + o)
 		lco = (o.lower()).strip()
 		constellation = cfg[lco + ':constellation'].upper()
-		code = cfg[lco + ':code'].upper()
+		code = cfg[lco + ':code']
 		
 		# This list defines the input file and the output path
 		inputs = [ ['CGGTTS_' + constellation + '_' + code, ottp.MakeAbsolutePath(cfg[lco+':directory'],root)] ]
@@ -428,7 +428,7 @@ for mjd in mjdsToDo:
 				F = 'Z' # dual frequency is default
 				if ('GPS'==constellation):
 					X='G'
-					if (code in ['C1','P1','P2']):
+					if (code in ['C1','P1','P2','L5']):
 						F='M'
 				elif ('GLO'==constellation):
 					X='R'
@@ -440,7 +440,7 @@ for mjd in mjdsToDo:
 						F='M'
 				elif ('GAL'==constellation):
 					X='E'
-					if ('E1' == code ):
+					if ('E1' == code or 'E5a' == code):
 						F='M'
 				mjdDD = int(mjd/1000)
 				mjdDDD = mjd - 1000*mjdDD
