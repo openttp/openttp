@@ -41,7 +41,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.3.2"
+VERSION = "1.4.0"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -276,7 +276,7 @@ if (args.missing):
 						F='M'
 				elif ('BDS'==constellation):
 					X='C'
-					if ('B1' == code):
+					if ('B1I' == code or 'B2I' ==code):
 						F='M'
 				elif ('GAL'==constellation):
 					X='E'
@@ -436,7 +436,7 @@ for mjd in mjdsToDo:
 						F='M'
 				elif ('BDS'==constellation):
 					X='C'
-					if ('B1' == code):
+					if ('B1I' == code or 'B2I' == code):
 						F='M'
 				elif ('GAL'==constellation):
 					X='E'
