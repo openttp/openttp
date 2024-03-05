@@ -50,7 +50,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.9.0"
+VERSION = "0.10.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -172,7 +172,7 @@ def SetDataColumns(ver,isdf):
 
 # ------------------------------------------
 
-def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
+def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays,badsv):
 	d=[]
 	
 	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
@@ -289,10 +289,12 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 			# V1 is GPS-only and doesn't have the constellation identifier prepending 
 			# the PRN, so we'll add it for compatibility with later versions
 			if (ver == CGGTTS_V1):
-				fields[PRN] = 'G{:02d}'.format(int(satid))
+				isatid = int(satid)
+				fields[PRN] = 'G{:02d}'.format(isatid)
 				
 			if (ver == CGGTTS_V2): 
-				fields[PRN] = 'G{:02d}'.format(int(satid)) # FIXME works for GPS only
+				isatid = int(satid)
+				fields[PRN] = 'G{:02d}'.format(isatid) # FIXME works for GPS only
 				
 			if (ver == CGGTTS_V2E): 
 				# CGGTTS V2E files may not necessarily have zero padding in SAT
@@ -300,6 +302,10 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 					fields[PRN] = '{}0{}'.format(satid[0],satid[2]) # TESTED
 				else:
 					fields[PRN] = satid
+				isatid = int(l[1:3])
+			
+			if isatid in badsv:
+				continue
 				
 			if (ver != CGGTTS_RAW): # should have a checksum 
 				
@@ -574,7 +580,8 @@ parser.add_argument('--mintracklength',help='minimum track length (in s, default
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
 parser.add_argument('--maxsrsys',help='maximum SRSYS (in ns, default '+str(maxSRSYS)+')')
 parser.add_argument('--matchephemeris',help='match on ephemeris [CV only] (default no)',action='store_true')
-
+parser.add_argument('--excludesv',help='comma separated list of SV to exclude')
+										
 parser.add_argument('--weighted', type=str,help='sin^2(ELV) weighting of tracks (default=none)')
 
 # analysis mode
@@ -669,7 +676,11 @@ if (args.maxsrsys):
 	
 if (args.matchephemeris):
 	matchEphemeris=True
-	
+
+badsv = []
+if (args.excludesv):
+	badsv = [int(s) for s in args.excludesv.split(',')]
+
 if (args.mintracklength):
 	minTrackLength = int(args.mintracklength)
 
@@ -765,7 +776,7 @@ for mjd in range(firstMJD,lastMJD+1):
 			 stopT = stopTime
 	else:
 			stopT=86399
-	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode,refintdelays)
+	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode,refintdelays,badsv)
 	if (header):
 		allref = allref + d
 		refHeaders.append(header)
@@ -783,7 +794,7 @@ for mjd in range(firstMJD,lastMJD+1):
 	else:
 			stopT=86399
 			
-	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode,calintdelays)
+	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode,calintdelays,badsv)
 	if header:
 		allcal = allcal + d
 		calHeaders.append(header)
