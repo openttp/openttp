@@ -35,6 +35,7 @@
 
 import argparse
 from   datetime import datetime
+import math
 import numpy as np
 import os
 import re
@@ -50,7 +51,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.10.0"
+VERSION = "0.9.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -97,7 +98,7 @@ ELV_MASK = 0.0 # in degrees
 NO_WEIGHT = 1
 ELV_WEIGHT = 2
 
-USE_GPSCV = 1
+USE_CV = 1
 USE_AIV = 2
 
 MODELED_IONOSPHERE=1
@@ -172,7 +173,7 @@ def SetDataColumns(ver,isdf):
 
 # ------------------------------------------
 
-def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays,badsv):
+def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 	d=[]
 	
 	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
@@ -289,12 +290,10 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays,badsv):
 			# V1 is GPS-only and doesn't have the constellation identifier prepending 
 			# the PRN, so we'll add it for compatibility with later versions
 			if (ver == CGGTTS_V1):
-				isatid = int(satid)
-				fields[PRN] = 'G{:02d}'.format(isatid)
+				fields[PRN] = 'G{:02d}'.format(int(satid))
 				
 			if (ver == CGGTTS_V2): 
-				isatid = int(satid)
-				fields[PRN] = 'G{:02d}'.format(isatid) # FIXME works for GPS only
+				fields[PRN] = 'G{:02d}'.format(int(satid)) # FIXME works for GPS only
 				
 			if (ver == CGGTTS_V2E): 
 				# CGGTTS V2E files may not necessarily have zero padding in SAT
@@ -302,10 +301,6 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays,badsv):
 					fields[PRN] = '{}0{}'.format(satid[0],satid[2]) # TESTED
 				else:
 					fields[PRN] = satid
-				isatid = int(l[1:3])
-			
-			if isatid in badsv:
-				continue
 				
 			if (ver != CGGTTS_RAW): # should have a checksum 
 				
@@ -471,13 +466,28 @@ def GetFloat(msg,defaultValue):
 # ------------------------------------------
 def AverageTracks(trks,useMSIO):
 	avs=[]
+	vals = [] # values used for the average
+	sumwts = 0
 	iref = 0
 	mjd1 = trks[iref][MJD]
 	st1  = trks[iref][STTIME]
-	if (useMSIO):
-		av = trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+	
+	if args.weighted:
+		elv = trks[iref][ELV]
+		wt = math.sin(math.radians(elv))**2
 	else:
-		av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+		wt=1.0
+	sumwts += wt
+	
+	if (useMSIO):
+		refsys = trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+		av = wt * refsys
+		vals.append(refsys)
+	else:
+		refsys =  trks[iref][REFSYS]
+		av = wt * refsys  # do not remove ionosphere !!!
+		vals.append(refsys)
+	
 	iref +=1
 	svcnt=1
 	trklen = len(trks)
@@ -485,25 +495,49 @@ def AverageTracks(trks,useMSIO):
 		mjd2 = trks[iref][MJD]
 		st2 = trks[iref][STTIME]
 		if (mjd2 == mjd1 and st2 == st1):
-			#av += trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO]
-			if (useMSIO):
-				av += trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+			if args.weighted:
+				elv = trks[iref][ELV]
+				wt = math.sin(math.radians(elv))**2
 			else:
-				av += trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
-			#print trks[iref][REFSYS] + IONO_OFF*trksf[iref][REF_IONO] 
+				wt=1.0
+			sumwts += wt
+	
+			if (useMSIO):
+				refsys = trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+				av += wt *refsys
+				vals.append(refsys)
+			else:
+				refsys = trks[iref][REFSYS] # do not remove ionosphere !!!
+				av += wt * refsys
+				vals.append(refsys)
 			svcnt += 1
 		else:
-			avs.append([mjd1,st1, av/svcnt + refCorrection])
+			
+			avs.append([mjd1,st1, av/sumwts] + vals ) 
+		
 			#print mjd1-firstMJD+st1/86400.0, av/svcnt + refCorrection,svcnt
 			svcnt=1
 			mjd1=mjd2
 			st1 = st2
-			if (useMSIO):
-				av = trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO]
+			vals = []
+			sumwts = 0
+			if args.weighted:
+				elv = trks[iref][ELV]
+				wt = math.sin(math.radians(elv))**2
 			else:
-				av = trks[iref][REFSYS] + IONO_OFF*trks[iref][REF_IONO] 
+				wt=1.0
+			sumwts += wt
+			
+			if (useMSIO):
+				refsys = trks[iref][REFSYS] + trks[iref][REF_IONO] - trks[iref][REF_MSIO] 
+				av = wt * refsys
+				vals.append(refsys)
+			else:
+				refsys = trks[iref][REFSYS] 
+				av = wt * refsys  # do not remove ionosphere !!!
+				vals.append(refsys)
 		iref += 1
-	avs.append([mjd1,st1, av/svcnt]) # last one
+	avs.append([mjd1,st1, av/sumwts] + vals) # last one
 	#print mjd1-firstMJD+st1/86400.0, av/svcnt,svcnt
 	return avs
 	
@@ -521,7 +555,7 @@ elevationMask=ELV_MASK
 minTrackLength = MIN_TRACK_LENGTH
 maxDSG=DSG_MAX
 maxSRSYS = SRSYS_MAX
-cmpMethod=USE_GPSCV
+cmpMethod=USE_CV
 mode = MODE_TT
 ionosphere=True
 useRefMSIO=False
@@ -530,7 +564,6 @@ acceptDelays=False
 matchEphemeris=False
 refIonosphere=MODELED_IONOSPHERE
 calIonosphere=MODELED_IONOSPHERE
-weighting=NO_WEIGHT
 enforceChecksum=False
 
 outputDir = './'
@@ -580,9 +613,8 @@ parser.add_argument('--mintracklength',help='minimum track length (in s, default
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
 parser.add_argument('--maxsrsys',help='maximum SRSYS (in ns, default '+str(maxSRSYS)+')')
 parser.add_argument('--matchephemeris',help='match on ephemeris [CV only] (default no)',action='store_true')
-parser.add_argument('--excludesv',help='comma separated list of SV to exclude')
-										
-parser.add_argument('--weighted', type=str,help='sin^2(ELV) weighting of tracks (default=none)')
+
+parser.add_argument('--weighted', help='sin^2(ELV) weighting of tracks (default=none)',action='store_true')
 
 # analysis mode
 parser.add_argument('--cv',help='compare in common view (default)',action='store_true')
@@ -592,7 +624,7 @@ parser.add_argument('--acceptdelays',help='accept the delays (no prompts in dela
 parser.add_argument('--refintdelays',help='search for these internal delays in reference eg "GPS P1,GPS P2" ')
 parser.add_argument('--calintdelays',help='search for these internal delays in cal eg "GPS C2" ')
 
-parser.add_argument('--delaycal',help='delay calibration mode',action='store_true')
+parser.add_argument('--delaycal',help='delay calibration (common clock) mode',action='store_true')
 parser.add_argument('--timetransfer',help='time-transfer mode (default)',action='store_true')
 parser.add_argument('--ionosphere',help='use the ionosphere in delay calibration mode (default = not used)',action='store_true')
 parser.add_argument('--useRefMSIO',help='use the measured ionosphere (mdio is removed from refsys and msio is subtracted, useful for V1 CGGTTS) ',action='store_true')
@@ -676,11 +708,7 @@ if (args.maxsrsys):
 	
 if (args.matchephemeris):
 	matchEphemeris=True
-
-badsv = []
-if (args.excludesv):
-	badsv = [int(s) for s in args.excludesv.split(',')]
-
+	
 if (args.mintracklength):
 	minTrackLength = int(args.mintracklength)
 
@@ -692,7 +720,7 @@ if (args.mintracklength):
 	#	weighting = ELV_WEIGHT
 		
 if (args.cv):
-	cmpMethod = USE_GPSCV
+	cmpMethod = USE_CV
 
 if (args.aiv):
 	cmpMethod = USE_AIV
@@ -757,10 +785,6 @@ if (not args.quiet):
 	print('Elevation mask = ' + str(elevationMask) + ' deg')
 	print('Minimum track length = ' + str(minTrackLength) + 's')
 	print('Maximum DSG = ' + str(maxDSG) + ' ns')
-	if (weighting == NO_WEIGHT):
-		print('Weighting = none')
-	elif (weighting == ELV_WEIGHT):
-		print('Weighting = elevation')
 	print('\n') 
 	
 allref=[] 
@@ -776,7 +800,7 @@ for mjd in range(firstMJD,lastMJD+1):
 			 stopT = stopTime
 	else:
 			stopT=86399
-	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode,refintdelays,badsv)
+	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode,refintdelays)
 	if (header):
 		allref = allref + d
 		refHeaders.append(header)
@@ -794,7 +818,7 @@ for mjd in range(firstMJD,lastMJD+1):
 	else:
 			stopT=86399
 			
-	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode,calintdelays,badsv)
+	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode,calintdelays)
 	if header:
 		allcal = allcal + d
 		calHeaders.append(header)
@@ -950,12 +974,12 @@ REF_MSIO=11
 FRC = 12
 
 # Averaged deltas, in numpy friendly format,for analysis
-tMatch=[]
-deltaMatch=[]
+tMatch=[] # all deltas, for CV only
+deltaMatch = [] # all deltas, for CV only
+deltaAvMatch = []  # deltas of averages, for CV and AIV
+tAvMatch = []
 refMatch=[]
 calMatch=[]
-tAvMatches=[]
-avMatches=[]
 
 foutName = os.path.join(outputDir,'ref.cal.av.matches.txt')
 try:
@@ -964,12 +988,31 @@ except:
 	sys.stderr.write('Unable to open ' + foutName +'\n')
 	exit()
 
-foutName = os.path.join(outputDir,'ref.cal.matches.txt')
-try:
-	fmatches = open(foutName,'w')
-except:
-	sys.stderr.write('Unable to open ' + foutName +'\n')
-	exit()
+if cmpMethod == USE_CV: # one file
+	
+	foutName = os.path.join(outputDir,'ref.cal.matches.txt')
+	try:
+		fmatches = open(foutName,'w')
+	except:
+		sys.stderr.write('Unable to open ' + foutName +'\n')
+		exit()
+		
+else: # two files
+	
+	foutName = os.path.join(outputDir,'ref.matches.txt')
+	try:
+		frefmatches = open(foutName,'w')
+	except:
+		sys.stderr.write('Unable to open ' + foutName +'\n')
+		exit()
+		
+	foutName = os.path.join(outputDir,'cal.matches.txt')
+	try:
+		fcalmatches = open(foutName,'w')
+	except:
+		sys.stderr.write('Unable to open ' + foutName +'\n')
+		exit()
+	
 
 if (useRefMSIO):
 	Debug('Using REF MSIO')
@@ -992,8 +1035,9 @@ if (useMSIO): # all ionosphere on
 Debug('\nMatching tracks ...')
 Debug('Ionosphere '+('removed' if (IONO_OFF==1) else 'included'))
 
-if (cmpMethod == USE_GPSCV):
-	matches = []
+
+if (cmpMethod == USE_CV):
+	cvmatches = []
 	iref=0
 	jcal=0
 	nEphemerisMisMatches=0
@@ -1037,7 +1081,7 @@ if (cmpMethod == USE_GPSCV):
 					calMSIO =  allcal[jtmp][CAL_MSIO] if calHasMSIO else 0
 					fmatches.write('{} {} {} {} {} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS],refMSIO,calMSIO,allref[iref][REF_IONO],allcal[jtmp][CAL_IONO]))
 					
-					tMatch.append(mjd1-firstMJD+st1/86400.0)  #used in the linear fit
+					tMatch.append(mjd1-firstMJD+st1/86400.0)  
 					
 					if useMSIO:
 						# This makes sense for eg L1C measurements which have been corrected using MDIO,  and MSIO is available
@@ -1048,8 +1092,8 @@ if (cmpMethod == USE_GPSCV):
 							allcal[jtmp][REFSYS] + IONO_OFF*allcal[jtmp][CAL_IONO] + calCorrection)
 					refMatch.append(allref[iref][REFSYS])
 					calMatch.append(allcal[jtmp][REFSYS])
-					deltaMatch.append(delta) # used in the linear fit
-					matches.append(allref[iref]+allcal[jtmp]) # 'matches' contains the whole record
+					deltaMatch.append(delta) # used for visualization
+					cvmatches.append(allref[iref]+allcal[jtmp]) # 'matches' contains the whole record
 					break
 				else:
 					break
@@ -1058,9 +1102,9 @@ if (cmpMethod == USE_GPSCV):
 				
 		iref +=1
 		
-	Info(str(len(matches))+' matched tracks')
+	Info(str(len(cvmatches))+' matched tracks')
 	
-	if (len(matches) ==0):
+	if (len(cvmatches) ==0):
 		sys.stderr.write('No matched tracks\n')
 		exit()
 		
@@ -1073,79 +1117,121 @@ if (cmpMethod == USE_GPSCV):
 	
 	nsv = 0
 	sumwts = 0
+	deltaAv = 0
 	
-	lenmatch=len(matches)
-	mjd1=matches[0][MJD]
-	st1=matches[0][STTIME]
-	elv1=matches[0][ELV]
-	elv2=matches[0][ncols+ELV]
-	if (useRefMSIO):
-		avref = matches[0][REFSYS]  +  matches[0][REF_IONO] - matches[0][REF_MSIO] + refCorrection
-	else:
-		avref = matches[0][REFSYS]  +  IONO_OFF*matches[0][REF_IONO]  + refCorrection
-	if (useCalMSIO):
-		avcal = matches[0][ncols + REFSYS] + matches[0][ncols+CAL_IONO] - matches[0][ncols+CAL_MSIO] + calCorrection
-	else:
-		avcal = matches[0][ncols + REFSYS] + IONO_OFF*matches[0][ncols+CAL_IONO] + calCorrection
-	nsv += 1
+	lenmatch = len(cvmatches)
+	mjd1 = cvmatches[0][MJD]
+	st1 = cvmatches[0][STTIME]
+	
 	if args.weighted:
-		sumwts += 0
+		elv1 = cvmatches[0][ELV]
+		elv2 = cvmatches[0][ncols+ELV]
+		refwt = math.sin(math.radians(elv1))**2
+		calwt = math.sin(math.radians(elv2))**2
+		sumwts += refwt*calwt
 	else:
-		sumwts += 1
+		refwt = 1.0
+		calwt = 1.0
+		sumwts += refwt*calwt
+		
+	if (useRefMSIO):
+		ref = cvmatches[0][REFSYS]  +  cvmatches[0][REF_IONO] - cvmatches[0][REF_MSIO] + refCorrection
+	else:
+		ref = cvmatches[0][REFSYS]  +  IONO_OFF*cvmatches[0][REF_IONO]  + refCorrection
+	if (useCalMSIO):
+		cal = cvmatches[0][ncols + REFSYS] + cvmatches[0][ncols+CAL_IONO] - cvmatches[0][ncols+CAL_MSIO] + calCorrection
+	else:
+		cal = cvmatches[0][ncols + REFSYS] + IONO_OFF*cvmatches[0][ncols+CAL_IONO] + calCorrection
+	
+	deltaAv += (refwt*calwt)*(ref - cal)
+	
+	nsv += 1
+	
 	imatch=1
 	while imatch < lenmatch:
-		mjd2 = matches[imatch][MJD]
-		st2  = matches[imatch][STTIME]
+		mjd2 = cvmatches[imatch][MJD]
+		st2  = cvmatches[imatch][STTIME]
 		if (mjd1==mjd2 and st1==st2):
-			nsv += 1
+			
 			if args.weighted:
-				sumwts += 0
+				elv1 = cvmatches[imatch][ELV]
+				elv2 = cvmatches[imatch][ncols+ELV]
+				refwt = math.sin(math.radians(elv1))**2
+				calwt = math.sin(math.radians(elv2))**2
+				sumwts += refwt*calwt
 			else:
-				sumwts += 1
+				refwt = 1.0
+				calwt = 1.0
+				sumwts += refwt*calwt
+				
 			if (useRefMSIO):
-				avref  += matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
+				ref  = cvmatches[imatch][REFSYS] + cvmatches[imatch][REF_IONO] - cvmatches[imatch][REF_MSIO] + refCorrection
 			else:
-				avref  += matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
+				ref = cvmatches[imatch][REFSYS] + IONO_OFF*cvmatches[imatch][REF_IONO]  + refCorrection
 			if (useCalMSIO):
-				avcal  += matches[imatch][ncols + REFSYS] + matches[imatch][ncols+CAL_IONO] - matches[imatch][ncols+CAL_MSIO] + calCorrection
+				cal  = cvmatches[imatch][ncols + REFSYS] + cvmatches[imatch][ncols+CAL_IONO] - cvmatches[imatch][ncols+CAL_MSIO] + calCorrection
 			else:
-				avcal  += matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
+				cal  = cvmatches[imatch][ncols + REFSYS] + IONO_OFF*cvmatches[imatch][ncols+CAL_IONO] + calCorrection
+	
+			deltaAv += (refwt*calwt)*(ref - cal)
+			
+			nsv += 1
+			
 		else:
-			favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
-			tAvMatches.append(mjd1-firstMJD+st1/86400.0)
-			avMatches.append((avref-avcal)/nsv)
+			favmatches.write('{} {} {} {}\n'.format(mjd1,st1,deltaAv/sumwts,nsv))
+			deltaAvMatch.append(deltaAv/sumwts) # WRONG!
+			tAvMatch.append(mjd1-firstMJD+st1/86400.0)
 			mjd1 = mjd2
 			st1  = st2
 			nsv = 0
 			sumwts = 0
+			deltaAv = 0
 			
-			if (useRefMSIO):
-				avref  = matches[imatch][REFSYS] + matches[imatch][REF_IONO] - matches[imatch][REF_MSIO] + refCorrection
-			else:
-				avref  = matches[imatch][REFSYS] + IONO_OFF*matches[imatch][REF_IONO]  + refCorrection
-			if (useCalMSIO):
-				avcal  = matches[imatch][ncols + REFSYS] + matches[imatch][ncols+CAL_IONO] - matches[imatch][ncols+CAL_MSIO] + calCorrection
-			else:
-				avcal  = matches[imatch][ncols + REFSYS] + IONO_OFF*matches[imatch][ncols+CAL_IONO] + calCorrection
-			nsv += 1
 			if args.weighted:
-				sumwts += 0
+				elv1 = cvmatches[imatch][ELV]
+				elv2 = cvmatches[imatch][ncols+ELV]
+				refwt = math.sin(math.radians(elv1))**2
+				calwt = math.sin(math.radians(elv2))**2
+				sumwts += refwt*calwt
+				#print('***',elv1,refwt,elv2,calwt,sumwtsref,sumwtscal)
 			else:
-				sumwts += 1
+				refwt = 1.0
+				calwt = 1.0
+				sumwts += refwt*calwt
+				
+			if (useRefMSIO):
+				ref  = cvmatches[imatch][REFSYS] + cvmatches[imatch][REF_IONO] - cvmatches[imatch][REF_MSIO] + refCorrection
+			else:
+				ref  = cvmatches[imatch][REFSYS] + IONO_OFF*cvmatches[imatch][REF_IONO]  + refCorrection
+			if (useCalMSIO):
+				cal  = ccvmatches[imatch][ncols + REFSYS] + cvmatches[imatch][ncols+CAL_IONO] - cvmatches[imatch][ncols+CAL_MSIO] + calCorrection
+			else:
+				cal  = cvmatches[imatch][ncols + REFSYS] + IONO_OFF*cvmatches[imatch][ncols+CAL_IONO] + calCorrection
+			
+			deltaAv += (refwt*calwt)*(ref - cal)
+			
+			nsv += 1
 			
 		imatch += 1
 	# last one
-	favmatches.write('{} {} {} {} {} {}\n'.format(mjd1,st1,avref/nsv,avcal/nsv,(avref-avcal)/nsv,nsv))
-	tAvMatches.append(mjd1-firstMJD+st1/86400.0)
-	avMatches.append((avref-avcal)/nsv)
+	favmatches.write('{} {} {} {}\n'.format(mjd1,st1,deltaAv/sumwts,nsv))
+	deltaAvMatch.append(deltaAv/sumwts) 
+	tAvMatch.append(mjd1-firstMJD+st1/86400.0)
+	
 elif (cmpMethod == USE_AIV):
 	# Opposite order here
 	# First average at each time
 	# and then match times
+	
+	refAIVMatch   = []
+	calAIVMatch   = []
+	refAIVTracks  = [] # REFSYS of tracks used for each average
+	calAIVTracks  = [] # ditto
+	tRefAIVTracks = [] # and the times, for plotting
+	tCalAIVTracks = []
 	refavs = AverageTracks(allref,useRefMSIO)
 	calavs = AverageTracks(allcal,useCalMSIO)
 	
-	matches = []
 	iref=0
 	jcal=0
 	refavlen = len(refavs)
@@ -1166,11 +1252,20 @@ elif (cmpMethod == USE_AIV):
 			elif (st2 > st1):
 				break # stop searching - need to move pointer 1
 			elif ((mjd1==mjd2) and (st1 == st2)):
-				fmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,999,refavs[iref][2],calavs[jcal][2]))
-				tMatch.append(mjd1-firstMJD+st1/86400.0)
-				refMatch.append(refavs[iref][2])
-				calMatch.append(calavs[jcal][2])
-				deltaMatch.append(refavs[iref][2] + refCorrection - (calavs[jcal][2] + calCorrection))
+				favmatches.write('{} {} {} {} {}\n'.format(mjd1,st1,refavs[iref][2],calavs[jcal][2],refavs[iref][2]-calavs[jcal][2]))
+				tst = mjd1-firstMJD+st1/86400.0
+				tAvMatch.append(tst)
+				refAIVMatch.append(refavs[iref][2])
+				for t in range(3,len(refavs[iref])):
+					refAIVTracks.append(refavs[iref][t])
+					tRefAIVTracks.append(tst)
+					frefmatches.write('{} {} {:g}\n'.format(mjd1,st1,refavs[iref][t]))
+				calAIVMatch.append(calavs[jcal][2])
+				for t in range(3,len(calavs[jcal])):
+					calAIVTracks.append(calavs[jcal][t])
+					tCalAIVTracks.append(tst)
+					fcalmatches.write('{} {} {:g}\n'.format(mjd1,st1,calavs[jcal][t]))
+				deltaAvMatch.append(refavs[iref][2] + refCorrection - (calavs[jcal][2] + calCorrection))
 				#matches.append(allref[iref]+allcal[jtmp])
 				# print mjd1,st1,refavs[iref][2],calavs[jcal][2]
 				break
@@ -1179,35 +1274,51 @@ elif (cmpMethod == USE_AIV):
 		iref += 1	
 				
 	sys.stderr.write('WARNING Not fully tested yet!\n')
-	#exit()
 
-fmatches.close()
+if cmpMethod == USE_CV:
+	fmatches.close()
+else:
+	frefmatches.close()
+	fcalmatches.close();
+	
 favmatches.close()
 
-# Analysis 
+# Analysis and plots
+# Three plots
+# (1) REF - CAL
+#       (a) CV - all deltas, avg delta
+#       (b) AIV - all deltsa
 
-if (len(tMatch) < 2):
+# (2) CAL REFYS values
+# (3) REF REFSYS values
+#      (a) CV  - matched only
+#      (b) AIV - all tracks
+
+if (len(tAvMatch) < 2):
 	sys.stderr.write('Insufficient data points left for analysis\n')
 	exit()
-	
-p,V = np.polyfit(tMatch,deltaMatch, 1, cov=True)
+
+# We do our fits to the average
+# NB previously, for CV the fit was to unaveraged deltas
+#
+p,V = np.polyfit(tAvMatch,deltaAvMatch, 1, cov=True)
 slopeErr = np.sqrt(V[0][0])
-meanOffset = p[1] + p[0]*(tMatch[0]+tMatch[-1])/2.0
+meanOffset = p[1] + p[0]*(tAvMatch[0]+tAvMatch[-1])/2.0
 
 if (MODE_DELAY_CAL==mode ):
 	rmsResidual=0.0
-	for t in range(0,len(tMatch)):
-		delta = p[1] + p[0]*tMatch[t] - deltaMatch[t]
+	for t in range(0,len(tAvMatch)):
+		delta = p[1] + p[0]*tAvMatch[t] - deltaAvMatch[t]
 		rmsResidual = rmsResidual + delta*delta
-	rmsResidual = np.sqrt(rmsResidual/(len(tMatch)-1)) # FIXME is this correct ?
+	rmsResidual = np.sqrt(rmsResidual/(len(tAvMatch)-1)) # FIXME is this correct ?
 	if (not args.quiet):
 		
 		print
 		print('Offsets (REF - CAL)  [subtract from CAL \'INT DLY\' to correct]')
 		print('  at midpoint {} ns'.format(meanOffset))
-		print('  median  {} ns'.format(np.median(deltaMatch)))
-		print('  mean {} ns'.format(np.mean(deltaMatch)))
-		print('  std. dev {} ns'.format(np.std(deltaMatch)))
+		print('  median  {} ns'.format(np.median(deltaAvMatch)))
+		print('  mean {} ns'.format(np.mean(deltaAvMatch)))
+		print('  std. dev {} ns'.format(np.std(deltaAvMatch)))
 		print('slope {} ps/day +/- {} ps/day'.format(p[0]*1000,slopeErr*1000))
 		print('RMS of residuals {} ns'.format(rmsResidual))
 		
@@ -1218,20 +1329,38 @@ if (MODE_DELAY_CAL==mode ):
 	title += cmdline + '\n'
 	title += os.path.basename(sys.argv[0])+ ' v' + VERSION   + '     ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 	f.suptitle(title,ha='left',x=0.02,size='small')
-	ax1.plot(tMatch,deltaMatch,ls='None',marker='.')
-	ax1.plot(tAvMatches,avMatches)
+		
+	if (cmpMethod == USE_CV): 
+		ax1.plot(tMatch,deltaMatch,ls='None',marker='.')
+		ax1.plot(tAvMatch,deltaAvMatch)
+	else:
+		ax1.plot(tAvMatch,deltaAvMatch,marker='.')
+		
 	stats = 'mean = {:.3f},median = {:.3f},std = {:.3f},rms resid = {:.3f}'.format(
-		np.mean(deltaMatch),np.median(deltaMatch),np.std(deltaMatch),rmsResidual)
+		np.mean(deltaAvMatch),np.median(deltaAvMatch),np.std(deltaAvMatch),rmsResidual)
 	ax1.set_title('REF-CAL: ' + stats)
 	ax1.set_ylabel('REF-CAL (ns)')
 	ax1.set_xlabel('MJD - '+str(firstMJD))
-	ax2.plot(tMatch,calMatch,ls='None',marker='.')
-	ax2.set_title('CAL (filtered) [ ' + args.calDir+ ' ]')
+	
+	if (cmpMethod == USE_CV): # plot matched REFSYS
+		ax2.plot(tMatch,calMatch,ls='None',marker='.')
+		ax2.set_title('CAL (matched,filtered) [ ' + args.calDir+ ' ]') # matched tracks
+	else:
+		ax2.plot(tCalAIVTracks,calAIVTracks,ls='none',marker='.')
+		ax2.plot(tAvMatch,calAIVMatch)
+		ax2.set_title('CAL (matched,filtered) [ ' + args.calDir+ ' ]')
+
 	ax2.set_ylabel('REFSYS (ns)')
 	ax2.set_xlabel('MJD - '+str(firstMJD))
 	
-	ax3.plot(tMatch,refMatch,ls='None',marker='.')
-	ax3.set_title('REF (filtered) [ ' + args.refDir+ ' ]')
+	if (cmpMethod == USE_CV):
+		ax3.plot(tMatch,refMatch,ls='None',marker='.')
+		ax3.set_title('REF (matched,filtered) [ ' + args.refDir+ ' ]')
+	else:
+		ax3.plot(tRefAIVTracks,refAIVTracks,ls='none',marker='.')
+		ax3.plot(tAvMatch,refAIVMatch)
+		ax3.set_title('REF (matched,filtered) [ ' + args.refDir+ ' ]') # matched times
+	
 	ax3.set_ylabel('REFSYS (ns)')
 	ax3.set_xlabel('MJD - '+str(firstMJD))
 	
