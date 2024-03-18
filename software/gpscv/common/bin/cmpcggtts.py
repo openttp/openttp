@@ -51,7 +51,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.9.0"
+VERSION = "0.10.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -173,7 +173,7 @@ def SetDataColumns(ver,isdf):
 
 # ------------------------------------------
 
-def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
+def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays,badsv):
 	d=[]
 	
 	fname = path + '/' + str(mjd) + '.' + ext # default is MJD.cctf
@@ -290,10 +290,12 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 			# V1 is GPS-only and doesn't have the constellation identifier prepending 
 			# the PRN, so we'll add it for compatibility with later versions
 			if (ver == CGGTTS_V1):
-				fields[PRN] = 'G{:02d}'.format(int(satid))
+				isatid = int(satid)
+				fields[PRN] = 'G{:02d}'.format(isatid)
 				
 			if (ver == CGGTTS_V2): 
-				fields[PRN] = 'G{:02d}'.format(int(satid)) # FIXME works for GPS only
+				isatid = int(satid)
+				fields[PRN] = 'G{:02d}'.format(isatid) # FIXME works for GPS only
 				
 			if (ver == CGGTTS_V2E): 
 				# CGGTTS V2E files may not necessarily have zero padding in SAT
@@ -301,6 +303,16 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays):
 					fields[PRN] = '{}0{}'.format(satid[0],satid[2]) # TESTED
 				else:
 					fields[PRN] = satid
+				isatid = int(l[1:3])
+			
+			if badsv:
+				skip = False
+				for i in range(0,len(badsv)):
+					if isatid == badsv[i][0]:
+						skip = (mjd >= badsv[i][1]) and (mjd <= badsv[i][2])
+						break
+				if skip:
+					continue
 				
 			if (ver != CGGTTS_RAW): # should have a checksum 
 				
@@ -613,6 +625,7 @@ parser.add_argument('--mintracklength',help='minimum track length (in s, default
 parser.add_argument('--maxdsg',help='maximum DSG (in ns, default '+str(maxDSG)+')')
 parser.add_argument('--maxsrsys',help='maximum SRSYS (in ns, default '+str(maxSRSYS)+')')
 parser.add_argument('--matchephemeris',help='match on ephemeris [CV only] (default no)',action='store_true')
+parser.add_argument('--badsv',help='file or comma-separated list of SV to exclude')
 
 parser.add_argument('--weighted', help='sin^2(ELV) weighting of tracks (default=none)',action='store_true')
 
@@ -668,7 +681,10 @@ else:
 	import matplotlib as mplt # this (and the next line) stops warnings about being unable to connect to a display
 	mplt.use('Agg') 
 	import matplotlib.pyplot as plt
-	
+
+firstMJD = int(args.firstMJD)
+lastMJD  = int(args.lastMJD)
+
 if (args.starttime):
 	match = re.search('(\d+):(\d+):(\d+)',args.starttime)
 	if match:
@@ -708,16 +724,27 @@ if (args.maxsrsys):
 	
 if (args.matchephemeris):
 	matchEphemeris=True
-	
+
+badsv = []
+if (args.badsv):
+	# First try : is it a file ?
+	if os.path.isfile(args.badsv):
+		# Format is line of the form
+		# SV StartMJD StopMJD
+		fin = open(args.badsv,'r')
+		for l in fin:
+			l = l.strip()
+			if re.match(r'#',l): # skip comments
+				continue
+			fields = l.split()
+			badsv.append([int(fields[0]),int(fields[1]),int(fields[2])])
+		fin.close()
+	else:
+		for s in args.badsv.split(','):
+			badsv.append([int(s),firstMJD,lastMJD]) # applied to whole range of data
+
 if (args.mintracklength):
 	minTrackLength = int(args.mintracklength)
-
-#if (args.weighting):
-	#args.weighting = args.weighting.lower()
-	#if (args.weighting == 'none'):
-		#weighting = NO_WEIGHT
-	#elif (args.weighting == 'elevation'):
-	#	weighting = ELV_WEIGHT
 		
 if (args.cv):
 	cmpMethod = USE_CV
@@ -776,8 +803,6 @@ comment = ''
 if (args.comment):
 	comment = args.comment
 	
-firstMJD = int(args.firstMJD)
-lastMJD  = int(args.lastMJD)
 
 # Print the settings
 if (not args.quiet):
@@ -800,7 +825,7 @@ for mjd in range(firstMJD,lastMJD+1):
 			 stopT = stopTime
 	else:
 			stopT=86399
-	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode,refintdelays)
+	(d,stats,header)=ReadCGGTTS(args.refDir,refPrefix,refExt,mjd,startT,stopT,refMeasCode,refintdelays,badsv)
 	if (header):
 		allref = allref + d
 		refHeaders.append(header)
@@ -818,7 +843,7 @@ for mjd in range(firstMJD,lastMJD+1):
 	else:
 			stopT=86399
 			
-	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode,calintdelays)
+	(d,stats,header)=ReadCGGTTS(args.calDir,calPrefix,calExt,mjd,startT,stopT,calMeasCode,calintdelays,badsv)
 	if header:
 		allcal = allcal + d
 		calHeaders.append(header)
@@ -1179,7 +1204,7 @@ if (cmpMethod == USE_CV):
 			
 		else:
 			favmatches.write('{} {} {} {}\n'.format(mjd1,st1,deltaAv/sumwts,nsv))
-			deltaAvMatch.append(deltaAv/sumwts) # WRONG!
+			deltaAvMatch.append(deltaAv/sumwts) 
 			tAvMatch.append(mjd1-firstMJD+st1/86400.0)
 			mjd1 = mjd2
 			st1  = st2
@@ -1331,10 +1356,10 @@ if (MODE_DELAY_CAL==mode ):
 	f.suptitle(title,ha='left',x=0.02,size='small')
 		
 	if (cmpMethod == USE_CV): 
-		ax1.plot(tMatch,deltaMatch,ls='None',marker='.')
-		ax1.plot(tAvMatch,deltaAvMatch)
+		ax1.plot(tMatch,deltaMatch,ls='None',marker='.') # plot the raw deltas
+		ax1.plot(tAvMatch,deltaAvMatch)                  # and the average 
 	else:
-		ax1.plot(tAvMatch,deltaAvMatch,marker='.')
+		ax1.plot(tAvMatch,deltaAvMatch,marker='.')       # plot the average only
 		
 	stats = 'mean = {:.3f},median = {:.3f},std = {:.3f},rms resid = {:.3f}'.format(
 		np.mean(deltaAvMatch),np.median(deltaAvMatch),np.std(deltaAvMatch),rmsResidual)
@@ -1364,7 +1389,7 @@ if (MODE_DELAY_CAL==mode ):
 	ax3.set_ylabel('REFSYS (ns)')
 	ax3.set_xlabel('MJD - '+str(firstMJD))
 	
-	plt.savefig(os.path.join(outputDir,'ref.cal.ps'),papertype='a4')
+	plt.savefig(os.path.join(outputDir,'ref.cal.ps'))
 	
 	if (not(args.quiet) and args.display):
 		plt.show()
