@@ -51,7 +51,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.10.0"
+VERSION = "0.11.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -985,11 +985,12 @@ if (mode == MODE_DELAY_CAL and not(acceptDelays)):
 			
 	Info('Delay delta = {}'.format(calCorrection))	
 	
-# Can redefine the indices now
+# Can redefine the indices into the data array now
 PRN = 0
 MJD = 1
 STTIME = 2
 ELV = 4
+AZTH = 5
 REFSYS = 7
 IOE = 9
 CAL_IONO = 10
@@ -1104,7 +1105,9 @@ if (cmpMethod == USE_CV):
 						break
 					refMSIO =  allref[iref][REF_MSIO] if refHasMSIO else 0 # yes, yes I know but YOU should know that there is no valid MSIO 
 					calMSIO =  allcal[jtmp][CAL_MSIO] if calHasMSIO else 0
-					fmatches.write('{} {} {} {} {} {} {} {} {}\n'.format(mjd1,st1,prn1,allref[iref][REFSYS],allcal[jtmp][REFSYS],refMSIO,calMSIO,allref[iref][REF_IONO],allcal[jtmp][CAL_IONO]))
+			
+					fmatches.write('{} {} {} {} {} {} {} {} {} {} {} {} {}\n'.format(mjd1,st1,prn1[1:3],allref[iref][REFSYS],allcal[jtmp][REFSYS],refMSIO,
+						calMSIO,allref[iref][REF_IONO],allcal[jtmp][CAL_IONO],allref[iref][ELV],allref[iref][AZTH],allcal[jtmp][ELV],allcal[jtmp][AZTH]))
 					
 					tMatch.append(mjd1-firstMJD+st1/86400.0)  
 					
@@ -1389,7 +1392,7 @@ if (MODE_DELAY_CAL==mode ):
 	ax3.set_ylabel('REFSYS (ns)')
 	ax3.set_xlabel('MJD - '+str(firstMJD))
 	
-	plt.savefig(os.path.join(outputDir,'ref.cal.ps'))
+	plt.savefig(os.path.join(outputDir,'ref.cal.pdf'))
 	
 	if (not(args.quiet) and args.display):
 		plt.show()
