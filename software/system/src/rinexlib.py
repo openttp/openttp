@@ -30,7 +30,7 @@ import time
 
 LIB_MAJOR_VERSION  = 0
 LIB_MINOR_VERSION  = 6
-LIB_PATCH_VERSION  = 1
+LIB_PATCH_VERSION  = 2
 
 compressionExtensions = ['.gz','.z']
 
@@ -306,9 +306,9 @@ def GetLeapSeconds(navFileName,rnxVers):
 	nLeap = 0
 	fin = open(navFileName,'r')
 	for l in fin:
-		m = re.search('\s+(\d+)(\s+\d+\s+\d+\s+\d+)?\s+LEAP\s+SECONDS',l) # RINEX V3 has extra leap second information 
+		m = re.search(r'LEAP\s+SECONDS\s*$',l) # RINEX V3 has extra leap second information and there are some IGS files which are not compliant
 		if (m):
-			nLeap = int(m.group(1))
+			nLeap = int(l[0:6])
 			__Debug('Leap seconds = '+str(nLeap))
 			break
 	fin.close()
