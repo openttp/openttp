@@ -17,6 +17,8 @@
  
 # This will be called when plugged and unplugged
 
+# KNOWN PROBLEMS 2024-01-01 does not work on rpi4!
+
 import argparse
 import pyudev # Ubuntu 20.04 python3-pyudev
 import os
