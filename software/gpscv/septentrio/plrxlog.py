@@ -56,7 +56,7 @@ import time
 
 import ottplib
 
-VERSION = '0.3.0'
+VERSION = '0.3.1'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -767,7 +767,7 @@ while (not killed):
 			if (tGPSNow > 0 and not(rolloverValid)): # once we get valid time from the receiver, update the rollover time 
 				tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400
 				rolloverValid = True
-				print(str(datetime.datetime.utcnow()) + ' Updated: tGPSNextRollover = ' + str(tGPSNextRollover))
+				Debug(str(datetime.datetime.utcnow()) + ' Updated: tGPSNextRollover = ' + str(tGPSNextRollover))
 				# The initial guess for GPS time may have been bad so rollover the file
 				fdata.close()
 				mjd=ottplib.MJD(tGPSNow + GPS_EPOCH)
@@ -775,13 +775,13 @@ while (not killed):
 			gotCN0=1
 			# TOW in this packet is used to decide rollover
 			if (tGPSNow >= tGPSNextRollover): # invalid tGPSNow == -1 so this will fail 
-				print(str(datetime.datetime.utcnow())+' tGPSNow = ' + str(tGPSNow))
+				Debug(str(datetime.datetime.utcnow())+' tGPSNow = ' + str(tGPSNow))
 				fdata.close()
 				mjd=ottplib.MJD(tGPSNow + GPS_EPOCH)
-				print(str(datetime.datetime.utcnow())+' Next MJD = ' + str(mjd))
+				Debug(str(datetime.datetime.utcnow())+' Next MJD = ' + str(mjd))
 				fdata = OpenDataFile(mjd)
 				tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400
-				print(str(datetime.datetime.utcnow())+' tGPSNextRollover = ' + str(tGPSNextRollover))
+				Debug(str(datetime.datetime.utcnow())+' tGPSNextRollover = ' + str(tGPSNextRollover))
 		elif ((pktID & 8191) == 4014): # this always gets parsed because we want the locking status
 			Debug('pkt 4014 ' + str(pktLen))
 			receiverStatus = ParseReceiverStatus(data,pktLen-8)
