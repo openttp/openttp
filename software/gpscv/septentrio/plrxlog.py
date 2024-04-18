@@ -35,6 +35,7 @@
 
 import argparse
 import binascii
+import datetime
 import os
 import re
 import select
@@ -55,7 +56,7 @@ import time
 
 import ottplib
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -66,6 +67,11 @@ MINBUFLEN = 500
 MAXBUFLEN = 30000
 
 STATUS_LOGGING_INTERVAL=5
+
+NLEAP = 18
+GPS_EPOCH = 315964800 # GPS epoch in the Unix time scale
+TOW_INVALID = 4294967295
+WNC_INVALID  = 65535
 
 BEIDOU=0
 GPS=1
@@ -255,8 +261,6 @@ def ConfigureReceiver(rxcfg):
 	# FIXME This assumes that there is only Stream1  enabled
 	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',none') # turn off output
 
-	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility+ReceiverStatus,sec1') # default setup
-	
 	# Set up the Antenna
 	# This fixes up a bug in RINEX output in version IDK of sbf2rin
 	deltaH,deltaE,deltaN = '0.0','0.0','0.0'
@@ -275,6 +279,8 @@ def ConfigureReceiver(rxcfg):
 	# TBC when the antenna type is set, the receiver compensates for PCV. This may add noise to TT.
 	cmd = 'SetAntennaOffset,Main,' + deltaE + ',' + deltaN + ',' + deltaH + ','  + antType + ',' + antSerialNum + ',0'
 	SendCommand(cmd)
+	
+	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',Rinex+SatVisibility+ReceiverStatus,sec1') # default setup
 	
 	comment_re = re.compile(r'^\s*#')
 	fin = open(rxcfg,'r') # already checked its OK
@@ -377,7 +383,15 @@ def ParseMeasEpoch(d):
 	
 	TOW, WNc, N1, SB1Length, SB2Length = struct.unpack_from('IHBBB',d)
 	n2Cnt=0
-	Debug('TOW='+str(TOW))
+	
+	
+	if (TOW == TOW_INVALID or WNc == WNC_INVALID):
+		tPkt = -1
+		Debug('Invalid time')
+	else:
+		tPkt = TOW/1000 + WNc*86400*7
+		Debug('TOW=' + str(TOW) + " WNc="+str(WNc) + " tGPS=" + str(tPkt))
+		
 	for n in range(0,N1):
 		blk1Start = 12 + n*SB1Length + n2Cnt*SB2Length
 		blk1=struct.unpack_from('4BIiHbBHBB',d[blk1Start:blk1Start+SB1Length])
@@ -421,7 +435,8 @@ def ParseMeasEpoch(d):
 			
 		n2Cnt += N2
 
-		
+	return tPkt
+	
 # ---------------------------------------------------------------------------
 def UpdateStatusFile(rxStatus):
 	try:
@@ -512,6 +527,7 @@ def ClearGNSS():
 
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
+nLeap = NLEAP
 
 parser = argparse.ArgumentParser(description='Log a Septentrio receiver',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -555,7 +571,7 @@ if ('receiver:status file' in cfg):
 dataExt = cfg['receiver:file extension']
 if (None == re.search(r'\.$',dataExt)): # add a '.' separator if needed
 	dataExt = '.' + dataExt 
-	
+
 # Check that the receiver configuration file exists
 rxCfg = 	ottplib.MakeAbsoluteFilePath(cfg['receiver:configuration'], home, home + '/etc/')
 if (not os.path.isfile(rxCfg)):
@@ -623,16 +639,21 @@ except:
 	
 ConfigureReceiver(rxCfg)
 
-tt = time.time()
-mjd = ottplib.MJD(tt)
+tNow = time.time()
+tGPSNow = tNow + nLeap - GPS_EPOCH # best guess, until we get something from the receiver
+rolloverValid = False 
+tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400        # again, our best guess
+
+print(str(datetime.datetime.utcnow()) + ' Est: tGPS = ' + str(tGPSNow) + ' rollover at ' + str(tGPSNextRollover))
+
+mjd = ottplib.MJD(tNow)
 fdata = OpenDataFile(mjd)
-tNext=(mjd-40587+1)*86400
-tThen = 0
+
 tLastStatusUpdate=0
 tLastSyncOK = time.time() # assume OK on startup
 
-tLastMsg=time.time()
-inp = b''
+tLastMsg=tNow
+inp = b''   # buffer for reading incoming messages
 
 # Since we like using regexes, pre-compile the main ones
 
@@ -658,12 +679,13 @@ nBadLength = 0
 while (not killed):
 	
 	# Check for timeout
-	if (time.time() - tLastMsg > rxTimeout):
+	tNow = time.time()
+	if (tNow - tLastMsg > rxTimeout):
 		msg = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()) + ' no response from receiver'
 		print ('# ' + msg + '\n')
 		break
 		killed = True
-    
+
 	# The guts
 	select.select([serport],[],[],0.2)
 	if (serport.in_waiting == 0):
@@ -671,126 +693,142 @@ while (not killed):
 		continue
 	
 	newinp = serport.read(serport.in_waiting)
-	fdata.write(newinp) # log what we just got
 	
-	tNow = time.time()	# got something- tag the time
-	tLastMsg = tNow     # resets the timeout
+	tLastMsg = time.time()  # got a message, so reset the timeout
 			
-	if (tNow >= tNext):
-		# (this way is safer than just incrementing mjd)
-		fdata.close()
-		mjd=int(tNow/86400) + 40587	
-		fdata = OpenDataFile(mjd)
-		tNext=(mjd-40587+1)*86400	# seconds at next MJD
+	inp = inp + newinp
+	
+	# Don't attempt to parse until we've got a decent chunk
+	# FIXME - this doesn't seem necessary with USB - is it a problem on RS232 though ?
+	if len(inp) < MINBUFLEN:
+		# going back to read some more is what necessitates maintaining the write buffer wrbuf
+		continue
+	
+	# A reasonable limit on the size of the buffered data needs to be set
+	# to guard against bugs
+	# Note! This was added because of a bug which has been fixed.
+	if len(inp) > MAXBUFLEN:
+		print ('Buffer too big',len(inp),'bytes') # FIXME remove this one day
+		inp=b'' # empty the buffer AFTER reporting its size
+		continue
 		
-	if (logStatus or broadcast):
-		inp = inp + newinp
+	# Try to find an SBF message
+	match = sbfre.search(inp)
+	
+	# Note that match only contains one match.
+	# Any remaining matches are determined within the loop
+	while match:
 		
-		# Don't attempt to parse until we've got a decent chunk
-		if len(inp) < MINBUFLEN:
+		# FIXME this code stays until we are confident all is OK 
+		if (time.time() - tLastMsg > rxTimeout):
+			Cleanup()
+			ErrorExit('BUG! hard loop')
+			break
+
+		inp = inp[match.start():] # discard the prematch string
+		
+		pktCRC, = struct.unpack_from('<H',match.group(1)); # ushort, little endian
+		pktID, =  struct.unpack_from('<H',match.group(2)); # ushort, little endian
+		pktLen, = struct.unpack_from('<H',match.group(3)); # ushort, little endian
+		
+		inpLen=len(inp)
+						
+		if (pktLen > inpLen):
+			#Debug('SHORT!' + str(pktLen) + ',' + str(inpLen))
+			break # need a bit more 
+		
+		# Check the length - should be a multiple of 4 (and at least 8). If it isn't, then the packet is incomplete
+		if (pktLen %4 > 0 or pktLen <8):
+			Debug('Bad length ' + str(pktLen))
+			nBadLength += 1
+			inp = inp[2:] # something's wrong, like lost data, so chop off the bogus sync
+			match = sbfre.search(inp) # have another go
 			continue
 		
-		# A reasonable limit on the size of the buffered data needs to be set
-		# to guard against bugs
-		if len(inp) > MAXBUFLEN:
-			print ('Buffer too big',len(inp),'bytes') # FIXME remove this one day
-			inp=b'' # empty the buffer AFTER reporting its size
-			continue
-			
-		# Try to find an SBF message
-		match = sbfre.search(inp)
-		
-		# Note that match only contains one match.
-		# Any remaining matches are determined within the loop
-		while match:
-			
-			# FIXME this code stays until we are confident all is OK 
-			if (time.time() - tLastMsg > rxTimeout):
-				Cleanup()
-				ErrorExit('BUG! hard loop')
-				break
-	
-			inp = inp[match.start():] # discard the prematch string
-			
-			pktCRC, = struct.unpack_from('<H',match.group(1)); # ushort, little endian
-			pktID, =  struct.unpack_from('<H',match.group(2)); # ushort, little endian
-			pktLen, = struct.unpack_from('<H',match.group(3)); # ushort, little endian
-			
-			inpLen=len(inp)
-							
-			if (pktLen > inpLen):
-				#Debug('SHORT!' + str(pktLen) + ',' + str(inpLen))
-				break # need a bit more 
-			
-			# Check the length - should be a multiple of 4 (and at least 8). If it isn't, then the packet is incomplete
-			if (pktLen %4 > 0 or pktLen <8):
-				Debug('Bad length ' + str(pktLen))
-				nBadLength += 1
-				inp = inp[2:] # something's wrong, like lost data, so chop off the bogus sync
-				match = sbfre.search(inp) # have another go
-				continue
-			
-			# Check the CRC
-			crcDataStart = match.start()+4
-			crc= CRC_CCITT(inp[crcDataStart:crcDataStart+pktLen-4])
-			if not(pktCRC == crc):
-				nBadCRC +=1
-				Debug('Bad CRC: ' + str(pktID) + ' ' + str(pktLen) + ' ' + str(inpLen) )
-				if (pktLen == inpLen):
-					inp=b'' # eat the lot 
-					break # and there are no more matches
-				else:
-					inp = inp[pktLen:] # still some chewy bits 
-					match = sbfre.search(inp) # so we need to take another bite
-					continue
-			
-			# Length OK CRC OK so parse away
-			data = match.string[match.end():]
-			if ((pktID & 8191) == 4027):
-				Debug('pkt 4027 ' + str(pktLen))
-				ParseMeasEpoch(data);
-				gotCN0=1
-			elif ((pktID & 8191) == 4014):
-				Debug('pkt 4014 ' + str(pktLen))
-				receiverStatus = ParseReceiverStatus(data,pktLen-8)
-				gotReceiverStatus = 1
-				tt = time.time()
-				if ((receiverStatus & 0x04) and (receiverStatus & 0x08)): # bit 2 is EXT_FREQ, bit 3 is EXT_TIME
-					tLastSyncOK = tt
-				else:
-					Debug('Bad sync')
-					if ((tt - tLastSyncOK) > syncAlarmTimeout):
-						print('Sync timeout : status = 0x{:04x}'.format(receiverStatus))
-						SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
-						ottplib.RemoveProcessLock(lockFile) 
-						sys.exit(0)
-			elif (broadcast and ((pktID & 8191) == 4012)):
-				Debug('pkt 4012 ' + str(pktLen))
-				ParseSatVisibility(data,pktLen-8)
-				gotVis=1
-			else:
-				Debug('pkt ' + str(pktID & 8191) + ' ' + str(pktLen))
-				
-			# Tidy up the input buffer - remove what we just parsed
+		# Check the CRC
+		crcDataStart = match.start()+4
+		crc= CRC_CCITT(inp[crcDataStart:crcDataStart+pktLen-4])
+		if not(pktCRC == crc):
+			nBadCRC +=1
+			Debug('Bad CRC: ' + str(pktID) + ' ' + str(pktLen) + ' ' + str(inpLen) )
 			if (pktLen == inpLen):
-				inp=b'' # we ate the lot 
-				break # 
+				inp=b'' # eat the lot 
+				break # and there are no more matches
 			else:
 				inp = inp[pktLen:] # still some chewy bits 
-				match = sbfre.search(inp) # and we need to have another go
-			
-		if gotCN0:
-			if logStatus:
-				Debug('N BAD CRC = ' + str(nBadCRC))
-				Debug('N BAD LEN = ' + str(nBadLength))
-				tt = time.time()
-				if (tt - tLastStatusUpdate > STATUS_LOGGING_INTERVAL):
-					UpdateStatusFile(rxStatus)
-					tLastStatusUpdate = tt
-			if broadcast and gotVis:
-				BroadcastStatus()
-			ClearGNSS()
-			gotVis, gotReceiverStatus, gotCN0 = 0,0,0
+				match = sbfre.search(inp) # so we need to take another bite
+				continue
+		
+		# Length OK CRC OK so parse away
+		data = match.string[match.end():]
+		if ((pktID & 8191) == 4027): # always parse the measurement packet
+			Debug('pkt 4027 ' + str(pktLen))
+			tGPSNow = ParseMeasEpoch(data)
+			if (tGPSNow > 0 and not(rolloverValid)): # once we get valid time from the receiver, update the rollover time 
+				tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400
+				rolloverValid = True
+				print(str(datetime.datetime.utcnow()) + ' Updated: tGPSNextRollover = ' + str(tGPSNextRollover))
+				# The initial guess for GPS time may have been bad so rollover the file
+				fdata.close()
+				mjd=ottplib.MJD(tGPSNow + GPS_EPOCH)
+				fdata = OpenDataFile(mjd)
+			gotCN0=1
+			# TOW in this packet is used to decide rollover
+			if (tGPSNow >= tGPSNextRollover): # invalid tGPSNow == -1 so this will fail 
+				print(str(datetime.datetime.utcnow())+' tGPSNow = ' + str(tGPSNow))
+				fdata.close()
+				mjd=ottplib.MJD(tGPSNow + GPS_EPOCH)
+				print(str(datetime.datetime.utcnow())+' Next MJD = ' + str(mjd))
+				fdata = OpenDataFile(mjd)
+				tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400
+				print(str(datetime.datetime.utcnow())+' tGPSNextRollover = ' + str(tGPSNextRollover))
+		elif ((pktID & 8191) == 4014): # this always gets parsed because we want the locking status
+			Debug('pkt 4014 ' + str(pktLen))
+			receiverStatus = ParseReceiverStatus(data,pktLen-8)
+			gotReceiverStatus = 1
+			tt = time.time()
+			if ((receiverStatus & 0x04) and (receiverStatus & 0x08)): # bit 2 is EXT_FREQ, bit 3 is EXT_TIME
+				tLastSyncOK = tt
+			else:
+				Debug('Bad sync')
+				if ((tt - tLastSyncOK) > syncAlarmTimeout):
+					print('Sync timeout : status = 0x{:04x}'.format(receiverStatus))
+					SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
+					ottplib.RemoveProcessLock(lockFile) 
+					sys.exit(0)
+		elif (broadcast and ((pktID & 8191) == 4012)):
+			Debug('pkt 4012 ' + str(pktLen))
+			ParseSatVisibility(data,pktLen-8)
+			gotVis=1
+		else:
+			Debug('pkt ' + str(pktID & 8191) + ' ' + str(pktLen))
+		
+		# If we get here, we have a valid packet to write.
+		fdata.write(match.string[match.start():match.start() + pktLen + 1]) # remembering to keep the header 
+		
+		# Tidy up the input buffer - remove what we just parsed
+		if (pktLen == inpLen):
+			inp=b'' # we ate the lot 
+			break # 
+		else:
+			inp = inp[pktLen:] # still some chewy bits 
+			match = sbfre.search(inp) # and we need to have another go
+		
+		
+	#
+	
+	if gotCN0:
+		if logStatus:
+			Debug('N BAD CRC = ' + str(nBadCRC))
+			Debug('N BAD LEN = ' + str(nBadLength))
+			tt = time.time()
+			if (tt - tLastStatusUpdate > STATUS_LOGGING_INTERVAL):
+				UpdateStatusFile(rxStatus)
+				tLastStatusUpdate = tt
+		if broadcast and gotVis:
+			BroadcastStatus()
+		ClearGNSS()
+		gotVis, gotReceiverStatus, gotCN0 = 0,0,0
 					
 	
 Cleanup()
