@@ -55,13 +55,22 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.2.4"
+VERSION = "0.3.0"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0
 MODE_CMPREF = 1
 
+SRC_CGGTTS = 0
+SRC_RNXCLK    = 1
+
 TRACKS_PER_DAY = 78
+CLKDIFFS_PER_DAY = 2880
+
+WEEKLY_START = 60326 # magic MJD for start of weekly processing (Wed 17th Jan 2024)
+RAPID_LATENCY = 2    # latency of rapid orbit products in days
+
+ALPHA_L1L2 = 2.5457  # GPS 
 
 # ------------------------------------------
 def ParseDataSpec(dataSpec):
@@ -90,6 +99,25 @@ def LoadRefCalAvMatches(fName):
 		data = l.split()
 		t.append(float(data[0]) + float(data[1])/86400)
 		delta.append(float(data[4]))
+	
+	fin.close()
+	return np.array([t,delta])
+
+
+# ------------------------------------------
+def LoadRnxClkDiffs(fName):
+	t=[]
+	delta=[]
+	try:
+		fin = open(fName,'r')
+	except:
+		ErrorExit('Failed to open ' + fName) # shouldn't happen
+	for l in fin:
+		# format is 
+		# MJD TOD(s) STA1  STA2 Delta
+		data = l.split()
+		t.append(float(data[0]) + float(data[1])/86400)
+		delta.append(float(data[4])*1.0E9) # convert to ns
 	
 	fin.close()
 	return np.array([t,delta])
@@ -179,7 +207,13 @@ emailSender = ''
 smtpServer = ''
 
 cggttsTool = '/usr/local/bin/cmpcggtts.py'
+diffrnxclkTool = '/usr/local/bin/diffrnxclk.py'
+tool = cggttsTool
+
 mode  = MODE_CMPALL
+dataSource = SRC_CGGTTS
+
+weeklyStart = WEEKLY_START
 
 outlierThreshold = 10.0 # in ns
 
@@ -196,6 +230,11 @@ group.add_argument('--cmpall',help='compute all comparisons (default)',action='s
 group.add_argument('--cmpref',help='compute only comparisons with reference receiver',action='store_true')
 
 group = parser.add_mutually_exclusive_group()
+group.add_argument('--cggtts',help='compare CGGTTS data (default)',action = 'store_true')
+group.add_argument('--rnxclk',help='compare RINEX CLK data',action = 'store_true')
+
+group = parser.add_mutually_exclusive_group()
+group.add_argument('--weekly',help='report for past week',action='store_true')
 group.add_argument('--monthly',help='report for past month',action='store_true')
 group.add_argument('--quarterly',help='report for past quarter',action='store_true')
 group.add_argument('--yearly',help='report for past year',action='store_true')
@@ -250,6 +289,25 @@ if 'main:email recipients' in cfg:
 if 'main:smtp server' in cfg:
 	smtpServer = cfg['main:smtp server']
 	
+if args.cggtts:
+	dataSource = SRC_CGGTTS
+	codes = cfg['main:codes'].split(',')
+	codes = [c.lower() for c in codes]
+	cmd = [cggttsTool]
+	cmd.append('--delaycal')
+	cmd.append('--matchephemeris')
+	cmd.append('--nowarn')
+	cmd.append('--quiet')
+	cmd.append('--acceptdelays')
+	cmd.append('--outputdir')
+	cmd.append(tmpDir)
+	tool = cggttsTool
+elif args.rnxclk:
+	dataSource = SRC_RNXCLK
+	codes = ['L3P'] 
+	cmd = [diffrnxclkTool]
+	tool = diffrnxclkTool
+	
 startMJD = ottp.MJD(time.time()) - 1 # previous day
 stopMJD  = startMJD
 	
@@ -266,21 +324,41 @@ if (args.mjd):
 		ottp.ErrorExit('Too many MJDs')
 
 repInterval = ''
+
+if (args.weekly):
+	stopMJD = ottp.MJD(time.time()) - 1
+	startMJD = stopMJD - 6
+	repInterval = 'last week'
+	if dataSource == SRC_RNXCLK:
+		# The start MJD is defined by the the reference mjd WEEKLY_START
+		# It should always be at least one week ago
+		mjdToday = ottp.MJD(time.time())
+		startMJD = weeklyStart + int((mjdToday - weeklyStart)/7 - 1 )*7 - RAPID_LATENCY
+		stopMJD  = startMJD + 6 # maximum of 7 days data
+		
+		# os.path.join(clockDir,'PPP{:02d}{:03d}{}.CLK'.format(yy % 100,doy,station)))
+		
 if (args.monthly):
 	stopMJD = ottp.MJD(time.time()) - 1
 	startMJD = stopMJD - 30
 	repInterval = 'last month'
-	
+	if dataSource == SRC_RNXCLK:
+		ottp.ErrorExit('--monthly unsupported at present')
+		
 if (args.quarterly):
 	stopMJD = ottp.MJD(time.time()) - 1
 	startMJD = stopMJD - 90
 	repInterval = 'last quarter'
-	
+	if dataSource == SRC_RNXCLK:
+		ottp.ErrorExit('--quarterly unsupported at present')
+		
 if (args.yearly):
 	stopMJD = ottp.MJD(time.time()) - 1
 	startMJD = stopMJD - 365
 	repInterval = 'last year'
-	
+	if dataSource == SRC_RNXCLK:
+		ottp.ErrorExit('--yearly unsupported at present')
+		
 if (args.ndays): # overrides args.mjd
 	currMJD = ottp.MJD(time.time()) - 1
 	startMJD = currMJD - 1 - int(args.ndays) - 1
@@ -302,18 +380,6 @@ if args.cmpref:
 
 ottp.Debug('Running for {:d} - {:d}'.format(startMJD,stopMJD))
 
-codes = cfg['main:codes'].split(',')
-codes = [c.lower() for c in codes]
-
-cmd = [cggttsTool]
-cmd.append('--delaycal')
-cmd.append('--matchephemeris')
-cmd.append('--nowarn')
-cmd.append('--quiet')
-cmd.append('--acceptdelays')
-cmd.append('--outputdir')
-cmd.append(tmpDir)
-
 rx1evcol = 'tab:green'
 rx2evcol = 'tab:purple'
 
@@ -328,9 +394,18 @@ for i in range(0,len(rx1list)):
 		ev = cfg[rx1+':events'].split(',')
 		for e in ev:
 			rx1events.append(e.split())
+	
+	irx2list = []
+	if mode == MODE_CMPREF:
+		for j in range (0,len(rx2list)):
+			 if not(rx1list[0]==rx2list[j]):
+				 irx2list.append(rx2list[j])
+	else:
+		for j in range (i+1,len(rx2list)): # this skips unwanted permutations
+			irx2list.append(rx2list[j])
+			
+	for rx2 in irx2list: 
 		
-	for j in range (i+1,len(rx2list)): # this skips unwanted permutations
-		rx2 = rx2list[j]
 		rx2events = []
 		
 		if (rx2+':events') in cfg:
@@ -338,42 +413,59 @@ for i in range(0,len(rx1list)):
 			for e in ev:
 				rx2events.append(e.split())
 		
-		for c in codes:
+		for c in codes: # fudged for RNXCLK - just one code - L3P nominally
 			ottp.Debug('Processing {}-{} {} '.format(rx1,rx2,c))
-			rx1c = rx1 + ':' + c
-			rx2c = rx2 + ':' + c
-			if (rx1c in cfg and rx2c in cfg):
-				
-				rx1Prefix = None
-				rx2Prefix = None
-				rx1cPath,rx1Prefix = ParseDataSpec(cfg[rx1c])
-				rx2cPath,rx2Prefix = ParseDataSpec(cfg[rx2c])
-				
-				tcmd = copy.deepcopy(cmd)
-				tcmd.append(rx1cPath)
-				tcmd.append(rx2cPath)
-				if rx1Prefix:
-					tcmd.append('--refprefix')
-					tcmd.append(rx1Prefix)
-				if rx2Prefix:
-					tcmd.append('--calprefix')
-					tcmd.append(rx2Prefix)
+			
+			if dataSource == SRC_CGGTTS:
+				rx1c = rx1 + ':' + c
+				rx2c = rx2 + ':' + c
+				if (rx1c in cfg and rx2c in cfg):
 					
+					rx1Prefix = None
+					rx2Prefix = None
+					rx1cPath,rx1Prefix = ParseDataSpec(cfg[rx1c])
+					rx2cPath,rx2Prefix = ParseDataSpec(cfg[rx2c])
+					
+					tcmd = copy.deepcopy(cmd) # each run uses a modified version of 'cmd'
+					tcmd.append(rx1cPath)
+					tcmd.append(rx2cPath)
+					if rx1Prefix:
+						tcmd.append('--refprefix')
+						tcmd.append(rx1Prefix)
+					if rx2Prefix:
+						tcmd.append('--calprefix')
+						tcmd.append(rx2Prefix)
+						
+					tcmd.append(str(startMJD))
+					tcmd.append(str(stopMJD))
+				else:
+					continue # tralala
+			elif dataSource == SRC_RNXCLK:
+				tcmd = copy.deepcopy(cmd) # each run uses a modified version of 'cmd'
+				# arguments are STA1 STA2 STA1DIR STA2DIR OUTDIR STARTMJD STOPMJD
+				tcmd.append(cfg[rx1 + ':station'].upper())
+				tcmd.append(cfg[rx2 + ':station'].upper())
+				tcmd.append(ottp.MakeAbsolutePath(cfg[rx1 + ':ppp clock path'],root))
+				tcmd.append(ottp.MakeAbsolutePath(cfg[rx2 + ':ppp clock path'],root))
+				tcmd.append(tmpDir)
 				tcmd.append(str(startMJD))
 				tcmd.append(str(stopMJD))
-				
-				if debug:
-					print(tcmd)
-				
-				ottp.Debug('Running ' + cggttsTool)
-	
-				try:
-					x = subprocess.check_output(tcmd) # eat the output
-				except Exception as e:
-					ottp.ErrorExit('Failed to run ' + cggttsTool)
-				ottp.Debug(x.decode('utf-8'))
-				
-				# Output files are 
+					
+			if debug:
+				print(tcmd)
+			
+			ottp.Debug('Running ' + tool)
+
+			try:
+				x = subprocess.check_output(tcmd) # eat the output
+			except Exception as e:
+				ottp.ErrorExit('Failed to run ' + tool)
+			ottp.Debug(x.decode('utf-8'))
+			
+			sufficientData = True
+			
+			if dataSource == SRC_CGGTTS:
+				# Output files from cmpcggtts.py are 
 				# ref.cal.matches.txt
 				# ref.cal.av.matches.txt
 				# ref.cal.ps
@@ -382,76 +474,112 @@ for i in range(0,len(rx1list)):
 				
 				# cmppcggtts can produce no output
 				matchFile = os.path.join(tmpDir,'ref.cal.av.matches.txt')
-				sufficientData = True
+				
 				if os.path.isfile(matchFile):
 					dataFile  = os.path.join(tmpDir,'{}.{}.{}.av.matches.txt'.format(rx1,rx2,c))
 					tmpFiles.append(dataFile)
 					os.rename(matchFile,dataFile)
 					td = LoadRefCalAvMatches(dataFile)
-					sufficientData = len(td[0]) >= 2*TRACKS_PER_DAY/3
+					sufficientData = len(td[0]) >= 2*TRACKS_PER_DAY/3 #  (why 2/3? - so the convolve() for running mean doesn't result in truncation of the output)
 					ottp.Debug('Matched tracks = {:d}'.format(len(td[0])))
 				else:
 					ottp.Debug('No output from cmpcggtts.py')
 					sufficientData = False
 					
-				if not(sufficientData): # not much we can do with that (why 2/3? - so the convolve() for running mean doesn't result in truncation of the output)
-					fig,(ax1,ax2)= plt.subplots(2,sharex=False,figsize=(8,11))
-					title = rx1.upper() + ' - ' + rx2.upper() + ' ' + c.upper() + 'NO DATA'
-					fig.suptitle(title,ha='left',x=0.02,size='medium')	
-					plt.savefig(os.path.join(tmpDir,rx1 + '.' + rx2 + '.' + c + '.png'))
-					continue
+			
+			elif dataSource == SRC_RNXCLK:
+				diffFile = os.path.join(tmpDir,'{}.{}.{}.{}.diff.dat'.format(cfg[rx1 + ':station'].upper(),cfg[rx2 + ':station'].upper(),str(startMJD),str(stopMJD)))
+				if os.path.isfile(diffFile):
+					td = LoadRnxClkDiffs(diffFile)
+					ottp.Debug('Matched data points = {:d}'.format(len(td[0])))
+					# Apply the delays
+					rx1Delay = 0.0
+					if (rx1 + ':p1 delay' in cfg) and (rx1 + ':p2 delay' in cfg) and (rx1 + ':cab delay' in cfg) and (rx1 + ':ref delay' in cfg):
+						p1Delay = float(cfg[rx1 + ':ref delay']) - ( float(cfg[rx1 + ':cab delay']) + float(cfg[rx1 + ':p1 delay']) ) 
+						p2Delay = float(cfg[rx1 + ':ref delay']) - ( float(cfg[rx1 + ':cab delay']) + float(cfg[rx1 + ':p2 delay']) ) 
+						rx1Delay = -ALPHA_L1L2 *p1Delay - (1.0-ALPHA_L1L2)*p2Delay
+					ottp.Debug('{} delay : {:g}'.format(rx1,rx1Delay))	
+					rx2Delay = 0.0
+					if (rx2 + ':p1 delay' in cfg) and (rx2 + ':p2 delay' in cfg) and (rx2 + ':cab delay' in cfg) and (rx2 + ':ref delay' in cfg):
+						p1Delay = float(cfg[rx2 + ':ref delay']) - ( float(cfg[rx2 + ':cab delay']) + float(cfg[rx2 + ':p1 delay']) ) 
+						p2Delay = float(cfg[rx2 + ':ref delay']) - ( float(cfg[rx2 + ':cab delay']) + float(cfg[rx2 + ':p2 delay']) ) 
+						rx2Delay = -ALPHA_L1L2 *p1Delay - (1.0-ALPHA_L1L2)*p2Delay
+					ottp.Debug('{} delay : {:g}'.format(rx2,rx2Delay))
+					for dd in range(0,len(td[0])):
+						td[1][dd] = td[1][dd] - (rx1Delay - rx2Delay)
+					tmpFiles.append(diffFile)
+					sufficientData = len(td[0]) >= 0.5*CLKDIFFS_PER_DAY # FIXME a bit dodgy
+				else:
+					ottp.Debug('No output from diffrnxclk.py')
+					sufficientData = False
 					
-				# Now we fix up for known events 
-				td = ProcessEvents(td,rx1events, 1)
-				td = ProcessEvents(td,rx2events,-1)
-				# and then remove outliers, since known steps have been fixed and known bad data removed
-				td,nOutliers = RemoveOutliers(td)
-				
-				# The timescales might be
-				# week = 7*80 = 560
-				# month = 30 * 80 = 2400 
-				# year  = 365 * 80 = 
-				
-				# Calculate a running mean
+			if not(sufficientData): # not much we can do with that 
+				fig,(ax1,ax2)= plt.subplots(2,sharex=False,figsize=(8,11))
+				title = rx1.upper() + ' - ' + rx2.upper() + ' ' + c.upper() + 'NO DATA'
+				fig.suptitle(title,ha='left',x=0.02,size='medium')	
+				plt.savefig(os.path.join(tmpDir,rx1 + '.' + rx2 + '.' + c + '.png'))
+				continue
+					
+			# Now we fix up for known events 
+			td = ProcessEvents(td,rx1events, 1)
+			td = ProcessEvents(td,rx2events,-1)
+			# and then remove outliers, since known steps have been fixed and known bad data removed
+			td,nOutliers = RemoveOutliers(td)
+			
+			# The timescales might be
+			# week = 7*80 = 560
+			# month = 30 * 80 = 2400 
+			# year  = 365 * 80 = 
+			
+			# Calculate a running mean
+			if dataSource == SRC_CGGTTS:
 				winLen = int(TRACKS_PER_DAY/2)
-				mm = np.convolve(td[1],np.ones(winLen),'same')/winLen
-				mm[0:winLen]   = None # remove the invalid bits of the convolution
-				mm[-winLen:] = None
-				
-				nTDEV   = int(len(td[0])/3)
-				dT = 86400*(td[0][-1] - td[0][0])/len(td[0]) # average time between measurements
-				
-				(tdtaus, tddevs, tderrors, tdns) = allantools.tdev(td[1],rate = 1.0,taus='all')
-				
-				fig,(ax1,ax2)= plt.subplots(2,sharex=False,figsize=(8,9))
-				plt.subplots_adjust(bottom=0.07,right=0.85)
-				title = '{}-{} {}    OUTLIERS = {:d}'.format(rx1.upper(),rx2.upper(),c.upper(),nOutliers) 
-				fig.suptitle(title,ha='left',x=0.02,size='medium')
-				
+			elif dataSource == SRC_RNXCLK:
+				winLen = 30
+			mm = np.convolve(td[1],np.ones(winLen),'same')/winLen
+			mm[0:winLen]   = None # remove the invalid bits of the convolution
+			mm[-winLen:] = None
+			
+			nTDEV   = int(len(td[0])/3)
+			dT = 86400*(td[0][-1] - td[0][0])/len(td[0]) # average time between measurements
+			
+			(tdtaus, tddevs, tderrors, tdns) = allantools.tdev(td[1],rate = 1.0,taus='all')
+			
+			fig,(ax1,ax2)= plt.subplots(2,sharex=False,figsize=(8,9))
+			plt.subplots_adjust(bottom=0.07,right=0.85)
+			title = '{}-{} {}    OUTLIERS = {:d}'.format(rx1.upper(),rx2.upper(),c.upper(),nOutliers) 
+			fig.suptitle(title,ha='left',x=0.02,size='medium')
+			
+			if dataSource == SRC_CGGTTS:
 				ax1.set_title(r'$\Delta$ REFSYS (unweighted track average)')
-				ax1.set_ylabel(r'$\Delta$(ns)')
-				ax1.set_xlabel('MJD')
-				ax1.plot(td[0],td[1],ls='None',marker='.')
-				ax1.plot(td[0],mm)
-				ax1.set_xlim([startMJD,stopMJD+1]) # mask out unmwanted events
-				PlotEventMarkers(ax1,rx1events,rx1evcol)
-				PlotEventMarkers(ax1,rx2events,rx2evcol)
-				
+			elif dataSource == SRC_RNXCLK:
+				ax1.set_title(r'PPP CLK differences')
+			ax1.set_ylabel(r'$\Delta$(ns)')
+			ax1.set_xlabel('MJD')
+			ax1.plot(td[0],td[1],ls='None',marker='.')
+			ax1.plot(td[0],mm)
+			ax1.set_xlim([startMJD,stopMJD+1]) # mask out unmwanted events
+			PlotEventMarkers(ax1,rx1events,rx1evcol)
+			PlotEventMarkers(ax1,rx2events,rx2evcol)
+			
+			
+			if dataSource == SRC_CGGTTS:
 				ax2.set_title(r'TDEV of $\Delta$ REFSYS')
-				ax2.set_ylabel('TDEV (ns)')
-				ax2.set_xlabel('averaging time (s)')
-				ax2.loglog(tdtaus*dT,tddevs,'.-')
-				
-				ax2.yaxis.set_major_formatter(mticker.ScalarFormatter())
+			elif dataSource == SRC_RNXCLK:
+				ax2.set_title(r'TDEV of PPPCLK differences')
+			ax2.set_ylabel('TDEV (ns)')
+			ax2.set_xlabel('averaging time (s)')
+			ax2.loglog(tdtaus*dT,tddevs,'.-')
+			
+			ax2.yaxis.set_major_formatter(mticker.ScalarFormatter())
 
-				ax2.grid(which='both')
+			ax2.grid(which='both')
+			
+			plotFile = os.path.join(tmpDir,rx1 + '.' + rx2 + '.' + c + '.png')
+			tmpFiles.append(plotFile)
+			plotFiles.append([plotFile,rx1.upper(),rx2.upper(),c.upper()]) # may as well save stuff
+			plt.savefig(plotFile)
 				
-				plotFile = os.path.join(tmpDir,rx1 + '.' + rx2 + '.' + c + '.png')
-				tmpFiles.append(plotFile)
-				plotFiles.append([plotFile,rx1.upper(),rx2.upper(),c.upper()]) # may as well save stuff
-				plt.savefig(plotFile)
-				
-
 if (args.display):
 	plt.show()
 
@@ -469,7 +597,10 @@ if (args.report):
 	html += '<br>'
 	html += 'Notes:<br>'
 	html += '<ol>'
-	html += '<li>Running average (in orange) is over 12 hours.</li>'
+	if dataSource == SRC_CGGTTS:
+		html += '<li>Running average (in orange) is over 12 hours.</li>'
+	elif dataSource == SRC_RNXCLK:
+		html += '<li>Running average (in orange) is over 15 minutes.</li>'
 	html += '<li>Outliers greater than {:g} ns from the median have been removed.</li>'.format(outlierThreshold)
 	html += '<li>Known  steps have been fixed using event data.</li>'
 	html += '<li>Events are marked with green dashed lines for the first receiver, and with purple dashed lines for the second receiver.</li>'
