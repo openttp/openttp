@@ -55,7 +55,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0
@@ -665,8 +665,9 @@ if args.email and args.report:
 
 	
 if not(debug):
-	tmpFiles.append(os.path.join(tmpDir,'ref.cal.matches.txt'))
-	tmpFiles.append(os.path.join(tmpDir,'ref.cal.ps'))
+	if dataSource == SRC_CGGTTS:
+		tmpFiles.append(os.path.join(tmpDir,'ref.cal.matches.txt'))
+		tmpFiles.append(os.path.join(tmpDir,'ref.cal.ps'))
 	for f in tmpFiles:
 		os.unlink(f)
 	if args.report:
