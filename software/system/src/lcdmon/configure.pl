@@ -40,6 +40,7 @@ $SYSTEMD="systemd";
 	["BeagleBoard.org Debian","debian",$SYSTEMD],
 	["Debian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
 	["Debian GNU/Linux 10 (buster)","debian",$SYSTEMD],
+	["Debian GNU/Linux 11 (bullseye)","debian",$SYSTEMD],
 	["Raspbian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
 	["Raspbian GNU/Linux 10 (buster)","debian",$SYSTEMD]
 	);
