@@ -56,7 +56,7 @@ import time
 
 import ottplib
 
-VERSION = '0.3.1'
+VERSION = '0.4.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -528,12 +528,14 @@ def ClearGNSS():
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
 nLeap = NLEAP
+checkSync = True
 
 parser = argparse.ArgumentParser(description='Log a Septentrio receiver',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
 
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
+parser.add_argument('--nosynccheck','-n',help='disable pps and ext ref sync check',action='store_true')
 parser.add_argument('--reset','-r',help='reset receiver and exit',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
@@ -541,6 +543,9 @@ args = parser.parse_args()
 
 debug = args.debug
 
+if args.nosynccheck:
+	checkSync = False
+	
 configFile = args.config;
 
 if (not os.path.isfile(configFile)):
@@ -791,7 +796,7 @@ while (not killed):
 				tLastSyncOK = tt
 			else:
 				Debug('Bad sync')
-				if ((tt - tLastSyncOK) > syncAlarmTimeout):
+				if (checkSync and (tt - tLastSyncOK) > syncAlarmTimeout):
 					print('Sync timeout : status = 0x{:04x}'.format(receiverStatus))
 					SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
 					ottplib.RemoveProcessLock(lockFile) 
