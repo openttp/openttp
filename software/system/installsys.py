@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -76,6 +76,8 @@ osinfo = [
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
 	['Debian GNU/Linux','10','bbdebian10',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/'],
+	['Debian GNU/Linux','11','bbdebian11',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/'],
 	['Raspbian GNU/Linux','9','rpidebian9',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.5/dist-packages/'],
 	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
