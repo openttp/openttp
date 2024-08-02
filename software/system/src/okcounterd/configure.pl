@@ -40,7 +40,7 @@ if ($machine =~ /x86_64|i386|i686/){
 		$Makefile="Makefile.OpenOK2";
 	}
 }
-elsif ($machine =~ /arm/){
+elsif ($machine =~ /arm|aarch64/){
 	$Makefile="Makefile.OpenOK2";
 }
 else{
