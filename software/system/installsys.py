@@ -339,7 +339,8 @@ if not thisos:
 		thisos = ['Unsupported','?','unsupported','/usr/local/lib/site_perl']
 
 (_,_,_,_,architecture,processor)=platform.uname()
-if architecture.find('arm') == 0 or architecture.find('aarch64'): #Ubuntu arm reports aarch64
+#                                    Ubuntu arm reports aarch64
+if architecture.find('arm') == 0 or architecture.find('aarch64') == 0: 
 	processor = 'arm'
 
 initSys = thisos[INITSYS]
