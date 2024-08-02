@@ -69,10 +69,10 @@ osinfo = [
 		'/usr/local/lib/python3.8/site-packages'],
 	['Ubuntu','22','ubuntu22',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
-		'/usr/local/lib/python3.10/site-packages'],
+		'/usr/local/lib/python3.10/dist-packages'],
 	['Ubuntu','24','ubuntu24',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
-		'/usr/local/lib/python3.12/site-packages'],
+		'/usr/local/lib/python3.12/dist-packages'],
 	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
@@ -128,7 +128,7 @@ def GetYesNo(msg):
 # ------------------------------------------
 def DetectOS():
 
-	(dist,distrover,_)=distro.linux_distribution()
+	(dist, distrover) = (distro.id(),distro.version())
 	Debug('Detected ' + dist + ' ' + distrover)
 	dist=dist.lower()
 	ver=distrover.split('.')
@@ -339,7 +339,7 @@ if not thisos:
 		thisos = ['Unsupported','?','unsupported','/usr/local/lib/site_perl']
 
 (_,_,_,_,architecture,processor)=platform.uname()
-if architecture.find('arm') == 0:
+if architecture.find('arm') == 0 or architecture.find('aarch64'): #Ubuntu arm reports aarch64
 	processor = 'arm'
 
 initSys = thisos[INITSYS]
