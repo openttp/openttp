@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.2.1'
+VERSION = '1.2.2'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -70,6 +70,9 @@ osinfo = [
 	['Ubuntu','22','ubuntu22',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
 		'/usr/local/lib/python3.10/site-packages'],
+	['Ubuntu','24','ubuntu24',SYSTEMD,
+		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
+		'/usr/local/lib/python3.12/site-packages'],
 	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
@@ -213,7 +216,7 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 	if ('python2' in py2):
 		ver = subprocess.check_output([py2,'-V'],stderr=subprocess.STDOUT).strip().decode('utf-8');
 		Debug('python2 is ' + ver)
-		match = re.search('^Python\s+(\d+)\.(\d+)',ver)
+		match = re.search(r'^Python\s+(\d+)\.(\d+)',ver)
 		minorVer = -1
 		if match:
 			minorVer = int(match.group(2))
@@ -227,7 +230,7 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 				shutil.copy(src,py2libdir)
 				shutil.copy(srcdir + '/' + modname + '.pyc',py2libdir)
 			except:
-				ErrorExit('Failed to compil/install ' + modname + ' (python2)')
+				ErrorExit('Failed to compile/install ' + modname + ' (python2)')
 			Log('Installed ' + modname + ' to ' + py2libdir)
 		else:
 			ErrorExit('Python2 version is ' + str(minorVer) + ': unsupported')
@@ -235,7 +238,7 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 	if ('python3' in py3):
 		ver = subprocess.check_output([py3,'-V'],stderr=subprocess.STDOUT).strip().decode('utf-8');
 		Debug('python3 is ' + ver)
-		match = re.search('^Python\s+(\d+)\.(\d+)',ver)
+		match = re.search(r'^Python\s+(\d+)\.(\d+)',ver)
 		minorVer = -1
 		if match:
 			minorVer = int(match.group(2))
