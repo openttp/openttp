@@ -44,9 +44,11 @@ sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
 sys.path.append('/usr/local/lib/python3.9/dist-packages')
 sys.path.append('/usr/local/lib/python3.10/dist-packages')
+sys.path.append('/usr/local/lib/python3.11/dist-packages')
+sys.path.append('/usr/local/lib/python3.12/dist-packages')
 import ottplib
 
-VERSION = '0.1.4'
+VERSION = '0.1.5'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -81,6 +83,9 @@ osinfo = [
 	['Ubuntu','22','ubuntu22',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
 		'/usr/local/lib/python3.10/dist-packages'],
+	['Ubuntu','24','ubuntu24',SYSTEMD,
+		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
+		'/usr/local/lib/python3.12/dist-packages'],
 	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
@@ -94,7 +99,9 @@ osinfo = [
 	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/'],
 	['Raspbian GNU/Linux','11','rpidebian11',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/']]
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/'],
+	['Debian GNU/Linux','12','rpidebian12',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.11/dist-packages/']]
 
 # All available installation targets
 basetargets = ['mktimetx','misc scripts']
