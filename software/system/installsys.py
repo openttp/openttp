@@ -86,7 +86,9 @@ osinfo = [
 	['Raspbian GNU/Linux','10','rpidebian10',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.7/dist-packages/'],
 	['Raspbian GNU/Linux','11','rpidebian11',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/']]
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/'],
+	['Debian GNU/Linux','12','rpidebian12',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.11/dist-packages/']]
 
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
@@ -128,7 +130,12 @@ def GetYesNo(msg):
 # ------------------------------------------
 def DetectOS():
 
-	(dist, distrover) = (distro.id(),distro.version())
+	# Warning: distro.linux_distribtion is deprecated, but changing to
+	# (dist, distrover) = (distro.id(),distro.version())
+	# breaks compatibility with Raspberry Pi OS. It works for Ubuntu though.
+	# TODO: Fix this properly. It will likely stop working in future versions
+	# of Python 3.
+	(dist, distrover,_) = (distro.linux_distribution())
 	Debug('Detected ' + dist + ' ' + distrover)
 	dist=dist.lower()
 	ver=distrover.split('.')
