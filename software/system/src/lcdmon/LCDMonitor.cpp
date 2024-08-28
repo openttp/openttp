@@ -76,7 +76,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "2.0.2"
+#define LCDMONITOR_VERSION "2.0.3"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -1264,10 +1264,20 @@ void LCDMonitor::showStatus()
 							maxn = 11; // was 9 when 2xx was used as prn no
 						}
 						for (unsigned int i=0;i<sprns.size();i++){
-							prns.push_back(atoi(sprns.at(i).c_str()));
-							// subtract 200 from prn number to get sv number for Beidou satellites
-							if(!showGLOBD) prns[i] = prns[i] - 200;
-						}
+							
+							int prn = atoi(sprns.at(i).c_str());
+							if (showGLOBD){
+								// Due to problems with GLONASS visibility, the SMT360 receiver is now configured to also
+								// track GPS (but output a GLONASS aligned PPS). This means that the PRN list needs to be filtered to remove non-GLONASS SV
+								// For the SMT360 (and ublox) the SV IDs are 65-96 (these are NMEA standard)
+								if (prn > 65 && prn <= 96){
+									prns.push_back(prn);
+								}
+							}
+							else{ // BDS
+								prns.push_back(prn - 200); // NavSpark: subtract 200 from prn number to get sv number for Beidou satellites
+							}
+						}	
 						sort(prns.begin(),prns.end());
 						int nprns = prns.size();
 						if (nprns > n1) nprns = n1;
@@ -2435,6 +2445,7 @@ bool LCDMonitor::checkGLOBD(std::string &GLOprns, std::string &BDprns, bool  *un
 		getline(fin,tmp);
 		if (string::npos != tmp.find("prns=")){
 			parseConfigEntry(tmp,GLOprns,'=');
+			
 		}
 	}
 	fin.close();
