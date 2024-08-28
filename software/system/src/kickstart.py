@@ -44,7 +44,7 @@
 
 
 import argparse
-from datetime import datetime
+import datetime
 import glob
 import os
 import re
@@ -58,10 +58,15 @@ import time
 sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
-import ottplib
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 22.04
 
-VERSION = "2.0.2"
-AUTHORS = "Michael Wouters"
+try: 
+	import ottplib as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
+
+VERSION = "2.1.0"
+AUTHORS = "Michael Wouters,Louis Marais"
 
 debug = False
 
@@ -70,31 +75,6 @@ def ShowVersion():
 	print (os.path.basename(sys.argv[0])+" "+VERSION)
 	print ('Written by ' + AUTHORS)
 	return
-
-# ------------------------------------------
-def Debug(msg):
-	if (debug):
-		sys.stderr.write(msg + '\n')
-	return
-
-# ------------------------------------------
-def ErrorExit(msg):
-	print (msg)
-	sys.exit(0)
-
-# ------------------------------------------
-def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
-	if (cfg == None):
-		ErrorExit("Error loading " + configFile)
-		
-	# Check for required arguments
-	reqd = [':targets'] # note empty main ...
-	for k in reqd:
-		if (not k in cfg):
-			ErrorExit('The required configuration entry "' + k + '" is undefined')
-		
-	return cfg
 
 # ------------------------------------------
 # Main body 
@@ -113,7 +93,7 @@ appName = os.path.basename(sys.argv[0])
 hostName = socket.gethostname()
 examples=''
 
-if ottplib.LibMinorVersion() < 1: # a bit redundant since this will fail anyway on older versions of ottplib ...
+if ottp.LibMinorVersion() < 1: # a bit redundant since this will fail anyway on older versions of ottplib ...
 	print('ottplib major version < 1')
 	sys.exit(1)
 
@@ -127,60 +107,59 @@ parser.add_argument('--version','-v',help='show version and exit',action='store_
 args = parser.parse_args()
 
 debug = args.debug
+ottp.SetDebugging(args.debug)
 
 if (args.version):
 	ShowVersion()
-	exit()
+	sys.exit()
 
 configFile = args.config;
-
 if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + ' not found')
-	
-cfg=Initialise(configFile)
+	ottp.ErrorExit(configFile + ' not found')
+cfg=ottp.Initialise(configFile,[':targets']) # note empty 'main'
 
 targets = cfg[':targets'].split(',')
 targets = [t.strip() for t in targets] # trim that whitespace
 
 for t in targets:
 	target = cfg[ t + ':target']
-	lockFile = ottplib.MakeAbsoluteFilePath(cfg[t + ':lock file'],root,logPath)
+	lockFile = ottp.MakeAbsoluteFilePath(cfg[t + ':lock file'],root,logPath)
 	#  Fiddle with the path to the executable, if this is not absolute
 	#  Since there can be command line arguments we need to extract the first part of the command
 	cmdArgs = cfg[t + ':command'].split()
 	if len(cmdArgs) > 1:
-		cmd = ottplib.MakeAbsoluteFilePath(cmdArgs[0],root,os.path.join(root,'bin')) 
+		cmd = ottp.MakeAbsoluteFilePath(cmdArgs[0],root,os.path.join(root,'bin')) 
 		for j in range(1,len(cmdArgs)):
 			cmd += ' ' + cmdArgs[j]
 	else:
-		cmd = ottplib.MakeAbsoluteFilePath(cfg[t + ':command'],root,os.path.join(root,'bin'))
+		cmd = ottp.MakeAbsoluteFilePath(cfg[t + ':command'],root,os.path.join(root,'bin'))
 	
-	Debug('Testing ' + target + ' for ' + lockFile)
-	running = not(ottplib.TestProcessLock(lockFile)) # reverse logic to Perl function!
+	ottp.Debug('Testing ' + target + ' for ' + lockFile)
+	running = not(ottp.TestProcessLock(lockFile)) # reverse logic to Perl function!
 	checkFile = os.path.join(checkPath,'kickstart.' + t + '.check')
 	if running:
-		Debug('Process is running')
+		ottp.Debug('Process is running')
 		fout = open(checkFile,'w') # easiest way to update the modification time
 		fout.close()
 	else:
-		Debug('Process is not running')
+		ottp.Debug('Process is not running')
 		
 		targetOutputFile = os.path.join(logPath,target + '.log')
 		
 		# The nitty gritty
 		try:
 			x = subprocess.Popen('nohup ' + cmd + ' >>' + targetOutputFile + ' 2>&1 &',shell=True) # this is how you can start a background process
-			Debug('Restarted using ' + cmd);
-			msg = '{} {} restarted'.format(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),t)
+			ottp.Debug('Restarted using ' + cmd);
+			msg = '{} {} restarted'.format(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),t)
 			if os.path.isfile(checkFile):
 				mtime = int(os.stat(checkFile).st_mtime) # chop off fractional bit
-				msg += ' (last OK check {})'.format(datetime.fromtimestamp(mtime))
+				msg += ' (last OK check {})'.format(datetime.datetime.fromtimestamp(mtime))
 			msg += '\n'
 		except Exception as e:
-			msg = '{} {} restart failed'.format(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),t)
+			msg = '{} {} restart failed'.format(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),t)
 			print(e)
 		
-		Debug(msg)
+		ottp.Debug(msg)
 		
 		try:
 			fout = open(logFile,'a')

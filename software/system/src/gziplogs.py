@@ -33,7 +33,7 @@
 
 
 import argparse
-from datetime import datetime
+import datetime
 import os
 import shutil
 import subprocess
@@ -41,15 +41,19 @@ import sys
 import time
 
 # This is where ottplib is installed
+# 
 sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
-import ottplib
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
 
-VERSION = "1.0.0"
+try: 
+	import ottplib as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
+
+VERSION = "1.1.0"
 AUTHORS = "Michael Wouters"
-
-debug = False
 
 # ------------------------------------------
 def ShowVersion():
@@ -58,37 +62,11 @@ def ShowVersion():
 	return
 
 # ------------------------------------------
-def Debug(msg):
-	if (debug):
-		sys.stderr.write(msg + '\n')
-	return
-
-# ------------------------------------------
-def ErrorExit(msg):
-	print (msg)
-	sys.exit(0)
-
-# ------------------------------------------
-def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
-	if (cfg == None):
-		ErrorExit("Error loading " + configFile)
-		
-	# Check for required arguments
-	# reqd = [':targets'] # note empty main ...
-	reqd = []
-	for k in reqd:
-		if (not k in cfg):
-			ErrorExit('The required configuration entry "' + k + '" is undefined')
-		
-	return cfg
-
-# ------------------------------------------
 def CompressFile(f):
-	Debug('Checking ' + f)
+	ottp.Debug('Checking ' + f)
 	if os.path.isfile(f):
 		try:
-			Debug('Compressing ' + f)
+			ottp.Debug('Compressing ' + f)
 			x = subprocess.check_output(['gzip','-f',fname]) # -q to suppress warnings?
 		except Exception as e:
 			print(e) # not fatal
@@ -117,20 +95,18 @@ parser.add_argument('--version','-v',help='show version and exit',action='store_
 
 args = parser.parse_args()
 
-debug = args.debug
+ottp.SetDebugging(args.debug)
 
 if (args.version):
 	ShowVersion()
 	exit()
 
 configFile = args.config;
-
 if (not os.path.isfile(configFile)):
-	ErrorExit(configFile + ' not found')
-	
-cfg=Initialise(configFile)
+	ottp.ErrorExit(configFile + ' not found')
+cfg=ottp.Initialise(configFile,[])
 
-startMJD = ottplib.MJD(time.time()) - 1 # previous day
+startMJD = ottp.MJD(time.time()) - 1 # previous day
 stopMJD  = startMJD
 	
 if (args.mjd):
@@ -141,14 +117,14 @@ if (args.mjd):
 		startMJD = int(args.mjd[0])
 		stopMJD  = int(args.mjd[1])
 		if (stopMJD < startMJD):
-			ErrorExit('Stop MJD is before start MJD')
+			ottp.ErrorExit('Stop MJD is before start MJD')
 	else:
-		ErrorExit('Too many MJDs')
+		ottp.ErrorExit('Too many MJDs')
 
 for mjd in range(startMJD,stopMJD + 1):
 	
 	tmjd =  (mjd - 40587)*86400
-	utc = datetime.utcfromtimestamp(tmjd)
+	utc = datetime.datetime.fromtimestamp(tmjd,tz = datetime.timezone.utc)
 	ymd = utc.strftime('%Y%m%d')
 	doy = utc.strftime('%j') # zero padded
 	yy  = utc.strftime('%y') # ditto
@@ -162,7 +138,7 @@ for mjd in range(startMJD,stopMJD + 1):
 			f=f.replace('{YYYYMMDD}',ymd)
 			f=f.replace('{DOY}',doy) # this
 			f=f.replace('{YY}',yy)   # plus this is useful for V2 RINEX file names
-			fname = ottplib.MakeAbsoluteFilePath(f,root,os.path.join(root,'raw')) # default is just GPSCV raw data files
+			fname = ottp.MakeAbsoluteFilePath(f,root,os.path.join(root,'raw')) # default is just GPSCV raw data files
 			CompressFile(fname)
 			# nuffink more to do
 	elif ':targets' in cfg: # new style, extensible and more flexible 
@@ -177,19 +153,19 @@ for mjd in range(startMJD,stopMJD + 1):
 					f=f.replace('{YYYYMMDD}',ymd)
 					f=f.replace('{DOY}',doy)
 					f=f.replace('{YY}',yy)
-					fname = ottplib.MakeAbsoluteFilePath(f,root,os.path.join(root,'raw')) 
+					fname = ottp.MakeAbsoluteFilePath(f,root,os.path.join(root,'raw')) 
 					CompressFile(fname)
 					# The following moves any matching compressed file, if a destination is defined
 					fgz = fname + '.gz'
 					if os.path.isfile(fgz) and (t+':destination' in cfg) :
-						dst = ottplib.MakeAbsolutePath(cfg[t+':destination'],home)
-						Debug('Moving ' + fgz + ' to ' + dst)
+						dst = ottp.MakeAbsolutePath(cfg[t+':destination'],home)
+						ottp.Debug('Moving ' + fgz + ' to ' + dst)
 						try:
 							shutil.move(fgz,dst)
 						except Exception as e:
 							print(e) # it's not the end of the world
 			else:
-				Debug('No files defined for target ' + t)
+				ottp.Debug('No files defined for target ' + t)
 	else:
 		pass
 
