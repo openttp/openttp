@@ -23,28 +23,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-$UPSTART="upstart";
-$SYSTEMD="systemd";
 
 # The first entry is OS-defined string, second is our name for tarballs etc,
-# then init system
+# then ...
 @os =(
-	["Red Hat Enterprise Linux (WS|Workstation) release 6","rhel",$UPSTART],
-	["Red Hat Enterprise Linux 8","rhel",$SYSTEMD], 
-	["CentOS release 6","rhel",$UPSTART],
-	["CentOS Linux 7","rhel",$SYSTEMD],
-	["Ubuntu 14.04","debian",$UPSTART],
-	["Ubuntu 16.04","debian",$UPSTART],
-	["Ubuntu 18.04","debian",$SYSTEMD],
-	["Ubuntu 20.04","debian",$SYSTEMD],
-	["Ubuntu 22.04","debian",$SYSTEMD],
-	["Ubuntu 24.04","debian",$SYSTEMD],
-	["BeagleBoard.org Debian","debian",$SYSTEMD],
-	["Debian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
-	["Debian GNU/Linux 10 (buster)","debian",$SYSTEMD],
-	["Debian GNU/Linux 11 (bullseye)","debian",$SYSTEMD],
-	["Raspbian GNU/Linux 9 (stretch)","debian",$SYSTEMD],
-	["Raspbian GNU/Linux 10 (buster)","debian",$SYSTEMD]
+	["Red Hat Enterprise Linux 8","rhel"], 
+	["CentOS Linux 7","rhel"],
+	["Ubuntu 18.04","debian"],
+	["Ubuntu 20.04","debian"],
+	["Ubuntu 22.04","debian"],
+	["Ubuntu 24.04","debian"],
+	["Debian GNU/Linux 9 (stretch)","debian"],
+	["Debian GNU/Linux 10 (buster)","debian"],
+	["Debian GNU/Linux 11 (bullseye)","debian"],
+	["Raspbian GNU/Linux 9 (stretch)","debian"],
+	["Raspbian GNU/Linux 10 (buster)","debian"]
 	);
 
 # Try for /etc/os-release first (systemd systems only)
@@ -75,7 +68,7 @@ while ($l=<IN>){
 	if ($l=~/^DEFINES/){
 		print OUT "DEFINES = ";
 		if ($arch  =~ /armv7/){
-			print OUT " -DOTTP -DDEBIAN -DSYSTEMD";
+			print OUT " -DOTTP -DDEBIAN ";
 		}
 		else{
 			print OUT "-DTTS";
@@ -86,16 +79,10 @@ while ($l=<IN>){
 			elsif ($os[$osid][1] eq "rhel"){
 				print OUT " -DRHEL";
 			}
+			if (`which nmcli 2>/dev/null`){
+				print OUT " -DNMCLI";
+			}
 			
-			if ($os[$osid][2] eq $SYSTEMD){
-				print OUT " -DSYSTEMD";
-				if (`which nmcli 2>/dev/null`){
-					print OUT " -DNMCLI";
-				}
-			}
-			elsif ($os[$osid][2] eq $UPSTART){
-				print OUT " -DUPSTART";
-			}
 		}
 		print OUT "\n";
 	}

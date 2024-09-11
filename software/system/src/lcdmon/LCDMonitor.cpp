@@ -76,7 +76,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "2.0.3"
+#define LCDMONITOR_VERSION "3.0.0"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -425,46 +425,9 @@ void LCDMonitor::networkConfigStaticIP4()
 		int retval;
 		bool gotGW=false;
 		
-#ifdef UPSTART
-		string netcfg("/etc/sysconfig/network");
-		ifstream fin(netcfg.c_str());
-		if (!fin.good()){
-			lastError="Missing /etc/sysconfig/network";
-			goto DIE;
-		}
-		
-		ftmp = "/etc/sysconfig/network.tmp";
-		ofstream fout(ftmp.c_str());
-		
-		while (!fin.eof()){
-			getline(fin,tmp);
-			if (fin.eof())
-				break;
-			if (fin.fail()){
-				lastError="Error in /etc/sysconfig/network";
-				goto DIE;
-			}
-			if (string::npos != tmp.find("GATEWAY")){
-				fout << "GATEWAY=" << ipv4gw << endl;
-				gotGW=true;
-			}
-			else
-				fout << tmp << endl;
-		}
+#ifdef NETPLAN
 
-		if (!gotGW)
-			fout << "GATEWAY=" << ipv4gw << endl;
-
-		fin.close();
-		fout.close();
-
-		if (0 != (retval = rename(ftmp.c_str(),netcfg.c_str()))){
-			DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << netcfg << " failed err = " << errno);
-			lastError="Rename of network failed";
-			goto DIE;
-		}
-#endif
-
+#else
 		// ifcfg-eth0
 		
 		ifstream fin2(eth0Conf.c_str());
@@ -579,6 +542,7 @@ void LCDMonitor::networkConfigStaticIP4()
 				goto DIE;
 			}
 		}
+#endif
 		clearDisplay();
 		updateLine(1,"Please wait");			
 		sleep(3);
@@ -617,33 +581,8 @@ bool LCDMonitor::restartNetworking()
 	clearDisplay();
 
 	updateLine(1,"Restarting network");
-#ifdef  UPSTART
-	runSystemCommand("/sbin/service network restart","Restarted OK","Restart failed !");
-	sleep(1);
 
-	if (serviceEnabled("S55sshd")) // don't start if disabled
-	{
-		clearDisplay();
-		updateLine(1,"Restarting ssh");
-		runSystemCommand("/sbin/service sshd restart","Restarted OK","Restart failed !");
-		sleep(1);
-	}
 
-	clearDisplay();
-	updateLine(1,"Restarting ntpd");
-	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
-	sleep(1);
-
-	if (serviceEnabled("S85httpd")) // don't start if disabled
-	{
-		clearDisplay();
-		updateLine(1,"Restarting httpd");
-		runSystemCommand("/sbin/service httpd restart","Restarted OK","Restart failed !");
-		sleep(1);
-	}
-#endif
-
-#ifdef SYSTEMD
 #ifdef NMCLI
 	// note that CentOS7+ have /bin as a symlink to /usr/bin, so all good
 	runSystemCommand("/bin/nmcli connection reload  && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
@@ -671,8 +610,6 @@ bool LCDMonitor::restartNetworking()
 	//updateLine(1,"Trying httpd restart");
 	//runSystemCommand("/bin/systemctl try-restart httpd","Restart OK","Restart failed!");
 	sleep(1);
-	
-#endif
 	
 	return ret;
 }
@@ -1773,12 +1710,7 @@ void LCDMonitor::configure()
 	networkConf="/etc/sysconfig/network";
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
 #ifdef RHEL
-	#ifdef UPSTART
-	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
-	#endif
-	#ifdef SYSTEMD
 	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-enp2s0";
-	#endif
 #endif
 	sysInfoConf="/usr/local/etc/sysinfo.conf";
 	receiverName="nv08";
@@ -2625,13 +2557,7 @@ bool LCDMonitor::checkFile(const char *fname)
 
 bool LCDMonitor::serviceEnabled(const char *service)
 {
-#ifdef SYSTEMD
 	return true;
-#else
-	struct stat statbuf;
-	std::string sname = std::string("/etc/rc.d/rc3.d/") + service;
-	return (0 == stat(sname.c_str(),&statbuf));
-#endif
 }
 
 bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string failmsg)
@@ -2689,24 +2615,6 @@ void LCDMonitor::parseNetworkConfig()
 	ipprefix = "24";
 	
 	string tmp;
-	
-#ifdef UPSTART
-	std::ifstream fin(networkConf.c_str());
-	if (!fin.good()){
-		string msg = "Couldn't open " + networkConf;
-		log(msg);
-		return;
-	}
-	
-	while (!fin.eof()){
-		getline(fin,tmp);
-		if (fin.eof())
-			break;
-		if (string::npos != tmp.find("GATEWAY"))
-			parseConfigEntry(tmp,ipv4gw,'=');
-	}
-	fin.close();
-#endif
 	
 	std::ifstream fin2(eth0Conf.c_str());
 	if (!fin2.good()){
@@ -2794,12 +2702,7 @@ std::string  LCDMonitor::netmask2prefix(std::string nm)
 
 std::string LCDMonitor::quote(std::string s)
 {
-#ifdef UPSTART
-	return s;
-#endif
-#ifdef SYSTEMD
 	return "\"" + s + "\"";
-#endif
 }
 
 		
