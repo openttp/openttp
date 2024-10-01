@@ -23,12 +23,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+use Env;
 
 # The first entry is OS-defined string, second is our name for tarballs etc,
 # then ...
 @os =(
-	["Red Hat Enterprise Linux 8","rhel"], 
 	["CentOS Linux 7","rhel"],
+	["Red Hat Enterprise Linux 8","rhel"], 
 	["Ubuntu 18.04","debian"],
 	["Ubuntu 20.04","debian"],
 	["Ubuntu 22.04","debian"],
@@ -55,7 +56,7 @@ for ($i=0;$i<=$#os;$i++){
 }
 $osid = $i;
 if ($osid> $#os){
-	printf "Unknown OS: $thisos\n";
+	printf "Unsupported OS: $thisos\n";
 	exit;
 }
 
@@ -67,22 +68,33 @@ open(IN, "<Makefile.template");
 while ($l=<IN>){
 	if ($l=~/^DEFINES/){
 		print OUT "DEFINES = ";
-		if ($arch  =~ /armv7/){
-			print OUT " -DOTTP -DDEBIAN ";
+		
+		if (${TTS}){
+			print OUT " -DTTS";
+		}
+		elsif (${OTTP}){
+			print OUT " -DOTTP";
 		}
 		else{
-			print OUT "-DTTS";
-			
-			if ($os[$osid][1] eq "debian"){
-				print OUT " -DDEBIAN";
+			printf "Target platform unknown\n";
+			exit;
+		}
+		
+		if (${MULTIRX}){
+			print OUT " -DMULTIRX";
+		}
+		
+		if ($os[$osid][1] eq "debian"){
+			print OUT " -DDEBIAN";
+			if (`which netplan 2>/dev/null`){
+				print OUT " -DNETPLAN";
 			}
-			elsif ($os[$osid][1] eq "rhel"){
-				print OUT " -DRHEL";
-			}
+		}
+		elsif ($os[$osid][1] eq "rhel"){
+			print OUT " -DRHEL";
 			if (`which nmcli 2>/dev/null`){
 				print OUT " -DNMCLI";
 			}
-			
 		}
 		print OUT "\n";
 	}

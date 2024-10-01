@@ -1007,9 +1007,21 @@ void Application::runR2CGGTTSMode()
 	//		bool isP3,bool reportMSIO,std::string frc,std::string path,
 	//		std::string ephemerisPath,std::string ephemerisFile,bool genCTTS
 	//		);
+	
 	if (obs1.gps.nCodeObs > 0){
+		
+		// C1C == C1
+		
 		op = new CGGTTSOutput(GNSSSystem::GPS,"C1C","","",false,false,"L1C","./","./","",false);
 		CGGTTSoutputs.push_back(*op);
+		
+		// C1W C1P == P1
+		
+		// C2C C2S C2L == C2
+		
+		// C2W C2P C2D == P2
+		
+		// C5x == C5
 	}
 	
 	CGGTTS cggtts;

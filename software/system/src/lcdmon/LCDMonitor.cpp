@@ -96,9 +96,6 @@ bool LCDMonitor::timeout=false;
 extern LCDMonitor *app;
 bool showHealth = true;
 int statusline = 0;
-#ifdef TTS
-bool showGLOBD = true;
-#endif
 
 extern ostream *debugStream;
 extern string   debugFileName;
@@ -109,12 +106,16 @@ extern bool shortDebugMessage;
 LCDMonitor::LCDMonitor(int argc,char **argv)
 {
 	verbosity=TRACE;
+	configFile = DEFAULT_CONFIG;
 	
 	int c;
-	while ((c=getopt(argc,argv,"hvd:")) != EOF)
+	while ((c=getopt(argc,argv,"c:hvd:")) != EOF)
 	{
 		switch(c)
   	{
+			case 'c':
+				configFile = optarg;
+				break;
 			case 'h':showHelp(); exit(EXIT_SUCCESS);
 			case 'v':showVersion();exit(EXIT_SUCCESS);
 			case 'd':
@@ -212,64 +213,45 @@ void LCDMonitor::showSysInfo()
 	delete mb;
 }
 
-void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::string &usb0ip)
+void LCDMonitor::getNetworkInterfaces(std::string &lan1ip, std::string &lan2ip,std::string &usbip)
 {
 	struct ifaddrs * ifAddrStruct=NULL;
 	struct ifaddrs * ifa=NULL;
 	void * tmpAddrPtr=NULL;
-	
-	eth0ip = "Not assigned";
-	eth1ip=  "Not assigned";
-	usb0ip = "Not assigned";
 	
 	if (-1 == getifaddrs(&ifAddrStruct)){
 		log("Failed to query network interfaces"); 
 		return;
 	}
 	
-	
+	// systemd assigns names to Ethernet interfaces (en) like ..
+	//eno: Names containing the index numbers provided by firmware/BIOS for on-board devices, example: eno1 (eno = Onboard).
+	//ens: Names containing the PCI Express hotplug slot numbers provided by the firmware/BIOS, example: ens1 (ens = Slot).
+	//enp: Names containing the physical/geographical location of the hardware's port, example: enp2s0 (enp = Position).
+	//enx: Names containing the MAC address of the interface (example: enx78e7d1ea46da).
+	//eth: Classic unpredictable kernel-native ethX naming (example: eth0).
+
 	for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
 		if (!ifa->ifa_addr) {
-			//log("skipped"); // REMOVE
+			
 			continue;
 		}
-		//log(ifa->ifa_name); // REMOVE
+		
 		if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
 			// is a valid IP4 Address?
 			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
 			char addressBuffer[INET_ADDRSTRLEN];
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
 			
-			if (strncmp(ifa->ifa_name,"eth",3) == 0){ // old style ethx
-				if (strcmp(ifa->ifa_name,"eth0") == 0){
-					eth0ip = addressBuffer;
-				}
-				else if (strcmp(ifa->ifa_name,"eth1") == 0){
-					eth1ip = addressBuffer;
-				}
+			if (LAN1IFname == ifa->ifa_name){
+				lan1ip = addressBuffer;
 			}
-			
-			if (strncmp(ifa->ifa_name,"enp",3) == 0){ 
-				// FIXME Previous code has enp2s0 as a valid for FIRST eth device
-				// TODO  Can handle this by temporarily assigning names and then resolving as more information is obtained
-				if (strcmp(ifa->ifa_name,"enp1s0") == 0){
-					eth0ip = addressBuffer;
-				}
-				else if (strcmp(ifa->ifa_name,"enp2s0") == 0){
-					eth1ip = addressBuffer;
-				}
+			else if (LAN2IFname == ifa->ifa_name){
+				lan2ip= addressBuffer;
 			}
-			
-			if (strncmp(ifa->ifa_name,"eno",3) == 0){ // UEFI style ?
-				if (strcmp(ifa->ifa_name,"eno1") == 0){
-					eth0ip = addressBuffer;
-				}
-				else if (strcmp(ifa->ifa_name,"eno2") == 0){
-					eth1ip = addressBuffer;
-				}
+			else if (USBIFname == ifa->ifa_name){
+				usbip = addressBuffer;
 			}
-			
-			if (strcmp(ifa->ifa_name,"usb0") == 0) usb0ip = addressBuffer;
 		}
 	}
 	if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
@@ -277,19 +259,16 @@ void LCDMonitor::getIPaddress(std::string &eth0ip, std::string &eth1ip,std::stri
 
 void LCDMonitor::showIP()
 {
-	std::string eth0ip, eth1ip,usb0ip;
-	getIPaddress(eth0ip,eth1ip,usb0ip);
-	
+	std::string lan1ip, lan2ip,usbip;
+	getNetworkInterfaces(lan1ip, lan2ip,usbip);
 	clearDisplay();
 
 	MessageBox *mb = new MessageBox(" "," "," "," ");
 
-	if(eth0ip != "") mb->setLine(0,"LAN1: " + eth0ip);	
-#ifdef OTTP
-	if(usb0ip != "") mb->setLine(1,"usb0: " + usb0ip);
-#else
-	if(eth1ip != "") mb->setLine(1,"LAN2: " + eth1ip);
-#endif
+	if(lan1ip != "") mb->setLine(0,"LAN1: " + lan1ip);	
+	if(usbip != "") mb->setLine(1,"usb0: " + usbip); // FIME BB?
+	if(lan2ip != "") mb->setLine(1,"LAN2: " + lan2ip);
+
 	execDialog(mb);
 	delete mb;
 }
@@ -297,7 +276,7 @@ void LCDMonitor::showIP()
 void LCDMonitor::networkConfigDHCP()
 {
 
-	int oldNetworkProtocol = networkProtocol;
+	int oldAddressAssignment = addressAssignment;
 	
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
@@ -307,13 +286,32 @@ void LCDMonitor::networkConfigDHCP()
 	// A DHCP configuration is created from the existing configuration, removing any 
 	// static IP-related configuration
 	if (ret){
+		
+#ifdef NETPLAN
+	// DHCP will only be applied to the primary interface
+	// The NetPlan CLI provides editing of the file but doesn't seem to have all the necessary functionality,
+	// The poor documentation of this does not help.
+		//cfg.push_back("network:");
+		//cfg.push_back("  renderer: networkd");
+		//cfg.push_back("  ethernets:");
+		
+		string ftmp("/tmp/tmp.netplan");
+		ofstream fout(ftmp.c_str());
+		fout << "network:" << endl;
+		fout << "  renderer: " << NPrenderer << endl;
+		fout << "  version: " <<  NPversion << endl;
+		fout << "  networks: " << endl;
+		
+		fout.close();
+		
+#else
 		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
 		ofstream fout(ftmp.c_str());
 		
 		string tmp;
-		ifstream fin(eth0Conf.c_str());
+		ifstream fin(netCfg.c_str());
 		if (!fin.good()){
-			lastError= eth0Conf + " not found";
+			lastError= netCfg + " not found";
 			goto DIE;
 		}
 		while (!fin.eof()){
@@ -342,28 +340,31 @@ void LCDMonitor::networkConfigDHCP()
 
 		fout.close();
 		int retval;
-		if (0 != (retval =rename(ftmp.c_str(),eth0Conf.c_str()))){
-			DBGMSG(debugStream,TRACE, "rename of " << ftmp << " to " << eth0Conf<< " failed err = " << errno);
+		if (0 != (retval =rename(ftmp.c_str(),netCfg.c_str()))){
+			DBGMSG(debugStream,TRACE, "rename of " << ftmp << " to " << netCfg<< " failed err = " << errno);
 			lastError = "Rename of tmp.ifcfg-eth0 failed";
 			goto DIE;
 		}
-
+#endif
 		if (restartNetworking())
-			networkProtocol = DHCP;
+			addressAssignment = DHCP;
 
 	}
 
 	{
+		
+	// Cleanup time
 	delete dlg;
 
 	int newNetworkProtocol=DHCP;
-	if (!ret && oldNetworkProtocol != DHCP)
-		newNetworkProtocol = StaticIPV4;
+	if (!ret && oldAddressAssignment != DHCP)
+		newNetworkProtocol = Static;
 	
+	// Update the menu 
 	MenuItem *mi = protocolM->itemAt(midDHCP);
 	mi->setChecked(newNetworkProtocol==DHCP);
 	mi = protocolM->itemAt(midStaticIP4);
-	mi->setChecked(newNetworkProtocol==StaticIPV4);
+	mi->setChecked(newNetworkProtocol==Static);
 
 	return;
 	}
@@ -379,11 +380,35 @@ void LCDMonitor::networkConfigDHCP()
 
 void LCDMonitor::networkConfigStaticIP4()
 {
-	int oldNetworkProtocol = networkProtocol;
+	int oldAddressAssignment = addressAssignment;
 	
 	clearDisplay();
 	Wizard *dlg = new Wizard();
 
+// It is assumed that the first entry in the list is the required interface
+// 
+	std::string ipv4addr = "10.64.39.199";
+	std::string ipv4nm   = "255.255.255.128";
+	std::string ipv4gw   = "10.64.39.129" ;
+	std::string ipv4ns   = "10.64.35.208" ;
+	
+	for (unsigned int l=0;l<nets.size();l++){
+		cout << "NET " << l << std::endl;
+		cout << nets.at(l)->name << std::endl;
+		cout << "  " << nets.at(l)->address << "/" << nets.at(l)->netmask << std::endl;
+		for (unsigned int n=0;n<nets.at(l)->nameservers.size();n++){
+			cout << "  " << nets.at(l)->nameservers.at(n) << std::endl;
+		}
+		cout << nets.at(l)->gateway << std::endl;
+	}
+	
+	if (!nets.at(primaryIF)->DHCP){
+		ipv4addr = nets.at(primaryIF)->address;
+		ipv4nm   = nets.at(primaryIF)->netmask;
+		ipv4gw   = nets.at(primaryIF)->gateway;
+		ipv4ns   = nets.at(primaryIF)->nameservers.at(0);
+	}
+	
 	Widget *w = dlg->addPage("IP address");
 	w->setGeometry(0,0,20,4);
 	IPWidget *ipw = new IPWidget(ipv4addr,IPWidget::IPV4,w);
@@ -411,11 +436,12 @@ void LCDMonitor::networkConfigStaticIP4()
 	bool ret = execDialog(dlg);
 	std::string lastError="No error";
 	if (ret){
-		ipv4addr = ipw->ipAddress();
-		ipv4nm =   nmw->ipAddress();
-		ipv4gw =   gww->ipAddress();
-		ipv4ns =   nsw->ipAddress();
-
+		nets.at(primaryIF)->address = ipw->ipAddress();
+		nets.at(primaryIF)->netmask =   nmw->ipAddress();
+		nets.at(primaryIF)->gateway =   gww->ipAddress();
+		nets.at(primaryIF)->nameservers.at(0) = nsw->ipAddress();
+		nets.at(primaryIF)->DHCP = false;
+		
 		// make temporary files and copy across
 		// note that temporary files are made in the same directory
 		// as the target because rename() does not work across devices (partitions)
@@ -430,7 +456,7 @@ void LCDMonitor::networkConfigStaticIP4()
 #else
 		// ifcfg-eth0
 		
-		ifstream fin2(eth0Conf.c_str());
+		ifstream fin2(netCfg.c_str());
 		if (!fin2.good()){
 			lastError="eth0 config not found";
 			goto DIE;
@@ -449,7 +475,7 @@ void LCDMonitor::networkConfigStaticIP4()
 			if (fin2.eof())
 				break;
 			if (fin2.fail()){
-				lastError="Error in " + eth0Conf;
+				lastError="Error in " + netCfg;
 				goto DIE;
 			}
 			if (string::npos != tmp.find("IPADDR")){
@@ -495,8 +521,8 @@ void LCDMonitor::networkConfigStaticIP4()
 		fin2.close();
 		fout2.close();
 
-		if (0 != (retval =rename(ftmp.c_str(),eth0Conf.c_str()))){
-			DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << eth0Conf << " failed err = " << errno);
+		if (0 != (retval =rename(ftmp.c_str(),netCfg.c_str()))){
+			DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << netCfg << " failed err = " << errno);
 			lastError = "Rename of tmp.ifcfg-eth0 failed";
 			goto DIE;
 		}
@@ -537,7 +563,7 @@ void LCDMonitor::networkConfigStaticIP4()
 			fout3.close();
 
 			if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str()))){
-				DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << eth0Conf << " failed err = " << errno);
+				DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << netCfg << " failed err = " << errno);
 				lastError="Rename of resolv.conf.tmp failed";
 				goto DIE;
 			}
@@ -548,20 +574,20 @@ void LCDMonitor::networkConfigStaticIP4()
 		sleep(3);
 		
 		if (restartNetworking())
-			networkProtocol = StaticIPV4;
+			addressAssignment = Static;
 		
 	} // if dialog accepted
   {
 	delete dlg;
 	
-	int newNetworkProtocol=StaticIPV4;
-	if (!ret && oldNetworkProtocol != StaticIPV4)
+	int newNetworkProtocol=Static;
+	if (!ret && oldAddressAssignment != Static)
 		newNetworkProtocol = DHCP;
 	
 	MenuItem *mi = protocolM->itemAt(midDHCP);
 	mi->setChecked(newNetworkProtocol==DHCP);
 	mi = protocolM->itemAt(midStaticIP4);
-	mi->setChecked(newNetworkProtocol==StaticIPV4);
+	mi->setChecked(newNetworkProtocol==Static);
 	
 	return;
 	}
@@ -586,11 +612,6 @@ bool LCDMonitor::restartNetworking()
 #ifdef NMCLI
 	// note that CentOS7+ have /bin as a symlink to /usr/bin, so all good
 	runSystemCommand("/bin/nmcli connection reload  && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
-	//runSystemCommand("/bin/nmcli connection reload","Reloaded OK","Reload failed !");
-	//sleep(1); // so we can see what happened
-	//runSystemCommand("/bin/nmcli networking off","Net off  OK","Net off failed !");
-	//sleep(1);
-	//runSystemCommand("/bin/nmcli networking on","Net on OK","Net on failed !");
 	sleep(1);
 #else
 	runSystemCommand("/bin/systemctl restart network","Restarted OK","Restart failed !");
@@ -605,12 +626,7 @@ bool LCDMonitor::restartNetworking()
 	updateLine(1,"Restarting ntpd");
 	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
-	
-	//clearDisplay();
-	//updateLine(1,"Trying httpd restart");
-	//runSystemCommand("/bin/systemctl try-restart httpd","Restart OK","Restart failed!");
-	sleep(1);
-	
+
 	return ret;
 }
 
@@ -627,9 +643,9 @@ void LCDMonitor::LCDConfig()
 	cw->setNumSteps(10);
 	cw->setGeometry(0,1,20,1);
 	std::string help = "  Adjust with ";
-	help += 225;
+	help += char(225);
 	help += " ";
-	help += 223;
+	help += char(223);
 	Label *l= new Label(help,dlg);
 	l->setGeometry(0,2,20,1);
 
@@ -698,9 +714,9 @@ void LCDMonitor::LCDBacklightTimeout()
 	n->setGeometry(13,1,7,1);
 	
 	std::string help = "  Adjust with ";
-	help += 222; // Up arrow
+	help += char(222); // Up arrow
 	help += " ";
-	help += 224; // Down arrow
+	help += char(224); // Down arrow
 	Label *l= new Label(help,dlg);
 	l->setGeometry(0,2,20,1);
 
@@ -741,7 +757,7 @@ void LCDMonitor::setGPSDisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(false);
-	#ifdef TTS
+	#ifdef MULTIRX
 	mi = displayModeM->itemAt(midGLOBDDisplayMode);
 	mi->setChecked(false);
 	#endif
@@ -762,7 +778,7 @@ void LCDMonitor::setNTPDisplayMode()
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(false);
-	#ifdef TTS
+	#ifdef MULTIRX
 	mi = displayModeM->itemAt(midGLOBDDisplayMode);
 	mi->setChecked(false);
 	#endif
@@ -773,18 +789,18 @@ void LCDMonitor::setNTPDisplayMode()
 	clearDisplay();
 }
 
-void LCDMonitor::setGPSDODisplayMode()
+void LCDMonitor::setRefDisplayMode()
 {
-	if (displayMode==GPSDO) return;
+	if (displayMode==REF) return;
 
-	displayMode=GPSDO;
+	displayMode=REF;
 	MenuItem *mi = displayModeM->itemAt(midGPSDODisplayMode);
 	mi->setChecked(true);
 	mi = displayModeM->itemAt(midGPSDisplayMode);
 	mi->setChecked(false);
 	mi = displayModeM->itemAt(midNTPDisplayMode);
 	mi->setChecked(false);
-	#ifdef TTS
+	#ifdef MULTIRX
 	mi = displayModeM->itemAt(midGLOBDDisplayMode);
 	mi->setChecked(false);
 	#endif
@@ -794,7 +810,7 @@ void LCDMonitor::setGPSDODisplayMode()
 	clearDisplay();
 }
 
-#ifdef TTS
+#ifdef MULTIRX
 void LCDMonitor::setGLOBDDisplayMode()
 {
 	if (displayMode==GLOBD) return;
@@ -815,16 +831,16 @@ void LCDMonitor::setGLOBDDisplayMode()
 }
 #endif
 
-void LCDMonitor::restartGPS()
+void LCDMonitor::restartRx()
 {
 	clearDisplay();
-	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm GPS rx restart");
+	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm Rx restart");
 	bool ret = execDialog(dlg);
 	if (ret)
 	{
 		clearDisplay();
 
-		updateLine(1,"  Restarting GPS rx");
+		updateLine(1,"  Restarting Rx");
 		// first kill the logging process if it is running
 		struct stat statbuf;
 		if ((0 == stat(gpsLoggerLockFile.c_str(),&statbuf)))
@@ -859,7 +875,7 @@ void LCDMonitor::restartGPS()
 		else
 		{
 			updateLine(2,"  Done");
-			log("GPS rx restarted");
+			log("Rx restarted");
 		}
 		sleep(2);
 
@@ -874,7 +890,7 @@ void LCDMonitor::restartGPS()
 
 	fail:
 		updateLine(2,"  Restart failed");
-		log("GPS rx restart failed");
+		log("Rx restart failed");
 		sleep(2);
 		delete dlg;
 }
@@ -1100,7 +1116,7 @@ void LCDMonitor::showStatus()
 				}
 				break;
 			}
-			case GPSDO:
+			case REF:
 			{
 				std::string status,ffe,EFC,health;
 				bool unexpectedEOF;
@@ -1110,58 +1126,58 @@ void LCDMonitor::showStatus()
 				else
 					cout << "checkGPSDO() returned true\n";
 				*/
-				if(checkGPSDO(status,ffe,EFC,health,&unexpectedEOF))
+				if(checkRef(status,ffe,EFC,health,&unexpectedEOF))
 				{
 					if (unexpectedEOF){
 						DBGMSG(debugStream,TRACE, "Unexpected EOF from checkGPSDO");
 					}
 					else{
-						#ifdef OTTP
-						status = "GPSDO: " + status;
-						if (status.length() > 20) status.resize(20);
-						updateLine(1,status);
-						std::string buf;
-						if (ffe.length() > 7) ffe.resize(7);
-						if (EFC.length() > 4) EFC.resize(4);
-						buf = "ffe:" + ffe + " EFC:" + EFC;
-						size_t pos = health.find("-");
-						health.resize(pos);
-						health = "Health: " + health;
-						if (health.length() > 20) health.resize(20);
-						if(showHealth)
-							updateLine(2,health);
-						else
-							updateLine(2,buf);
-						showHealth = !showHealth;
-						#endif
-						#ifdef TTS
-						updateLine(1,"GPSDO:");
-						// The status file structure is very different. A different approach
-						// is used to display GPSDO parameters
-						switch(statusline)
-						{
-							case(0):
-								if(status.length() > 20) status.resize(20);
-								updateLine(2,status);
-								break;
-							case(1):
-								ffe = "FFE: "+ffe;
-								if(ffe.length() > 20) ffe.resize(20);
-								updateLine(2,ffe);
-								break;
-							case(2):
-								EFC = "EFC: "+EFC;
-								if(EFC.length() > 20) EFC.resize(20);
-								updateLine(2,EFC);
-								break;
-							case(3):
-								if(health.length() > 20) health.resize(20);
+						if (reference== ULN1100){
+							status = "GPSDO: " + status;
+							if (status.length() > 20) status.resize(20);
+							updateLine(1,status);
+							std::string buf;
+							if (ffe.length() > 7) ffe.resize(7);
+							if (EFC.length() > 4) EFC.resize(4);
+							buf = "ffe:" + ffe + " EFC:" + EFC;
+							size_t pos = health.find("-");
+							health.resize(pos);
+							health = "Health: " + health;
+							if (health.length() > 20) health.resize(20);
+							if(showHealth)
 								updateLine(2,health);
-								break;
+							else
+								updateLine(2,buf);
+							showHealth = !showHealth;
 						}
-						statusline++;						
-						if(statusline >= 4) statusline = 0;
-						#endif
+						else if (reference== LCXO){
+							updateLine(1,"GPSDO:");
+							// The status file structure is very different. A different approach
+							// is used to display GPSDO parameters
+							switch(statusline)
+							{
+								case(0):
+									if(status.length() > 20) status.resize(20);
+									updateLine(2,status);
+									break;
+								case(1):
+									ffe = "FFE: "+ffe;
+									if(ffe.length() > 20) ffe.resize(20);
+									updateLine(2,ffe);
+									break;
+								case(2):
+									EFC = "EFC: "+EFC;
+									if(EFC.length() > 20) EFC.resize(20);
+									updateLine(2,EFC);
+									break;
+								case(3):
+									if(health.length() > 20) health.resize(20);
+									updateLine(2,health);
+									break;
+							}
+							statusline++;						
+							if(statusline >= 4) statusline = 0;
+						}
 					}
 				}
 				else // most likely stale file...
@@ -1171,7 +1187,7 @@ void LCDMonitor::showStatus()
 				}
 				break;
 			} //
-#ifdef TTS
+#ifdef MULTIRX
 			case GLOBD:
 			{
 				std::string GLOsats = "", BDsats = "";
@@ -1301,8 +1317,10 @@ void LCDMonitor::execMenu()
 	bool showMenu=true;
 	std::stack<Menu *> menus;
 
-	#ifndef OTTP
-	parseNetworkConfig(); // keep this up to date
+	#ifdef NETPLAN
+	parseNetworkConfig_NetPlan(); // keep the  network configuration up to date
+	#else
+	parseNetworkConfig_IfConfig(); 
 	#endif
 	
 	int currRow=0;
@@ -1600,35 +1618,50 @@ void LCDMonitor::init()
 	lastNTPPacketCount=0;
 
 	configure();
-
-	#ifndef OTTP
-	parseNetworkConfig();
+	
+	#ifdef NETPLAN
+	parseNetworkConfig_NetPlan();
+	#else
+	parseNetworkConfig_IfConfig();
 	#endif
 	
-	// this will be true for compact systems
+	// This will be true for compact systems
 	NTPProtocolVersion=4;
-	NTPMajorVersion=2;
-	NTPMinorVersion=2;
-
+	if (NTPDaemon == CHRONYD){
+		NTPCLIMajorVersion = 4; // for chronyc
+		NTPCLIMinorVersion = 2;
+	}
+	else if (NTPDaemon == NTPD){
+		NTPCLIMajorVersion=2; // for ntpq
+		NTPCLIMinorVersion=2; 
+	}
+	
 	// Note: (Louis, 2016-10-25)
 	//  This will not work with ntpq (ntpdc is now deprecated!)
 	//  The mods below will only work with version 4 and newer!
-
 	detectNTPVersion();
-	if (4==NTPProtocolVersion)
-	{
-		if (NTPMajorVersion < 2){
-			currPacketsTag="new version packets";
-			oldPacketsTag="old version packets";
-			badPacketsTag="unknown version number";
-		}
-		else{
-			currPacketsTag="current version";
-			oldPacketsTag="older version";
-			badPacketsTag="bad length or format";
+	
+	if (NTPDaemon == CHRONYD){
+		currPacketsTag="NTP packets received";
+		oldPacketsTag=""; // not reported
+		badPacketsTag=""; // not reported
+	}
+	else if (NTPDaemon == NTPD){
+	
+		if (4==NTPProtocolVersion){
+			if (NTPCLIMajorVersion < 2){
+				currPacketsTag="new version packets";
+				oldPacketsTag="old version packets";
+				badPacketsTag="unknown version number";
+			}
+			else{
+				currPacketsTag="current version";
+				oldPacketsTag="older version";
+				badPacketsTag="bad length or format";
+			}
 		}
 	}
-
+	
 	if(Serial_Init(PORT,BAUD)){
 		DBGMSG(debugStream,TRACE, "Could not open port " << PORT << " at " << BAUD << " baud.");
 		exit(EXIT_FAILURE);
@@ -1680,11 +1713,11 @@ void LCDMonitor::init()
 
 }
 
-
 void LCDMonitor::configure()
 {
 
 	char *stmp;
+	std::string strtmp;
 	int itmp;
 
 	// set some sensible defaults
@@ -1696,50 +1729,53 @@ void LCDMonitor::configure()
 	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 
-	ipv4addr="192.168.1.2";
-	ipv4nm  ="255.255.255.0";
-	ipv4gw  ="192.168.1.1";
-	ipv4ns  ="192.168.1.1";
-
 	NTPuser="ntp-admin";
 	GPSCVuser="cvgps";
 	cvgpsHome="/home/cvgps/";
 	ntpadminHome="/home/ntp-admin/";
+
+	NTPDaemon = CHRONYD;
+	
+// the default setup is for Pi5 + Ubuntu
+	primaryIF = 0; 
+	primaryIFname = "eth0";
+	LAN1IFname = primaryIFname;
+	LAN2IFname  = ""; // unavailable
+	USBIFname   = ""; // unavailable
+	NPrenderer = "NetworkManager";
+	NPversion = "2";
+	
+#ifndef NETPLAN 
 	DNSconf="/etc/resolv.conf";
-	// This is empty in CentOS7+
-	networkConf="/etc/sysconfig/network";
-	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-eth0";
-#ifdef RHEL
-	eth0Conf="/etc/sysconfig/network-scripts/ifcfg-enp2s0";
+	networkConf="/etc/sysconfig/network";// This is empty in CentOS7+
+	netCfg="/etc/sysconfig/network-scripts/ifcfg-eth0";
 #endif
+	
+	
 	sysInfoConf="/usr/local/etc/sysinfo.conf";
 	receiverName="nv08";
 	alarmPath="/home/cvgps/logs/alarms";
 	refStatusFile="/home/cvgps/logs/gpsdo.status";
 	GPSStatusFile="/home/cvgps/logs/gpscv.status";
-#ifdef TTS
+#ifdef MULTIRX
 	GLONASSStatusFile="/home/cvgps/logs/rest.status";
 	BeidouStatusFile="/home/cvgps/logs/navspark.status";
+	showGLOBD = true;
 #endif
-
-#ifdef OTTP
-	
-#endif
+	reference= ULN1100;
 	
 	string sysmonConfig("/home/cvgps/etc/sysmonitor.conf");
 	string gpscvConfig("/home/cvgps/etc/gpscv.conf");
 
 	showPRNs=false;
 
-	string config = DEFAULT_CONFIG;
-
 	intensity=80;
 	contrast=95;
 	displaytimeout=0; // Louis 2017-07-17, timeout for LCD backlight
 	ListEntry *last;
-	if (!configfile_parse_as_list(&last,config.c_str())){
+	if (!configfile_parse_as_list(&last,configFile.c_str())){
 		ostringstream msg;
-		msg << "failed to read " << config;
+		msg << "failed to read " << configFile;
 		log(msg.str());
 		exit(EXIT_FAILURE);
 	}
@@ -1752,12 +1788,44 @@ void LCDMonitor::configure()
 	else
 		log("NTP user not found in config file");
 
+	if (list_get_string_value(last,"General","ntp daemon",&stmp)){
+		if (NULL !=  strstr(stmp,"ntpd")){
+			NTPDaemon = NTPD;
+		}
+		else if (NULL != strstr(stmp,"chronyd")){
+			NTPDaemon = CHRONYD;
+		}
+	}
+	else{
+		cout << "aark" << endl;
+	}
+	
 	if (list_get_string_value(last,"General","sysmonitor config",&stmp))
 		sysmonConfig=stmp;
 	else
 		log("sysmon config not found in config file");
 
 	// Network
+	if (list_get_string_value(last,"Network","LAN1 interface",&stmp))
+		LAN1IFname = stmp;
+	else
+		log("LAN1 not found in config file");
+	
+	if (list_get_string_value(last,"Network","Primary interface",&stmp))
+		primaryIFname = stmp;
+	
+	if (list_get_string_value(last,"Network","LAN2 interface",&stmp))
+		LAN2IFname = stmp;
+	
+	if (list_get_string_value(last,"Network","USB interface",&stmp))
+		USBIFname = stmp;
+	
+	if (list_get_string_value(last,"Network","cfg",&stmp))
+		netCfg = stmp;
+	else
+		log("cfg not found in config file");
+	
+#ifndef NETPLAN
 	if (list_get_string_value(last,"Network","DNS",&stmp))
 		DNSconf=stmp;
 	else
@@ -1768,11 +1836,8 @@ void LCDMonitor::configure()
 	else
 		log("Network not found in config file");
 
-	if (list_get_string_value(last,"Network","Eth0",&stmp))
-		eth0Conf=stmp;
-	else
-		log("Eth0 not found in config file");
-
+#endif
+	
 	// GPSCV
 	if (list_get_string_value(last,"GPSCV","GPSCV user",&stmp)){
 		GPSCVuser=stmp;
@@ -1791,6 +1856,22 @@ void LCDMonitor::configure()
 	else
 		log("GPS restart command not found in config file");
 
+	if (list_get_string_value(last,"GPSCV","oscillator",&stmp)){
+		strtmp = stmp;
+		boost::to_upper(strtmp);
+		if (strtmp=="FURUNO"){
+			reference= Furuno;
+		}
+		else if(strtmp == "LCXO"){
+			reference= LCXO;
+		}
+		else if(strtmp == "ULN1100"){
+			reference= ULN1100;
+		}
+	}
+	else{
+		log("GPSCV referencenot found in config file");
+	}
 	// OS
 	if (list_get_string_value(last,"OS","reboot command",&stmp))
 		rebootCommand= stmp;
@@ -1844,8 +1925,8 @@ void LCDMonitor::configure()
 		else if (0==strcmp(stmp,"NTP"))
 			displayMode = NTP;
 		else if (0==strcmp(stmp,"GPSDO"))
-			displayMode = GPSDO;
-#ifdef TTS
+			displayMode = REF;
+#ifdef MULTIRX
 		else if (0==strcmp(stmp,"GLOBD"))
 			displayMode = GLOBD;
 #endif
@@ -1895,7 +1976,8 @@ void LCDMonitor::configure()
 	else
 		log("reference:status file not found in gpscv.conf");
 
-#ifdef TTS
+#ifdef MULTIRX
+	// This is for V? of the NMIA TTS with GPS (NV08C/ublox9), GLONASS (SMT360), and BDS (NavSpark) receivers
 	if (list_get_string_value(last,"GNSS","GLONASS status",&stmp))
 	//if (list_get_string_value(last,"gnss","glonass status",&stmp))
 		GLONASSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
@@ -1935,9 +2017,9 @@ void LCDMonitor::configure()
 
 void LCDMonitor::updateConfig(std::string section,std::string token,std::string val)
 {
-	string config = DEFAULT_CONFIG;
-	DBGMSG(debugStream,TRACE, "Updating " << config);
-	configfile_update(section.c_str(),token.c_str(),val.c_str(),config.c_str());
+	
+	DBGMSG(debugStream,TRACE, "Updating " << configFile);
+	configfile_update(section.c_str(),token.c_str(),val.c_str(),configFile.c_str());
 }
 
 void LCDMonitor::log(std::string msg)
@@ -1961,6 +2043,7 @@ void LCDMonitor::showHelp()
 {
 	cout << "Usage: lcdmonitor [options]" << endl;
 	cout << "Available options are" << endl;
+	cout << "\t-c <file>" << endl << "\t Use alternate configuration file" << endl;
 	cout << "\t-d <file>" << endl << "\t Turn on debuggging" << endl;
 	cout << "\t-h" << endl << "\t Show this help" << endl;
 	cout << "\t-v" << endl << "\t Show version" << endl;
@@ -1982,20 +2065,19 @@ void LCDMonitor::makeMenu()
 	WidgetCallback<LCDMonitor> *cb;
 	MenuItem *mi;
 
-#ifdef TTS 
 		protocolM = new Menu("Networking ...");
 		setupM->insertItem(protocolM);
 
 			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
 			midDHCP=protocolM->insertItem("DHCP...",cb);
 			mi = protocolM->itemAt(midDHCP);
-			if (mi != NULL) mi->setChecked(networkProtocol==DHCP);
+			if (mi != NULL) mi->setChecked(addressAssignment==DHCP);
 
 			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4);
 			midStaticIP4=protocolM->insertItem("Static IPv4...",cb);
 			mi = protocolM->itemAt(midStaticIP4);
-			if (mi != NULL) mi->setChecked(networkProtocol==StaticIPV4);
-#endif
+			if (mi != NULL) mi->setChecked(addressAssignment==Static);
+
 			
 		lcdSetup = new Menu("LCD setup...");
 		setupM->insertItem(lcdSetup);
@@ -2020,11 +2102,11 @@ void LCDMonitor::makeMenu()
 			mi = displayModeM->itemAt(midNTPDisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==NTP);
 
-			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGPSDODisplayMode);
-		  midGPSDODisplayMode = displayModeM ->insertItem("GPSDO",cb);
+			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setRefDisplayMode);
+		  midGPSDODisplayMode = displayModeM ->insertItem("REF",cb);
 			mi = displayModeM->itemAt(midGPSDODisplayMode);
-			if (mi != NULL) mi->setChecked(displayMode==GPSDO);
-#ifdef TTS
+			if (mi != NULL) mi->setChecked(displayMode==REF);
+#ifdef MULTIRX
 			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGLOBDDisplayMode);
 		  midGLOBDDisplayMode = displayModeM ->insertItem("GLOBD",cb);
 			mi = displayModeM->itemAt(midGLOBDDisplayMode);
@@ -2041,7 +2123,7 @@ void LCDMonitor::makeMenu()
 	menu->insertItem("Show system info",cb);
 
 	Menu *restartM = new Menu("Restart...");
-	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartGPS);
+	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartRx);
 	restartM->insertItem("Restart GPS",cb);
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartNtpd);
 	restartM->insertItem("Restart NTPD",cb);
@@ -2261,7 +2343,7 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	return ret;
 }
 
-bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EFC,std::string &health,bool *unexpectedEOF)
+bool LCDMonitor::checkRef(std::string &status,std::string &ffe,std::string &EFC,std::string &health,bool *unexpectedEOF)
 {
 
 	*unexpectedEOF=false;
@@ -2283,75 +2365,53 @@ bool LCDMonitor::checkGPSDO(std::string &status,std::string &ffe,std::string &EF
 	std::string tmp;
 	while (!fin.eof()){
 		getline(fin,tmp);
-		#ifdef OTTP
-		if (string::npos != tmp.find("Lock status                   : ")){
-			parseConfigEntry(tmp,status,'-');
+		if (reference== LCXO){
+			if (string::npos != tmp.find("Lock status                   : ")){
+				parseConfigEntry(tmp,status,'-');
+			}
+			else if (string::npos != tmp.find("EFC percentage (%)            : ")){
+				parseConfigEntry(tmp,EFC,':');
+			}
+			else if (string::npos != tmp.find("Estimated frequency accuracy  : ")){
+				parseConfigEntry(tmp,ffe,':');
+			}
+			else if (string::npos != tmp.find("GPSDO health                  : ")){
+				parseConfigEntry(tmp,health,':');
+			}
 		}
-		else if (string::npos != tmp.find("EFC percentage (%)            : ")){
-			parseConfigEntry(tmp,EFC,':');
-		}
-		else if (string::npos != tmp.find("Estimated frequency accuracy  : ")){
-			parseConfigEntry(tmp,ffe,':');
-		}
-		else if (string::npos != tmp.find("GPSDO health                  : ")){
-			parseConfigEntry(tmp,health,':');
-		}
-		#endif
 	
-		#ifdef TTS
-		if (string::npos != tmp.find("Reported precision ")){
-			parseConfigEntry(tmp,status,'-');
+		else if (reference== ULN1100){
+			if (string::npos != tmp.find("Reported precision ")){
+				parseConfigEntry(tmp,status,'-');
+			}
+			else if (string::npos != tmp.find("EFC voltage: ")){
+				parseConfigEntry(tmp,EFC,':');
+			}
+			else if (string::npos != tmp.find("OCXO frequency error estimate: ")){
+				parseConfigEntry(tmp,ffe,':');
+			}
+			else if (string::npos != tmp.find("GPSDO health: ")){
+				parseConfigEntry(tmp,health,':');
+			}
 		}
-		else if (string::npos != tmp.find("EFC voltage: ")){
-			parseConfigEntry(tmp,EFC,':');
+		else if (reference== Furuno){
 		}
-		else if (string::npos != tmp.find("OCXO frequency error estimate: ")){
-			parseConfigEntry(tmp,ffe,':');
-		}
-		else if (string::npos != tmp.find("GPSDO health: ")){
-			parseConfigEntry(tmp,health,':');
-		}
-		#endif
+		
+	
 	}
 	
 	fin.close();
-	/*
-	if(status.empty())
-		cout << "checkGPSDO: status empty\n";
-	else
-		cout << "checkGPSDO: status OK\n";
-
-	if(EFC.empty())
-		cout << "checkGPSDO: EFC empty\n";
-	else
-		cout << "checkGPSDO: EFC OK\n";
-
-	if(ffe.empty())
-		cout << "checkGPSDO: ffe empty\n";
-	else
-		cout << "checkGPSDO: ffe OK\n";
-
-	if(health.empty())
-		cout << "checkGPSDO: health empty\n";
-	else
-		cout << "checkGPSDO: health OK\n";
-	*/
+	
 	trim(status); // using boost
 	trim(EFC);
 	trim(ffe);
 	trim(health);
-	*unexpectedEOF = ((status.empty()) || (EFC.empty()) || (ffe.empty()) || (health.empty())) ;
-	/*
-	if (*unexpectedEOF)
-		cout << "checkGPSDO: Unexpected end of file\n";
-	else
-		cout << "checkGPSDO: File length OK!\n";
-	*/
+
 	DBGMSG(debugStream,TRACE,"done");
 	return ret;
 }
 
-#ifdef TTS
+#ifdef MULTIRX
 
 bool LCDMonitor::checkGLOBD(std::string &GLOprns, std::string &BDprns, bool  *unexpectedEOF)
 {
@@ -2404,7 +2464,7 @@ bool LCDMonitor::checkGLOBD(std::string &GLOprns, std::string &BDprns, bool  *un
 
 bool LCDMonitor::detectNTPVersion()
 {
-	// NTP versioning
+	// ntpd versioning
 	//
 	// pre 4-2.2.
 	// 	NTP uses A.B.C. - style release numbers.
@@ -2439,22 +2499,26 @@ bool LCDMonitor::detectNTPVersion()
 
 	char buf[1024];
 	bool ret=false;
-	FILE *fp=popen("/usr/local/bin/ntpq -c version","r"); 
-	while (fgets(buf,1023,fp) != NULL)
-	{
-		DBGMSG(debugStream,TRACE, buf);
-		boost::regex re("^ntpq\\s+(\\d+)\\.(\\d+)\\.(\\d+).*");
-		boost::cmatch matches;
-		if (boost::regex_match(buf,matches,re))
-		{
-			NTPProtocolVersion=boost::lexical_cast<int>(matches[1]);
-			NTPMajorVersion=boost::lexical_cast<int>(matches[2]);
-			NTPMinorVersion=boost::lexical_cast<int>(matches[3]);
-			DBGMSG(debugStream,TRACE, "ver=" << NTPProtocolVersion << 
-				",major=" << NTPMajorVersion << ",minor=" << NTPMinorVersion << endl);
-		}
+	if (NTPDaemon == CHRONYD){
 	}
-	pclose(fp);
+	else if (NTPDaemon == NTPD){
+		
+		FILE *fp=popen("/usr/local/bin/ntpq -c version","r"); 
+		while (fgets(buf,1023,fp) != NULL)
+		{
+			DBGMSG(debugStream,TRACE, buf);
+			boost::regex re("^ntpq\\s+(\\d+)\\.(\\d+)\\.(\\d+).*");
+			boost::cmatch matches;
+			if (boost::regex_match(buf,matches,re)){
+				NTPProtocolVersion=boost::lexical_cast<int>(matches[1]);
+				NTPCLIMajorVersion=boost::lexical_cast<int>(matches[2]);
+				NTPCLIMinorVersion=boost::lexical_cast<int>(matches[3]);
+				DBGMSG(debugStream,TRACE, "ver=" << NTPProtocolVersion << 
+					",major=" << NTPCLIMajorVersion << ",minor=" << NTPCLIMinorVersion << endl);
+			}
+		}
+		pclose(fp);
+	}
 	return ret;
 }
 
@@ -2463,56 +2527,63 @@ void LCDMonitor::getNTPstats(int *oldpkts,int *newpkts,int *badpkts)
 
 	char buf[1024];
 
-	// Louis 2016-10-25 ntpdc is deprecated, use ntpq now
-	FILE *fp=popen("/usr/local/bin/ntpq -c sysstats","r");
-	while (fgets(buf,1023,fp) != NULL)
-	{
-		DBGMSG(debugStream,TRACE, buf);
-		if (NTPProtocolVersion == 4){
-
-			if (strstr(buf,currPacketsTag.c_str()))
-			{
-				char* sep = strchr(buf,':');
-				if (sep!=NULL)
-				{
-					if (strlen(sep) > 1)
-					{
-						sep++;
-						*newpkts=atoi(sep);
-						//printf("For newpkts:\n%s",buf);
-
+	if (NTPDaemon == CHRONYD){
+		FILE *fp=popen("/usr/bin/chronyc serverstats","r");
+		*oldpkts = 0;
+		*badpkts = 0;
+		while (fgets(buf,1023,fp) != NULL){
+			DBGMSG(debugStream,TRACE, buf);
+			if (strstr(buf,currPacketsTag.c_str())){
+					char* sep = strchr(buf,':');
+					if (sep!=NULL){
+						if (strlen(sep) > 1){
+							sep++;
+							*newpkts=atoi(sep);
+						}
 					}
 				}
-			}
-			else if(strstr(buf,oldPacketsTag.c_str()))
-			{
-				char* sep = strchr(buf,':');
-				if (sep!=NULL)
-				{
-					if (strlen(sep) > 1)
-					{
-						sep++;
-						*oldpkts=atoi(sep);
-						//printf("For oldpkts:\n%s",buf);
+		}
+		pclose(fp);
+	}
+	else if (NTPDaemon == NTPD){
+		// Louis 2016-10-25 ntpdc is deprecated, use ntpq now
+		FILE *fp=popen("/usr/local/bin/ntpq -c sysstats","r");
+		while (fgets(buf,1023,fp) != NULL){
+			DBGMSG(debugStream,TRACE, buf);
+			if (NTPProtocolVersion == 4){
+
+				if (strstr(buf,currPacketsTag.c_str())){
+					char* sep = strchr(buf,':');
+					if (sep!=NULL){
+						if (strlen(sep) > 1){
+							sep++;
+							*newpkts=atoi(sep);
+						}
 					}
 				}
-			}
-			else if(strstr(buf,badPacketsTag.c_str()))
-			{
-				char* sep = strchr(buf,':');
-				if (sep!=NULL)
-				{
-					if (strlen(sep) > 1)
-					{
-						sep++;
-						*badpkts=atoi(sep);
-						//printf("For badpkts:\n%s",buf);
+				else if(strstr(buf,oldPacketsTag.c_str())){
+					char* sep = strchr(buf,':');
+					if (sep!=NULL){
+						if (strlen(sep) > 1){
+							sep++;
+							*oldpkts=atoi(sep);
+						}
+					}
+				}
+				else if(strstr(buf,badPacketsTag.c_str())){
+					char* sep = strchr(buf,':');
+					if (sep!=NULL){
+						if (strlen(sep) > 1){
+							sep++;
+							*badpkts=atoi(sep);
+							//printf("For badpkts:\n%s",buf);
+						}
 					}
 				}
 			}
 		}
+		pclose(fp);
 	}
-	pclose(fp);
 	DBGMSG(debugStream,TRACE, "old,new,bad =" << *oldpkts << " " << *newpkts << " " << *badpkts);
 }
 
@@ -2576,6 +2647,25 @@ bool LCDMonitor::runSystemCommand(std::string cmd,std::string okmsg,std::string 
 	return (sysret==0);
 }
 
+bool LCDMonitor::runCommand(std::string cmd,std::vector<std::string> &output)
+{
+	char buf[1024];
+	bool ret=true;
+	FILE *fp=popen(cmd.c_str(),"r"); 
+		
+	if (NULL==fp){
+		return false;
+	}
+	
+	while (fgets(buf,1023,fp) != NULL){
+		DBGMSG(debugStream,TRACE, buf);
+		output.push_back(buf);
+	}
+	pclose(fp);
+	return ret;
+}
+		
+
 string LCDMonitor::relativeToAbsolutePath(string path,string rootDir)
 {
 	string absPath=path;
@@ -2603,22 +2693,25 @@ void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim
 	}
 }
 
-void LCDMonitor::parseNetworkConfig()
+void LCDMonitor::parseNetworkConfig_IfConfig()
 {
+	
+#ifndef NETPLAN
 	DBGMSG(debugStream,TRACE,"");
 
-	// Set some defaults
-	ipv4gw = "192.168.1.1";
-	ipv4nm = "255.255.255.0";
-	ipv4ns = "192.168.1.1";
-	ipv4addr="192.168.1.10";
-	ipprefix = "24";
+// Set some defaults
+	std::string ipv4gw = "192.168.1.1";
+	std::string ipv4nm = "255.255.255.0";
+	std::string ipv4ns = "192.168.1.1";
+	std::string ipv4addr="192.168.1.10";
+	std::string ipprefix = "24";
+	std::string bootProtocol;
 	
 	string tmp;
 	
-	std::ifstream fin2(eth0Conf.c_str());
+	std::ifstream fin2(netCfg.c_str());
 	if (!fin2.good()){
-		string msg = "Couldn't open " + eth0Conf;
+		string msg = "Couldn't open " + netCfg;
 		log(msg);
 		return;
 	}
@@ -2630,9 +2723,9 @@ void LCDMonitor::parseNetworkConfig()
 		if (string::npos != tmp.find("BOOTPROTO")){
 			parseConfigEntry(tmp,bootProtocol,'=');
 			if (bootProtocol=="dhcp")
-				networkProtocol=DHCP;
+				addressAssignment=DHCP;
 			else if (bootProtocol=="static" || bootProtocol=="none") 
-				networkProtocol=StaticIPV4;
+				addressAssignment=Static;
 		}
 		else if (string::npos != tmp.find("IPADDR"))
 			parseConfigEntry(tmp,ipv4addr,'=');
@@ -2668,8 +2761,246 @@ void LCDMonitor::parseNetworkConfig()
 		fin3 >> tmp >> val;
 	}
 	fin3.close();
+
+	for (unsigned int i=0;i<nets.size();i++)
+		delete nets.at(i);
+	nets.clear();
+	
+	NetworkInterface *net  = new NetworkInterface();
+	net->name = "eth0";
+	if (addressAssignment== DHCP){
+		net->DHCP = true;
+	}
+	else{
+		net->DHCP = false;
+		net->address = ipv4addr;
+		net->nameservers.push_back(ipv4ns);
+		net->gateway = ipv4gw;
+		net->netmask = ipv4nm;
+	}
+	nets.push_back(net);
+
+#endif
 }
 
+void LCDMonitor::parseNetworkConfig_NetPlan()
+{
+
+	std::vector<std::string> cfg;
+	// netplan will return all of the configured interfaces
+	// but we won't use this so we don't pick up ones we don't wnat
+	
+	runCommand("netplan get",cfg); // we could just read the file ...
+	// and indeed we will
+	// FIXME
+	addressAssignment = DHCP;
+	unsigned int l = 0;
+
+	cfg.clear();
+	cfg.push_back("network:");
+  cfg.push_back("  renderer: networkd");
+  cfg.push_back("  ethernets:");
+  cfg.push_back("    enp11s0:");
+	cfg.push_back("      addresses: ");
+  cfg.push_back("        - 192.168.10.5/24");
+  cfg.push_back("      nameservers:");
+  cfg.push_back("        addresses: [1.2.3.4,5.6.7.8,2.3.4.5]");
+  cfg.push_back("      routes:");
+  cfg.push_back("        - to: default");
+  cfg.push_back("          via: 192.168.1.253");
+	cfg.push_back("    enp0s25:");
+	cfg.push_back("      addresses: [192.168.99.3/24]");
+	cfg.push_back("      nameservers:");
+  cfg.push_back("        addresses:");
+	cfg.push_back("          - 10.11.12.13");
+	cfg.push_back("          - 10.11.12.14");
+	cfg.push_back("      routes:");
+  cfg.push_back("        - to: default");
+  cfg.push_back("          via: 192.168.99.1");
+  cfg.push_back("  version: 2");
+  
+	for (unsigned int i=0;i<nets.size();i++)
+		delete nets.at(i);
+	nets.clear();
+	
+	unsigned int ifcnt = 0;
+	unsigned int state=0x0;
+	NetworkInterface *net=NULL;
+	while (l<cfg.size()){
+		std::string str = cfg.at(l);
+		boost::trim_right(str);
+		if (str.empty()) // skip empty lines
+			continue;
+		
+		// determine the indent level
+		unsigned int c=0;
+		int cnt=0;
+		while (c<str.size()){
+			if (str[c] != ' '){
+				break;
+			}
+			else{
+				cnt+=1;
+				c+=1;
+			}
+		}
+		
+		cnt = cnt/2;
+		
+		boost::smatch matches;
+		
+		// the parser 
+		boost::trim_left(str);
+		switch (cnt){
+			case 0: // 'network is defined at this level - nothing to do
+				state = 0x0;
+				break;
+			case 1: // looking for 'ethernets','version' and 'renderer'
+			{
+				if (str == "ethernets:"){
+					state = 0x01;
+				}
+				else if (str.find("version:",0)==0){
+					int sep = str.find(":");
+					NPversion = str.substr(sep+1);
+					boost::trim(NPversion);
+				}
+				else if (str.find("renderer:",0)==0){
+					int sep = str.find(":");
+					NPrenderer = str.substr(sep+1);
+					boost::trim(NPrenderer);
+				}
+				break;
+			}
+			case 2: // interface names at this level
+				if (state & 0x01){
+					ifcnt = ifcnt + 1;
+					str.resize(str.size()-1); // chop off trailing colon
+					net = new NetworkInterface();
+					net->name = str;
+					net->DHCP = true;
+					nets.push_back(net);
+					state = 0x01 | 0x02; // reset other bits
+				}
+				break;
+			case 3:// addresses, nameservers, routes, dhcp4, dhcp6 at this level
+			{
+				if (state & 0x02){
+					if (str.rfind("addresses:",0)==0){ // can be block or flow style
+						net->DHCP = false;
+						// check for 'flow' style
+						boost::regex re("^addresses:\\s*\\[(\\d+\\.\\d+\\.\\d+\\.\\d+)/(\\d+)\\]$"); // single IPv4 address ONLY
+						if (boost::regex_search(str,matches,re)){
+							net->address=matches[1];
+							net->netmask=prefix2netmask(matches[2]);
+							// state doesn't change
+						}
+						else{// must be block, set state to parse address
+							state = 0x01 | 0x02 | 0x04;
+						}
+						
+					}
+					else if (str.rfind("nameservers:",0)==0){
+						state = 0x01 | 0x02 | 0x08;
+					}
+					else if (str=="routes:"){
+						state =  0x01 | 0x02 | 0x10;
+					}
+					else if (str=="dhcp4:"){ // FIXME
+						net->DHCP = true;
+					}
+				}
+				break;
+			}
+			case 4:
+			{
+				if (state & 0x04){
+					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)/(\\d+)$"); // single IPv4 address ONLY
+					if (boost::regex_search(str,matches,re)){
+						net->address=matches[1];
+						net->netmask=prefix2netmask(matches[2]);
+						state = 0x01 | 0x02 | 0x04;
+					}
+				}
+				else if (state & 0x08){ // looking for nameserver addresses
+					boost::regex re("^addresses:\\s*\\[(.+)\\]$"); 
+					if (boost::regex_search(str,matches,re)){ // flow style
+						std::string ips = matches[1];
+						boost::regex ipre("\\d+\\.\\d+\\.\\d+\\.\\d+"); // note: no simple way to return multiple matches
+						boost::sregex_iterator it{ips.begin(), ips.end(), ipre }, itEnd;
+						std::for_each( it, itEnd, [net]( const boost::smatch& m ){
+							std::cout << m[0] << std::endl;
+							net->nameservers.push_back(m[0]);
+						});
+					} // must be block style
+					else{
+						state = 0x01 | 0x02 | 0x08;
+					}
+				}
+				else if (state & 0x10){ // looking for the default route
+					boost::regex re("^-\\s+to:\\s*default$"); 
+					if (boost::regex_search(str,matches,re)){
+						state = 0x01 | 0x02 | 0x20; 
+					}
+				}
+				break;
+			}
+			case 5:
+			{
+				if (state & 0x08){ // looking for nameserver addresses, block style
+					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
+					if (boost::regex_search(str,matches,re)){
+						net->nameservers.push_back(matches[1]);
+						// no state change reqd
+					}
+				}
+				else if (state & 0x020){ // looking for the default route
+					boost::regex re("^via:\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
+					if (boost::regex_search(str,matches,re)){
+						net->gateway = matches[1];
+						// no state change reqd
+					}
+				}
+			}
+			
+			default:
+				break;
+		}
+
+		l=l+1;
+		
+	}
+
+	
+	l=0;
+	for (l=0;l<nets.size();l++){
+		cout << nets.at(l)->name << std::endl;
+		cout << "  " << nets.at(l)->address << "/" << nets.at(l)->netmask << std::endl;
+		for (unsigned int n=0;n<nets.at(l)->nameservers.size();n++){
+			cout << "  " << nets.at(l)->nameservers.at(n) << std::endl;
+		}
+		cout << nets.at(l)->gateway << std::endl;
+	}
+	
+	// FIXME the address assignment method is set based on the first interface
+	
+	primaryIF = 0; // not ideal, but since we're moving to systems with just one wired interface
+	for (l=0;l<nets.size();l++){
+		if (nets.at(l)->name  == primaryIFname){
+			primaryIF = l;
+		  break;
+		}
+	}
+	
+	if(nets.at(primaryIF)->DHCP){
+		addressAssignment = DHCP;
+	}
+	else{
+		addressAssignment = Static;
+	}
+		
+	DBGMSG(debugStream,TRACE,"network protocol " << addressAssignment);
+}
 
 std::string  LCDMonitor::prefix2netmask(std::string pfx)
 {

@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.2.2'
+VERSION = '1.3.0'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -122,11 +122,33 @@ def GetYesNo(msg):
 	
 	done = False
 	while (not done):
-		val = input(msg)
+		val = input(msg + " (y/n)? ")
 		val=val.strip().lower()
 		if (val == 'y' or val == 'n' or val == 'yes' or val == 'no'):
 			return (val == 'y' or val == 'yes')
 
+# ------------------------------------------
+def GetOption(msg,options,defaultOption):
+	
+	done = False
+	print(msg)
+	nopts = len(options)
+	ival = defaultOption
+	for i in range(1,nopts+1):
+		print(f'{i}. {options[i-1]}')
+
+	while (not done):
+		val = input(f'Choose (default = {defaultOption}): ')
+		val = val.strip()
+		if len(val)==0:
+			break
+		try:
+			ival = int(val.strip().lower())
+			done = (ival >= 1 and ival <= nopts)
+		except:
+			pass
+	return ival
+	
 # ------------------------------------------
 def DetectOS():
 
@@ -290,7 +312,7 @@ hints = '' # Hints to user after installation
 
 examples =  'Usage examples\n'
 examples += '1. Install libconfigurator\n'
-examples += '   installsys.py -i libconfigurator \n'
+examples += '   installsys.py -i libconfigurator\n'
 
 parser = argparse.ArgumentParser(description='Install the OTTP system software',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
@@ -311,6 +333,8 @@ args = parser.parse_args()
 debug = args.debug
 
 targets = alltargets
+
+
 
 if (os.geteuid() > 0):
 	ErrorExit('This script must be run with superuser privileges')
@@ -351,6 +375,19 @@ if architecture.find('arm') == 0 or architecture.find('aarch64') == 0:
 	processor = 'arm'
 
 initSys = thisos[INITSYS]
+
+
+# Options are passed via environment variables
+if ('lcdmon' in targets):
+	ret = GetYesNo('Does this system have NavSpark and SMT360 receivers')
+	if ret:
+		os.environ['MULTIRX'] = '1'
+
+	ret = GetOption('Is this system:',['NMI TTS','OpenTTP'],1)
+	if ret == 1:
+		os.environ['TTS'] = '1'
+	elif ret==2:
+		os.environ['OTTP'] = '1'
 
 # The nuts and bolts of it
 

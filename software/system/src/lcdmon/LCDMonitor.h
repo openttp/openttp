@@ -42,6 +42,26 @@ class Menu;
 class Dialog;
 class Widget;
 
+class NetworkInterface
+{
+	public:
+		NetworkInterface(){};
+		~NetworkInterface(){};
+		
+		enum NetworkProtocol {IPV4,IPV6};
+		
+		bool DHCP;
+		
+		int networkProtocol;
+		std::string name;
+		std::string address;
+		std::string netmask;
+		std::string gateway;
+		
+		std::vector<std::string> nameservers;
+};
+
+
 class LCDMonitor:public CFA635
 {
 	public:
@@ -69,11 +89,11 @@ class LCDMonitor:public CFA635
 		void LCDBacklightTimeout();
 		void setGPSDisplayMode();
 		void setNTPDisplayMode();
-		void setGPSDODisplayMode();
-#ifdef TTS
+		void setRefDisplayMode();
+#ifdef MULTIRX
 		void setGLOBDDisplayMode();
 #endif	
-		void restartGPS();
+		void restartRx();
 		void restartNtpd();
 		void reboot();
 		void poweroff();
@@ -81,10 +101,12 @@ class LCDMonitor:public CFA635
 	private:
 	
 		enum LEDState {Off,RedOn,GreenOn,Unknown};
-		enum DisplayMode {GPS,NTP,GPSDO,GLOBD};
-		enum NetworkProtocol {DHCP,StaticIPV4,StaticIPV6};
+		enum DisplayMode {GPS,NTP,REF,GLOBD};
+		enum AddressAssignment {DHCP,Static};
+		enum Reference {LCXO,ULN1100,Furuno};
+		enum NTPDaemon {NTPD,CHRONYD};
 		
-		void getIPaddress(std::string &, std::string &,std::string &);
+		void getNetworkInterfaces(std::string &, std::string &,std::string &);
 		
 		static void signalHandler(int);
 		void startTimer(long secs=10);
@@ -115,7 +137,7 @@ class LCDMonitor:public CFA635
 		bool checkAlarms();
 		bool checkGPS(int *,std::string &,bool *);
 		//              Status        ffe           EFC%          health
-		bool checkGPSDO(std::string &,std::string &,std::string &,std::string &,bool *);
+		bool checkRef(std::string &,std::string &,std::string &,std::string &,bool *);
 		bool detectNTPVersion();
 		void getNTPstats(int *,int *,int *);
 		
@@ -123,6 +145,7 @@ class LCDMonitor:public CFA635
 		bool serviceEnabled(const char *);
 		bool restartNetworking();
 		bool runSystemCommand(std::string,std::string,std::string);
+		bool runCommand(std::string,std::vector<std::string> &);
 		
 		std::string relativeToAbsolutePath(std::string,std::string);
 		std::string  prefix2netmask(std::string);
@@ -131,8 +154,8 @@ class LCDMonitor:public CFA635
 		
 		time_t lastLazyCheck;
 		
-		
-		void parseNetworkConfig();
+		void parseNetworkConfig_IfConfig();
+		void parseNetworkConfig_NetPlan();
 		void parseConfigEntry(std::string &,std::string &,char );
 
 		std::string poweroffCommand;
@@ -141,10 +164,17 @@ class LCDMonitor:public CFA635
 		std::string gpsRxRestartCommand;
 		std::string gpsLoggerLockFile;
 
-		std::string bootProtocol;
-		std::string ipv4addr,ipv4nm,ipprefix,ipv4gw,ipv4ns;
+		std::vector<NetworkInterface *> nets;
+		std::string NPrenderer,NPversion; // Netplan
+		int addressAssignment; // Static or DHCP 
+		int primaryIF;  // index in nets
+		std::string primaryIFname,LAN1IFname,LAN2IFname,USBIFname,netCfg;
 		
-		int NTPProtocolVersion,NTPMajorVersion,NTPMinorVersion; 
+#ifndef NETPLAN
+		std::string DNSconf,networkConf;
+#endif
+		int NTPDaemon;
+		int NTPProtocolVersion,NTPCLIMajorVersion,NTPCLIMinorVersion; 
 		std::string currPacketsTag,oldPacketsTag,badPacketsTag;
 		
 		std::string status[4];
@@ -155,7 +185,9 @@ class LCDMonitor:public CFA635
 
 		Menu *menu,*displayModeM,*protocolM,*lcdSetup;
 		int midGPSDisplayMode,midNTPDisplayMode,midGPSDODisplayMode; // some menu items we want to track
-		int midDHCP,midStaticIP4,midStaticIP6;
+		int midDHCP,midStaticIP4;
+		
+		int reference;
 		
 		std::string logFile;
 		std::string lockFile;
@@ -164,28 +196,32 @@ class LCDMonitor:public CFA635
 		
 		std::string NTPuser,GPSCVuser;
 		std::string cvgpsHome,ntpadminHome;
-		std::string DNSconf,networkConf,eth0Conf;
+		
 		
 		std::string receiverName;
 		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile;
 		
-#ifdef TTS
+#ifdef MULTIRX
 		std::string GLONASSStatusFile,BeidouStatusFile;
 		int midGLOBDDisplayMode;
 		//              GLOsats       BDsats
 		bool checkGLOBD(std::string &,std::string &,bool *);
+		bool showGLOBD;
 #endif
-		
+
 		// some settings
 		int intensity;
 		int contrast;
 		int displayMode;
 		int displaytimeout;
 		bool displaybacklightoff;
-		int networkProtocol;
+		
+		
 		//
 		struct timeval lastNTPtrafficPoll,currNTPtrafficPoll;
 		int    lastNTPPacketCount,currNTPPacketCount;
+		
+		std::string configFile;
 		
 };
 
