@@ -82,8 +82,8 @@ class LCDMonitor:public CFA635
 		void showSysInfo();
 		void showIP();
 		
-		void networkConfigDHCP();
-		void networkConfigStaticIP4();
+		void networkConfigDHCP(int);
+		void networkConfigStaticIP4(int);
 	
 		void LCDConfig();
 		void LCDBacklightTimeout();
@@ -135,7 +135,7 @@ class LCDMonitor:public CFA635
 		void repaintWidget(Widget *,std::vector<std::string> &,bool forcePaint=false);
 		
 		bool checkAlarms();
-		bool checkGPS(int *,std::string &,bool *);
+		bool checkRx(int *,std::string &,bool *);
 		//              Status        ffe           EFC%          health
 		bool checkRef(std::string &,std::string &,std::string &,std::string &,bool *);
 		bool detectNTPVersion();
@@ -154,10 +154,18 @@ class LCDMonitor:public CFA635
 		
 		time_t lastLazyCheck;
 		
+		void networkConfigDHCPLAN0();
+		void networkConfigStaticIP4LAN0();
+		void networkConfigDHCPLAN1();
+		void networkConfigStaticIP4LAN1();
+		
 		void parseNetworkConfig_IfConfig();
 		void parseNetworkConfig_NetPlan();
 		void parseConfigEntry(std::string &,std::string &,char );
 
+		bool writeNetPlanConfig(int);
+		bool writeIfConfig(int);
+		
 		std::string poweroffCommand;
 		std::string rebootCommand;
 		std::string ntpdRestartCommand;
@@ -166,9 +174,9 @@ class LCDMonitor:public CFA635
 
 		std::vector<NetworkInterface *> nets;
 		std::string NPrenderer,NPversion; // Netplan
-		int addressAssignment; // Static or DHCP 
-		int primaryIF;  // index in nets
-		std::string primaryIFname,LAN1IFname,LAN2IFname,USBIFname,netCfg;
+		int addressAssignmentLAN[2]; // Static or DHCP 
+		int idxLAN[2];  // index in nets
+		std::string LANIFname[2],netCfg;
 		
 #ifndef NETPLAN
 		std::string DNSconf,networkConf;
@@ -183,9 +191,9 @@ class LCDMonitor:public CFA635
 		
 		bool showPRNs;
 
-		Menu *menu,*displayModeM,*protocolM,*lcdSetup;
+		Menu *menu,*displayModeM,*networkM,*LAN0M,*LAN1M,*lcdSetup;
 		int midGPSDisplayMode,midNTPDisplayMode,midGPSDODisplayMode; // some menu items we want to track
-		int midDHCP,midStaticIP4;
+		int midDHCP0,midStaticIP40,midDHCP1,midStaticIP41;
 		
 		int reference;
 		
@@ -199,7 +207,7 @@ class LCDMonitor:public CFA635
 		
 		
 		std::string receiverName;
-		std::string refStatusFile,GPSStatusFile,GPSDOStatusFile;
+		std::string refStatusFile,rxStatusFile;
 		
 #ifdef MULTIRX
 		std::string GLONASSStatusFile,BeidouStatusFile;

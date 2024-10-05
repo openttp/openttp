@@ -213,7 +213,8 @@ void LCDMonitor::showSysInfo()
 	delete mb;
 }
 
-void LCDMonitor::getNetworkInterfaces(std::string &lan1ip, std::string &lan2ip,std::string &usbip)
+// This is needed because if we are using DHCP, we don't know what the assigned address is
+void LCDMonitor::getNetworkInterfaces(std::string &lan0ip, std::string &lan1ip,std::string &usbip)
 {
 	struct ifaddrs * ifAddrStruct=NULL;
 	struct ifaddrs * ifa=NULL;
@@ -243,14 +244,11 @@ void LCDMonitor::getNetworkInterfaces(std::string &lan1ip, std::string &lan2ip,s
 			char addressBuffer[INET_ADDRSTRLEN];
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
 			
-			if (LAN1IFname == ifa->ifa_name){
-				lan1ip = addressBuffer;
+			if (LANIFname[0] == ifa->ifa_name){
+				lan0ip = addressBuffer;
 			}
-			else if (LAN2IFname == ifa->ifa_name){
-				lan2ip= addressBuffer;
-			}
-			else if (USBIFname == ifa->ifa_name){
-				usbip = addressBuffer;
+			else if (LANIFname[1] == ifa->ifa_name){
+				lan1ip= addressBuffer;
 			}
 		}
 	}
@@ -266,17 +264,23 @@ void LCDMonitor::showIP()
 	MessageBox *mb = new MessageBox(" "," "," "," ");
 
 	if(lan1ip != "") mb->setLine(0,"LAN1: " + lan1ip);	
-	if(usbip != "") mb->setLine(1,"usb0: " + usbip); // FIME BB?
+
 	if(lan2ip != "") mb->setLine(1,"LAN2: " + lan2ip);
 
 	execDialog(mb);
 	delete mb;
 }
 
-void LCDMonitor::networkConfigDHCP()
+
+void LCDMonitor::networkConfigDHCP(int ifID)
 {
 
-	int oldAddressAssignment = addressAssignment;
+	int oldAddressAssignment;
+	if (ifID == 0)
+		oldAddressAssignment = addressAssignmentLAN[ifID];
+	
+	if (ifID == 1)
+		oldAddressAssignment = addressAssignmentLAN[ifID];
 	
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm DHCP");
@@ -301,8 +305,29 @@ void LCDMonitor::networkConfigDHCP()
 		fout << "  renderer: " << NPrenderer << endl;
 		fout << "  version: " <<  NPversion << endl;
 		fout << "  networks: " << endl;
-		
-		fout.close();
+// 		for (unsigned int i=0;i<nets.size();i++){
+// 			fout << "    " << nets.at(i)->name << ":" << endl;
+// 			if (i==primaryIF){
+// 				fout << "      dhcp4: true" << endl;  
+// 			}
+// 			else{
+// 				if (nets.at(i)->DHCP){
+// 					
+// 				}
+// 				else{
+// 					fout << "      addresses: " << endl;
+// 					fout << "      nameservers: " << endl;
+// 					fout << "        addresses: " << endl;
+// 					for (unsigned int j=0;j<nets.at(i)->nameservers.size();j++){
+// 						fout << "        - " << nets.at(i)->nameservers.at(j) << endl;
+// 					}
+// 					fout << "      routes:" << endl;
+// 					fout << "        - to: default" << endl;
+// 					fout << "        - via: " << nets.at(i)->gateway << endl;
+// 				}
+// 			}
+// 		}
+// 		fout.close();
 		
 #else
 		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
@@ -346,9 +371,10 @@ void LCDMonitor::networkConfigDHCP()
 			goto DIE;
 		}
 #endif
-		if (restartNetworking())
-			addressAssignment = DHCP;
-
+		if (restartNetworking()){
+			
+			addressAssignmentLAN[ifID] = DHCP;
+		}
 	}
 
 	{
@@ -360,10 +386,10 @@ void LCDMonitor::networkConfigDHCP()
 	if (!ret && oldAddressAssignment != DHCP)
 		newNetworkProtocol = Static;
 	
-	// Update the menu 
-	MenuItem *mi = protocolM->itemAt(midDHCP);
+	// Update the menu FIXEM
+	MenuItem *mi = LAN0M->itemAt(midDHCP0);
 	mi->setChecked(newNetworkProtocol==DHCP);
-	mi = protocolM->itemAt(midStaticIP4);
+	mi = LAN0M->itemAt(midStaticIP40);
 	mi->setChecked(newNetworkProtocol==Static);
 
 	return;
@@ -378,9 +404,9 @@ void LCDMonitor::networkConfigDHCP()
 }
 
 
-void LCDMonitor::networkConfigStaticIP4()
+void LCDMonitor::networkConfigStaticIP4(int ifID)
 {
-	int oldAddressAssignment = addressAssignment;
+	int oldAddressAssignment = addressAssignmentLAN[ifID];
 	
 	clearDisplay();
 	Wizard *dlg = new Wizard();
@@ -392,6 +418,7 @@ void LCDMonitor::networkConfigStaticIP4()
 	std::string ipv4gw   = "10.64.39.129" ;
 	std::string ipv4ns   = "10.64.35.208" ;
 	
+	// FIXME just some debugging
 	for (unsigned int l=0;l<nets.size();l++){
 		cout << "NET " << l << std::endl;
 		cout << nets.at(l)->name << std::endl;
@@ -402,11 +429,11 @@ void LCDMonitor::networkConfigStaticIP4()
 		cout << nets.at(l)->gateway << std::endl;
 	}
 	
-	if (!nets.at(primaryIF)->DHCP){
-		ipv4addr = nets.at(primaryIF)->address;
-		ipv4nm   = nets.at(primaryIF)->netmask;
-		ipv4gw   = nets.at(primaryIF)->gateway;
-		ipv4ns   = nets.at(primaryIF)->nameservers.at(0);
+	if (!nets.at(ifID)->DHCP){
+		ipv4addr = nets.at(ifID)->address;
+		ipv4nm   = nets.at(ifID)->netmask;
+		ipv4gw   = nets.at(ifID)->gateway;
+		ipv4ns   = nets.at(ifID)->nameservers.at(0); // can only configure one
 	}
 	
 	Widget *w = dlg->addPage("IP address");
@@ -434,149 +461,30 @@ void LCDMonitor::networkConfigStaticIP4()
 	nsw->setFocusWidget(true);
 
 	bool ret = execDialog(dlg);
-	std::string lastError="No error";
+	
 	if (ret){
-		nets.at(primaryIF)->address = ipw->ipAddress();
-		nets.at(primaryIF)->netmask =   nmw->ipAddress();
-		nets.at(primaryIF)->gateway =   gww->ipAddress();
-		nets.at(primaryIF)->nameservers.at(0) = nsw->ipAddress();
-		nets.at(primaryIF)->DHCP = false;
-		
-		// make temporary files and copy across
-		// note that temporary files are made in the same directory
-		// as the target because rename() does not work across devices (partitions)
-		// network
-		
-		string tmp,ftmp;
-		int retval;
-		bool gotGW=false;
+		nets.at(ifID)->address =	ipw->ipAddress();
+		nets.at(ifID)->netmask =  nmw->ipAddress();
+		nets.at(ifID)->gateway =  gww->ipAddress();
+		nets.at(ifID)->nameservers.at(0) = nsw->ipAddress();
+		nets.at(ifID)->DHCP = false;
 		
 #ifdef NETPLAN
-
+		if (!writeNetPlanConfig(ifID))
+			goto FAIL;
 #else
-		// ifcfg-eth0
-		
-		ifstream fin2(netCfg.c_str());
-		if (!fin2.good()){
-			lastError="eth0 config not found";
-			goto DIE;
-		}
-		ftmp="/etc/sysconfig/network-scripts/tmp.ifcfg-eth0"; // take care not to leave an ifcfg that the init scripts could pick up
-		ofstream fout2(ftmp.c_str());
-		// the existing configuration is read in and copied except for IPADDR and NETMASK
-		bool gotIPADDR=false;
-		bool gotNETMASK=false;
-		bool gotBOOTPROTO=false;
-		bool gotDNS1=false;
-		gotGW=false;
-		
-		while (!fin2.eof()){
-			getline(fin2,tmp);
-			if (fin2.eof())
-				break;
-			if (fin2.fail()){
-				lastError="Error in " + netCfg;
-				goto DIE;
-			}
-			if (string::npos != tmp.find("IPADDR")){
-				fout2 << "IPADDR=" << quote(ipv4addr) << endl;
-				gotIPADDR=true;
-			}
-			else if ( (string::npos != tmp.find("NETMASK")) || (string::npos != tmp.find("PREFIX"))){
-				// replace NETMASK with PREFIX
-				fout2 << "NETMASK=" << quote(ipv4nm) << endl;
-				gotNETMASK=true;
-			}
-			else if (string::npos != tmp.find("BOOTPROTO")){
-				fout2 << "BOOTPROTO=" << quote("none") << endl; // none==static
-				gotBOOTPROTO=true;
-			}
-			else if (string::npos != tmp.find("DNS1")){
-				fout2 << "DNS1=" << quote(ipv4ns) << endl;
-				gotDNS1=true;
-			}
-			else if (string::npos != tmp.find("DNS2")){
-				// scrub it for the moment
-			}
-			else if (string::npos != tmp.find("GATEWAY")){
-				fout2 << "GATEWAY=" << quote(ipv4gw) << endl;
-				gotGW=true;
-			}
-			else
-				fout2 << tmp << endl;
-		}
-
-		// If the required fields weren't there, update them from the dialog results anyway
-		if (!gotIPADDR)
-			fout2 << "IPADDR=" << quote(ipv4addr) << endl;
-		if (!gotNETMASK)
-			fout2 << "NETMASK=" << quote(ipv4nm) << endl;
-		if (!gotBOOTPROTO)
-			fout2 << "BOOTPROTO=" << quote("none") << endl;
-		if (!gotDNS1) // FIXME when is this used?
-			fout2 << "DNS1=" << quote(ipv4ns) << endl;
-		if (!gotGW)
-			fout2 << "GATEWAY=" << quote(ipv4gw) << endl;
-		
-		fin2.close();
-		fout2.close();
-
-		if (0 != (retval =rename(ftmp.c_str(),netCfg.c_str()))){
-			DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << netCfg << " failed err = " << errno);
-			lastError = "Rename of tmp.ifcfg-eth0 failed";
-			goto DIE;
-		}
-
-		// Try /etc/resolv.conf if there is no nameserver configured in 
-		// FIXME unclear how DNS1 propagates
-		if (!gotDNS1){
-			string nscfg("/etc/resolv.conf");
-			ifstream fin3(nscfg.c_str());
-			if (!fin3.good()){
-				lastError="resolv.conf not found";
-				goto DIE;
-			}
-			ftmp="/etc/resolv.conf.tmp";
-			ofstream fout3(ftmp.c_str());
-			bool gotNS=false; // should only be one NS defined but if someone has manually fiddled
-											// then make sure we only change the first one configured in resolv.conf
-			while (!fin3.eof()){
-				getline(fin3,tmp);
-				if (fin3.eof())
-					break;
-				if (fin3.fail()){
-					lastError="Error in resolv.conf";
-					goto DIE;
-				}
-				if ((!gotNS) && (string::npos != tmp.find("nameserver"))){
-					fout3 << "nameserver " << ipv4ns << endl;
-					gotNS=true;
-				}
-				else
-					fout3 << tmp << endl;
-
-			}
-			if (!gotNS)
-				fout3 << "nameserver " << ipv4ns << endl;
-
-			fin3.close();
-			fout3.close();
-
-			if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str()))){
-				DBGMSG(debugStream,TRACE, "Rename of " << ftmp << " to " << netCfg << " failed err = " << errno);
-				lastError="Rename of resolv.conf.tmp failed";
-				goto DIE;
-			}
-		}
+		if (!writeIfConfig(ifID))
+			goto FAIL;
 #endif
 		clearDisplay();
 		updateLine(1,"Please wait");			
 		sleep(3);
 		
 		if (restartNetworking())
-			addressAssignment = Static;
+			addressAssignmentLAN[ifID] = Static;
 		
 	} // if dialog accepted
+	
   {
 	delete dlg;
 	
@@ -584,19 +492,196 @@ void LCDMonitor::networkConfigStaticIP4()
 	if (!ret && oldAddressAssignment != Static)
 		newNetworkProtocol = DHCP;
 	
-	MenuItem *mi = protocolM->itemAt(midDHCP);
-	mi->setChecked(newNetworkProtocol==DHCP);
-	mi = protocolM->itemAt(midStaticIP4);
-	mi->setChecked(newNetworkProtocol==Static);
-	
+	if (ifID == 0){
+		MenuItem *mi = LAN0M->itemAt(midDHCP0); // FIXME
+		mi->setChecked(newNetworkProtocol==DHCP);
+		mi = LAN0M->itemAt(midStaticIP40);
+		mi->setChecked(newNetworkProtocol==Static);
+	}
+	else if (ifID == 1){
+		MenuItem *mi = LAN1M->itemAt(midDHCP1); // FIXME
+		mi->setChecked(newNetworkProtocol==DHCP);
+		mi = LAN1M->itemAt(midStaticIP41);
+		mi->setChecked(newNetworkProtocol==Static);
+	}
 	return;
 	}
-	DIE:
+	
+	FAIL:
 		delete dlg;
-		DBGMSG(debugStream,TRACE, "last error: "<< lastError);
 		clearDisplay();
 		updateLine(1,"Reconfig failed !");
 		sleep(2);
+}
+
+void LCDMonitor::networkConfigDHCPLAN0(){
+	networkConfigDHCP(idxLAN[0]);
+}
+
+void LCDMonitor::networkConfigStaticIP4LAN0(){
+	networkConfigStaticIP4(idxLAN[0]);
+}
+
+void LCDMonitor::networkConfigDHCPLAN1(){
+	networkConfigDHCP(idxLAN[1]);
+}
+
+void LCDMonitor::networkConfigStaticIP4LAN1(){
+	networkConfigStaticIP4(idxLAN[1]);
+}
+
+bool LCDMonitor::writeNetPlanConfig(int ifID)
+{
+	return true;
+}
+
+bool LCDMonitor::writeIfConfig(int ifID)
+{
+	std::string tmp;
+	
+	std::string ipv4addr = nets.at(ifID)->address;
+	std::string ipv4nm   = nets.at(ifID)->netmask;
+	std::string ipv4gw   = nets.at(ifID)->gateway;
+	std::string ipv4ns   = nets.at(ifID)->nameservers.at(0); 
+	
+	std::string cfgFile = netCfg + "/ifcfg-" + LANIFname[ifID];
+	ifstream fin(cfgFile.c_str());
+	if (!fin.good()){
+		log(cfgFile + " not found");
+		return false;
+	}
+	
+	// Make temporary files and rename when done.
+	// Note that temporary files are made in the same directory
+	// as the target because rename() does not work across devices (partitions)
+	// network
+	
+	std::string ftmp = netCfg + "/tmp.ifcfg-" + LANIFname[ifID]; // take care not to leave an ifcfg that the init scripts could pick up
+	ofstream fout(ftmp.c_str());
+	if (!fout.good()){
+		log("Can't open " + cfgFile);
+		return false;
+	}
+	
+	// the existing configuration is read in and copied except for IPADDR and NETMASK
+	bool gotIPADDR=false;
+	bool gotNETMASK=false;
+	bool gotBOOTPROTO=false;
+	bool gotDNS1=false;
+	bool gotGW=false;
+	int retval;
+	
+	while (!fin.eof()){
+		getline(fin,tmp);
+		if (fin.eof())
+			break;
+		if (fin.fail()){
+			log("Error in " + cfgFile);
+			return false;
+		}
+		if (string::npos != tmp.find("IPADDR")){
+			if (!nets.at(ifID)->DHCP)
+				fout << "IPADDR=" << quote(ipv4addr) << endl;
+			gotIPADDR=true;
+		}
+		else if ( (string::npos != tmp.find("NETMASK")) || (string::npos != tmp.find("PREFIX"))){
+			// replace PREFIX with NETMASK
+			if (!nets.at(ifID)->DHCP)
+				fout << "NETMASK=" << quote(ipv4nm) << endl;
+			gotNETMASK=true;
+		}
+		else if (string::npos != tmp.find("BOOTPROTO")){
+			if (!nets.at(ifID)->DHCP)
+				fout << "BOOTPROTO=" << quote("none") << endl; // none==static
+			else
+				fout << "BOOTPROTO=dhcp" << endl;
+			gotBOOTPROTO=true;
+		}
+		else if (string::npos != tmp.find("DNS1")){
+			if (!nets.at(ifID)->DHCP)
+				fout << "DNS1=" << quote(ipv4ns) << endl;
+			gotDNS1=true;
+		}
+		else if (string::npos != tmp.find("DNS2")){
+			// scrub it for the moment
+		}
+		else if (string::npos != tmp.find("GATEWAY")){
+			if (!nets.at(ifID)->DHCP)
+				fout << "GATEWAY=" << quote(ipv4gw) << endl;
+			gotGW=true;
+		}
+		else
+			fout << tmp << endl;
+	}
+
+	if(nets.at(ifID)->DHCP){
+		if (!gotBOOTPROTO)
+			fout << "BOOTPROTO=dhcp" << endl;
+	}
+	else{
+		// If the required fields weren't there, update them from the dialog results anyway
+		if (!gotIPADDR)
+			fout << "IPADDR=" << quote(ipv4addr) << endl;
+		if (!gotNETMASK)
+			fout << "NETMASK=" << quote(ipv4nm) << endl;
+		if (!gotBOOTPROTO)
+			fout << "BOOTPROTO=" << quote("none") << endl;
+		if (!gotDNS1) // FIXME when is this used?
+			fout << "DNS1=" << quote(ipv4ns) << endl;
+		if (!gotGW)
+			fout << "GATEWAY=" << quote(ipv4gw) << endl;
+	}
+	
+	fin.close();
+	fout.close();
+
+	if (0 != (retval =rename(ftmp.c_str(),cfgFile.c_str()))){
+		log("Rename of " + ftmp + " to " + cfgFile + " failed");
+		return false;
+	}
+
+	// Try /etc/resolv.conf if there is no nameserver configured in 
+	// FIXME unclear how DNS1 propagates
+	if (!gotDNS1){
+		string nscfg("/etc/resolv.conf");
+		ifstream fin2(nscfg.c_str());
+		if (!fin2.good()){
+			log("resolv.conf not found");
+			return false;
+		}
+		ftmp="/etc/resolv.conf.tmp";
+		ofstream fout2(ftmp.c_str());
+		bool gotNS=false; // should only be one NS defined but if someone has manually fiddled
+										// then make sure we only change the first one configured in resolv.conf
+		while (!fin2.eof()){
+			getline(fin2,tmp);
+			if (fin2.eof())
+				break;
+			if (fin2.fail()){
+				log("Error in resolv.conf");
+				return false;
+			}
+			if ((!gotNS) && (string::npos != tmp.find("nameserver"))){
+				fout2 << "nameserver " << ipv4ns << endl;
+				gotNS=true;
+			}
+			else
+				fout2 << tmp << endl;
+
+		}
+		if (!gotNS)
+			fout2 << "nameserver " << ipv4ns << endl;
+
+		fin2.close();
+		fout2.close();
+		
+		if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str()))){
+			log("Rename of " + ftmp + " to " + netCfg + " failed");
+			return false;
+		}
+	}
+	
+	return true;
 }
 
 // Disabled for OpenTTP
@@ -1063,7 +1148,7 @@ void LCDMonitor::showStatus()
 				std::string prn="";
 				int nsats=0;
 				bool unexpectedEOF;
-				checkGPS(&nsats,prn,&unexpectedEOF); 
+				checkRx(&nsats,prn,&unexpectedEOF); 
 				// Note: NV08C returns GPS and GLONASS sats in prn string, so we must only
 				//       parse the GPS sats - nsats contain the number of GPS sats
 				if (unexpectedEOF)
@@ -1737,18 +1822,18 @@ void LCDMonitor::configure()
 	NTPDaemon = CHRONYD;
 	
 // the default setup is for Pi5 + Ubuntu
-	primaryIF = 0; 
-	primaryIFname = "eth0";
-	LAN1IFname = primaryIFname;
-	LAN2IFname  = ""; // unavailable
-	USBIFname   = ""; // unavailable
+	idxLAN[0] = -1;
+	idxLAN[1] = -1;
+	LANIFname[0] =  "";
+	LANIFname[1]  = ""; // unavailable
 	NPrenderer = "NetworkManager";
 	NPversion = "2";
+	netCfg = " /etc/netplan/01-network-manager-all.yaml";
 	
 #ifndef NETPLAN 
 	DNSconf="/etc/resolv.conf";
 	networkConf="/etc/sysconfig/network";// This is empty in CentOS7+
-	netCfg="/etc/sysconfig/network-scripts/ifcfg-eth0";
+	netCfg="/etc/sysconfig/network-scripts/ifcfg-";// device name is appended
 #endif
 	
 	
@@ -1756,7 +1841,7 @@ void LCDMonitor::configure()
 	receiverName="nv08";
 	alarmPath="/home/cvgps/logs/alarms";
 	refStatusFile="/home/cvgps/logs/gpsdo.status";
-	GPSStatusFile="/home/cvgps/logs/gpscv.status";
+	rxStatusFile="/home/cvgps/logs/rx.status";
 #ifdef MULTIRX
 	GLONASSStatusFile="/home/cvgps/logs/rest.status";
 	BeidouStatusFile="/home/cvgps/logs/navspark.status";
@@ -1807,18 +1892,13 @@ void LCDMonitor::configure()
 
 	// Network
 	if (list_get_string_value(last,"Network","LAN1 interface",&stmp))
-		LAN1IFname = stmp;
+		LANIFname[0] = stmp;
 	else
 		log("LAN1 not found in config file");
 	
-	if (list_get_string_value(last,"Network","Primary interface",&stmp))
-		primaryIFname = stmp;
 	
 	if (list_get_string_value(last,"Network","LAN2 interface",&stmp))
-		LAN2IFname = stmp;
-	
-	if (list_get_string_value(last,"Network","USB interface",&stmp))
-		USBIFname = stmp;
+		LANIFname[1] = stmp;
 	
 	if (list_get_string_value(last,"Network","cfg",&stmp))
 		netCfg = stmp;
@@ -1870,7 +1950,7 @@ void LCDMonitor::configure()
 		}
 	}
 	else{
-		log("GPSCV referencenot found in config file");
+		log("GPSCV reference not found in config file");
 	}
 	// OS
 	if (list_get_string_value(last,"OS","reboot command",&stmp))
@@ -1960,19 +2040,13 @@ void LCDMonitor::configure()
 	else
 		log("receiver:lock file not found in gpscv.conf");
 
-	if (list_get_string_value(last,"reference","status file",&stmp))
-		refStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
-	else
-		log("reference:status file not found in gpscv.conf");
-
 	if (list_get_string_value(last,"receiver","status file",&stmp))
-		GPSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+		rxStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("receiver:status file not found in gpscv.conf");
 
-	//if (list_get_string_value(last,"gpsdo","status file",&stmp)) // config file format changed
 	if (list_get_string_value(last,"reference","status file",&stmp))
-		GPSDOStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+		refStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
 	else
 		log("reference:status file not found in gpscv.conf");
 
@@ -2065,20 +2139,35 @@ void LCDMonitor::makeMenu()
 	WidgetCallback<LCDMonitor> *cb;
 	MenuItem *mi;
 
-		protocolM = new Menu("Networking ...");
-		setupM->insertItem(protocolM);
+		networkM = new Menu("Networking ...");
+		setupM->insertItem(networkM);
+				LAN0M = new Menu("LAN1 ...");
+				networkM->insertItem(LAN0M);
+		
+					cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCPLAN0);
+					midDHCP0=LAN0M->insertItem("DHCP...",cb);
+					mi = LAN0M->itemAt(midDHCP0);
+					if (mi != NULL) mi->setChecked(addressAssignmentLAN[0]==DHCP);
 
-			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP);
-			midDHCP=protocolM->insertItem("DHCP...",cb);
-			mi = protocolM->itemAt(midDHCP);
-			if (mi != NULL) mi->setChecked(addressAssignment==DHCP);
+					cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4LAN0);
+					midStaticIP40=LAN0M->insertItem("Static IPv4...",cb);
+					mi = LAN0M->itemAt(midStaticIP40);
+					if (mi != NULL) mi->setChecked(addressAssignmentLAN[0]==Static);
 
-			cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4);
-			midStaticIP4=protocolM->insertItem("Static IPv4...",cb);
-			mi = protocolM->itemAt(midStaticIP4);
-			if (mi != NULL) mi->setChecked(addressAssignment==Static);
+				if (!LANIFname[1].empty()){
+					LAN1M = new Menu("LAN2 ..,");
+					networkM->insertItem(LAN1M);
+						cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCPLAN1);
+						midDHCP1=LAN1M->insertItem("DHCP...",cb);
+						mi = LAN1M->itemAt(midDHCP1);
+						if (mi != NULL) mi->setChecked(addressAssignmentLAN[1]==DHCP);
 
-			
+						cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4LAN1);
+						midStaticIP41=LAN1M->insertItem("Static IPv4...",cb);
+						mi = LAN1M->itemAt(midStaticIP41);
+						if (mi != NULL) mi->setChecked(addressAssignmentLAN[1]==Static);
+				}
+				
 		lcdSetup = new Menu("LCD setup...");
 		setupM->insertItem(lcdSetup);
 		
@@ -2288,12 +2377,12 @@ bool LCDMonitor::checkAlarms()
 	return false;
 }
 
-bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
+bool LCDMonitor::checkRx(int *nsats,std::string &prns,bool *unexpectedEOF)
 {
 
 	// TODO this should return a vector of PRNs rather than repeating parsing elsewhere 
 	*unexpectedEOF=false;
-	bool ret = checkFile(GPSStatusFile.c_str());
+	bool ret = checkFile(rxStatusFile.c_str());
 	if (!ret)
 	{
 		DBGMSG(debugStream,TRACE, "stale file");
@@ -2301,7 +2390,7 @@ bool LCDMonitor::checkGPS(int *nsats,std::string &prns,bool *unexpectedEOF)
 	}
 
 	// status file is current so extract useful stuff
-	std::ifstream fin(GPSStatusFile.c_str());
+	std::ifstream fin(rxStatusFile.c_str());
 	if (!fin.good()) // not really going to happen
 	{
 		DBGMSG(debugStream,TRACE,"stream error");
@@ -2347,14 +2436,14 @@ bool LCDMonitor::checkRef(std::string &status,std::string &ffe,std::string &EFC,
 {
 
 	*unexpectedEOF=false;
-	bool ret = checkFile(GPSDOStatusFile.c_str());
+	bool ret = checkFile(refStatusFile.c_str());
 	if (!ret){
 		DBGMSG(debugStream,TRACE,"stale file");
 		return false; // don't display stale information
 	}
 
 	// status file is current so extract useful stuff
-	std::ifstream fin(GPSDOStatusFile.c_str());
+	std::ifstream fin(refStatusFile.c_str());
 	
 	if (!fin.good()) // not really going to happen
 	{
@@ -2500,6 +2589,20 @@ bool LCDMonitor::detectNTPVersion()
 	char buf[1024];
 	bool ret=false;
 	if (NTPDaemon == CHRONYD){
+		FILE *fp=popen("/usr/bin/chronyc -v","r"); 
+		while (fgets(buf,1023,fp) != NULL){
+			DBGMSG(debugStream,TRACE, buf);
+			boost::regex re("version\\s+(\\d+)\\.(\\d+)");
+			boost::cmatch matches;
+			if (boost::regex_match(buf,matches,re)){
+				NTPProtocolVersion=boost::lexical_cast<int>(matches[1]);
+				NTPCLIMajorVersion=boost::lexical_cast<int>(matches[1]);
+				NTPCLIMinorVersion=boost::lexical_cast<int>(matches[2]);
+				DBGMSG(debugStream,TRACE, "ver=" << NTPProtocolVersion << 
+					",major=" << NTPCLIMajorVersion << ",minor=" << NTPCLIMinorVersion << endl);
+			}
+		}
+		pclose(fp);
 	}
 	else if (NTPDaemon == NTPD){
 		
@@ -2787,38 +2890,32 @@ void LCDMonitor::parseNetworkConfig_NetPlan()
 {
 
 	std::vector<std::string> cfg;
-	// netplan will return all of the configured interfaces
-	// but we won't use this so we don't pick up ones we don't wnat
 	
-	runCommand("netplan get",cfg); // we could just read the file ...
+	//runCommand("netplan get",cfg); // we could just read the file ...
 	// and indeed we will
-	// FIXME
-	addressAssignment = DHCP;
-	unsigned int l = 0;
+	
+	// Read the file into a vector of strings
+	// That way, if we ever want to go back to using "netplan get" then it's easy
+	ifstream fin(netCfg.c_str());
+	if (!fin.good()){
+		//
+	}	
+	else{
+		string tmp;
 
-	cfg.clear();
-	cfg.push_back("network:");
-  cfg.push_back("  renderer: networkd");
-  cfg.push_back("  ethernets:");
-  cfg.push_back("    enp11s0:");
-	cfg.push_back("      addresses: ");
-  cfg.push_back("        - 192.168.10.5/24");
-  cfg.push_back("      nameservers:");
-  cfg.push_back("        addresses: [1.2.3.4,5.6.7.8,2.3.4.5]");
-  cfg.push_back("      routes:");
-  cfg.push_back("        - to: default");
-  cfg.push_back("          via: 192.168.1.253");
-	cfg.push_back("    enp0s25:");
-	cfg.push_back("      addresses: [192.168.99.3/24]");
-	cfg.push_back("      nameservers:");
-  cfg.push_back("        addresses:");
-	cfg.push_back("          - 10.11.12.13");
-	cfg.push_back("          - 10.11.12.14");
-	cfg.push_back("      routes:");
-  cfg.push_back("        - to: default");
-  cfg.push_back("          via: 192.168.99.1");
-  cfg.push_back("  version: 2");
+		while (!fin.eof()){
+			getline(fin,tmp);
+			cfg.push_back(tmp);
+		}
+	}
+	
+	// Initial set up is typically DHCP on all interfaces
+	addressAssignmentLAN[0] = DHCP;
+	addressAssignmentLAN[1] = DHCP;
+	unsigned int l = 0;
   
+	// This will get called each time the network information is edited
+	// in case information has been manually edited
 	for (unsigned int i=0;i<nets.size();i++)
 		delete nets.at(i);
 	nets.clear();
@@ -2829,9 +2926,10 @@ void LCDMonitor::parseNetworkConfig_NetPlan()
 	while (l<cfg.size()){
 		std::string str = cfg.at(l);
 		boost::trim_right(str);
-		if (str.empty()) // skip empty lines
+		if (str.empty()){ // skip empty lines
+			l++;
 			continue;
-		
+		}
 		// determine the indent level
 		unsigned int c=0;
 		int cnt=0;
@@ -2951,6 +3049,7 @@ void LCDMonitor::parseNetworkConfig_NetPlan()
 					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
 					if (boost::regex_search(str,matches,re)){
 						net->nameservers.push_back(matches[1]);
+						cout << matches[1] << endl;
 						// no state change reqd
 					}
 				}
@@ -2958,6 +3057,7 @@ void LCDMonitor::parseNetworkConfig_NetPlan()
 					boost::regex re("^via:\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
 					if (boost::regex_search(str,matches,re)){
 						net->gateway = matches[1];
+						cout << net->gateway << endl;
 						// no state change reqd
 					}
 				}
@@ -2966,13 +3066,9 @@ void LCDMonitor::parseNetworkConfig_NetPlan()
 			default:
 				break;
 		}
-
 		l=l+1;
-		
 	}
 
-	
-	l=0;
 	for (l=0;l<nets.size();l++){
 		cout << nets.at(l)->name << std::endl;
 		cout << "  " << nets.at(l)->address << "/" << nets.at(l)->netmask << std::endl;
@@ -2982,24 +3078,34 @@ void LCDMonitor::parseNetworkConfig_NetPlan()
 		cout << nets.at(l)->gateway << std::endl;
 	}
 	
-	// FIXME the address assignment method is set based on the first interface
-	
-	primaryIF = 0; // not ideal, but since we're moving to systems with just one wired interface
+	// Now we have to identify the interfaces according to the device names set in the configuration file
 	for (l=0;l<nets.size();l++){
-		if (nets.at(l)->name  == primaryIFname){
-			primaryIF = l;
-		  break;
+		if (nets.at(l)->name  == LANIFname[0]){
+			idxLAN[0] = l;
+		}
+		else if (nets.at(l)->name  == LANIFname[1]){
+			idxLAN[1] = l;
 		}
 	}
+
+	// If we didn't find 'ethernets' then we have an ultrabasic netplan which means that DHCP is the default
+	if (nets.size() > 0){
+		if (idxLAN[0] > 0) // found it, so use what was specified
+			addressAssignmentLAN[0]=nets.at(idxLAN[0])->DHCP?DHCP:Static;
+		else // otherwise,DHCP
+			addressAssignmentLAN[0]=DHCP;
+		if (idxLAN[1] > 0)
+			addressAssignmentLAN[1]=nets.at(idxLAN[1])->DHCP?DHCP:Static;
+		else
+			addressAssignmentLAN[1]=DHCP;
+	}
+	else{ // no ethernets, all DHCP
+		addressAssignmentLAN[0]=DHCP;
+		addressAssignmentLAN[1]=DHCP;
+	}
 	
-	if(nets.at(primaryIF)->DHCP){
-		addressAssignment = DHCP;
-	}
-	else{
-		addressAssignment = Static;
-	}
-		
-	DBGMSG(debugStream,TRACE,"network protocol " << addressAssignment);
+	DBGMSG(debugStream,TRACE,"network protocol " << addressAssignmentLAN[0] << " " << addressAssignmentLAN[1]);
+	
 }
 
 std::string  LCDMonitor::prefix2netmask(std::string pfx)
