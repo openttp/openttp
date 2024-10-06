@@ -40,7 +40,7 @@
 
 #define APP_AUTHORS "Michael Wouters"
 #define APP_NAME    "sbf2rnx"
-#define APP_VERSION "0.3.0"
+#define APP_VERSION "0.3.1"
 
 #define MAXSTR 4097 // this is accomodates longest file path on Linux 
 
@@ -668,8 +668,8 @@ main(
 	// TODO Now that we have made a pass through the file, we can make suitable default file names
 	
 	struct tm tmGPS;	
+	GPS_to_date(firstObsTOW/1000,firstObsWN,&tmGPS); 
 	if (0==strlen(rnxObsFileName)){
-		GPS_to_date(firstObsTOW/1000,firstObsWN,&tmGPS); 
 		// sbf2rin defaults to V2 names so we dutifully follow
 		sprintf(rnxObsFileName,"SEPT%03d0.%02dO",tmGPS.tm_yday+1,tmGPS.tm_year % 100);
 		sprintf(rnxNavFileName,"SEPT%03d0.%02dP",tmGPS.tm_yday+1, tmGPS.tm_year % 100);
