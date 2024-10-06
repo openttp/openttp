@@ -143,7 +143,7 @@ class LCDMonitor:public CFA635
 		
 		bool checkFile(const char *);
 		bool serviceEnabled(const char *);
-		bool restartNetworking();
+		
 		bool runSystemCommand(std::string,std::string,std::string);
 		bool runCommand(std::string,std::vector<std::string> &);
 		
@@ -154,24 +154,26 @@ class LCDMonitor:public CFA635
 		
 		time_t lastLazyCheck;
 		
+		void readNetworkConfig_IfConfig();
+		void readIfConfig(std::string,int);
+		void readNetworkConfig_NetPlan();
+		bool writeNetPlanConfig(int);
+		bool writeIfConfig(int);
 		void networkConfigDHCPLAN0();
 		void networkConfigStaticIP4LAN0();
 		void networkConfigDHCPLAN1();
 		void networkConfigStaticIP4LAN1();
-		
-		void parseNetworkConfig_IfConfig();
-		void parseNetworkConfig_NetPlan();
+		bool restartNetworking();
+	
 		void parseConfigEntry(std::string &,std::string &,char );
 
-		bool writeNetPlanConfig(int);
-		bool writeIfConfig(int);
-		
 		std::string poweroffCommand;
 		std::string rebootCommand;
 		std::string ntpdRestartCommand;
 		std::string gpsRxRestartCommand;
 		std::string gpsLoggerLockFile;
 
+		bool customNetCfg;
 		std::vector<NetworkInterface *> nets;
 		std::string NPrenderer,NPversion; // Netplan
 		int addressAssignmentLAN[2]; // Static or DHCP 
