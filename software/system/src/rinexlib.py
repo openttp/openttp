@@ -30,7 +30,7 @@ import time
 
 LIB_MAJOR_VERSION  = 0
 LIB_MINOR_VERSION  = 6
-LIB_PATCH_VERSION  = 2
+LIB_PATCH_VERSION  = 3
 
 compressionExtensions = ['.gz','.z']
 
@@ -381,6 +381,6 @@ def __FindFile(basename,extensions):
 		__Debug('Trying ' + fname)
 		if (os.path.exists(fname)):
 			__Debug('Success')
-			return (True,ext)
+			return (True,ext.upper())
 			
 	return (False,'') # flag failure
