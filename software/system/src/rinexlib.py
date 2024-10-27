@@ -30,7 +30,7 @@ import time
 
 LIB_MAJOR_VERSION  = 0
 LIB_MINOR_VERSION  = 6
-LIB_PATCH_VERSION  = 3
+LIB_PATCH_VERSION  = 4
 
 compressionExtensions = ['.gz','.z']
 
@@ -163,6 +163,8 @@ def FindNavigationFile(dirname,staname,yyyy,doy,rnxver,reqd):
 
 # -----------------------------------------
 def SetHatanakaTools(crx2rnx,rnx2crx):
+	global __CRX2RNX
+	global __RNX2CRX 
 	__CRX2RNX = crx2rnx
 	__RNX2CRX = rnx2crx
 	
@@ -228,7 +230,7 @@ def Decompress(fin):
 		try:
 			x = subprocess.check_output(cmd) # eat the output
 		except Exception as e:
-			ErrorExit('Failed to run ')
+			__ErrorExit('Failed to run ')
 		
 		if ext2 == '.crx':
 			fout  = fBase2 + '.rnx'
