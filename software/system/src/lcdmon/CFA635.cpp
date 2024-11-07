@@ -27,7 +27,11 @@
 //
 // Modification history
 //
-
+// 2024-11-07 Louis Marais
+// Changed control mode stop bits flag. When used with a serial port as opposed
+// to a USB port setting 2 stop bits mucks up the output. I think that this
+// causes framing errors because framing error checks are disabled.
+//
 
 #include "Debug.h"
 
@@ -385,8 +389,10 @@ int CFA635::Serial_Init(const char *devname, int baud_rate)
                   |OFDEL|NLDLY|CRDLY|TABDLY|BSDLY|VTDLY|FFDLY);
 
   //control modes
-  term.c_cflag &= ~(CSIZE|PARENB|PARODD|HUPCL|CRTSCTS);
-  term.c_cflag |= CREAD|CS8|CSTOPB|CLOCAL;
+  //term.c_cflag &= ~(CSIZE|PARENB|PARODD|HUPCL|CRTSCTS);
+  //term.c_cflag |= CREAD|CS8|CSTOPB|CLOCAL;
+  term.c_cflag &= ~(CSIZE|PARENB|PARODD|HUPCL|CRTSCTS|CSTOPB);
+  term.c_cflag |= CREAD|CS8|CLOCAL;
 
   //local modes
   term.c_lflag &= ~(ISIG|ICANON|IEXTEN|ECHO);
@@ -538,7 +544,7 @@ ubyte CFA635::GetByte(void)
   return(return_byte);
   }
 
-	
+/*---------------------------------------------------------------------------*/
 dword CFA635::PeekBytesAvail(void)
   {
   //LocalReceiveBufferHead and return_value are a signed variables.
@@ -556,16 +562,19 @@ dword CFA635::PeekBytesAvail(void)
   return(return_value);
   }
 
+/*---------------------------------------------------------------------------*/
 void CFA635::Sync_Peek_Pointer(void)
 {
 	ReceiveBufferTailPeek=ReceiveBufferTail;
 }
 
+/*---------------------------------------------------------------------------*/
 void CFA635::AcceptPeekedData(void)
 {
   ReceiveBufferTail=ReceiveBufferTailPeek;
 }
 
+/*---------------------------------------------------------------------------*/
 ubyte CFA635::PeekByte(void)
 {
   int
@@ -598,3 +607,5 @@ ubyte CFA635::PeekByte(void)
     }
   return(return_byte);
 }
+
+/*---------------------------------------------------------------------------*/
