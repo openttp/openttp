@@ -3,70 +3,73 @@
 
 # Script to log Furuno GPSDO data and create a status file.
 
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2024 E. Louis Marais
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+
 # -----------------------------------------------------------------------------
-# Ver: 0.0.1
-# Author: Louis Marais
-# Start: 2022-07-27
-# Last: 2022-07-27
-#
-# Modifications:
-# --------------
-# Original version
-#
+# Modification history
 # -----------------------------------------------------------------------------
-# Ver: 0.0.2
-# Author: Louis Marais
-# Start: 2022-08-09
-# Last: 2022-08-09
-#
-# Modifications:
-# --------------
-# 1. Forgot a linefeed at the end of one of the status lines. Fixed now.
-#
+#    DATE   AUTHOR   VER    COMMENTS
 # -----------------------------------------------------------------------------
-# Ver: 0.0.3
-# Author: Louis Marais
-# Start: 2023-03-31
-# Last: 2023-03-31
-#
-# Modifications:
-# --------------
-# 1. Fix swapped lat and lon in status file.
-#
+# 2022-07-27 ELM    0.0.1  Original version
+# 2022-08-09 ELM    0.0.2  Forgot a linefeed at the end of one of the status
+#                          lines. Fixed now.
+# 2023-03-31 ELM    0.0.3  Fix swapped lat and lon in status file.
+# 2024-04-23 ELM    0.0.4  Changed the way in which the ffe is reported. Not
+#                          sure if this is better.
+# 2024-10-16 ELM    0.0.5  Several changes while doing reset and power tests:
+#                          Increased robustness around collection of serial
+#                          data. If GPSDO shuts off or is reset, garbage on
+#                          the serial connection can make the script bomb.
+#                          Added a check on the serial output string to remove
+#                          nonsense characters.
+#                          Changed some 'format' directives to f-strings. It's
+#                          neater and more compact.
+# 2024-11-13 ELM    0.0.6  Added configuration options for GPSDO serial number,
+#                          antenna current warning, PPS pulse length, and GCLK
+#                          output frequency and on/off status.
+#                          Added serial number to status file.
 # -----------------------------------------------------------------------------
-# Ver: 0.0.4
-# Author: Louis Marais
-# Start: 2024-04-23
-# Last: 2024-04-23
+
+
+# TODO:  Fix the way the frequency offset / error is reported
+#        This is the 'ffe' number in the 'furuno.status' file.
 #
-# Modifications:
-# --------------
-# 1. Changed the way in which the ffe is reported. Not sure if this is better.
+# There is still an issue with how frequency drift data is presented. The 
+# GPSDO reports the VCLK frequency error in the TPS4 message, but only to a
+# resolution of 1 ppb (1E-9) while its short term stability is specified to
+# be better than 1E-11, and its long term stability (24 hrs) is better than 
+# 1E-12.
+# 
+# The TPS1 message reports the "Clock drift" to 0.001 ppb (1E-12) but this is
+# related to the PPS error. Currently the software reports this value as the
+# oscillator ffe, which is not correct. Averaging this value and centering it
+# around zero may provide a better number...
 #
-# -----------------------------------------------------------------------------
-# Ver: 0.0.5
-# Author: Louis Marais
-# Start: 2024-10-16
-# Last: 2024-1?-??
-#
-# Modifications:
-# --------------
-# 1. Increased robustness around collection of serial data. If GPSDO shuts off
-#    or is reset, garbage on the serial connection can make the program bomb
-#    out.
-# 2. Added a check on the serial output string to remove nonsense characters.
-# 3. Changed some 'format' directives to f-strings. Neater and more compact.
-#
-# -----------------------------------------------------------------------------
-# Ver: {Next}
-# Author:
-# Start:
-# Last:
-#
-# Modifications:
-# --------------
-#
-# -----------------------------------------------------------------------------
+# This needs to be investigated further.
+# 
+
 
 import os
 import serial
@@ -80,7 +83,7 @@ import datetime
 import time
 
 script = os.path.basename(__file__)
-VERSION = "0.0.5"
+VERSION = "0.0.6"
 AUTHORS = "Louis Marais"
 
 running = True
@@ -442,7 +445,7 @@ def getGPSDOstatus(p):
 	return(gpsdo)
 	
 # -----------------------------------------------------------------------------
-def extractStatus(l,v,flnm):
+def extractStatus(l,v,gpsdo_sn,flnm):
 	idx = 0
 	for s in l:
 		if s[3:6] == "RMC":
@@ -490,7 +493,7 @@ def extractStatus(l,v,flnm):
 			p.append(l[i])
 	if len(p) > 0:
 		gpsdo = getGPSDOstatus(p)
-	saveStatus(flnm,v,posdop,gpssats,glosats,galsats,gpsdo)
+	saveStatus(flnm,gpsdo_sn,v,posdop,gpssats,glosats,galsats,gpsdo)
 	return(posdop,gpssats,glosats,galsats,gpsdo)
 
 # -----------------------------------------------------------------------------
@@ -556,14 +559,15 @@ def getmoreInfo(glo,gal,gpsdo):
 	lines.extend(getSatParams("GALILEO - ",gal))
 	lines.append("Leap seconds: {}\n".format(gpsdo[0][0]))
 	lines.append("Time reference: {}\n".format(gpsdo[0][1]))
-	lines.append("Clock drift: {} (see TPS1 message)\n".format(gpsdo[0][2]))
+	lines.append("Clock drift: {} (see TPS1 message)\n".format(gpsdo[0][2]))  # TODO: Find a better way of calculating this.
 	lines.append("Internal temperature: {} degC\n".format(gpsdo[0][3]))
 	lines.append("PPS pulse width: {}\n".format(gpsdo[1][1]))
 	return(lines)
 
 # -----------------------------------------------------------------------------
-def saveStatus(flnm,verStr,posdop,gps,glo,gal,gpsdo):
-	lines = ['ID: {}\n'.format(verStr)]
+def saveStatus(flnm,gpsdo_sn,verStr,posdop,gps,glo,gal,gpsdo):
+	lines = [f"ID: {verStr}\n"]
+	lines.append(f"Furuno serial number: {gpsdo_sn}\n")
 	lines.extend(getSatParams("",gps))
 	#lines.append("ffe: {}E-09\n".format(gpsdo[3][10].split(' ')[0]))
 	lines.append("ffe: {}E-09\n".format(gpsdo[0][2]))
@@ -572,7 +576,7 @@ def saveStatus(flnm,verStr,posdop,gps,glo,gal,gpsdo):
 	lines.append("lon: {}\n".format(posdop[1]))
 	lines.append("alt: {}\n".format(posdop[2]))
 	lines.append("Health: {}\n".format(healthreport(gpsdo)))
-	lines.append('efc: 200\n')
+	lines.append('efc: 200\n') # canned value to preserve gpsdo status record format
 	additionalInfo = getmoreInfo(glo,gal,gpsdo)
 	lines.extend(additionalInfo)
 	# For debugging
@@ -601,8 +605,38 @@ def sendcmd(cmd):
 	return
 
 # -----------------------------------------------------------------------------
-def requestSN():
+def requestVERSION():
 	sendcmd("PERDSYS,VERSION")
+	return
+
+# -----------------------------------------------------------------------------
+# TODO: Add more options, see Furuno documentation.
+def configureReceiver(plen,antw,gclko,gclkf):
+	# PPS configuration
+	# Mode = 1 : PPS always on
+	# cable delay = 0 TODO: Make this a configurable option
+	# Polarity = 0 : Rising edge
+	cmd=f"PERDAPI,PPS,VCLK,1,0,{plen:0d},0,0"
+	debug(f"PPS formatting command sent: {cmd}")
+	sendcmd(cmd)
+	# NOTE: There is no query message for PPS configuration.
+	# Antenna alarm setting
+	if antw == 0:
+		cmd = "PERDAPI,ALMSET,0x00,0xFE"  # Masks antenna open warning
+		sendcmd(cmd)
+	# Query setting
+	cmd = "PERDAPI,ALMSET,QUERY"
+	sendcmd(cmd)
+	# GCLK frequency setting
+	mode = 0
+	if gclko:
+		mode = 1
+	cmd = f"PERDAPI,GCLK,{mode},{gclkf:0d}"
+	debug(f"GCLK formatting command sent: {cmd}")
+	sendcmd(cmd)
+	# Query setting
+	cmd = "PERDAPI,GCLK,QUERY"
+	sendcmd(cmd)
 	return
 
 # -----------------------------------------------------------------------------
@@ -653,8 +687,8 @@ if not os.path.isfile(configfile):
 conf = configparser.ConfigParser()
 conf.read(configfile)
 
-req = ['main,lock file','comms,port','data,path','data,ext','status,path',
-			 'status,file name']
+req = ['main,lock file','main,serial number','comms,port','data,path',
+			 'data,ext','status,path','status,file name']
 
 cfg = checkConfig(conf, req)
 
@@ -674,6 +708,67 @@ checkPath(statuspath)
 
 statusfile = statuspath + conf['status']['file name']
 debug(f'GPSDO status will be saved to {statusfile}')
+
+furuno_sn = conf['main']['serial number']
+
+debug(f"The Furuno GPSDO serial number is {furuno_sn}")
+
+antwarn = True
+pulselen = 500 # milliseconds
+gclkon = False
+gclkfreq = int(10E6) # Hz
+
+if 'receiver,antenna open warning' in cfg:
+	try:
+		if int(conf['receiver']['antenna open warning']) == 0:
+			antwarn = False
+		debug("User request: Ignore antenna open warning")
+	except:
+		debug("There is an issue with the '[receiver] antenna open warning' "+
+				  "configuration entry")
+		pass
+
+debug(f"Antenna open warning set to {antwarn}")
+
+if 'receiver,pps length' in cfg:
+	try:
+		d = int(conf['receiver']['pps length'])
+		if d >= 1 and d <= 500:
+			pulselen = d
+		debug(f"User request: PPS length = {pulselen} ms")
+	except:
+		debug("There is an issue with the '[receiver] pps length' "+
+				  "configuration entry")
+		pass
+
+debug(f"PPS pulse length: {pulselen} ms")
+
+if 'receiver,gclk on' in cfg:
+	try:
+		if int(conf['receiver']['gclk on']) == 1:
+			gclkon = True
+		debug("User request: Turn GCLK on")
+	except:
+		debug("There is an issue with the '[receiver] gclk on' "+
+				  "configuration entry")
+		pass
+
+debug("GCLK output is %s." %("on" if gclkon else "off"))
+
+if 'receiver,gclk freq' in cfg:
+	try:
+		d = int(float(conf['receiver']['gclk freq']))
+		if d >= 10 and d <= 40E6:
+			gclkfreq = d
+		debug(f"User request: Set GCLK frequency to {gclkfreq:0d} Hz")
+	except:
+		debug("There is an issue with the '[receiver] gclk freq' "+
+				  "configuration entry")
+		pass
+
+debug(f"GCLK frequency: {gclkfreq} Hz")
+
+#sys.exit(1)
 
 # Create UUCP lock for the serial port
 uucpLockPath='/var/lock'
@@ -696,8 +791,8 @@ signal.signal(signal.SIGINT,signalHandler)
 signal.signal(signal.SIGTERM,signalHandler)
 signal.signal(signal.SIGHUP,signalHandler) # not usually run with a controlling TTY, but handle it anyway
 
-t_out = 10.0
-if ('comms,timeout' in cfg):
+t_out = 10.0 # seconds
+if 'comms,timeout' in cfg:
 	t_out = float(conf['comms']['timeout'])
 
 debug(f"Serial communications timeout is {t_out:.1f} s.")
@@ -708,10 +803,8 @@ oldmjd = 0
 oldflnm = ""
 
 lines = []
-gotSN = False
+gotVERSION = False
 verStr = ""
-
-# Format receiver
 
 with serial.Serial(port,38400,timeout = t_out) as ser:
 	try:
@@ -720,14 +813,14 @@ with serial.Serial(port,38400,timeout = t_out) as ser:
 		debug("Initial serial read exception.")
 		pass
 	readtime = time.time()
-	# TODO: Format receiver pps pulse width, sat system(s), etc
-	#       Read desired values from the configuration file
+	# NOTE: Format receiver satellite system(s), etc
 	#       Coldstart?
 	#       Change baud rate? can be done on the fly: ser.baudrate = {baudrate}
+	configureReceiver(pulselen,antwarn,gclkon,gclkfreq)
 	while running:
-		if not gotSN:
-			requestSN()
-			gotSN = True
+		if not gotVERSION:
+			requestVERSION()
+			gotVERSION = True
 		try:
 			s = ser.readline().decode().strip()
 		except:
@@ -748,6 +841,7 @@ with serial.Serial(port,38400,timeout = t_out) as ser:
 			else:
 				t = "Starting"
 				debug("New data file: {}".format(flnm))
+				gotVERSION = False  # Make sure every data file has a response for this.
 			if oldflnm != "":
 				f.close()
 			f = open(flnm,'a')
@@ -774,7 +868,7 @@ with serial.Serial(port,38400,timeout = t_out) as ser:
 		if len(lines) > 25:
 			lines.pop(0)
 			if "TPS4" in lines[-1]:
-				extractStatus(lines,verStr,statusfile)
+				extractStatus(lines,verStr,furuno_sn,statusfile)
 	ser.close()
 	f.write(f"# {ts()} : Logging process stopped.\n")
 	f.close()
