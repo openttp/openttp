@@ -46,10 +46,11 @@
 #                          nonsense characters.
 #                          Changed some 'format' directives to f-strings. It's
 #                          neater and more compact.
-# 2024-11-13 ELM    0.0.6  Added configuration options for GPSDO serial number,
-#                          antenna current warning, PPS pulse length, and GCLK
+# 2024-11-18 ELM    0.0.6  Added configuration options for GPSDO serial number,
+#                          antenna current warning, PPS pulse length, PPS cable
+#                          delay, and GCLK
 #                          output frequency and on/off status.
-#                          Added serial number to status file.
+#                          Added hardware serial number to status file.
 # -----------------------------------------------------------------------------
 
 
@@ -69,6 +70,11 @@
 #
 # This needs to be investigated further.
 # 
+# It may be possible to integrate the PPS offset for a number of seconds to
+# get a decent estimate of the frequency error, but this may just be the same
+# as the number reported in the TPS1 message, although this will remove the 
+# large offset reported in that value.
+#
 
 
 import os
@@ -611,15 +617,21 @@ def requestVERSION():
 
 # -----------------------------------------------------------------------------
 # TODO: Add more options, see Furuno documentation.
-def configureReceiver(plen,antw,gclko,gclkf):
+def configureReceiver(plen,cdelay,emask,antw,gclko,gclkf):
 	# PPS configuration
 	# Mode = 1 : PPS always on
-	# cable delay = 0 TODO: Make this a configurable option
 	# Polarity = 0 : Rising edge
-	cmd=f"PERDAPI,PPS,VCLK,1,0,{plen:0d},0,0"
+	cmd=f"PERDAPI,PPS,VCLK,1,0,{plen:0d},{cdelay:0d},0"
 	debug(f"PPS formatting command sent: {cmd}")
 	sendcmd(cmd)
 	# NOTE: There is no query message for PPS configuration.
+	# Positioning and elevation mask setting
+	cmd = f"PERDAPI,FIXMASK,USER,{emask:0d},0,00,0,0x0,0x0,0x0,0x0,0x0"
+	debug(f"FIXMASK command sent: {cmd}")
+	sendcmd(cmd)
+	# Query setting
+	cmd = "PERDAPI,FIXMASK,QUERY"
+	sendcmd(cmd)
 	# Antenna alarm setting
 	if antw == 0:
 		cmd = "PERDAPI,ALMSET,0x00,0xFE"  # Masks antenna open warning
@@ -637,6 +649,131 @@ def configureReceiver(plen,antw,gclko,gclkf):
 	# Query setting
 	cmd = "PERDAPI,GCLK,QUERY"
 	sendcmd(cmd)
+	return
+
+# -----------------------------------------------------------------------------
+def setAntPos(lat,lon,alt):
+	cmd = f"PERDAPI,SURVEY,3,0,0,{lat:0.7f},{lon:0.7f},{alt:0.2f}"
+	debug(f"SURVEY command sent: {cmd}")
+	sendcmd(cmd)
+	# NOTE: There is no query command for the SURVEY command
+	return
+
+# -----------------------------------------------------------------------------
+def setSiteSurvey():
+	cmd = f"PERDAPI,SURVEY,1"
+	debug(f"SURVEY command sent: {cmd}")
+	sendcmd(cmd)
+	# NOTE: There is no query command for the SURVEY command
+	return
+
+# -----------------------------------------------------------------------------
+def checkSatSys(s):
+	v = [False,'','','','']
+	satsystems = ['GPS', 'GLONASS', 'GALILEO', 'QZSS']
+	t = list(a.strip().upper() for a in s.split(','))
+	allValid = True
+	for l in t:
+		if not l in satsystems:
+			allValid = False
+			break
+	if not allValid:
+		return v
+	v[0] = True
+	if 'GPS' in t:     v[1] = 'GPS'
+	if 'GLONASS' in t: v[2] = 'GLONASS'
+	if 'GALILEO' in t: v[3] = 'GALILEO'
+	if 'QZSS' in t:    v[4] = 'QZSS'
+	return v
+
+# -----------------------------------------------------------------------------
+def setLeapSeconds(nls):
+	cmd = f"PERDAPI,DEFLS,{nls}"
+	debug(f"DEFLS command sent: {cmd}")
+	sendcmd(cmd)
+	cmd = "PERDAPI,DEFLS,QUERY"
+	sendcmd(cmd)
+	return
+
+# -----------------------------------------------------------------------------
+def setDefaultTimeAlign():
+	cmd = f"PERDAPI,TIMEALIGN,2"
+	debug(f"TIMEALIGN command to be sent: {cmd}")
+	sendcmd(cmd)
+	#time.sleep(1)
+	cmd = "PERDAPI,TIMEALIGN,QUERY"
+	sendcmd(cmd)
+	return
+
+# -----------------------------------------------------------------------------
+def setTimeAlign(ta,ls):
+	mode = "2"
+	if ta == 'USNO': mode = "2"
+	if ta == 'SU':
+		mode = "3"
+		setLeapSeconds(ls)
+	if ta == 'EU':   mode = "4"
+	if ta == 'NICT': mode = "5"
+	cmd = f"PERDAPI,TIMEALIGN,{mode}"
+	debug(f"TIMEALIGN command to be sent: {cmd}")
+	sendcmd(cmd)
+	#time.sleep(1)
+	cmd = "PERDAPI,TIMEALIGN,QUERY"
+	sendcmd(cmd)
+	return
+
+# -----------------------------------------------------------------------------
+def setDefaultSatelliteSystems():
+	cmd = "PERDAPI,GNSS,GN,2,2,2,2,1"
+	debug(f"GNSS command sent: {cmd}")
+	sendcmd(cmd)
+	#time.sleep(1)
+	cmd = "PERDAPI,GNSS,QUERY"
+	sendcmd(cmd)
+	#time.sleep(1)
+	setDefaultTimeAlign()
+	return
+
+# -----------------------------------------------------------------------------
+# Note that selecting certain GNSS may required changes in time alignment and 
+# may require specification of the leap second offset.
+def setSatelliteSystems(ss):
+	leaps = ss[4]
+	setleap = False
+	timealign = 'USNO'           # Align PPS output to UTC(USNO)
+	if not 'GPS' in ss:
+		timealign = 'EU'           # Align PPS output to UTC(EU)
+		if not 'GALILEO' in ss:
+			timealign = 'NICT'       # Align PPS output to UTC(NICT)
+			if not 'QZSS' in ss:
+				timealign = 'SU'       # Align PPS output to UTC(SU)
+				setleap = True
+	debug(f"Output PPS aligned with UTC({timealign})")
+	cmd = "PERDAPI,GNSS,GN,"
+	if 'GPS' in ss: 
+		cmd += "2,"
+	else: 
+		cmd += "0,"
+	if 'GLONASS' in ss: 
+		cmd += "2," 
+	else: 
+		cmd += "0,"
+	if 'GALILEO' in ss: 
+		cmd += "2,"
+	else: 
+		cmd += "0,"
+	if 'QZSS' in ss: 
+		cmd += "2,"
+	else: 
+		cmd += "0,"
+	cmd += "1"
+	debug(f"GNSS command sent: {cmd}")
+	sendcmd(cmd)
+	#time.sleep(1)
+	cmd = "PERDAPI,GNSS,QUERY"
+	sendcmd(cmd)
+	#time.sleep(1)
+	setTimeAlign(timealign,leaps)
 	return
 
 # -----------------------------------------------------------------------------
@@ -715,8 +852,16 @@ debug(f"The Furuno GPSDO serial number is {furuno_sn}")
 
 antwarn = True
 pulselen = 500 # milliseconds
+cabledelay = 0 # ns
+elvmask = 5 # degrees
 gclkon = False
 gclkfreq = int(10E6) # Hz
+leapsecs = 18 # correct on 2024-11-19
+satsys = [False,'','','','']
+fixant = False
+latitude = 0
+longitude = 0
+altitude = 0
 
 if 'receiver,antenna open warning' in cfg:
 	try:
@@ -743,6 +888,103 @@ if 'receiver,pps length' in cfg:
 
 debug(f"PPS pulse length: {pulselen} ms")
 
+if 'receiver,pps cable delay' in cfg:
+	try:
+		d = int(conf['receiver']['pps cable delay'])
+		if d >= -100000 and d <= 100000:
+			cabledelay = d
+			debug(f"User request: PPS cable delay = {cabledelay} ns")
+	except:
+		debug("There is a issue with the '[receiver] PPS cable delay' "+
+				  "configuration entry.")
+		pass
+
+debug(f"PPS cable delay is {cabledelay} ns")
+
+if 'receiver,elevation mask' in cfg:
+	try:
+		e = int(conf['receiver']['elevation mask'])
+		if e >= 0 and e <=90:
+			elvmask = e
+			debug(f"User request: Elevation mask = {elvmask} degrees")
+	except:
+		debug("There is a issue with the '[receiver] Elevation mask' "+
+				  "configuration entry.")
+		pass
+
+debug(f"Elevation mask is {elvmask} degrees.")
+
+c = [0,0,0]
+
+if 'antenna position,latitude' in cfg:
+	try:
+		l = float(conf['antenna position']['latitude'])
+		if l >= -90 and l <= 90:
+			latitude = l
+			c[0] = 1
+			debug(f"User request: Latitute = {latitude:0.7f} degrees")
+	except:
+		debug("There is a issue with the '[antenna] latitude' "+
+				  "configuration entry.")
+		pass
+
+if 'antenna position,longitude' in cfg:
+	try:
+		l = float(conf['antenna position']['longitude'])
+		if l >= -180 and l <= 180:
+			longitude = l
+			c[1] = 1
+			debug(f"User request: Longitude = {longitude:0.7f} degrees")
+	except:
+		debug("There is a issue with the '[antenna] longitude' "+
+				  "configuration entry.")
+		pass
+
+if 'antenna position,altitude' in cfg:
+	try:
+		l = float(conf['antenna position']['altitude'])
+		if l >= -1000 and l <= 18000:
+			altitude = l
+			c[2] = 1
+			debug(f"User request: Altitude = {altitude:0.2f} meters")
+	except:
+		debug("There is a issue with the '[antenna] altitude' "+
+				  "configuration entry.")
+		pass
+
+if c[0] == 1 and c[1] == 1 and c[2] == 1:
+	fixant = True
+	debug("User provided fixed antenna coordinates.")
+	debug(f"Longitude = {longitude:0.7f} degrees.")
+	debug(f"Latitude  = {latitude:0.7f} degrees.")
+	debug(f"Altitude  =  {altitude:0.2f} meters.")
+else:
+	debug("Either user did not request fixed antenna coordinates, or there "+
+			  "is an issue with the coordinates in the configuration file")
+
+if 'receiver,satellite systems' in cfg:
+	satsys = checkSatSys(conf['receiver']['satellite systems'])
+	debug(f"Use user defined selection of satellite systems? {satsys[0]}")
+	debug(f"User request: Uses these satellite systems: {satsys[1:]}")
+else:
+	debug("User did not specify selection of satellite systems")
+
+if 'receiver,leap seconds' in cfg:
+	try:
+		l = int(conf['receiver']['leap seconds'])
+		if l >= -100 and l < 100:
+			leapsecs = l
+			satsys[5] = leapsecs
+			debug(f"User specified: Number of leap seconds = {leapsecs} seconds")
+	except:
+		debug("There is an issue with the '[receiver] leap seconds' "+
+				  "configuration entry.")
+		pass
+
+debug(f"Number of pre-configured leap seconds is {leapsecs} seconds.")
+
+satsys.append(leapsecs)
+
 if 'receiver,gclk on' in cfg:
 	try:
 		if int(conf['receiver']['gclk on']) == 1:
@@ -767,8 +1009,6 @@ if 'receiver,gclk freq' in cfg:
 		pass
 
 debug(f"GCLK frequency: {gclkfreq} Hz")
-
-#sys.exit(1)
 
 # Create UUCP lock for the serial port
 uucpLockPath='/var/lock'
@@ -813,10 +1053,15 @@ with serial.Serial(port,38400,timeout = t_out) as ser:
 		debug("Initial serial read exception.")
 		pass
 	readtime = time.time()
-	# NOTE: Format receiver satellite system(s), etc
-	#       Coldstart?
-	#       Change baud rate? can be done on the fly: ser.baudrate = {baudrate}
-	configureReceiver(pulselen,antwarn,gclkon,gclkfreq)
+	configureReceiver(pulselen,cabledelay,elvmask,antwarn,gclkon,gclkfreq)
+	if fixant:
+		setAntPos(latitude,longitude,altitude)
+	else: # Site Survey is the default, but we do not want a stale position to be set.
+		setSiteSurvey()
+	if satsys[0]:
+		setSatelliteSystems(satsys[1:])
+	else:
+		setDefaultSatelliteSystems()
 	while running:
 		if not gotVERSION:
 			requestVERSION()
