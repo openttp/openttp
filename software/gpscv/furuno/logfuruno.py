@@ -46,36 +46,15 @@
 #                          nonsense characters.
 #                          Changed some 'format' directives to f-strings. It's
 #                          neater and more compact.
-# 2024-11-18 ELM    0.0.6  Added configuration options for GPSDO serial number,
+# 2024-11-19 ELM    0.0.6  Added configuration options for GPSDO serial number,
 #                          antenna current warning, PPS pulse length, PPS cable
-#                          delay, and GCLK
-#                          output frequency and on/off status.
+#                          delay, Satellite Systems used and GCLK output
+#                          frequency and on/off status.
 #                          Added hardware serial number to status file.
+#                          Fractional frequency error now calculated by
+#                          tracking reported on-board oscillator frequency
+#                          offsets.
 # -----------------------------------------------------------------------------
-
-
-# TODO:  Fix the way the frequency offset / error is reported
-#        This is the 'ffe' number in the 'furuno.status' file.
-#
-# There is still an issue with how frequency drift data is presented. The 
-# GPSDO reports the VCLK frequency error in the TPS4 message, but only to a
-# resolution of 1 ppb (1E-9) while its short term stability is specified to
-# be better than 1E-11, and its long term stability (24 hrs) is better than 
-# 1E-12.
-# 
-# The TPS1 message reports the "Clock drift" to 0.001 ppb (1E-12) but this is
-# related to the PPS error. Currently the software reports this value as the
-# oscillator ffe, which is not correct. Averaging this value and centering it
-# around zero may provide a better number...
-#
-# This needs to be investigated further.
-# 
-# It may be possible to integrate the PPS offset for a number of seconds to
-# get a decent estimate of the frequency error, but this may just be the same
-# as the number reported in the TPS1 message, although this will remove the 
-# large offset reported in that value.
-#
-
 
 import os
 import serial
@@ -232,13 +211,12 @@ def getSats(s):
 				sats[1].append(elv)
 				sats[2].append(azm)
 				sats[3].append(cno)
-	#print(sats)
 	return(sats)
 
 # -----------------------------------------------------------------------------
 def decodeTPS1(s):
 	l = s.split(',')
-	leapsecs = "{:d}".format(int(l[5]))
+	leapsecs = f"{int(l[5]):d}"
 	p = l[7]
 	pps_source = ''
 	if p == '0':
@@ -255,11 +233,10 @@ def decodeTPS1(s):
 		pps_source = 'UTC(NICT)'
 	else:
 		pps_source = 'TPS1 MSG DECODE ERROR!'
-	clock_drift = "{:.3f}".format(float(l[8]))
+	clock_drift = f"{float(l[8]):.3f}"
 	k = l[9].split('*')
-	int_temp = "{:.2f}".format(float(k[0])/100)
+	int_temp = f"{float(k[0])/100:.2f}"
 	tps1 = [leapsecs,pps_source,clock_drift,int_temp]
-	#print(tps1)
 	return(tps1)
 
 # -----------------------------------------------------------------------------
@@ -278,17 +255,16 @@ def decodeTPS2(s):
 		else:
 			ppsmode = "On when TRAIM is OK"
 	pulsewidth = l[5]+" ms"
-	ppsdelay = "{:.0f} ns".format(float(l[6]))
+	ppsdelay = f"{float(l[6]):.0f} ns"
 	if l[7] == "0":
 		ppsedge = "rising"
 	else:
 		ppsedge = "falling"
-	ppsacc = "{:.0f} ns".format(float(l[9]))
+	ppsacc = f"{float(l[9]):.0f} ns"
 	# I thought this may be the EFC voltage but it is not.
 	#vefc = "{:0.3f} V".format(float(l[10])) # Shows as reserved on specification
 	tps2 = [ppsmode,pulsewidth,ppsdelay,ppsedge,ppsacc] #,vefc)
-	#print(tps2)
-	return(tps2) #,vefc)
+	return(tps2)
 
 # -----------------------------------------------------------------------------
 def decodeReceiverStatus(s):
@@ -308,7 +284,7 @@ def decodeReceiverStatus(s):
 	if s[5] == "0":
 		nlosmaskmode = "OFF"
 	else:
-		nlosmaskmode = "Step {}".format(s[5])
+		nlosmaskmode = f"Step {s[5]}"
 	if s[4] == "0":
 		ontime = "Less than 1 hour"
 	elif s[4] == "1":
@@ -327,7 +303,7 @@ def decodeReceiverStatus(s):
 		antenv = "Semi-shielded"
 	else:
 		antenv = "High shielding"
-	s = "{}, {}, {}, {}, {}".format(antcur,spoofing,nlosmaskmode,ontime,antenv)
+	s = f"{antcur}, {spoofing}, {nlosmaskmode}, {ontime}, {antenv}"
 	return([antcur,spoofing,nlosmaskmode,ontime,antenv])
 
 # -----------------------------------------------------------------------------
@@ -341,7 +317,7 @@ def decodeTPS3(s):
 		posmode = "CSS"
 	else:
 		posmode = "TO"
-	posdif = "{:d} m".format(int(l[3]))
+	posdif = f"{int(l[3]):d} m"
 	if l[7] == "0":
 		traim = "OK"
 	elif l[7] == "1":
@@ -351,7 +327,6 @@ def decodeTPS3(s):
 	recvsts = decodeReceiverStatus(l[10])
 	tps3 = [posmode,posdif,traim]
 	tps3.extend(recvsts)
-	#print(tps3)
 	return(tps3)
 
 # -----------------------------------------------------------------------------
@@ -451,22 +426,22 @@ def getGPSDOstatus(p):
 	return(gpsdo)
 	
 # -----------------------------------------------------------------------------
-def extractStatus(l,v,gpsdo_sn,flnm):
+def extractStatus(l,v,ffe_ave,gpsdo_sn,flnm):
 	idx = 0
 	for s in l:
 		if s[3:6] == "RMC":
 			if len(s) > 30:
 				#if not s[11:13] == "00": # Save status every minute
 				if not s[12:13] == "0":   # Save status every 10 seconds
-					return                  # gpsdo collection saves every second... 
+					return(False,0,0)                 # gpsdo collection saves every second... 
 				else:
 					idx = l.index(s)
 					break
 	#if not l[idx][11:13] == "00":
 	if not l[idx][12:13] == "0":
-		return
+		return(False,0,0)
 	if v == "":
-		return
+		return(False,0,0)
 	for i in range(idx,len(l)):
 		if l[i][3:6] == "GNS":
 			posdop = getPosDOP(l[i])
@@ -499,8 +474,8 @@ def extractStatus(l,v,gpsdo_sn,flnm):
 			p.append(l[i])
 	if len(p) > 0:
 		gpsdo = getGPSDOstatus(p)
-	saveStatus(flnm,gpsdo_sn,v,posdop,gpssats,glosats,galsats,gpsdo)
-	return(posdop,gpssats,glosats,galsats,gpsdo)
+	(f,t) = saveStatus(flnm,gpsdo_sn,v,posdop,gpssats,glosats,galsats,gpsdo,ffe_ave)
+	return(True,f,t)
 
 # -----------------------------------------------------------------------------
 def healthreport(g):
@@ -565,18 +540,19 @@ def getmoreInfo(glo,gal,gpsdo):
 	lines.extend(getSatParams("GALILEO - ",gal))
 	lines.append("Leap seconds: {}\n".format(gpsdo[0][0]))
 	lines.append("Time reference: {}\n".format(gpsdo[0][1]))
-	lines.append("Clock drift: {} (see TPS1 message)\n".format(gpsdo[0][2]))  # TODO: Find a better way of calculating this.
+	lines.append("Internal clock drift: {}E-09 (see TPS1 message)\n".format(gpsdo[0][2]))
 	lines.append("Internal temperature: {} degC\n".format(gpsdo[0][3]))
 	lines.append("PPS pulse width: {}\n".format(gpsdo[1][1]))
 	return(lines)
 
 # -----------------------------------------------------------------------------
-def saveStatus(flnm,gpsdo_sn,verStr,posdop,gps,glo,gal,gpsdo):
+def saveStatus(flnm,gpsdo_sn,verStr,posdop,gps,glo,gal,gpsdo,ffea):
 	lines = [f"ID: {verStr}\n"]
 	lines.append(f"Furuno serial number: {gpsdo_sn}\n")
 	lines.extend(getSatParams("",gps))
-	#lines.append("ffe: {}E-09\n".format(gpsdo[3][10].split(' ')[0]))
-	lines.append("ffe: {}E-09\n".format(gpsdo[0][2]))
+	#lines.append("ffe: {}E-09\n".format(gpsdo[3][10].split(' ')[0])) # original, E-9 resolution
+	#lines.append("ffe: {}E-09\n".format(gpsdo[0][2]))                # 2nd try, reported internal ocxo offset
+	lines.append(f"ffe: {ffea*1E-9:0.3E}\n")                          # New way, calculated average
 	lines.append("tie: {}E-09\n".format(gpsdo[3][9].split(' ')[0]))
 	lines.append("lat: {}\n".format(posdop[0]))
 	lines.append("lon: {}\n".format(posdop[1]))
@@ -593,7 +569,7 @@ def saveStatus(flnm,gpsdo_sn,verStr,posdop,gps,glo,gal,gpsdo):
 	with open(flnm,'w') as f:
 		f.writelines(lines)
 		f.close()
-	return
+	return(float(gpsdo[0][2]),float(gpsdo[3][9].split(' ')[0]))
 
 # -----------------------------------------------------------------------------
 def calcChkSum(s):
@@ -616,7 +592,6 @@ def requestVERSION():
 	return
 
 # -----------------------------------------------------------------------------
-# TODO: Add more options, see Furuno documentation.
 def configureReceiver(plen,cdelay,emask,antw,gclko,gclkf):
 	# PPS configuration
 	# Mode = 1 : PPS always on
@@ -775,6 +750,37 @@ def setSatelliteSystems(ss):
 	#time.sleep(1)
 	setTimeAlign(timealign,leaps)
 	return
+
+# -----------------------------------------------------------------------------
+# Find a meaningful value for fractional frequency offset
+def getCurrentValues(tm,f,t):
+	cf = 0
+	ct = 0
+	
+	#print(tm)
+	#print(f)
+	#print(t)
+	
+	t_drift = []
+	f_drift = []
+	
+	for i in range(1,len(f)):
+		td = (t[i] - t[i-1])/(tm[i] - tm[i-1])
+		fd = f[i] - f[i-1]
+		if (abs(td) < 10) and (abs(fd) < 2): # Ignore ridiculous values.
+			t_drift.append (td)
+			f_drift.append (fd)
+	
+	#print(t_drift)
+	#print(f_drift)
+	
+	if len(f_drift) > 0:
+		cf = sum(f_drift)/len(f_drift)
+		ct = sum(t_drift)/len(t_drift)
+	
+	#print("lengths: ",len(f_drift),len(t_drift))
+	
+	return(cf,ct)
 
 # -----------------------------------------------------------------------------
 # Main
@@ -1046,6 +1052,13 @@ lines = []
 gotVERSION = False
 verStr = ""
 
+times = []
+ffes = []
+ties = []
+rollen = 100  # TODO: Maybe make this a configurable value? 100 readings averages over 1000 seconds.
+ffe_cur = 0
+tie_cur = 0
+
 with serial.Serial(port,38400,timeout = t_out) as ser:
 	try:
 		s = ser.readline() # throw first (likely incomplete) string away
@@ -1056,12 +1069,12 @@ with serial.Serial(port,38400,timeout = t_out) as ser:
 	configureReceiver(pulselen,cabledelay,elvmask,antwarn,gclkon,gclkfreq)
 	if fixant:
 		setAntPos(latitude,longitude,altitude)
-	else: # Site Survey is the default, but we do not want a stale position to be set.
+	else: # Site Survey is the default, we do not want a stale position to be kept after reboot with old config.
 		setSiteSurvey()
 	if satsys[0]:
-		setSatelliteSystems(satsys[1:])
+		setSatelliteSystems(satsys[1:]) # This may cause a hard reset.
 	else:
-		setDefaultSatelliteSystems()
+		setDefaultSatelliteSystems()  # This causes a soft reset.
 	while running:
 		if not gotVERSION:
 			requestVERSION()
@@ -1113,7 +1126,26 @@ with serial.Serial(port,38400,timeout = t_out) as ser:
 		if len(lines) > 25:
 			lines.pop(0)
 			if "TPS4" in lines[-1]:
-				extractStatus(lines,verStr,furuno_sn,statusfile)
+				(flag,ff,ti) = extractStatus(lines,verStr,ffe_cur,furuno_sn,statusfile)
+				if flag:
+					if len(ffes) >= rollen:
+						ffes.pop(0)
+					if len(ties) >= rollen:
+						ties.pop(0)
+					if len(times) >= rollen:
+						times.pop(0)
+					ffes.append(ff)
+					ties.append(ti)
+					times.append(time.time())
+					(ffe_cur,tie_cur) = getCurrentValues(times,ffes,ties)
+					
+					
+					#print(f"Ave ffe: {ffe_cur*1E3:0.2f}E-12")
+					#print(f"Ave tie: {tie_cur:0.5f}E-09 s/s")
+					#print(f"Ave ffe: {ffe_cur*1E-9:0.3E}")
+					#print(f"Ave tie: {tie_cur*1E-9:0.3E} s/s")
+					
+					
 	ser.close()
 	f.write(f"# {ts()} : Logging process stopped.\n")
 	f.close()
