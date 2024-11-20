@@ -2860,12 +2860,14 @@ bool LCDMonitor::checkRef(std::string &status,std::string &ffe,std::string &EFC,
 			}
 		}
 		else if (reference== Furuno){
-			EFC = "\0";  // Canned value; Furuno does not report EFC.
 			if (string::npos != tmp.find("Reported precision ")){
 				parseConfigEntry(tmp,status,'-');
 			}
 			else if (string::npos != tmp.find("ffe: ")){
 				parseConfigEntry(tmp,ffe,':');
+			}
+			else if (string::npos != tmp.find("efc: ")){
+				parseConfigEntry(tmp,EFC,':');
 			}
 			else if (string::npos != tmp.find("Health: ")){
 				parseConfigEntry(tmp,health,':');
