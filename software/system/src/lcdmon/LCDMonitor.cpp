@@ -1622,8 +1622,24 @@ void LCDMonitor::showStatus()
 									updateLine(2,health);
 									break;
 							}
-							statusline++;						
+							statusline++;
 							if(statusline >= 4) statusline = 0;
+						}
+						else if (reference== Furuno){
+							status = "GPSDO: " + status;
+							if (status.length() > 20) status.resize(20);
+							updateLine(1,status);
+							std::string buf;
+							if (ffe.length() > 10) ffe.resize(10);
+							buf = "ffe:" + ffe;
+							//if(health.length() > 20) health.resize(20);
+							//health = "Health: " + health;
+							if (health.length() > 20) health.resize(20);
+							if(showHealth)
+								updateLine(2,health);
+							else
+								updateLine(2,buf);
+							showHealth = !showHealth;
 						}
 					}
 				}
@@ -2844,6 +2860,7 @@ bool LCDMonitor::checkRef(std::string &status,std::string &ffe,std::string &EFC,
 			}
 		}
 		else if (reference== Furuno){
+			EFC = "\0";  // Canned value; Furuno does not report EFC.
 			if (string::npos != tmp.find("Reported precision ")){
 				parseConfigEntry(tmp,status,'-');
 			}
@@ -3162,8 +3179,6 @@ void LCDMonitor::parseConfigEntry(std::string &entry,std::string &val,char delim
 			val = val.substr(0,pos);
 	}
 }
-
-
 
 std::string  LCDMonitor::prefix2netmask(std::string pfx)
 {
