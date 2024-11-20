@@ -572,7 +572,7 @@ def saveStatus(flnm,gpsdo_sn,verStr,posdop,alldop,gps,glo,gal,gpsdo,ffea):
 	lines = [f"ID: {verStr}\n"]
 	lines.append(f"Furuno serial number: {gpsdo_sn}\n")
 	lines.extend(getSatParams("",gps))
-	lines.append(f"Reported precision - PDOP: {alldop[0]} HDOP: {alldop[1]} VDOP: {alldop[2]}\n")
+	lines.append(f"Reported precision: {alldop[0]}, {alldop[1]}, {alldop[2]} (PDOP, HDOP, VDOP)\n")
 	#lines.append("ffe: {}E-09\n".format(gpsdo[3][10].split(' ')[0])) # original, E-9 resolution
 	#lines.append("ffe: {}E-09\n".format(gpsdo[0][2]))                # 2nd try, reported internal ocxo offset
 	lines.append(f"ffe: {ffea*1E-9:0.3E}\n")                          # New way, calculated average
