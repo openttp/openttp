@@ -46,7 +46,7 @@
 #                          nonsense characters.
 #                          Changed some 'format' directives to f-strings. It's
 #                          neater and more compact.
-# 2024-11-19 ELM    0.0.6  Added configuration options for GPSDO serial number,
+# 2024-11-20 ELM    0.0.6  Added configuration options for GPSDO serial number,
 #                          antenna current warning, PPS pulse length, PPS cable
 #                          delay, Satellite Systems used and GCLK output
 #                          frequency and on/off status.
@@ -190,6 +190,20 @@ def getPosDOP(s): # decode G*GNS message
 	hdp = d[8]
 	retVal = [lat,lng,hgt,sts,hdp]
 	return(retVal)
+
+# -----------------------------------------------------------------------------
+def getAllDOPs(s):
+	t = s.split(',')
+	pdop = t[-4] # because the length of the GSA sentence can vary
+	hdop = t[-3]
+	vdop = t[-2]
+	if pdop == '':
+		pdop = "0.0"
+	if hdop == '':
+		hdop = "0.0"
+	if vdop == '':
+		vdop = "0.0"
+	return([pdop,hdop,vdop])
 
 # -----------------------------------------------------------------------------
 def getSats(s):
@@ -433,21 +447,27 @@ def extractStatus(l,v,ffe_ave,gpsdo_sn,flnm):
 			if len(s) > 30:
 				#if not s[11:13] == "00": # Save status every minute
 				if not s[12:13] == "0":   # Save status every 10 seconds
-					return(False,0,0)                 # gpsdo collection saves every second... 
+					return(False,0,0)       # gpsdo collection saves every second... 
 				else:
 					idx = l.index(s)
 					break
-	#if not l[idx][11:13] == "00":
 	if not l[idx][12:13] == "0":
 		return(False,0,0)
 	if v == "":
 		return(False,0,0)
+	posdop = []
 	for i in range(idx,len(l)):
 		if l[i][3:6] == "GNS":
 			posdop = getPosDOP(l[i])
 			# posdop = [latitude,longitude,heigt,no of sats,hdop]
 			break
-	# collect G*GSA messages to find satellites being tracked
+	# collect G*GSA messages to find reported precision (PDOP, HDOP, VDOP)
+	alldops = []
+	for i in range(idx,len(l)):
+		if l[i][3:6] == "GSA":
+			alldops = getAllDOPs(l[i])
+			# alldops = [PDOP, HDOP, VDOP]
+			break
 	# collect GPGSV messages to get GPS satellite information
 	# collect GLGSV messages to get GLONASS satellite information
 	# collect GAGSV messages to get GALILEO satellite information
@@ -474,7 +494,7 @@ def extractStatus(l,v,ffe_ave,gpsdo_sn,flnm):
 			p.append(l[i])
 	if len(p) > 0:
 		gpsdo = getGPSDOstatus(p)
-	(f,t) = saveStatus(flnm,gpsdo_sn,v,posdop,gpssats,glosats,galsats,gpsdo,ffe_ave)
+	(f,t) = saveStatus(flnm,gpsdo_sn,v,posdop,alldops,gpssats,glosats,galsats,gpsdo,ffe_ave)
 	return(True,f,t)
 
 # -----------------------------------------------------------------------------
@@ -492,6 +512,7 @@ def healthreport(g):
 		s = f"Healthy - Frequency mode: {freqmode}, "
 		s += f"on for {ontime}, "
 		s += f"available holdover time: {holdovertime}"
+		t = 'Completely healthy!'
 	else:
 		s = "Unhealthy |"
 		if not traim == "OK":
@@ -504,7 +525,8 @@ def healthreport(g):
 			s += f" Oscillator: {oscerror} |"
 		if not oscctrl == "Normal":
 			s += f" Oscillator: {oscctrl} |"
-	return(s)
+		t = 'Unhealthy'
+	return([t,s])
 
 # -----------------------------------------------------------------------------
 def getSatParams(preamble,s):
@@ -546,18 +568,21 @@ def getmoreInfo(glo,gal,gpsdo):
 	return(lines)
 
 # -----------------------------------------------------------------------------
-def saveStatus(flnm,gpsdo_sn,verStr,posdop,gps,glo,gal,gpsdo,ffea):
+def saveStatus(flnm,gpsdo_sn,verStr,posdop,alldop,gps,glo,gal,gpsdo,ffea):
 	lines = [f"ID: {verStr}\n"]
 	lines.append(f"Furuno serial number: {gpsdo_sn}\n")
 	lines.extend(getSatParams("",gps))
 	#lines.append("ffe: {}E-09\n".format(gpsdo[3][10].split(' ')[0])) # original, E-9 resolution
 	#lines.append("ffe: {}E-09\n".format(gpsdo[0][2]))                # 2nd try, reported internal ocxo offset
 	lines.append(f"ffe: {ffea*1E-9:0.3E}\n")                          # New way, calculated average
-	lines.append("tie: {}E-09\n".format(gpsdo[3][9].split(' ')[0]))
-	lines.append("lat: {}\n".format(posdop[0]))
-	lines.append("lon: {}\n".format(posdop[1]))
-	lines.append("alt: {}\n".format(posdop[2]))
-	lines.append("Health: {}\n".format(healthreport(gpsdo)))
+	lines.append(f"tie: {gpsdo[3][9].split(' ')[0]}E-09\n")
+	lines.append(f"lat: {posdop[0]}\n")
+	lines.append(f"lon: {posdop[1]}\n")
+	lines.append(f"alt: {posdop[2]}\n")
+	lines.append(f"Reported precision - PDOP: {alldop[0]} HDOP: {alldop[1]} VDOP: {alldop[2]}\n")
+	k = healthreport(gpsdo)
+	lines.append(f"Health: {k[0]}\n")
+	lines.append(f"Complete health report: {k[1]}\n")
 	lines.append('efc: 200\n') # canned value to preserve gpsdo status record format
 	additionalInfo = getmoreInfo(glo,gal,gpsdo)
 	lines.extend(additionalInfo)
