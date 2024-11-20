@@ -1626,7 +1626,7 @@ void LCDMonitor::showStatus()
 							if(statusline >= 4) statusline = 0;
 						}
 						else if (reference== Furuno){
-							status = "GPSDO: " + status;
+							status = "DOP: " + status;
 							if (status.length() > 20) status.resize(20);
 							updateLine(1,status);
 							std::string buf;
@@ -2860,8 +2860,8 @@ bool LCDMonitor::checkRef(std::string &status,std::string &ffe,std::string &EFC,
 			}
 		}
 		else if (reference== Furuno){
-			if (string::npos != tmp.find("Reported precision ")){
-				parseConfigEntry(tmp,status,'-');
+			if (string::npos != tmp.find("Reported precision: ")){
+				parseConfigEntry(tmp,status,':');
 			}
 			else if (string::npos != tmp.find("ffe: ")){
 				parseConfigEntry(tmp,ffe,':');
