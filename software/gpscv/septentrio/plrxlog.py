@@ -654,7 +654,7 @@ tGPSNow = tNow + nLeap - GPS_EPOCH # best guess, until we get something from the
 rolloverValid = False 
 tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400        # again, our best guess
 
-#print(str(datetime.datetime.utcnow()) + ' Est: tGPS = ' + str(tGPSNow) + ' rollover at ' + str(tGPSNextRollover))
+# ELM 20241121 FIXME: Should this change to a 'debug' statement???
 print(str(datetime.datetime.now(datetime.timezone.utc)) + ' Est: tGPS = ' + str(tGPSNow) + 
 			' rollover at ' + str(tGPSNextRollover))
 
@@ -779,7 +779,6 @@ while (not killed):
 			if (tGPSNow > 0 and not(rolloverValid)): # once we get valid time from the receiver, update the rollover time 
 				tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400
 				rolloverValid = True
-				#Debug(str(datetime.datetime.utcnow()) + ' Updated: tGPSNextRollover = ' + str(tGPSNextRollover))
 				Debug(str(datetime.datetime.now(datetime.timezone.utc)) + ' Updated: tGPSNextRollover = '
 					    + str(tGPSNextRollover))
 				# The initial guess for GPS time may have been bad so rollover the file
@@ -789,15 +788,12 @@ while (not killed):
 			gotCN0=1
 			# TOW in this packet is used to decide rollover
 			if (tGPSNow >= tGPSNextRollover): # invalid tGPSNow == -1 so this will fail 
-				#Debug(str(datetime.datetime.utcnow())+' tGPSNow = ' + str(tGPSNow))
 				Debug(str(datetime.datetime.now(datetime.timezone.utc))+' tGPSNow = ' + str(tGPSNow))
 				fdata.close()
 				mjd=ottplib.MJD(tGPSNow + GPS_EPOCH)
-				#Debug(str(datetime.datetime.utcnow())+' Next MJD = ' + str(mjd))
 				Debug(str(datetime.datetime.now(datetime.timezone.utc))+' Next MJD = ' + str(mjd))
 				fdata = OpenDataFile(mjd)
 				tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400
-				#Debug(str(datetime.datetime.utcnow())+' tGPSNextRollover = ' + str(tGPSNextRollover))
 				Debug(str(datetime.datetime.now(datetime.timezone.utc))+' tGPSNextRollover = ' + str(tGPSNextRollover))
 		elif ((pktID & 8191) == 4014): # this always gets parsed because we want the locking status
 			Debug('pkt 4014 ' + str(pktLen))
