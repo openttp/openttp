@@ -207,7 +207,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				int mGPSt = m - leapOffset1 + 1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 																				 // Add one so that the first point is AFTER the start of the track
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
-					if (!isnan(meas->meas[mGPSt][sv][obs1indx])){ 
+					if (!std::isnan(meas->meas[mGPSt][sv][obs1indx])){ 
 						//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " " << meas->meas[mGPS][sv][obs1indx]);
 						svtrk[sv][measIndx][INDX_OBSV1]= meas->meas[mGPSt][sv][obs1indx] - totdly1; // delays here!
 						svtrk[sv][measIndx][INDX_TOD]= meas->meas[mGPSt][sv][indxTOD]; 
@@ -215,7 +215,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					}
 					
 					if (reportMSIO){
-						if (!isnan(meas->meas[mGPSt][sv][obs1indx]) && !isnan(meas->meas[mGPSt][sv][obs2indx]) && !isnan(meas->meas[mGPSt][sv][obs3indx])){ // got the lot so OK
+						if (!std::isnan(meas->meas[mGPSt][sv][obs1indx]) && !std::isnan(meas->meas[mGPSt][sv][obs2indx]) && !std::isnan(meas->meas[mGPSt][sv][obs3indx])){ // got the lot so OK
 							//DBGMSG(debugStream,INFO,sv << " " << meas->meas[mGPS][sv][indxMJD] << " " << meas->meas[mGPS][sv][indxTOD] << " msio pair");
 							// Measured ionosphere for the frequency we are reporting is just PR - PR_IF
 							svtrk[sv][measIndx][INDX_OBSV2] = ( meas->meas[mGPSt][sv][obs1indx] - totdly1 
@@ -241,7 +241,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				measIndx = m - iTrackStart;
 				int mGPSt = m - leapOffset1 + 1; // at worst, we miss one measurement since we compensate when leapSecs > 30 (which may not happen for a very long time)
 				for (int sv = 1; sv <= meas->maxSVN;sv++){
-					if (!isnan(meas->meas[mGPSt][sv][obs1indx]) && !isnan(meas->meas[mGPSt][sv][obs2indx])){
+					if (!std::isnan(meas->meas[mGPSt][sv][obs1indx]) && !std::isnan(meas->meas[mGPSt][sv][obs2indx])){
 					
 						svtrk[sv][measIndx][INDX_OBSV1] = (aij*(meas->meas[mGPSt][sv][obs1indx] - totdly1) // Ionosphere free code
 								 + (1.0-aij)*(meas->meas[mGPSt][sv][obs2indx] - totdly2));
@@ -278,7 +278,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 				// Don't mask out MSIO if there is no corresponding code measurement
 				// Even if you did, you would still have to separately store timestamps (unless you dropped code measurements) 
 				if (reportMSIO || isP3){
-					if (!isnan(svtrk[sv][tt][INDX_OBSV2])){
+					if (!std::isnan(svtrk[sv][tt][INDX_OBSV2])){
 						msio[msiofitpts] = svtrk[sv][tt][INDX_OBSV2];
 						msiotutc[msiofitpts] = (svtrk[sv][tt][INDX_MJD] - mjd)*86400 + svtrk[sv][tt][INDX_TOD] - leapsecs1; // be careful about data which runs into the next day 
 						msiofitpts++;
@@ -286,7 +286,7 @@ bool CGGTTS::write(Measurements *meas,GNSSSystem *gnss,GNSSDelay *dly,int leapse
 					}
 				}
 						
-				if (isnan(svtrk[sv][tt][INDX_OBSV1])) continue; // no OBSV1 data, so move along
+				if (std::isnan(svtrk[sv][tt][INDX_OBSV1])) continue; // no OBSV1 data, so move along
 				nSVObs++;
 				
 				//std::cerr << "G" << sv << " " << svtrk[sv][tt][INDX_TOD] << " ";
