@@ -23,6 +23,7 @@
 // THE SOFTWARE.
 //
 // Modification history
+// 2024-12-17 ELM Added configureATXpower function.
 //
 
 #ifndef __LCD_MONITOR_H_
@@ -71,6 +72,7 @@ class LCDConfigure:public CFA635
 		void clearDisplay();
 		void storeState();
 		void updateLine(int,std::string);
+		void configureATXpower();
 		void updateStatusLED(int,LEDState);
 		void statusLEDsOn();
 		

@@ -24,6 +24,8 @@
 //
 // Modification history
 // 2018-09-03 ELM Conditional added for LCD "splash" message to distinguish TTS / OPENTTP
+// 2024-12-17 ELM Add configuration of ATX power functionality
+//
 
 
 #include "Debug.h"
@@ -141,6 +143,7 @@ void LCDConfigure::run()
 	updateLine(1,"      OpenTTP");
 	#endif
 	updateLine(2,"Time Transfer System");
+	configureATXpower();
 	storeState();
 }
 
@@ -325,6 +328,56 @@ void LCDConfigure::statusLEDsOn()
 	//updateStatusLED(2,GreenOn);
 	//updateStatusLED(3,RedOn);
 }
+
+void LCDConfigure::configureATXpower()
+{
+	// Set GPIO 1 ATX host power sense (H1 header pin 12) to its default
+	// functionality
+	outgoing_response.command = 34;
+	outgoing_response.data[0]=1;
+	outgoing_response.data[1]=0;
+	outgoing_response.data[2]=0;
+	outgoing_response.data_length=3;
+	send_packet();
+	getResponse();
+	
+	// Set GPIO 2 ATX host power control (H1 header pin 9) to its default
+	// functionality
+	outgoing_response.command = 34;
+	outgoing_response.data[0]=2;
+	outgoing_response.data[1]=0;
+	outgoing_response.data[2]=0;
+	outgoing_response.data_length=3;
+	send_packet();
+	getResponse();
+	
+	// Set GPIO 3 ATX host reset control (H1 header pin 10) to its default
+	// functionality
+	outgoing_response.command = 34;
+	outgoing_response.data[0]=3;
+	outgoing_response.data[1]=0;
+	outgoing_response.data[2]=0;
+	outgoing_response.data_length=3;
+	send_packet();
+	getResponse();
+	
+	// Set ATX functionality
+	// We use KEYPAD_POWER_ON, KEYPAD_POWER_OFF, and LCD_OFF_IF_HOST_IS_OFF 
+	// functions (No RESET pin on Raspberry Pi 5, so that function is not
+	// activated).
+	// KEYPAD_POWER_ON: With Power sense low, pressing Green check button will
+	//                  pulse power control low for 1 second.
+	// KEYPAD_POWER_OFF: With Power sense high, pressing Red X key for 4 seconds
+	//                   will power control low for 1 second.
+	// LCD_OFF_IF_HOST_IS_OFF: LCD will blank and LCD / keypad backlights turn
+	//                         off if power sense is low (host is off)
+	outgoing_response.command = 28;
+	outgoing_response.data[0]=0xD0;
+	outgoing_response.data_length=1;
+	send_packet();
+	getResponse();
+}
+
 
 void LCDConfigure::storeState()
 {
