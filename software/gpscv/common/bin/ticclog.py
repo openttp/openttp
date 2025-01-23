@@ -31,6 +31,7 @@
 # 2018-02-15 MJW Specify path for lock file. Use gpscv.conf as default config file
 #                Bug fix. Arguments to subprocess() constructed incorrectly.
 # 2025-01-23 ELM Added more help for command line arguments
+#                Prepend 'ottp.' to 'Debug' statements
 #
 
 # WARNING!!!!
