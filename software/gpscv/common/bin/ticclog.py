@@ -138,7 +138,7 @@ if ('counter:timestamp format' in cfg):
 		
 # Create the process lock		
 lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/logs')
-Debug("Creating lock " + lockFile)
+ottp.Debug("Creating lock " + lockFile)
 if (not ottp.CreateProcessLock(lockFile)):
 	ottp.ErrorExit("Couldn't create a lock")
 
@@ -157,7 +157,7 @@ signal.signal(signal.SIGINT,SignalHandler)
 signal.signal(signal.SIGTERM,SignalHandler)
 signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY but handle it anyway
 
-Debug("Opening " + port)
+ottp.Debug("Opening " + port)
 
 try:
 	ser = serial.Serial(port,115200,timeout=2)
@@ -240,7 +240,7 @@ while (not killed):
 		else:
 			foutA = open(fnoutA,'a')
 			
-		Debug('Opened '+fnoutA)
+		ottp.Debug('Opened '+fnoutA)
 		
 		if (tic_mode == TIC_MODE_TS):
 			if (not os.path.isfile(fnoutB)):
@@ -251,7 +251,7 @@ while (not killed):
 				foutB.write(ctrcfg) # Configuration after the header
 			else:
 				foutB = open(fnoutB,'a')
-			Debug('Opened '+fnoutB)
+			ottp.Debug('Opened '+fnoutB)
 			
 	try:
 		l = ser.readline()[:-2]
@@ -265,8 +265,8 @@ while (not killed):
 	ttround = round(tt) # round to take care of system time being close to the epoch
 											# of course, if the stop pulse is 0.5 s off, this all falls over
 											
-	Debug(lstr)
-	Debug(str(tt) + ' ' + str(ttround))
+	ottp.Debug(lstr)
+	ottp.Debug(str(tt) + ' ' + str(ttround))
 	if (tic_mode == TIC_MODE_TI): 
 		if (lstr.find('TI(A->B)') != -1):
 			if (tsformat == TS_UNIX):
