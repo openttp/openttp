@@ -29,7 +29,8 @@
 # Modification history
 # 2017-03-02 MJW First version
 # 2018-02-15 MJW Specify path for lock file. Use gpscv.conf as default config file
-#								 Bug fix. Arguments to subprocess() constructed incorrectly.
+#                Bug fix. Arguments to subprocess() constructed incorrectly.
+# 2025-01-23 ELM Added more help for command line arguments
 #
 
 # WARNING!!!!
@@ -85,7 +86,8 @@ configFile = os.path.join(home,'etc','gpscv.conf')
 parser = argparse.ArgumentParser(description='Log a TAPR TICC in TI mode',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
 
-parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
+parser.add_argument('--config','-c',help='use an alternate configuration file. The '+
+										'default is ~/etc/gpscv.conf',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
 parser.add_argument('--settings','-s',help='show settings',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
