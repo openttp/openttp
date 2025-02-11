@@ -49,7 +49,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -231,7 +231,7 @@ if fixHeader:
 	if os.path.exists(headerFile):
 		fin = open(headerFile,'r')
 		for l in fin:
-			l = l.strip()
+			l = l.rstrip() # trailing whitespace only
 			headerFixes[l[60:]] = l
 		fin.close()
 	else:
@@ -282,7 +282,7 @@ for mjd in range(firstMJD,lastMJD+1):
 						fout.write(l)
 						readingHeader = False
 					else:
-						key = l[60:].strip()
+						key = l[60:].rstrip() # trailing whitespace only
 						if key in headerFixes:
 							Debug('Fixing ' + key)
 							fout.write(headerFixes[key]+'\n')
