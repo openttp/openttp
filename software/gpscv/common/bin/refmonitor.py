@@ -1,4 +1,4 @@
-!/usr/bin/python3
+#!/usr/bin/python3
 #
 
 #
@@ -29,7 +29,6 @@
 import argparse
 import glob
 import os
-import path
 import re
 import shutil
 import subprocess
@@ -49,14 +48,14 @@ except ImportError:
 VERSION = "0.0.0"
 AUTHORS = "Michael Wouters"
 
-KICKSTART_PERIOD 300
+KICKSTART_PERIOD = 300
 STARTUP_WINDOW = 2*KICKSTART_PERIOD
 GPSDO_STATUS_UPDATE_PERIOD = 10
 
 # -----------------------------------------------
 def GetUptime():
 	with open("/proc/uptime", "r") as f: # Linux only
-		up = int(f.readline().split()[0])
+		up = int(float(f.readline().split()[0]))
 	return up
 
 
@@ -71,7 +70,7 @@ def GPSDOOK(gpsdo):
 		# Check whether the information in the status file is fresh.
 		# If not, wait a bit
 		# Still not fresh ? Something is wrong. Maybe the gpsdo logging process has failed to start ?
-		
+		pass
 		
 # -----------------------------------------------
 
@@ -93,32 +92,39 @@ parser.add_argument('--config','-c',help='use an alternate configuration file',d
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
+args = parser.parse_args()
+
 debug = args.debug
 ottp.SetDebugging(debug)
 
 configFile = args.config
 
 up = GetUptime()
-ottp.Debug('Uptime = {up}')
+ottp.Debug(f'Uptime = {up}')
 if (up < STARTUP_WINDOW):
 	ottp.Debug('System has rebooted')
 	# TODO Check what the reference source is
 	# If external reference is in use, then it may have lost power too
 	# if we've been up less than XX minutes, then wait
-	
+	tUp = GetUptime()
+	if tUp < STARTUP_WINDOW:
+		ottp.Debug('Waiting {:d} s'.format(STARTUP_WINDOW - tUp))
+		time.sleep(STARTUP_WINDOW - tUp)
 	# Else, if system GPSDO is the reference, then check the GPSDO 
 	if CheckGPSDO(gpsdo):
 		pass
 	
-	
 if (not os.path.isfile(configFile)):
 	ottp.ErrorExit(configFile + ' not found')
+
+if (not os.path.isfile(gpscvConfigFile)):
+	ottp.ErrorExit(configFile + ' not found')
 	
-cfg=ottp.Initialise(configFile,['gpsdo:status','gpsdo:model'])
+cfg=ottp.Initialise(configFile,[])
 
 gpscvCfg=ottp.Initialise(gpscvConfigFile,['reference:status','reference:model'])
 
 # Startup
 
 while True:
-	
+	pass
