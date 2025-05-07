@@ -99,6 +99,9 @@ ottp.SetDebugging(debug)
 
 configFile = args.config
 
+# If the system is being operated as a frequency standard, then we don't care too much about
+# pps synchronization
+
 up = GetUptime()
 ottp.Debug(f'Uptime = {up}')
 if (up < STARTUP_WINDOW):
