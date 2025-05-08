@@ -60,17 +60,57 @@ def GetUptime():
 
 
 # -----------------------------------------------
-def GetFileAge(p):
-	return time.time() - os.path.getmtime(p)
+def GetFileAge(f):
+	return time.time() - os.path.getmtime(f)
+
+
+# -----------------------------------------------
+def GetGoodStatusFile(statusFile,maxAge):
+	# If there is no status file, give up
+	# We have already waited STARTUP_WINDOW since bootup
+	# so something is wrong
+	if not os.path.exists(statusFile):
+		ottp.Debug(f'Status file {statusFile} is missing')
+		return None
+	
+	# Check whether the information in the status file is fresh.
+	# Again, the presumption is that the gpsdo logging process should be running by now
+	# This could be a stray file from the last boot
+	fileAge = GetFileAge(statusFile)
+	if fileAge > maxAge:
+		ottp.Debug(f'GPSDO status file is {fileAge} s old - not fresh')
+		return None
+	
+	# Dunno why we might not be able to open the file
+	try:
+		fin= open(statusFile,'r')
+		return fin
+	except:
+		ottp.Debug(f'Unable to open {statusFile}')
+		return None
 	
 # -----------------------------------------------
-def GPSDOOK(gpsdo):
+def GPSDOOK(gpsdo,statusFile):
+	
+	fin =  GetGoodStatusFile(statusFile,GPSDO_STATUS_UPDATE_PERIOD)
+
+	if not fin:
+		return False
+
 	if gpsdo == 'furuno':
-		# FREQMODE == 3 is what we want
-		# Check whether the information in the status file is fresh.
-		# If not, wait a bit
-		# Still not fresh ? Something is wrong. Maybe the gpsdo logging process has failed to start ?
-		pass
+		for l in fin:
+			m = re.match(r'FREQMODE\s+=\s+(\d)',l)
+			if m:
+				freqMode = int(m.group(1))
+				ottp.Debug(f'FREQMODE = {freqMode}')
+				if freqMode < 3:
+					pass
+				else:
+					break
+		
+	
+	fin.close()
+	return False
 		
 # -----------------------------------------------
 
@@ -98,11 +138,24 @@ debug = args.debug
 ottp.SetDebugging(debug)
 
 configFile = args.config
+	
+if (not os.path.isfile(configFile)):
+	ottp.ErrorExit(configFile + ' not found')
+
+if (not os.path.isfile(gpscvConfigFile)):
+	ottp.ErrorExit(gpscvConfigFile + ' not found')
+	
+cfg=ottp.Initialise(configFile,[])
+
+gpscvCfg=ottp.Initialise(gpscvConfigFile,['reference:status file','reference:model'])
+gpsdo = gpscvCfg['reference:model'].lower()
+gpsdoStatusFile = ottp.MakeAbsoluteFilePath( gpscvCfg['reference:status file'],root,root + 'etc')
 
 # If the system is being operated as a frequency standard, then we don't care too much about
-# pps synchronization
+# pps synchronization but it's nice to have small numbers in time transfer files
 
 up = GetUptime()
+up = 30
 ottp.Debug(f'Uptime = {up}')
 if (up < STARTUP_WINDOW):
 	ottp.Debug('System has rebooted')
@@ -114,20 +167,10 @@ if (up < STARTUP_WINDOW):
 		ottp.Debug('Waiting {:d} s'.format(STARTUP_WINDOW - tUp))
 		time.sleep(STARTUP_WINDOW - tUp)
 	# Else, if system GPSDO is the reference, then check the GPSDO 
-	if CheckGPSDO(gpsdo):
+	if GPSDOOK(gpsdo,gpsdoStatusFile):
 		pass
-	
-if (not os.path.isfile(configFile)):
-	ottp.ErrorExit(configFile + ' not found')
 
-if (not os.path.isfile(gpscvConfigFile)):
-	ottp.ErrorExit(configFile + ' not found')
-	
-cfg=ottp.Initialise(configFile,[])
-
-gpscvCfg=ottp.Initialise(gpscvConfigFile,['reference:status','reference:model'])
-
-# Startup
+ottp.Debug('Boot checks completed')
 
 while True:
-	pass
+	time.sleep(1)
