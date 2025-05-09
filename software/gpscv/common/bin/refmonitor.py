@@ -48,9 +48,10 @@ except ImportError:
 VERSION = "0.0.0"
 AUTHORS = "Michael Wouters"
 
-KICKSTART_PERIOD = 300
-STARTUP_WINDOW = 2*KICKSTART_PERIOD
+STARTUP_WINDOW = 300
 GPSDO_STATUS_UPDATE_PERIOD = 10
+
+FURUNO_LOCK_TIME = 300
 
 # -----------------------------------------------
 def GetUptime():
@@ -58,11 +59,9 @@ def GetUptime():
 		up = int(float(f.readline().split()[0]))
 	return up
 
-
 # -----------------------------------------------
 def GetFileAge(f):
 	return time.time() - os.path.getmtime(f)
-
 
 # -----------------------------------------------
 def GetGoodStatusFile(statusFile,maxAge):
@@ -88,28 +87,57 @@ def GetGoodStatusFile(statusFile,maxAge):
 	except:
 		ottp.Debug(f'Unable to open {statusFile}')
 		return None
-	
+
 # -----------------------------------------------
-def GPSDOOK(gpsdo,statusFile):
+def GetFurunoStatus(fin):
+	
+	ottp.Debug('Check Furuno')
+	for l in fin:
+
+		m = re.search(r'Frequency mode:\s+(Warm up|Pull-in|Coarse lock|Fine lock|Holdover)',l)
+		if m:
+			freqMode = m.group(1)
+			ottp.Debug(f'Frequency mode = {freqMode}')
+			if freqMode == 'Warm up':
+				return 0
+			elif freqMode == 'Pull-in':
+				return 1
+			elif freqMode == 'Coarse lock':
+				return 2
+			elif freqMode == 'Fine lock':
+				return 3
+			elif freqMode == 'Holdover': #TODO investigate holdover behaviour
+				return 4
+	
+	return -1
+					
+# -----------------------------------------------
+def RefOK(refManufacturer,statusFile):
 	
 	fin =  GetGoodStatusFile(statusFile,GPSDO_STATUS_UPDATE_PERIOD)
 
 	if not fin:
 		return False
 
-	if gpsdo == 'furuno':
-		for l in fin:
-			m = re.match(r'FREQMODE\s+=\s+(\d)',l)
-			if m:
-				freqMode = int(m.group(1))
-				ottp.Debug(f'FREQMODE = {freqMode}')
-				if freqMode < 3:
-					pass
-				else:
-					break
+	if refManufacturer == 'furuno':
+		status = GetFurunoStatus(fin)
+		if status >= 3:
+			return True
+		# If we got here, then the GPSDO is not in fine lock/holdover
+		# So wait until this is true, within limits
+		# Spec is lock in < 5 mins and testing agrees with this
+
+		# We'll use our own timer - no need for SIGTIME
+		ottp.Debug('Waiting for lock')
+		timerStart = time.time()
+		while (time.time() - timerStart < FURUNO_LOCK_TIME):
+			time.sleep(30)
+			fin =  GetGoodStatusFile(statusFile,GPSDO_STATUS_UPDATE_PERIOD)
+			if fin:
+				status = GetFurunoStatus(fin)
+				if status >= 3:
+					return True
 		
-	
-	fin.close()
 	return False
 		
 # -----------------------------------------------
@@ -117,8 +145,7 @@ def GPSDOOK(gpsdo,statusFile):
 home = os.environ['HOME'] 
 root = home 
 configFile = os.path.join(root,'etc','refmonitor.conf')
-gpscvConfigFile = os.path.join(root,'etc','gpscv.conf')
-gpsdo = 'furuno'
+refManufacturer = 'furuno'
 
 parser = argparse.ArgumentParser(description='')
 
@@ -142,20 +169,22 @@ configFile = args.config
 if (not os.path.isfile(configFile)):
 	ottp.ErrorExit(configFile + ' not found')
 
-if (not os.path.isfile(gpscvConfigFile)):
-	ottp.ErrorExit(gpscvConfigFile + ' not found')
 	
-cfg=ottp.Initialise(configFile,[])
+cfg=ottp.Initialise(configFile,['reference:manufacturer','reference:config file'])
+refManufacturer = cfg['reference:manufacturer'].lower()
+refConfigFile = ottp.MakeAbsoluteFilePath( cfg['reference:config file'],root,root + 'etc')
 
-gpscvCfg=ottp.Initialise(gpscvConfigFile,['reference:status file','reference:model'])
-gpsdo = gpscvCfg['reference:model'].lower()
-gpsdoStatusFile = ottp.MakeAbsoluteFilePath( gpscvCfg['reference:status file'],root,root + 'etc')
+if (not os.path.isfile(refConfigFile)):
+	ottp.ErrorExit(refConfigFile + ' not found')
+	
+refCfg = ottp.Initialise(refConfigFile,['status:path','status:file name'])
+refStatusFile = ottp.MakeAbsoluteFilePath( os.path.join(refCfg['status:path'],refCfg['status:file name']),root,root + 'status')
 
 # If the system is being operated as a frequency standard, then we don't care too much about
 # pps synchronization but it's nice to have small numbers in time transfer files
 
 up = GetUptime()
-up = 30
+#up = 30 # FIXME
 ottp.Debug(f'Uptime = {up}')
 if (up < STARTUP_WINDOW):
 	ottp.Debug('System has rebooted')
@@ -163,14 +192,17 @@ if (up < STARTUP_WINDOW):
 	# If external reference is in use, then it may have lost power too
 	# if we've been up less than XX minutes, then wait
 	tUp = GetUptime()
+	#tUp = 598 #FIXME
 	if tUp < STARTUP_WINDOW:
 		ottp.Debug('Waiting {:d} s'.format(STARTUP_WINDOW - tUp))
 		time.sleep(STARTUP_WINDOW - tUp)
 	# Else, if system GPSDO is the reference, then check the GPSDO 
-	if GPSDOOK(gpsdo,gpsdoStatusFile):
-		pass
+	if RefOK(refManufacturer,refStatusFile):
+		ottp.Debug('Restarting time-transfer receiver')
 
 ottp.Debug('Boot checks completed')
 
 while True:
-	time.sleep(1)
+	time.sleep(30)
+	if RefOK(refManufacturer,refStatusFile):
+		pass
