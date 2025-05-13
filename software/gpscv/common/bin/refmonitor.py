@@ -26,10 +26,16 @@
 #
 #
 
+# This script assumes that required processes (eg logging of the Furuno) have all been started at boot
+# This can be conveniently accelerated using @reboot in the crontab
+# It then waits 5 minutes before checking that it is OK to synchronize the time transfer receiver
+#
+
 import argparse
 import glob
 import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
@@ -52,6 +58,26 @@ STARTUP_WINDOW = 300
 GPSDO_STATUS_UPDATE_PERIOD = 10
 
 FURUNO_LOCK_TIME = 300
+
+killed = False
+
+#-----------------------------------------------------------------------------
+def SignalHandler(signal,frame):
+	global killed
+	killed = True
+	return
+
+#-----------------------------------------------------------------------------
+def Log(logFile,msg):
+	ottp.Debug(msg)
+	try:
+		flog = open(logFile,'a')
+		flog.write('{} {}\n'.format(time.strftime('%Y-%02m-%02d %H:%M:%S',time.gmtime()),msg))
+		flog.close()
+		flog.close()
+	except:
+		ottp.Debug('Unable to log message')
+	return
 
 # -----------------------------------------------
 def GetUptime():
@@ -128,7 +154,7 @@ def RefOK(refManufacturer,statusFile):
 		# Spec is lock in < 5 mins and testing agrees with this
 
 		# We'll use our own timer - no need for SIGTIME
-		ottp.Debug('Waiting for lock')
+		Log(logFile,'Waiting for lock')
 		timerStart = time.time()
 		while (time.time() - timerStart < FURUNO_LOCK_TIME):
 			time.sleep(30)
@@ -136,10 +162,15 @@ def RefOK(refManufacturer,statusFile):
 			if fin:
 				status = GetFurunoStatus(fin)
 				if status >= 3:
-					return True
+					Log(logFile,f'OK status={status}')
 		
 	return False
-		
+
+
+# -----------------------------------------------
+def RestartReceiver(rxScript):
+	pass
+
 # -----------------------------------------------
 
 home = os.environ['HOME'] 
@@ -169,10 +200,10 @@ configFile = args.config
 if (not os.path.isfile(configFile)):
 	ottp.ErrorExit(configFile + ' not found')
 
-	
-cfg=ottp.Initialise(configFile,['reference:manufacturer','reference:config file'])
+cfg=ottp.Initialise(configFile,['reference:manufacturer','reference:config file','receiver:logging script'])
 refManufacturer = cfg['reference:manufacturer'].lower()
 refConfigFile = ottp.MakeAbsoluteFilePath( cfg['reference:config file'],root,root + 'etc')
+rxScript = cfg['receiver:logging script']
 
 if (not os.path.isfile(refConfigFile)):
 	ottp.ErrorExit(refConfigFile + ' not found')
@@ -180,6 +211,19 @@ if (not os.path.isfile(refConfigFile)):
 refCfg = ottp.Initialise(refConfigFile,['status:path','status:file name'])
 refStatusFile = ottp.MakeAbsoluteFilePath( os.path.join(refCfg['status:path'],refCfg['status:file name']),root,root + 'status')
 
+
+# Create the process lock		
+lockFile = ottp.MakeAbsoluteFilePath(cfg['paths:lock file'],home,home + '/lock')
+ottp.Debug('Creating lock ' + lockFile)
+if (not ottp.CreateProcessLock(lockFile)):
+	ottp.ErrorExit("Couldn't create a lock")
+
+signal.signal(signal.SIGINT,SignalHandler) # Note that CTRL-C will not interrupt a sleep()
+signal.signal(signal.SIGTERM,SignalHandler) 
+signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY, but handle it anyway
+
+logFile = ottp.MakeAbsoluteFilePath(cfg['paths:log file'],home,home + '/logs')
+Log(logFile,'started')
 # If the system is being operated as a frequency standard, then we don't care too much about
 # pps synchronization but it's nice to have small numbers in time transfer files
 
@@ -187,7 +231,7 @@ up = GetUptime()
 #up = 30 # FIXME
 ottp.Debug(f'Uptime = {up}')
 if (up < STARTUP_WINDOW):
-	ottp.Debug('System has rebooted')
+	Log(logFile,'system has rebooted')
 	# TODO Check what the reference source is
 	# If external reference is in use, then it may have lost power too
 	# if we've been up less than XX minutes, then wait
@@ -198,11 +242,16 @@ if (up < STARTUP_WINDOW):
 		time.sleep(STARTUP_WINDOW - tUp)
 	# Else, if system GPSDO is the reference, then check the GPSDO 
 	if RefOK(refManufacturer,refStatusFile):
-		ottp.Debug('Restarting time-transfer receiver')
-
+		Log(logFile,'Restarting time-transfer receiver')
+		RestartReceiver(rxScript)
+		
 ottp.Debug('Boot checks completed')
 
-while True:
+while not killed:
 	time.sleep(30)
 	if RefOK(refManufacturer,refStatusFile):
 		pass
+
+# Clean up		
+Log(logFile,'killed')
+ottp.RemoveProcessLock(lockFile)
