@@ -154,7 +154,7 @@ def RefOK(refManufacturer,statusFile):
 		# Spec is lock in < 5 mins and testing agrees with this
 
 		# We'll use our own timer - no need for SIGTIME
-		Log(logFile,'Waiting for lock')
+		Log(logFile,'waiting for lock')
 		timerStart = time.time()
 		while (time.time() - timerStart < FURUNO_LOCK_TIME):
 			time.sleep(30)
@@ -163,6 +163,7 @@ def RefOK(refManufacturer,statusFile):
 				status = GetFurunoStatus(fin)
 				if status >= 3:
 					Log(logFile,f'OK status={status}')
+					return True
 		
 	return False
 
