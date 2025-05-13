@@ -45,13 +45,14 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.0.0"
+VERSION = "0.1.0"
 AUTHORS = "Michael Wouters"
 
 # -------------------------------------------------------
 home = os.environ['HOME'] 
 root = home 
 configFile = os.path.join(root,'etc','gpscv.conf')
+cggttsPath = os.path.join(root,'cggtts')
 
 parser = argparse.ArgumentParser(description='')
 
@@ -77,15 +78,13 @@ if (not os.path.isfile(configFile)):
 	
 cfg=ottp.Initialise(configFile,[])
 
-cggttsPath = '/home/michael/cggtts'
-
 commands= [
  ['hostname','-f'],
  ['date'],
  ['df'],
  ['uptime'],
- ['find', cggttsPath, '-mtime', '-700', '-printf' , '%Ab %Ad %AH:%AM %s\t%p\n','|','sort'],
- #['ps','x','|', 'grep','-E','plrxlog'],
+ ['find', cggttsPath, '-mtime', '-700', '-printf' , '%Ab %Ad %AH:%AM %s\t%p\n','|','sort','|','grep','cctf'],
+ ['ps','x','|', 'grep','-E','plrxlog|ubloxlog','|','grep','-v','grep'],
  ['chronyc','sources']]
 
 for cmd in commands:
@@ -108,8 +107,20 @@ for cmd in commands:
 	
 	procs = []
 	procs.append(subprocess.Popen(cmd[:pos],  stdout=subprocess.PIPE))
-	procs.append(subprocess.Popen(cmd[pos+1:], stdin =procs[0].stdout, stdout = subprocess.PIPE))
-	output, errors = procs[1].communicate()
+	# Now we loop, adding processes
+	while pos:
+		prevPos = pos
+		try:
+			pos = cmd.index('|',pos+1)
+		except:
+			procs.append(subprocess.Popen(cmd[prevPos+1:], stdin =procs[len(procs)-1].stdout, stdout = subprocess.PIPE)) # last subprocess
+			break
+		# More to do
+		# print(cmd[prevPos+1:pos])
+		procs.append(subprocess.Popen(cmd[prevPos+1:pos], stdin =procs[len(procs)-1].stdout, stdout = subprocess.PIPE)) # next subprocess
+		
+	# Finally, get the output 
+	output, errors = procs[len(procs) -1].communicate()
 	
 	print(output.decode())
 	
