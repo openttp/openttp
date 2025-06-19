@@ -25,8 +25,7 @@
 // Modification history
 // 2018-09-03 ELM Conditional added for LCD "splash" message to distinguish TTS / OPENTTP
 // 2024-12-17 ELM Add configuration of ATX power functionality
-//
-
+// 2025-06-20 ELM Removed ATX turn off function via LCD panel. Power off is handled by LCDmonitor.
 
 #include "Debug.h"
 
@@ -341,7 +340,7 @@ void LCDConfigure::configureATXpower()
 	send_packet();
 	getResponse();
 	
-	// Set GPIO 2 ATX host power control (H1 header pin 9) to its default
+	// Set GPIO 2 ATX host power control (H1 header pin 9) to allow default
 	// functionality
 	outgoing_response.command = 34;
 	outgoing_response.data[0]=2;
@@ -362,17 +361,15 @@ void LCDConfigure::configureATXpower()
 	getResponse();
 	
 	// Set ATX functionality
-	// We use KEYPAD_POWER_ON, KEYPAD_POWER_OFF, and LCD_OFF_IF_HOST_IS_OFF 
-	// functions (No RESET pin on Raspberry Pi 5, so that function is not
-	// activated).
+	// We use KEYPAD_POWER_ON and LCD_OFF_IF_HOST_IS_OFF functions (No RESET
+	// pin on Raspberry Pi 5, so that function is not activated).
+	//
 	// KEYPAD_POWER_ON: With Power sense low, pressing Green check button will
 	//                  pulse power control low for 1 second.
-	// KEYPAD_POWER_OFF: With Power sense high, pressing Red X key for 4 seconds
-	//                   will power control low for 1 second.
 	// LCD_OFF_IF_HOST_IS_OFF: LCD will blank and LCD / keypad backlights turn
 	//                         off if power sense is low (host is off)
 	outgoing_response.command = 28;
-	outgoing_response.data[0]=0xD0;
+	outgoing_response.data[0]=0x50;
 	outgoing_response.data_length=1;
 	send_packet();
 	getResponse();
