@@ -56,6 +56,7 @@ import sys
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
 sys.path.append('/usr/local/lib/python3.10/site-packages')
+sys.path.append('/usr/local/lib/python3.12/dist-packages')
 
 import time
 
