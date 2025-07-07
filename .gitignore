@@ -26,3 +26,4 @@ install*.log
 **/src/okcounterd/okcounterd
 **/src/lockport
 **/src/mjd
+**/common/process/rnx2cggtts/rnx2cggtts
