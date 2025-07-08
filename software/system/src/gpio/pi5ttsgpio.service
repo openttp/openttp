@@ -1,0 +1,14 @@
+[Unit]
+Description=Manages the GPIO subsystem for the Pi5 based TTS
+ConditionPathExists=/usr/local/etc/pi5ttsgpio.conf
+After = local-fs.target
+
+[Service]
+Restart=always
+StartLimitInterval=120
+StartLimitBurst=5
+RestartSec=20
+ExecStart=/usr/local/sbin/pi5ttsgpio.py -c /usr/local/etc/pi5ttsgpio.conf
+
+[Install]
+WantedBy=multi-user.target
