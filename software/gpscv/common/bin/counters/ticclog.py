@@ -281,7 +281,7 @@ while (not killed):
 	elif (tic_mode == TIC_MODE_TS):
 		if (lstr.find('chA') != -1):
 			ts = lstr.split()[0]
-			if (None == re.match('^\d+\.\d{12}',ts)):
+			if (None == re.match(r'^\d+\.\d{12}',ts)):
 				nbad =nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
@@ -292,7 +292,7 @@ while (not killed):
 				nbad =nbad -1
 		elif (lstr.find('chB') != -1):
 			ts = lstr.split()[0]
-			if (None == re.match('^\d+\.\d{12}',ts)):
+			if (None == re.match(r'^\d+\.\d{12}',ts)):
 				nbad =nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
