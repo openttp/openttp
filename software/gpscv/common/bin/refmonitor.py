@@ -33,6 +33,7 @@
 
 import argparse
 import glob
+import gpiozero
 import os
 import re
 import signal
@@ -154,7 +155,7 @@ def RefOK(refManufacturer,statusFile):
 		# Spec is lock in < 5 mins and testing agrees with this
 
 		# We'll use our own timer - no need for SIGTIME
-		Log(logFile,'waiting for lock')
+		Log(logFile,'waiting for fine lock')
 		timerStart = time.time()
 		while (time.time() - timerStart < FURUNO_LOCK_TIME):
 			time.sleep(30)

@@ -62,7 +62,7 @@ import time
 
 import ottplib
 
-VERSION = '0.5.0'
+VERSION = '0.5.1'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -296,7 +296,7 @@ def ConfigureReceiver(rxcfg):
 			continue
 		if (comment_re.search(l)): # skip comments
 			continue
-		if re.match('SetSBFoutput',l):
+		if re.match('SetSBFoutput',l,flags=re.IGNORECASE):
 			cmdargs = l.split(',') 	# arguments are comma delimited
 			l = 'SetSBFoutput,Stream1,' + commInterface + ',' + cmdargs[3] + ',' + cmdargs[4] # retain only the last two fields
 		SendCommand(l)
