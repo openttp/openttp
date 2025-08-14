@@ -189,7 +189,7 @@ def Cleanup():
 	# Hmm ugly globals
 	ottplib.RemoveProcessLock(lockFile)
 	if (not serport==None):
-		SendCommand('SetSBFoutput,Stream1,' + commInterface + ',none') # turn off output
+		SendCommand('setDataInOut,' + commInterface + ',,-SBF') # turn off all SBF output
 		serport.close()
 		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
 
@@ -265,8 +265,10 @@ def ConfigureReceiver(rxcfg):
 		sys.exit(0)
 		
 	# FIXME This assumes that there is only Stream1  enabled
+	SendCommand('setDataInOut,' + commInterface + ',,+SBF')
 	SendCommand('SetSBFoutput,Stream1,' + commInterface + ',none') # turn off output
 
+	
 	# Set up the Antenna
 	# This fixes up a bug in RINEX output in version IDK of sbf2rin
 	deltaH,deltaE,deltaN = '0.0','0.0','0.0'
@@ -298,7 +300,7 @@ def ConfigureReceiver(rxcfg):
 			continue
 		if re.match('SetSBFoutput',l,flags=re.IGNORECASE):
 			cmdargs = l.split(',') 	# arguments are comma delimited
-			l = 'SetSBFoutput,Stream1,' + commInterface + ',' + cmdargs[3] + ',' + cmdargs[4] # retain only the last two fields
+			l = 'SetSBFoutput,' + cmdargs[1] + ',' + commInterface + ',' + cmdargs[3] + ',' + cmdargs[4] # retain only the last two fields
 		SendCommand(l)
  
 	fin.close()
