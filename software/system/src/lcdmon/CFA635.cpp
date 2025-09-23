@@ -320,8 +320,8 @@ void CFA635::ShowReceivedPacket(void)
      incoming_command.data_length,
      expanded,
      incoming_command.CRC);
-		DBGMSG(debugStream,TRACE,"");
-		DBGMSG(debugStream,TRACE,buf);
+		//DBGMSG(debugStream,TRACE,"");
+		//DBGMSG(debugStream,TRACE,buf);
 	}
   else
 	{
@@ -335,8 +335,8 @@ void CFA635::ShowReceivedPacket(void)
       incoming_command.data_length,
       expanded,
       incoming_command.CRC);
-		DBGMSG(debugStream,TRACE,"");
-		DBGMSG(debugStream,TRACE,buf);
+		//DBGMSG(debugStream,TRACE,"");
+		//DBGMSG(debugStream,TRACE,buf);
 	}
 	#endif
 }

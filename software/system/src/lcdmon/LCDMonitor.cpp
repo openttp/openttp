@@ -271,498 +271,6 @@ void LCDMonitor::getNetworkInterfaces(std::string &lan0ip, std::string &lan1ip,s
 	if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
 }
 
-void LCDMonitor::readNetworkConfig_IfConfig(){
-	
-	for (unsigned int i=0;i<nets.size();i++){
-		nets.at(i)->nameservers.clear();
-		delete nets.at(i);
-	}
-	nets.clear();
-	
-	readIfConfig(LANIFname[0],0);
-	if (!(LANIFname[1].empty()))
-		readIfConfig(LANIFname[1],1);
-	
-	// don't need to search since each interface is in a separate file
-	idxLAN[0] = 0;
-	idxLAN[1] = 1;
-}
-
-void LCDMonitor::readIfConfig(std::string ifName,int idIF){
-
-	
-#ifndef NETPLAN
-	DBGMSG(debugStream,TRACE,"");
-
-	std::string cfgFile = netCfg + "/ifcfg-" + ifName; 
-	std::ifstream fin(cfgFile.c_str());
-	if (!fin.good()){
-		log("Couldn't open " + cfgFile);
-		return;
-	}
-
-	std::string tmp;
-	// Set some defaults
-	std::string ipv4gw   = "192.168.1.1";
-	std::string ipv4nm   = "255.255.255.0";
-	std::string ipv4ns1  = "0.0.0.0";
-	std::string ipv4ns2  = "0.0.0.0";
-	std::string ipv4addr = "192.168.1.10";
-	std::string ipprefix = "24";
-	std::string bootProtocol;
-	
-	while (!fin.eof()){
-		getline(fin,tmp);
-		if (fin.eof())
-			break;
-		if (string::npos != tmp.find("BOOTPROTO")){
-			parseConfigEntry(tmp,bootProtocol,'=');
-			if (bootProtocol=="dhcp")
-				addressAssignmentLAN[idIF]=DHCP;
-			else if (bootProtocol=="static" || bootProtocol=="none") 
-				addressAssignmentLAN[idIF]=Static;
-		}
-		else if (string::npos != tmp.find("IPADDR"))
-			parseConfigEntry(tmp,ipv4addr,'=');
-		else if (string::npos != tmp.find("NETMASK"))
-			parseConfigEntry(tmp,ipv4nm,'=');
-		else if (string::npos != tmp.find("GATEWAY")) // rhel7
-			parseConfigEntry(tmp,ipv4gw,'=');
-		else if (string::npos != tmp.find("PREFIX")){ // rhel7
-			parseConfigEntry(tmp,ipprefix,'=');
-			ipv4nm = prefix2netmask(ipprefix);
-		}
-		else if (string::npos != tmp.find("DNS1")){ // rhel7
-			parseConfigEntry(tmp,ipv4ns1,'=');
-		}
-		else if (string::npos != tmp.find("DNS2")){ // rhel7
-			parseConfigEntry(tmp,ipv4ns2,'=');
-		}
-	}
-	fin.close();
-
-	// !!! Different format
-	// FIXME I don't know if resolv.conf overrides ifcfg-xxx
-	std::ifstream fin2(DNSconf.c_str());
-	if (!fin2.good()){
-		log("Couldn't open " + DNSconf);
-		return;
-	}
-	std::string val;
-	fin2 >> tmp >> val;
-	while (!fin2.eof()){
-		if (string::npos != tmp.find("nameserver")){
-			ipv4ns1 = val;
-			break;
-		}
-		fin2 >> tmp >> val;
-	}
-	fin2.close();
-
-	NetworkInterface *net  = new NetworkInterface();
-	net->name = ifName;
-	if (addressAssignmentLAN[idIF]== DHCP){
-		net->DHCP = true;
-		net->nameservers.push_back("0.0.0.0");
-		net->nameservers.push_back("0.0.0.0");
-	}
-	else{
-		net->DHCP = false;
-		net->address = ipv4addr;
-		net->nameservers.push_back(ipv4ns1);
-		net->nameservers.push_back(ipv4ns2);
-		net->gateway = ipv4gw;
-		net->netmask = ipv4nm;
-	}
-	nets.push_back(net);
-
-#endif
-}
-
-void LCDMonitor::readNetworkConfig_NetPlan()
-{
-
-	std::vector<std::string> cfg;
-	boost::smatch matches;
-	
-	//runCommand("netplan get",cfg); // we could just read the file ...
-	// and indeed we will
-	
-	// Read the file into a vector of strings
-	// That way, if we ever want to go back to using "netplan get" then it's easy
-	ifstream fin(netCfg.c_str());
-	if (!fin.good()){
-		//
-	}	
-	else{
-		string tmp;
-
-		while (!fin.eof()){
-			getline(fin,tmp);
-			boost::regex re("^#\\s*\\CUSTOM\\s+CONFIGURATION\\s*=\\s*TRUE"); // single IPv4 address ONLY
-			if (boost::regex_search(tmp,matches,re)){
-				customNetCfg = true; // but keep on reading, we still w
-			}
-			cfg.push_back(tmp);
-		}
-	}
-	
-	
-	// Initial set up is typically DHCP on all interfaces
-	addressAssignmentLAN[0] = DHCP;
-	addressAssignmentLAN[1] = DHCP;
-	unsigned int l = 0;
-  
-	// This will get called each time the network information is edited
-	// in case information has been manually edited
-	for (unsigned int i=0;i<nets.size();i++){
-		nets.at(i)->nameservers.clear();
-		delete nets.at(i);
-	nets.clear();
-	}
-	unsigned int ifcnt = 0;
-	unsigned int state=0x0;
-	NetworkInterface *net=NULL;
-	while (l<cfg.size()){
-		std::string str = cfg.at(l);
-		boost::trim_right(str);
-		if (str.empty()){ // skip empty lines
-			l++;
-			continue;
-		}
-		// determine the indent level
-		unsigned int c=0;
-		int cnt=0;
-		while (c<str.size()){
-			if (str[c] != ' '){
-				break;
-			}
-			else{
-				cnt+=1;
-				c+=1;
-			}
-		}
-		
-		cnt = cnt/2;
-			
-		// the parser 
-		boost::trim_left(str);
-		switch (cnt){
-			case 0: // 'network is defined at this level - nothing to do
-				state = 0x0;
-				break;
-			case 1: // looking for 'ethernets','version' and 'renderer'
-			{
-				if (str == "ethernets:"){
-					state = 0x01;
-				}
-				else if (str.find("version:",0)==0){
-					int sep = str.find(":");
-					NPversion = str.substr(sep+1);
-					boost::trim(NPversion);
-				}
-				else if (str.find("renderer:",0)==0){
-					int sep = str.find(":");
-					NPrenderer = str.substr(sep+1);
-					boost::trim(NPrenderer);
-				}
-				break;
-			}
-			case 2: // interface names at this level
-				if (state & 0x01){
-					ifcnt = ifcnt + 1;
-					str.resize(str.size()-1); // chop off trailing colon
-					net = new NetworkInterface();
-					net->name = str;
-					net->DHCP = true;
-					nets.push_back(net);
-					state = 0x01 | 0x02; // reset other bits
-				}
-				break;
-			case 3:// addresses, nameservers, routes, dhcp4, dhcp6 at this level
-			{
-				if (state & 0x02){
-					if (str.rfind("addresses:",0)==0){ // can be block or flow style
-						net->DHCP = false;
-						// check for 'flow' style
-						boost::regex re("^addresses:\\s*\\[(\\d+\\.\\d+\\.\\d+\\.\\d+)/(\\d+)\\]$"); // single IPv4 address ONLY
-						if (boost::regex_search(str,matches,re)){
-							net->address=matches[1];
-							net->netmask=prefix2netmask(matches[2]);
-							// state doesn't change
-						}
-						else{// must be block, set state to parse address
-							state = 0x01 | 0x02 | 0x04;
-						}
-						
-					}
-					else if (str.rfind("nameservers:",0)==0){
-						state = 0x01 | 0x02 | 0x08;
-					}
-					else if (str=="routes:"){
-						state =  0x01 | 0x02 | 0x10;
-					}
-					else if (str=="dhcp4:"){ // FIXME
-						net->DHCP = true;
-					}
-				}
-				break;
-			}
-			case 4:
-			{
-				if (state & 0x04){
-					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)/(\\d+)$"); // single IPv4 address ONLY
-					if (boost::regex_search(str,matches,re)){
-						net->address=matches[1];
-						net->netmask=prefix2netmask(matches[2]);
-						state = 0x01 | 0x02 | 0x04;
-					}
-				}
-				else if (state & 0x08){ // looking for nameserver addresses
-					boost::regex re("^addresses:\\s*\\[(.+)\\]$"); 
-					if (boost::regex_search(str,matches,re)){ // flow style
-						std::string ips = matches[1];
-						boost::regex ipre("\\d+\\.\\d+\\.\\d+\\.\\d+"); // note: no simple way to return multiple matches
-						boost::sregex_iterator it{ips.begin(), ips.end(), ipre }, itEnd;
-						std::for_each( it, itEnd, [net]( const boost::smatch& m ){
-							std::cout << m[0] << std::endl;
-							net->nameservers.push_back(m[0]);
-						});
-					} // must be block style
-					else{
-						state = 0x01 | 0x02 | 0x08;
-					}
-				}
-				else if (state & 0x10){ // looking for the default route
-					boost::regex re("^-\\s+to:\\s*default$"); 
-					if (boost::regex_search(str,matches,re)){
-						state = 0x01 | 0x02 | 0x20; 
-					}
-				}
-				break;
-			}
-			case 5:
-			{
-				if (state & 0x08){ // looking for nameserver addresses, block style
-					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
-					if (boost::regex_search(str,matches,re)){
-						net->nameservers.push_back(matches[1]);
-						cout << matches[1] << endl;
-						// no state change reqd
-					}
-				}
-				else if (state & 0x020){ // looking for the default route
-					boost::regex re("^via:\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
-					if (boost::regex_search(str,matches,re)){
-						net->gateway = matches[1];
-						cout << net->gateway << endl;
-						// no state change reqd
-					}
-				}
-			}
-			
-			default:
-				break;
-		}
-		l=l+1;
-	}
-
-	for (l=0;l<nets.size();l++){
-		cout << nets.at(l)->name << std::endl;
-		cout << "  " << nets.at(l)->address << "/" << nets.at(l)->netmask << std::endl;
-		for (unsigned int n=0;n<nets.at(l)->nameservers.size();n++){
-			cout << "  " << nets.at(l)->nameservers.at(n) << std::endl;
-		}
-		cout << nets.at(l)->gateway << std::endl;
-	}
-	
-	// Now we have to identify the interfaces according to the device names set in the configuration file
-	for (l=0;l<nets.size();l++){
-		if (nets.at(l)->name  == LANIFname[0]){
-			idxLAN[0] = l;
-		}
-		else if (nets.at(l)->name  == LANIFname[1]){
-			idxLAN[1] = l;
-		}
-	}
-
-	// If we didn't find 'ethernets' then we have an ultrabasic netplan which means that DHCP is the default
-	if (nets.size() > 0){
-		if (idxLAN[0] >= 0) // found it, so use what was specified
-			addressAssignmentLAN[0]=nets.at(idxLAN[0])->DHCP?DHCP:Static;
-		else // otherwise,DHCP
-			addressAssignmentLAN[0]=DHCP;
-		if (idxLAN[1] >= 0)
-			addressAssignmentLAN[1]=nets.at(idxLAN[1])->DHCP?DHCP:Static;
-		else
-			addressAssignmentLAN[1]=DHCP;
-	}
-	else{ // no ethernets, all DHCP
-		addressAssignmentLAN[0]=DHCP;
-		addressAssignmentLAN[1]=DHCP;
-	}
-	
-	DBGMSG(debugStream,TRACE,"network protocol " << addressAssignmentLAN[0] << " " << addressAssignmentLAN[1]);
-	
-}
-
-bool LCDMonitor::writeNetPlanConfig(int ifID)
-{
-	
-	// The user should not be customizing the netplan
-	return true;
-}
-
-bool LCDMonitor::writeIfConfig(int ifID)
-{
-	std::string tmp;
-	
-	std::string ipv4addr  = nets.at(ifID)->address;
-	std::string ipv4nm    = nets.at(ifID)->netmask;
-	std::string ipv4gw    = nets.at(ifID)->gateway;
-	std::string ipv4ns1   = nets.at(ifID)->nameservers.at(0); 
-	std::string ipv4ns2   = nets.at(ifID)->nameservers.at(1); 
-	
-	std::string cfgFile = netCfg + "/ifcfg-" + LANIFname[ifID];
-	ifstream fin(cfgFile.c_str());
-	if (!fin.good()){
-		log(cfgFile + " not found");
-		return false;
-	}
-	
-	// Make temporary files and rename when done.
-	// Note that temporary files are made in the same directory
-	// as the target because rename() does not work across devices (partitions)
-	// network
-	
-	std::string ftmp = netCfg + "/tmp.ifcfg-" + LANIFname[ifID]; // take care not to leave an ifcfg that the init scripts could pick up
-	ofstream fout(ftmp.c_str());
-	if (!fout.good()){
-		log("Can't open " + cfgFile);
-		return false;
-	}
-	
-	// the existing configuration is read in and copied except for IPADDR and NETMASK
-	bool gotIPADDR=false;
-	bool gotNETMASK=false;
-	bool gotBOOTPROTO=false;
-	bool gotDNS1=false;
-	bool gotGW=false;
-	int retval;
-	
-	while (!fin.eof()){
-		getline(fin,tmp);
-		if (fin.eof())
-			break;
-		if (fin.fail()){
-			log("Error in " + cfgFile);
-			return false;
-		}
-		if (string::npos != tmp.find("IPADDR")){
-			if (!nets.at(ifID)->DHCP)
-				fout << "IPADDR=" << quote(ipv4addr) << endl;
-			gotIPADDR=true;
-		}
-		else if ( (string::npos != tmp.find("NETMASK")) || (string::npos != tmp.find("PREFIX"))){
-			// replace PREFIX with NETMASK
-			if (!nets.at(ifID)->DHCP)
-				fout << "NETMASK=" << quote(ipv4nm) << endl;
-			gotNETMASK=true;
-		}
-		else if (string::npos != tmp.find("BOOTPROTO")){
-			if (!nets.at(ifID)->DHCP)
-				fout << "BOOTPROTO=" << quote("none") << endl; // none==static
-			else
-				fout << "BOOTPROTO=dhcp" << endl;
-			gotBOOTPROTO=true;
-		}
-		else if (string::npos != tmp.find("DNS1")){
-			if (!nets.at(ifID)->DHCP)
-				fout << "DNS1=" << quote(ipv4ns1) << endl;
-			gotDNS1=true;
-		}
-		else if (string::npos != tmp.find("DNS2")){
-			// scrub it for the moment
-		}
-		else if (string::npos != tmp.find("GATEWAY")){
-			if (!nets.at(ifID)->DHCP)
-				fout << "GATEWAY=" << quote(ipv4gw) << endl;
-			gotGW=true;
-		}
-		else
-			fout << tmp << endl;
-	}
-
-	if(nets.at(ifID)->DHCP){
-		if (!gotBOOTPROTO)
-			fout << "BOOTPROTO=dhcp" << endl;
-	}
-	else{
-		// If the required fields weren't there, update them from the dialog results anyway
-		if (!gotIPADDR)
-			fout << "IPADDR=" << quote(ipv4addr) << endl;
-		if (!gotNETMASK)
-			fout << "NETMASK=" << quote(ipv4nm) << endl;
-		if (!gotBOOTPROTO)
-			fout << "BOOTPROTO=" << quote("none") << endl;
-		if (!gotDNS1) // FIXME when is this used?
-			fout << "DNS1=" << quote(ipv4ns1) << endl;
-		if (!gotGW)
-			fout << "GATEWAY=" << quote(ipv4gw) << endl;
-	}
-	
-	fin.close();
-	fout.close();
-
-	if (0 != (retval =rename(ftmp.c_str(),cfgFile.c_str()))){
-		log("Rename of " + ftmp + " to " + cfgFile + " failed");
-		return false;
-	}
-
-	// Try /etc/resolv.conf if there is no nameserver configured in 
-	// FIXME unclear how DNS1 propagates
-	if (!gotDNS1){
-		string nscfg("/etc/resolv.conf");
-		ifstream fin2(nscfg.c_str());
-		if (!fin2.good()){
-			log("resolv.conf not found");
-			return false;
-		}
-		ftmp="/etc/resolv.conf.tmp";
-		ofstream fout2(ftmp.c_str());
-		bool gotNS=false; // should only be one NS defined but if someone has manually fiddled
-										// then make sure we only change the first one configured in resolv.conf
-		while (!fin2.eof()){
-			getline(fin2,tmp);
-			if (fin2.eof())
-				break;
-			if (fin2.fail()){
-				log("Error in resolv.conf");
-				return false;
-			}
-			if ((!gotNS) && (string::npos != tmp.find("nameserver"))){
-				fout2 << "nameserver " << ipv4ns1 << endl;
-				gotNS=true;
-			}
-			else
-				fout2 << tmp << endl;
-
-		}
-		
-		if (!gotNS)
-			fout2 << "nameserver " << ipv4ns1 << endl;
-
-		fin2.close();
-		fout2.close();
-		
-		if (0 != (retval =rename(ftmp.c_str(),nscfg.c_str()))){
-			log("Rename of " + ftmp + " to " + netCfg + " failed");
-			return false;
-		}
-	}
-	
-	return true;
-}
 void LCDMonitor::networkConfigDHCP(int ifID)
 {
 
@@ -982,21 +490,17 @@ void LCDMonitor::networkConfigStaticIP4(int ifID)
 		nets.at(ifID)->nameservers.at(0) = ns1w->ipAddress();
 		nets.at(ifID)->nameservers.at(1) = ns2w->ipAddress();
 		nets.at(ifID)->DHCP = false;
-		
-#ifdef NETPLAN
+
 		if (!writeNetPlanConfig(ifID))
 			goto FAIL;
-#else
-		if (!writeIfConfig(ifID))
-			goto FAIL;
-#endif
+		{
 		clearDisplay();
 		updateLine(1,"Please wait");			
 		sleep(3);
 		
 		if (restartNetworking())
 			addressAssignmentLAN[ifID] = Static;
-		
+		}
 	} // if dialog accepted
 	
   {
@@ -1028,20 +532,270 @@ void LCDMonitor::networkConfigStaticIP4(int ifID)
 		sleep(2);
 }
 
-void LCDMonitor::networkConfigDHCPLAN0(){
-	networkConfigDHCP(idxLAN[0]);
+void LCDMonitor::readNetPlanConfig(){
+std::vector<std::string> cfg;
+	boost::smatch matches;
+	
+	//runCommand("netplan get",cfg); // we could just read the file ...
+	// and indeed we will
+	
+	// Read the file into a vector of strings
+	// That way, if we ever want to go back to using "netplan get" then it's easy
+	ifstream fin(netCfg.c_str());
+	if (!fin.good()){
+		//
+	}	
+	else{
+		string tmp;
+
+		while (!fin.eof()){
+			getline(fin,tmp);
+			boost::regex re("^#\\s*\\CUSTOM\\s+CONFIGURATION\\s*=\\s*TRUE"); // single IPv4 address ONLY
+			if (boost::regex_search(tmp,matches,re)){
+				customNetCfg = true; // but keep on reading
+			}
+			cfg.push_back(tmp);
+		}
+	}
+	
+	
+	// Initial set up is typically DHCP on all interfaces
+	addressAssignmentLAN[0] = DHCP;
+	
+	unsigned int l = 0;
+  
+	// This will get called each time the network information is edited
+	// in case information has been manually edited
+	for (unsigned int i=0;i<nets.size();i++){ // first time through this will be empty
+		nets.at(i)->nameservers.clear();
+		delete nets.at(i);
+	nets.clear();
+	}
+	unsigned int ifcnt = 0;
+	unsigned int state=0x0;
+	NetworkInterface *net=NULL;
+	while (l<cfg.size()){
+		std::string str = cfg.at(l);
+		boost::trim_right(str);
+		if (str.empty()){ // skip empty lines
+			l++;
+			continue;
+		}
+		// determine the indent level
+		unsigned int c=0;
+		int cnt=0;
+		while (c<str.size()){
+			if (str[c] != ' '){
+				break;
+			}
+			else{
+				cnt+=1;
+				c+=1;
+			}
+		}
+		
+		cnt = cnt/2;
+			
+		// the parser 
+		boost::trim_left(str);
+		switch (cnt){
+			case 0: // 'network is defined at this level - nothing to do
+				state = 0x0;
+				break;
+			case 1: // looking for 'ethernets','version' and 'renderer'
+			{
+				if (str == "ethernets:"){
+					state = 0x01;
+				}
+				else if (str.find("version:",0)==0){
+					int sep = str.find(":");
+					NPversion = str.substr(sep+1);
+					boost::trim(NPversion);
+				}
+				else if (str.find("renderer:",0)==0){
+					int sep = str.find(":");
+					NPrenderer = str.substr(sep+1);
+					boost::trim(NPrenderer);
+				}
+				break;
+			}
+			case 2: // interface names at this level
+				if (state & 0x01){
+					ifcnt = ifcnt + 1;
+					str.resize(str.size()-1); // chop off trailing colon
+					net = new NetworkInterface();
+					net->name = str;
+					net->DHCP = true;
+					nets.push_back(net);
+					state = 0x01 | 0x02; // reset other bits
+				}
+				break;
+			case 3:// addresses, nameservers, routes, dhcp4, dhcp6 at this level
+			{
+				if (state & 0x02){
+					if (str.rfind("addresses:",0)==0){ // can be block or flow style
+						net->DHCP = false;
+						// check for 'flow' style
+						boost::regex re("^addresses:\\s*\\[(\\d+\\.\\d+\\.\\d+\\.\\d+)/(\\d+)\\]$"); // single IPv4 address ONLY
+						if (boost::regex_search(str,matches,re)){
+							net->address=matches[1];
+							net->netmask=prefix2netmask(matches[2]);
+							// state doesn't change
+						}
+						else{// must be block, set state to parse address
+							state = 0x01 | 0x02 | 0x04;
+						}
+						
+					}
+					else if (str.rfind("nameservers:",0)==0){
+						state = 0x01 | 0x02 | 0x08;
+					}
+					else if (str=="routes:"){
+						state =  0x01 | 0x02 | 0x10;
+					}
+					else if (str=="dhcp4:"){ // FIXME
+						net->DHCP = true;
+					}
+				}
+				break;
+			}
+			case 4:
+			{
+				if (state & 0x04){
+					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)/(\\d+)$"); // single IPv4 address ONLY
+					if (boost::regex_search(str,matches,re)){
+						net->address=matches[1];
+						net->netmask=prefix2netmask(matches[2]);
+						state = 0x01 | 0x02 | 0x04;
+					}
+				}
+				else if (state & 0x08){ // looking for nameserver addresses
+					boost::regex re("^addresses:\\s*\\[(.+)\\]$"); 
+					if (boost::regex_search(str,matches,re)){ // flow style
+						std::string ips = matches[1];
+						boost::regex ipre("\\d+\\.\\d+\\.\\d+\\.\\d+"); // note: no simple way to return multiple matches
+						boost::sregex_iterator it{ips.begin(), ips.end(), ipre }, itEnd;
+						std::for_each( it, itEnd, [net]( const boost::smatch& m ){
+							//std::cout << m[0] << std::endl;
+							net->nameservers.push_back(m[0]);
+						});
+					} // must be block style
+					else{
+						state = 0x01 | 0x02 | 0x08;
+					}
+				}
+				else if (state & 0x10){ // looking for the default route
+					boost::regex re("^-\\s+to:\\s*default$"); 
+					if (boost::regex_search(str,matches,re)){
+						state = 0x01 | 0x02 | 0x20; 
+					}
+				}
+				break;
+			}
+			case 5:
+			{
+				if (state & 0x08){ // looking for nameserver addresses, block style
+					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
+					if (boost::regex_search(str,matches,re)){
+						net->nameservers.push_back(matches[1]);
+						//cout << matches[1] << endl;
+						// no state change reqd
+					}
+				}
+				else if (state & 0x020){ // looking for the default route
+					boost::regex re("^via:\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
+					if (boost::regex_search(str,matches,re)){
+						net->gateway = matches[1];
+						//cout << net->gateway << endl;
+						// no state change reqd
+					}
+				}
+			}
+			
+			default:
+				break;
+		}
+		l=l+1;
+	}
+
+	for (l=0;l<nets.size();l++){
+		DBGMSG(debugStream,TRACE,"name " << nets.at(l)->name);
+		DBGMSG(debugStream,TRACE,"addr " << nets.at(l)->address);
+		DBGMSG(debugStream,TRACE,"mask " << nets.at(l)->netmask);
+		for (unsigned int n=0;n<nets.at(l)->nameservers.size();n++){
+			DBGMSG(debugStream,TRACE," ns  " << nets.at(l)->nameservers.at(n));
+		}
+		DBGMSG(debugStream,TRACE,"gw  " << nets.at(l)->gateway);
+	}
+	
+	// Now we have to identify the interfaces according to the device names set in the configuration file
+	for (l=0;l<nets.size();l++){
+		if (nets.at(l)->name  == LANIFname[0]){
+			idxLAN[0] = l;
+		}
+	}
+
+	// If we didn't find 'ethernets' then we have an ultrabasic netplan which means that DHCP is the default
+	if (nets.size() > 0){
+		if (idxLAN[0] >= 0) // found it, so use what was specified
+			addressAssignmentLAN[0]=nets.at(idxLAN[0])->DHCP?DHCP:Static;
+		else // otherwise,DHCP
+			addressAssignmentLAN[0]=DHCP;
+	}
+	else{ // no ethernets, all DHCP
+		addressAssignmentLAN[0]=DHCP;
+	}
+	
+	DBGMSG(debugStream,TRACE,"network protocol " << addressAssignmentLAN[0]);
+	
 }
 
-void LCDMonitor::networkConfigStaticIP4LAN0(){
-	networkConfigStaticIP4(idxLAN[0]);
+bool LCDMonitor::writeNetPlanConfig(int ifID){
+	std::string tmp;
+	std::string ipv4addr  = nets.at(ifID)->address;
+	std::string ipv4nm    = nets.at(ifID)->netmask;
+	std::string ipv4gw    = nets.at(ifID)->gateway;
+	std::string ipv4ns1   = nets.at(ifID)->nameservers.at(0); 
+	std::string ipv4ns2   = nets.at(ifID)->nameservers.at(1); 
+	
+	// Make temporary files and rename when done.
+	// Note that temporary files are made in the same directory
+	// as the target because rename() does not work across devices (partitions)
+	// network
+	
+	std::string ftmp = netCfg + ".tmp"; 
+	ofstream fout(ftmp.c_str());
+	if (!fout.good()){
+		log("Can't open " + ftmp);
+		return false;
+	}
+	
+	fout << "network:" << std::endl;
+  fout << "  ethernets:" << std::endl;
+  fout << "    eth0:" << std::endl;
+	fout << "      dhcp4: false" << std::endl;
+	fout << "      addresses:" << std::endl;
+	fout << "        - " << std::endl;//10.64.39.212/25
+//       routes: 
+//         - to: default
+//           via: 10.64.39.129
+//           #via: 192.168.199.1
+//       nameservers:
+//         addresses: [10.148.163.50,10.148.164.50]
+ //       search:
+ //         - nmi.measurement.gov.au
+  //version: 2
+
+	
+	return true;
 }
 
-void LCDMonitor::networkConfigDHCPLAN1(){
-	networkConfigDHCP(idxLAN[1]);
+void LCDMonitor::networkConfigDHCP0(){
+	networkConfigDHCP(0);
 }
 
-void LCDMonitor::networkConfigStaticIP4LAN1(){
-	networkConfigStaticIP4(idxLAN[1]);
+void LCDMonitor::networkConfigStaticIP40(){
+	networkConfigStaticIP4(0);
 }
 
 
@@ -1779,12 +1533,8 @@ void LCDMonitor::execMenu()
 {
 	bool showMenu=true;
 	std::stack<Menu *> menus;
-
-	#ifdef NETPLAN
-	readNetworkConfig_NetPlan(); // keep the  network configuration up to date
-	#else
-	readNetworkConfig_IfConfig(); 
-	#endif
+	
+	readNetPlanConfig();
 	
 	int currRow=0;
 	statusLEDsOff();
@@ -2082,11 +1832,7 @@ void LCDMonitor::init()
 
 	configure();
 	
-	#ifdef NETPLAN
-	readNetworkConfig_NetPlan();
-	#else
-	readNetworkConfig_IfConfig();
-	#endif
+	readNetPlanConfig();
 	
 	// This will be true for compact systems
 	NTPProtocolVersion=4;
@@ -2186,10 +1932,10 @@ void LCDMonitor::configure()
 	// set some sensible defaults
 	displayMode = GPS;
 
-	poweroffCommand="/sbin/poweroff";
-	rebootCommand="/sbin/shutdown -r now";
+	poweroffCommand="/usr/sbin/poweroff";
+	rebootCommand="/usr/sbin/shutdown -r now";
 	ntpRestartCommand="/usr/bin/systemctl restart chrony";
-	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
+	gpsRxRestartCommand="su - cvgps -c 'kickstart.py'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 
 	NTPuser="ntp-admin";
@@ -2207,7 +1953,7 @@ void LCDMonitor::configure()
 	NPrenderer = "NetworkManager";
 	NPversion = "2";
 	customNetCfg = false;
-	netCfg = " /etc/netplan/01-network-manager-all.yaml";
+	netCfg = "/etc/netplan/00-network.yaml";
 	
 #ifndef NETPLAN 
 	DNSconf="/etc/resolv.conf";
@@ -2526,29 +2272,15 @@ void LCDMonitor::makeMenu()
 			LAN0M = new Menu("LAN1 ...");
 			networkM->insertItem(LAN0M);
 	
-				cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCPLAN0);
+				cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCP0);
 				midDHCP0=LAN0M->insertItem("DHCP...",cb);
 				mi = LAN0M->itemAt(midDHCP0);
 				if (mi != NULL) mi->setChecked(addressAssignmentLAN[0]==DHCP);
 
-				cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4LAN0);
+				cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP40);
 				midStaticIP40=LAN0M->insertItem("Static IPv4...",cb);
 				mi = LAN0M->itemAt(midStaticIP40);
 				if (mi != NULL) mi->setChecked(addressAssignmentLAN[0]==Static);
-
-			if (!LANIFname[1].empty()){
-				LAN1M = new Menu("LAN2 ..,");
-				networkM->insertItem(LAN1M);
-					cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigDHCPLAN1);
-					midDHCP1=LAN1M->insertItem("DHCP...",cb);
-					mi = LAN1M->itemAt(midDHCP1);
-					if (mi != NULL) mi->setChecked(addressAssignmentLAN[1]==DHCP);
-
-					cb = new WidgetCallback<LCDMonitor>(this,&LCDMonitor::networkConfigStaticIP4LAN1);
-					midStaticIP41=LAN1M->insertItem("Static IPv4...",cb);
-					mi = LAN1M->itemAt(midStaticIP41);
-					if (mi != NULL) mi->setChecked(addressAssignmentLAN[1]==Static);
-			}
 				
 		lcdSetup = new Menu("LCD setup...");
 		setupM->insertItem(lcdSetup);

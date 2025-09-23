@@ -81,10 +81,12 @@ class LCDMonitor:public CFA635
 		void showAlarms();
 		void showSysInfo();
 		void showIP();
-		
+				
 		void networkConfigDHCP(int);
 		void networkConfigStaticIP4(int);
-	
+		void networkConfigDHCP0();
+		void networkConfigStaticIP40();
+		
 		void LCDConfig();
 		void LCDBacklightTimeout();
 		void setGPSDisplayMode();
@@ -153,16 +155,12 @@ class LCDMonitor:public CFA635
 		std::string quote(std::string);
 		
 		time_t lastLazyCheck;
-		
-		void readNetworkConfig_IfConfig();
-		void readIfConfig(std::string,int);
-		void readNetworkConfig_NetPlan();
+	
+		void networkConfigDHCP();
+		void networkConfigStaticIP4();
+		void readNetPlanConfig();
 		bool writeNetPlanConfig(int);
-		bool writeIfConfig(int);
-		void networkConfigDHCPLAN0();
-		void networkConfigStaticIP4LAN0();
-		void networkConfigDHCPLAN1();
-		void networkConfigStaticIP4LAN1();
+		
 		bool restartNetworking();
 	
 		void parseConfigEntry(std::string &,std::string &,char );
