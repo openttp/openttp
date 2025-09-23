@@ -62,7 +62,7 @@ import time
 
 import ottplib
 
-VERSION = '0.5.1'
+VERSION = '0.6.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -350,6 +350,15 @@ def SVIDtoGNSSParams(svid):
 
 # When decoding SBF blocks, we will use the same variable names as in the documentation
 
+def ParsePVTCartesian(d,dlen):
+	TOW,WNc,mode = struct.unpack_from('IHB',d)
+	if (mode & 0x0f) != 0: # PVT solution type in bits 0-3 
+		(rxClkBias,rxClkDrift,timeSys) = struct.unpack_from('dfB',d[52:-1])
+		Debug(f'{rxClkBias} {rxClkDrift} {timeSys}')
+		return timeSys,rxClkBias
+	else:
+		return (-1,-1)
+		
 #----------------------------------------------------------------------------
 # SatVisibility Block 4012
 # This is used for status reporting and broadcasting
@@ -512,7 +521,21 @@ def UpdateStatusFile(rxStatus):
 	fstat.write('QZSS = ' + qzss + '\n')
 	fstat.write('SBAS = ' + sbas + '\n')
 	fstat.write('status = {:04x}\n'.format(receiverStatus))
-
+	if timeSys == -1:
+		sys = '???'
+	elif timeSys == 0:
+		sys = 'GPS'
+	elif timeSys == 1:
+		sys = 'GAL'
+	elif timeSys == 3:
+		sys = 'GLO'
+	elif timeSys == 4:
+		sys = 'BDS'
+	elif timeSys == 5:
+		sys = 'QZS'
+	elif timeSys == 100:
+		sys = 'FUG'
+	fstat.write('tsys = {} {:d}\n'.format(sys,round(-rxClkBias*1.0E6)))	# negated because tsys = trx - rxClkBias 
 	fstat.close()
 
 # ---------------------------------------------------------------------------
@@ -693,6 +716,8 @@ receiverStatus = 0
 gotCN0 = 0
 nBadCRC = 0
 nBadLength = 0
+timeSys=-1
+rxClkBias=-1
 
 while (not killed):
 	
@@ -815,6 +840,9 @@ while (not killed):
 					SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
 					ottplib.RemoveProcessLock(lockFile) 
 					sys.exit(0)
+		elif ((pktID & 8191) == 4006): # PVTCartesian
+			Debug('pkt 4006 ' + str(pktLen))
+			timeSys,rxClkBias=ParsePVTCartesian(data,pktLen-8)
 		elif (broadcast and ((pktID & 8191) == 4012)):
 			Debug('pkt 4012 ' + str(pktLen))
 			ParseSatVisibility(data,pktLen-8)
