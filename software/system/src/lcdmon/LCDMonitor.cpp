@@ -76,7 +76,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "3.0.0"
+#define LCDMONITOR_VERSION "3.1.0"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -1071,7 +1071,7 @@ bool LCDMonitor::restartNetworking()
 	
 	clearDisplay();
 	updateLine(1,"Restarting ntpd");
-	runSystemCommand(ntpdRestartCommand,"Restarted OK","Restart failed !");
+	runSystemCommand(ntpRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
 
 	return ret;
@@ -1342,14 +1342,14 @@ void LCDMonitor::restartRx()
 		delete dlg;
 }
 
-void LCDMonitor::restartNtpd()
+void LCDMonitor::restartNTP()
 {
 	clearDisplay();
 	ConfirmationDialog *dlg = new ConfirmationDialog("Confirm NTP restart");
 	bool ret = execDialog(dlg);
 	if (ret){
 		clearDisplay();
-		runSystemCommand(ntpdRestartCommand,"ntpd restarted","ntpd restart failed");
+		runSystemCommand(ntpRestartCommand,"NTP restarted","NTP restart failed");
 	}
 	delete dlg;
 }
@@ -2188,7 +2188,7 @@ void LCDMonitor::configure()
 
 	poweroffCommand="/sbin/poweroff";
 	rebootCommand="/sbin/shutdown -r now";
-	ntpdRestartCommand="/bin/systemctl restart ntp";
+	ntpRestartCommand="/usr/bin/systemctl restart chrony";
 	gpsRxRestartCommand="su - cvgps -c 'kickstart.pl'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 
@@ -2253,12 +2253,21 @@ void LCDMonitor::configure()
 		log("NTP user not found in config file");
 
 	if (list_get_string_value(last,"General","ntp daemon",&stmp)){
-		if (NULL !=  strstr(stmp,"ntpd")){
+		if (NULL !=  strstr(stmp,"ntpd-nmi")){ // note! our custom version of ntpd
 			NTPDaemon = NTPD;
 		}
 		else if (NULL != strstr(stmp,"chronyd")){
 			NTPDaemon = CHRONYD;
 		}
+	}
+	
+	//  now we can construct the command to restart NTP daemon
+	ntpRestartCommand = "/usr/bin/systemctl restart ";
+	if (NTPDaemon == NTPD){
+		ntpRestartCommand += "ntpd";
+	}
+	else if (NTPDaemon == CHRONYD){
+		ntpRestartCommand += "chrony";
 	}
 	
 	if (list_get_string_value(last,"General","sysmonitor config",&stmp))
@@ -2338,11 +2347,8 @@ void LCDMonitor::configure()
 		poweroffCommand= stmp;
 	else
 		log("Poweroff command not found in config file");
-
-	if (list_get_string_value(last,"OS","ntpd restart command",&stmp))
-		ntpdRestartCommand= stmp;
-	else
-		log("ntpd restart command not found in config file");
+	
+	
 
 	// UI
 	if (list_get_int_value(last,"UI","show PRNs",&itmp))
@@ -2590,8 +2596,8 @@ void LCDMonitor::makeMenu()
 	Menu *restartM = new Menu("Restart...");
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartRx);
 	restartM->insertItem("Restart GPS",cb);
-	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartNtpd);
-	restartM->insertItem("Restart NTPD",cb);
+	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartNTP);
+	restartM->insertItem("Restart NTP",cb);
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::reboot);
 	restartM->insertItem("Reboot",cb);
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::poweroff);

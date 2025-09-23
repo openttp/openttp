@@ -94,7 +94,7 @@ class LCDMonitor:public CFA635
 		void setGLOBDDisplayMode();
 #endif	
 		void restartRx();
-		void restartNtpd();
+		void restartNTP();
 		void reboot();
 		void poweroff();
 		
@@ -169,7 +169,7 @@ class LCDMonitor:public CFA635
 
 		std::string poweroffCommand;
 		std::string rebootCommand;
-		std::string ntpdRestartCommand;
+		std::string ntpRestartCommand;
 		std::string gpsRxRestartCommand;
 		std::string gpsLoggerLockFile;
 
