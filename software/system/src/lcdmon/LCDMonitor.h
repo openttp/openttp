@@ -59,6 +59,8 @@ class NetworkInterface
 		std::string gateway;
 		
 		std::vector<std::string> nameservers;
+		
+		std::string search;
 };
 
 

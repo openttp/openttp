@@ -293,92 +293,20 @@ void LCDMonitor::networkConfigDHCP(int ifID)
 	bool ret = execDialog(dlg);
 	std::string lastError="No error";
 	
-	// A DHCP configuration is created from the existing configuration, removing any 
-	// static IP-related configuration
 	if (ret){
-		
-#ifdef NETPLAN
-	// DHCP will only be applied to the primary interface
-	// The NetPlan CLI provides editing of the file but doesn't seem to have all the necessary functionality,
-	// The poor documentation of this does not help.
-		//cfg.push_back("network:");
-		//cfg.push_back("  renderer: networkd");
-		//cfg.push_back("  ethernets:");
-		
+				
 		string ftmp("/tmp/tmp.netplan");
 		ofstream fout(ftmp.c_str());
 		fout << "network:" << endl;
 		fout << "  renderer: " << NPrenderer << endl;
 		fout << "  version: " <<  NPversion << endl;
-		fout << "  networks: " << endl;
-// 		for (unsigned int i=0;i<nets.size();i++){
-// 			fout << "    " << nets.at(i)->name << ":" << endl;
-// 			if (i==primaryIF){
-// 				fout << "      dhcp4: true" << endl;  
-// 			}
-// 			else{
-// 				if (nets.at(i)->DHCP){
-// 					
-// 				}
-// 				else{
-// 					fout << "      addresses: " << endl;
-// 					fout << "      nameservers: " << endl;
-// 					fout << "        addresses: " << endl;
-// 					for (unsigned int j=0;j<nets.at(i)->nameservers.size();j++){
-// 						fout << "        - " << nets.at(i)->nameservers.at(j) << endl;
-// 					}
-// 					fout << "      routes:" << endl;
-// 					fout << "        - to: default" << endl;
-// 					fout << "        - via: " << nets.at(i)->gateway << endl;
-// 				}
-// 			}
-// 		}
-// 		fout.close();
-		
-#else
-		string ftmp("/etc/sysconfig/network-scripts/tmp.ifcfg-eth0");
-		ofstream fout(ftmp.c_str());
-		
-		string tmp;
-		ifstream fin(netCfg.c_str());
-		if (!fin.good()){
-			lastError= netCfg + " not found";
-			goto DIE;
-		}
-		while (!fin.eof()){
-			getline(fin,tmp);
-			if (fin.eof())
-				break;
-			if (fin.fail()){
-				lastError="Bad ifcfg-eth0 ";
-				goto DIE;
-			}
-			if (string::npos != tmp.find("BOOTPROTO"))	 // preserve this in case of multiple ethernet interfaces
-				fout << "BOOTPROTO=" << quote("dhcp") << endl;
-			else if (string::npos != tmp.find("IPADDR") ||
-							 string::npos != tmp.find("PREFIX") ||
-							 string::npos != tmp.find("NETMASK")||
-							 string::npos != tmp.find("GATEWAY")||
-							 string::npos != tmp.find("DNS")    ||
-							 string::npos != tmp.find("DOMAIN")  ){
-				// skip
-			}
-			else
-				fout << tmp << endl;
-		}
-
-		fin.close();
+		fout << "  ethernets:" << std::endl;
+		fout << "    " << nets.at(ifID)->name << ":" << std::endl;
+		fout << "      dhcp4: true" << std::endl;
 
 		fout.close();
-		int retval;
-		if (0 != (retval =rename(ftmp.c_str(),netCfg.c_str()))){
-			DBGMSG(debugStream,TRACE, "rename of " << ftmp << " to " << netCfg<< " failed err = " << errno);
-			lastError = "Rename of tmp.ifcfg-eth0 failed";
-			goto DIE;
-		}
-#endif
+		
 		if (restartNetworking()){
-			
 			addressAssignmentLAN[ifID] = DHCP;
 		}
 	}
@@ -424,8 +352,9 @@ void LCDMonitor::networkConfigStaticIP4(int ifID)
 	
 	Wizard *dlg = new Wizard();
 
-// It is assumed that the first entry in the list is the required interface
-// 
+	// It is assumed that the first entry in the list is the required interface
+	
+	// Set defaults
 	std::string ipv4addr  = "192.168.1.129";
 	std::string ipv4nm    = "255.255.255.0";
 	std::string ipv4gw    = "192.168.1.1" ;
@@ -434,13 +363,13 @@ void LCDMonitor::networkConfigStaticIP4(int ifID)
 	
 	// FIXME just some debugging
 	for (unsigned int l=0;l<nets.size();l++){
-		cout << "NET " << l << std::endl;
-		cout << nets.at(l)->name << std::endl;
-		cout << "  " << nets.at(l)->address << "/" << nets.at(l)->netmask << std::endl;
+		DBGMSG(debugStream,TRACE,"NET " << l);
+		DBGMSG(debugStream,TRACE,nets.at(l)->name);
+		DBGMSG(debugStream,TRACE,nets.at(l)->address << "/" << nets.at(l)->netmask);
 		for (unsigned int n=0;n<nets.at(l)->nameservers.size();n++){
-			cout << "  " << nets.at(l)->nameservers.at(n) << std::endl;
+			DBGMSG(debugStream,TRACE,nets.at(l)->nameservers.at(n));
 		}
-		cout << nets.at(l)->gateway << std::endl;
+		DBGMSG(debugStream,TRACE,nets.at(l)->gateway);
 	}
 	
 	if (!nets.at(ifID)->DHCP){
@@ -448,7 +377,12 @@ void LCDMonitor::networkConfigStaticIP4(int ifID)
 		ipv4nm    = nets.at(ifID)->netmask;
 		ipv4gw    = nets.at(ifID)->gateway;
 		ipv4ns1   = nets.at(ifID)->nameservers.at(0);
-		ipv4ns2   = nets.at(ifID)->nameservers.at(1);
+		if (nets.at(ifID)->nameservers.size() == 2){
+			ipv4ns2   = nets.at(ifID)->nameservers.at(1);
+		}
+		else{
+			nets.at(ifID)->nameservers.push_back("0.0.0.0");
+		}
 	}
 	
 	Widget *w = dlg->addPage("IP address");
@@ -695,7 +629,7 @@ std::vector<std::string> cfg;
 			case 5:
 			{
 				if (state & 0x08){ // looking for nameserver addresses, block style
-					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY
+					boost::regex re("^-\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)$"); // single IPv4 address ONLY 
 					if (boost::regex_search(str,matches,re)){
 						net->nameservers.push_back(matches[1]);
 						//cout << matches[1] << endl;
@@ -752,11 +686,6 @@ std::vector<std::string> cfg;
 
 bool LCDMonitor::writeNetPlanConfig(int ifID){
 	std::string tmp;
-	std::string ipv4addr  = nets.at(ifID)->address;
-	std::string ipv4nm    = nets.at(ifID)->netmask;
-	std::string ipv4gw    = nets.at(ifID)->gateway;
-	std::string ipv4ns1   = nets.at(ifID)->nameservers.at(0); 
-	std::string ipv4ns2   = nets.at(ifID)->nameservers.at(1); 
 	
 	// Make temporary files and rename when done.
 	// Note that temporary files are made in the same directory
@@ -772,16 +701,20 @@ bool LCDMonitor::writeNetPlanConfig(int ifID){
 	
 	fout << "network:" << std::endl;
   fout << "  ethernets:" << std::endl;
-  fout << "    eth0:" << std::endl;
+  fout << "    " << nets.at(ifID)->name << ":" << std::endl;
 	fout << "      dhcp4: false" << std::endl;
 	fout << "      addresses:" << std::endl;
-	fout << "        - " << std::endl;//10.64.39.212/25
-//       routes: 
-//         - to: default
-//           via: 10.64.39.129
-//           #via: 192.168.199.1
-//       nameservers:
-//         addresses: [10.148.163.50,10.148.164.50]
+	fout << "        - " << nets.at(ifID)->address << "/" << netmask2prefix(nets.at(ifID)->netmask) << std::endl;
+  fout << "      routes:" << std::endl;
+	fout << "        - to: default" << std::endl;
+	fout << "          via:" << nets.at(ifID)->gateway << std::endl;     
+	fout << "      nameservers:" << std::endl; 
+	if (nets.at(ifID)->nameservers.at(1) == "0.0.0.0"){
+		fout << "        addresses: [" << nets.at(ifID)->nameservers.at(0) << "]" << std::endl;
+	}
+	else{
+		fout << "        addresses: [" << nets.at(ifID)->nameservers.at(0) << "," << nets.at(ifID)->nameservers.at(1) << "]" << std::endl;
+	}
  //       search:
  //         - nmi.measurement.gov.au
   //version: 2
@@ -2340,7 +2273,8 @@ void LCDMonitor::makeMenu()
 void LCDMonitor::getResponse()
 {
 	int timed_out =1;
-	for(int k=0;k<=100;k++){
+	int k;
+	for(k=0;k<=300;k++){ // FIXME
 		usleep(10000);
 		if(packetReceived()){
 
@@ -2349,8 +2283,9 @@ void LCDMonitor::getResponse()
 			break;
 		}
 	}
+	DBGMSG(debugStream,TRACE, k);
 	if(timed_out){
-		DBGMSG(debugStream,TRACE,"Timed out waiting for a response");
+		DBGMSG(debugStream,TRACE,"Timed out waiting for a response " );
 		log("I/O timeout");
 
 		Uninit_Serial();
