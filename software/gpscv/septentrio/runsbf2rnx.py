@@ -49,7 +49,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -143,7 +143,9 @@ configFile = args.config;
 if (not os.path.isfile(configFile)):
 	ErrorExit(configFile + ' not found')
 	
-logPath = os.path.join(home,'logs')
+logPath = os.path.join(home,'log')
+if (not os.path.isdir(logPath)):
+	logPath = os.path.join(home,'logs')
 if (not os.path.isdir(logPath)):
 	ErrorExit(logPath + "not found")
 
