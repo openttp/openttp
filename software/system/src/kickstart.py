@@ -87,7 +87,7 @@ configFile = os.path.join(root,'etc','kickstart.conf')
 
 logPath = os.path.join(root,'log') # New style first
 if not(os.path.isdir(logPath)):
-	logPath = logPath(os.path.join(root,'logs')) # DEPRECATED	
+	logPath = os.path.join(root,'logs') # DEPRECATED	
 logFile = os.path.join(logPath,'kickstart.log')
 
 checkPath = os.path.join(root,'var') # New style first
