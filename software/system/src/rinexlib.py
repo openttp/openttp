@@ -30,7 +30,7 @@ import time
 
 LIB_MAJOR_VERSION  = 0
 LIB_MINOR_VERSION  = 6
-LIB_PATCH_VERSION  = 4
+LIB_PATCH_VERSION  = 5
 
 compressionExtensions = ['.gz','.z']
 
@@ -335,7 +335,7 @@ def MJDtoRINEXObsName(mjd,template):
 	
 	# Next, try V3
 	# See the format spec!
-	m = re.match('(\w{9})_(\w)_YYYYDDD(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(rnx|RNX)',template)
+	m = re.match(r'(\w{9})_(\w)_YYYYDDD(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(rnx|RNX)',template)
 	if m:
 		fname='{}_{}_{:04d}{:03d}{}_{}_{}_{}.{}'.format(m.group(1),m.group(2),yyyy,doy,m.group(3),m.group(4),m.group(5),m.group(6),m.group(7))
 		return fname

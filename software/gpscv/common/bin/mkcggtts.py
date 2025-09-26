@@ -37,11 +37,12 @@ import time
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 22.04
 
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
@@ -102,7 +103,7 @@ def SetLeapSeconds(paramsFile,newLeapSecs):
 	fin  = open(paramsFile,'r')
 	fout = open(paramsFile + '.tmp','w')
 	for l in fin:
-		m = re.search('LEAP\s+SECOND',l)
+		m = re.search(r'LEAP\s+SECOND',l)
 		if (m):
 			fout.write(l)
 			fout.write(str(newLeapSecs)+'\n')

@@ -28,7 +28,7 @@ import sys
 
 LIB_MAJOR_VERSION  = 1
 LIB_MINOR_VERSION  = 0
-LIB_PATCH_VERSION  = 1
+LIB_PATCH_VERSION  = 2
 
 debug=False
 
@@ -170,12 +170,12 @@ class CGGTTS:
 			if not l:
 				_Warn('Bad format')
 				return ([],[],{})
-			if (re.search('STTIME TRKL ELV AZTH',l)):
-				if (re.search('MSIO',l)):
+			if (re.search(r'STTIME TRKL ELV AZTH',l)):
+				if (re.search(r'MSIO',l)):
 					hasMSIO=True
 					_Debug('MSIO present')
 				continue
-			match = re.match('\s+hhmmss',l)
+			match = re.match(r'\s+hhmmss',l)
 			if match:
 				break
 			
@@ -427,11 +427,11 @@ def ReadHeader(fname,intdelays=[]):
 	l = fin.readline().rstrip()
 	hdr += l
 	lineCount = lineCount +1
-	match = re.search('DATA FORMAT VERSION\s+=\s+(01|02|2E)',l)
+	match = re.search(r'DATA FORMAT VERSION\s+=\s+(01|02|2E)',l)
 	if (match):
 		header['version'] = match.group(1)
 	else:
-		if (re.search('RAW CLOCK RESULTS',l)):
+		if (re.search(r'RAW CLOCK RESULTS',l)):
 			header['version'] = 'RAW'
 		else:
 			_Warn('Invalid format in {} line {}'.format(fname,lineCount))
@@ -453,7 +453,7 @@ def ReadHeader(fname,intdelays=[]):
 		lineCount = lineCount +1
 		if (l.find('RCVR') >= 0):
 			header['rcvr'] = l
-			match = re.search('R2CGGTTS\s+v(\d+)\.(\d+)',l)
+			match = re.search(r'R2CGGTTS\s+v(\d+)\.(\d+)',l)
 			if (match):
 				majorVer=int(match.group(1))
 				minorVer=int(match.group(2))
@@ -490,7 +490,7 @@ def ReadHeader(fname,intdelays=[]):
 	l = fin.readline().rstrip()
 	hdr += l
 	lineCount = lineCount +1
-	match = re.match('X\s+=\s+(.+)\s+m',l)
+	match = re.match(r'X\s+=\s+(.+)\s+m',l)
 	if (match):
 		header['x'] = match.group(1)
 	else:
@@ -500,7 +500,7 @@ def ReadHeader(fname,intdelays=[]):
 	l = fin.readline().rstrip()
 	hdr += l
 	lineCount = lineCount +1
-	match = re.match('Y\s+=\s+(.+)\s+m',l)
+	match = re.match(r'Y\s+=\s+(.+)\s+m',l)
 	if (match):
 		header['y'] = match.group(1)
 	else:
@@ -510,7 +510,7 @@ def ReadHeader(fname,intdelays=[]):
 	l = fin.readline().rstrip()
 	hdr += l
 	lineCount = lineCount +1
-	match = re.match('Z\s+=\s+(.+)\s+m',l)
+	match = re.match(r'Z\s+=\s+(.+)\s+m',l)
 	if (match):
 		header['z'] = match.group(1)
 	else:
@@ -548,7 +548,7 @@ def ReadHeader(fname,intdelays=[]):
 	if (header['version'] == '01' ):
 		#l = fin.readline().rstrip()
 		#lineCount = lineCount +1
-		match = re.match('INT\s+DLY\s+=\s+(.+)\s+ns',l)
+		match = re.match(r'INT\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
 			header['int dly'] = match.group(1)
 		else:
@@ -558,7 +558,7 @@ def ReadHeader(fname,intdelays=[]):
 		l = fin.readline().rstrip()
 		hdr += l
 		lineCount = lineCount +1
-		match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
+		match = re.match(r'CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
 			header['cab dly'] = match.group(1)
 		else:
@@ -568,7 +568,7 @@ def ReadHeader(fname,intdelays=[]):
 		l = fin.readline().rstrip()
 		hdr += l
 		lineCount = lineCount +1
-		match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
+		match = re.match(r'REF\s+DLY\s+=\s+(.+)\s+ns',l)
 		if (match):
 			header['ref dly'] = match.group(1)
 		else:
@@ -582,7 +582,7 @@ def ReadHeader(fname,intdelays=[]):
 		#l = fin.readline().rstrip()
 		#lineCount = lineCount +1
 		
-		match = re.match('(TOT DLY|SYS DLY|INT DLY)',l)
+		match = re.match(r'(TOT DLY|SYS DLY|INT DLY)',l)
 		if (match.group(1) == 'TOT DLY'): # if TOT DLY is provided, then finito
 			(dlyname,dly) = l.split('=',1)
 			header['tot dly'] = dly.strip()
@@ -595,7 +595,7 @@ def ReadHeader(fname,intdelays=[]):
 			l = fin.readline().rstrip()
 			hdr += l
 			lineCount = lineCount +1
-			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
+			match = re.match(r'REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
 				header['ref dly'] = match.group(1)
 			else:
@@ -608,7 +608,7 @@ def ReadHeader(fname,intdelays=[]):
 				for i in range(0,len(intdelays)):
 					d = intdelays[i]
 					if d in l:
-						match = re.search('([+-]?\d+\.?\d?)\sns\s\(\s*' + d + '\s*\)',l)
+						match = re.search(r'([+-]?\d+\.?\d?)\sns\s\(\s*' + d + '\s*\)',l)
 						if match:
 							nfound += 1
 							if i == 0:
@@ -625,7 +625,7 @@ def ReadHeader(fname,intdelays=[]):
 			else:
 				(dlyname,dly) = l.split('=',1)
 				# extra spaces in constellation and code for r2cggtts
-				match = re.search('([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
+				match = re.search(r'([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\)(,\s*([+-]?\d+\.?\d?)\sns\s\(\w+\s(\w+)\s*\))?',dly)
 				if (match):
 					header['int dly'] = match.group(1)
 					header['int dly code'] = match.group(2) # non-standard but convenient
@@ -639,7 +639,7 @@ def ReadHeader(fname,intdelays=[]):
 			l = fin.readline().rstrip()
 			hdr += l
 			lineCount = lineCount +1
-			match = re.match('CAB\s+DLY\s+=\s+(.+)\s+ns',l)
+			match = re.match(r'CAB\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
 				header['cab dly'] = match.group(1)
 			else:
@@ -649,7 +649,7 @@ def ReadHeader(fname,intdelays=[]):
 			l = fin.readline().rstrip()
 			hdr += l
 			lineCount = lineCount +1
-			match = re.match('REF\s+DLY\s+=\s+(.+)\s+ns',l)
+			match = re.match(r'REF\s+DLY\s+=\s+(.+)\s+ns',l)
 			if (match):
 				header['ref dly'] = match.group(1)
 			else:
@@ -708,8 +708,8 @@ def MakeFileSequence(filename1,filename2):
 	isSeq=False
 	# First, test for 'plain' file names
 	# Debug('Sequence {} -> {}'.format(file1,file2))
-	match1 = re.match('^(\d+)$',file1root)
-	match2 = re.match('^(\d+)$',file2root)
+	match1 = re.match(r'^(\d+)$',file1root)
+	match2 = re.match(r'^(\d+)$',file2root)
 	if (match1 and match2):
 		if (file1ext != file2ext):
 			return(fileSeq,'The file extensions have to be the same for a sequence',True)
@@ -724,8 +724,8 @@ def MakeFileSequence(filename1,filename2):
 			start = tmp
 		#Debug('Numbered file sequence: {}->{}'.format(start,stop))
 	if (not isSeq): # try for BIPM style
-		match1 = re.match('^([G|R|E|C|J][S|M|Z][A-Za-z]{2}[0-9_]{2})(\d{2})\.(\d{3})$',file1)
-		match2 = re.match('^([G|R|E|C|J][S|M|Z][A-Za-z]{2}[0-9_]{2})(\d{2})\.(\d{3})$',file2)
+		match1 = re.match(r'^([G|R|E|C|J][S|M|Z][A-Za-z]{2}[0-9_]{2})(\d{2})\.(\d{3})$',file1)
+		match2 = re.match(r'^([G|R|E|C|J][S|M|Z][A-Za-z]{2}[0-9_]{2})(\d{2})\.(\d{3})$',file2)
 		if (match1 and match2):
 			stub1 = match1.group(1)
 			stub2 = match2.group(1)
