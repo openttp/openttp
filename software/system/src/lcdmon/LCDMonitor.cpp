@@ -1203,8 +1203,7 @@ void LCDMonitor::showStatus()
 				if (unexpectedEOF)
 					DBGMSG(debugStream,TRACE,"Unexpected EOF from checkGPS");
 
-				if (showPRNs && !unexpectedEOF)
-				{
+				if (showPRNs && !unexpectedEOF){
 					// split this over two lines
 					// Have 15 characters per line == 6 per line
 					std::vector<std::string> sprns;
@@ -1212,8 +1211,7 @@ void LCDMonitor::showStatus()
 					// Reduce the length of the array (if necessary) so that we retain only the GPS PRN numbers
 					sprns.resize(nsats);
 					std::vector<int> prns;
-					for (unsigned int i=0;i<sprns.size();i++)
-					{
+					for (unsigned int i=0;i<sprns.size();i++){
 						prns.push_back(atoi(sprns.at(i).c_str()));
 					}
 					sort(prns.begin(),prns.end());
@@ -1223,8 +1221,7 @@ void LCDMonitor::showStatus()
 					ostringstream ossbuf(sbuf);
 					ossbuf << "SV";
 
-					for (int s=0;s<nprns;s++)
-					{
+					for (int s=0;s<nprns;s++){
 						ossbuf.width(3);
 						ossbuf << prns[s];
 					}
@@ -1236,8 +1233,7 @@ void LCDMonitor::showStatus()
 					ossbuf.clear(); // clear any errors 
 					ossbuf.str("");
 					ossbuf << "  ";
-					for (int s=0;s<nprns;s++)
-					{
+					for (int s=0;s<nprns;s++){
 						ossbuf.width(3);
 						ossbuf << prns[s+6];
 					}
@@ -1898,8 +1894,8 @@ void LCDMonitor::configure()
 	sysInfoConf="/usr/local/etc/sysinfo.conf";
 	receiverName="nv08";
 	alarmPath="/home/cvgps/logs/alarms";
-	refStatusFile="/home/cvgps/logs/gpsdo.status";
-	rxStatusFile="/home/cvgps/logs/rx.status";
+	refStatusFile="/home/cvgps/var/gpsdo.status";
+	rxStatusFile="/home/cvgps/var/rx.status";
 #ifdef MULTIRX
 	GLONASSStatusFile="/home/cvgps/logs/rest.status";
 	BeidouStatusFile="/home/cvgps/logs/navspark.status";
@@ -2461,18 +2457,21 @@ bool LCDMonitor::checkRx(int *nsats,std::string &prns,bool *unexpectedEOF)
 				gotSats=true;
 				*nsats=ntmp;
 			}
+			break;
 		}
 		else if (string::npos != tmp.find("prns")){
 			parseConfigEntry(tmp,prns,'=');
 			//cout << "prns = " << prns << endl;
+			break;
 		}
-		else if (string::npos != tmp.find("GPS")){
+		else if (tmp.rfind("GPS", 0) == 0){ // need to be careful because GPS can appear in tsys
 			parseConfigEntry(tmp,prns,'=');
 			std::vector<std::string> tmp;
 			boost::split(tmp,prns,is_any_of(","));
 			*nsats = tmp.size();
 			gotSats = *nsats > 0;
-			DBGMSG(debugStream,TRACE,prns);
+			DBGMSG(debugStream,TRACE,prns << " " << *nsats);
+			break;
 		}
 	}
 	fin.close();
