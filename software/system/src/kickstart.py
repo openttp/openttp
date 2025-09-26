@@ -65,7 +65,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 AUTHORS = "Michael Wouters,Louis Marais"
 
 debug = False
@@ -82,13 +82,20 @@ def ShowVersion():
 
 home = os.environ['HOME'] 
 root = home 
+
 configFile = os.path.join(root,'etc','kickstart.conf')
-logPath = os.path.join(root,'logs')
+
+logPath = os.path.join(root,'log') # New style first
+if not(os.path.isdir(logPath)):
+	logPath = logPath(os.path.join(root,'logs')) # DEPRECATED	
 logFile = os.path.join(logPath,'kickstart.log')
-# This is for V1 of OTTP platform ...
-checkPath = os.path.join(root,'lockStatusCheck')
+
+checkPath = os.path.join(root,'var') # New style first
 if not(os.path.isdir(checkPath)):
-	checkPath = logPath
+	checkPath = os.path.join(root,'lockStatusCheck')# This is for V1 of OTTP platform ...
+if not(os.path.isdir(checkPath)):
+	checkPath = logPath # Finally, just use the log path
+	
 appName = os.path.basename(sys.argv[0])
 hostName = socket.gethostname()
 examples=''
