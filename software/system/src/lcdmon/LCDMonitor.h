@@ -57,7 +57,7 @@ class NetworkInterface
 		std::string address;
 		std::string netmask;
 		std::string gateway;
-		
+
 		std::vector<std::string> nameservers;
 		
 		std::string search;
@@ -110,7 +110,7 @@ class LCDMonitor:public CFA635
 		enum Reference {LCXO,ULN1100,Furuno};
 		enum NTPDaemon {NTPD,CHRONYD};
 		
-		void getNetworkInterfaces(std::string &, std::string &,std::string &);
+		void getNetworkInterfaces(std::string &, std::string &,std::string &,std::string &);
 		
 		static void signalHandler(int);
 		void startTimer(long secs=10);

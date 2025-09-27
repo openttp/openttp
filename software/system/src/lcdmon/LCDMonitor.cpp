@@ -43,6 +43,7 @@
 #include <sys/sysinfo.h>
 #include <utime.h>
 #include <ifaddrs.h>
+#include <netpacket/packet.h>
 #include <arpa/inet.h>
 
 #include <algorithm>
@@ -215,27 +216,47 @@ void LCDMonitor::showSysInfo()
 
 void LCDMonitor::showIP()
 {
-	std::string lan1ip, lan2ip,usbip;
-	getNetworkInterfaces(lan1ip, lan2ip,usbip);
+	std::string lan1ip, lan2ip,lan1mac,lan2mac;
+	getNetworkInterfaces(lan1ip,lan1mac,lan2ip,lan2mac);
 	clearDisplay();
 
 	MessageBox *mb = new MessageBox(" "," "," "," ");
 
-	if(lan1ip != "") mb->setLine(0,"LAN1: " + lan1ip);	
-
-	if(lan2ip != "") mb->setLine(1,"LAN2: " + lan2ip);
-
+	if(lan1ip != "") {
+		mb->setLine(0,"LAN1: " + lan1ip);
+		mb->setLine(1," " + lan1mac);
+	}
+	else{
+		mb->setLine(0,"LAN1: not set" );
+		if (lan1mac != ""){
+			mb->setLine(1," " + lan1mac);
+		}
+	}
+	
+	if (LANIFname[1] != ""){
+		if(lan2ip != "") {
+			mb->setLine(2,"LAN2: " + lan2ip);
+			mb->setLine(3," " + lan2mac);
+		}
+		else{
+			mb->setLine(2,"LAN2: not set" );
+			if (lan2mac != ""){
+				mb->setLine(3," " + lan2mac);
+			}
+		}
+	}
+	
 	execDialog(mb);
 	delete mb;
 }
 
 // This is needed because if we are using DHCP, we don't know what the assigned address is
-void LCDMonitor::getNetworkInterfaces(std::string &lan0ip, std::string &lan1ip,std::string &usbip)
+void LCDMonitor::getNetworkInterfaces(std::string &lan0ip, std::string &lan0mac,std::string &lan1ip,std::string &lan1mac)
 {
 	struct ifaddrs * ifAddrStruct=NULL;
 	struct ifaddrs * ifa=NULL;
 	void * tmpAddrPtr=NULL;
-	
+	char mac[32];
 	if (-1 == getifaddrs(&ifAddrStruct)){
 		log("Failed to query network interfaces"); 
 		return;
@@ -259,14 +280,42 @@ void LCDMonitor::getNetworkInterfaces(std::string &lan0ip, std::string &lan1ip,s
 			tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
 			char addressBuffer[INET_ADDRSTRLEN];
 			inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-			
+			DBGMSG(debugStream,TRACE,ifa->ifa_name);
 			if (LANIFname[0] == ifa->ifa_name){
+				DBGMSG(debugStream,TRACE,"found ipv4 " << ifa->ifa_name);
 				lan0ip = addressBuffer;
 			}
 			else if (LANIFname[1] == ifa->ifa_name){
+				DBGMSG(debugStream,TRACE,"found ipv4 " << ifa->ifa_name);
 				lan1ip= addressBuffer;
+				
 			}
 		}
+		
+		if (ifa->ifa_addr->sa_family == AF_PACKET) { // check for link layer	
+ 			DBGMSG(debugStream,TRACE,ifa->ifa_name);
+ 			if (LANIFname[0] == ifa->ifa_name){
+ 				DBGMSG(debugStream,TRACE,"found link layer " << ifa->ifa_name);
+ 				struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
+				lan0mac = "";
+ 				for (int i = 0; i < s->sll_halen; i++) {
+ 					sprintf(mac,"%02x%c", s->sll_addr[i], (i + 1 != s->sll_halen) ? ':' : ' '); 
+					lan0mac += mac;
+ 				}
+		
+ 				DBGMSG(debugStream,TRACE,lan0mac);
+ 			}
+ 			else if (LANIFname[1] == ifa->ifa_name){
+				DBGMSG(debugStream,TRACE,"found link layer " << ifa->ifa_name);
+ 				struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
+ 				for (int i = 0; i < s->sll_halen; i++) {
+ 					sprintf(mac,"%02x%c", s->sll_addr[i], (i + 1 != s->sll_halen) ? ':' : ' ');
+ 				}
+ 				lan1mac = mac;
+ 				DBGMSG(debugStream,TRACE,lan1mac);
+ 			}
+ 		}
+		
 	}
 	if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
 }
@@ -295,24 +344,14 @@ void LCDMonitor::networkConfigDHCP(int ifID)
 	
 	if (ret){
 				
-		string ftmp("/tmp/tmp.netplan");
-		ofstream fout(ftmp.c_str());
-		fout << "network:" << endl;
-		fout << "  renderer: " << NPrenderer << endl;
-		fout << "  version: " <<  NPversion << endl;
-		fout << "  ethernets:" << std::endl;
-		fout << "    " << nets.at(ifID)->name << ":" << std::endl;
-		fout << "      dhcp4: true" << std::endl;
-
-		fout.close();
-		
+		nets.at(ifID)->DHCP = true;
+		writeNetPlanConfig(ifID);
 		if (restartNetworking()){
 			addressAssignmentLAN[ifID] = DHCP;
 		}
 	}
 
 	{
-		
 	// Cleanup time
 	delete dlg;
 
@@ -509,12 +548,19 @@ std::vector<std::string> cfg;
 	unsigned int state=0x0;
 	NetworkInterface *net=NULL;
 	while (l<cfg.size()){
+		
 		std::string str = cfg.at(l);
-		boost::trim_right(str);
+		boost::trim(str);
 		if (str.empty()){ // skip empty lines
 			l++;
 			continue;
 		}
+		if (str.at(0)=='#'){ // skip comments
+			l++;
+			continue;
+		}
+		str = cfg.at(l);
+		boost::trim_right(str);
 		// determine the indent level
 		unsigned int c=0;
 		int cnt=0;
@@ -699,26 +745,46 @@ bool LCDMonitor::writeNetPlanConfig(int ifID){
 		return false;
 	}
 	
-	fout << "network:" << std::endl;
-  fout << "  ethernets:" << std::endl;
-  fout << "    " << nets.at(ifID)->name << ":" << std::endl;
-	fout << "      dhcp4: false" << std::endl;
-	fout << "      addresses:" << std::endl;
-	fout << "        - " << nets.at(ifID)->address << "/" << netmask2prefix(nets.at(ifID)->netmask) << std::endl;
-  fout << "      routes:" << std::endl;
-	fout << "        - to: default" << std::endl;
-	fout << "          via:" << nets.at(ifID)->gateway << std::endl;     
-	fout << "      nameservers:" << std::endl; 
-	if (nets.at(ifID)->nameservers.at(1) == "0.0.0.0"){
-		fout << "        addresses: [" << nets.at(ifID)->nameservers.at(0) << "]" << std::endl;
+	fout << "# Configuration created by lcdmonitor" << endl;
+	fout << "# Hand edits may be overwritten" << endl;
+	
+	if (nets.at(ifID)->DHCP){
+		fout << "network:" << endl;
+		fout << "  ethernets:" << std::endl;
+		fout << "    " << nets.at(ifID)->name << ":" << std::endl;
+		fout << "      dhcp4: true" << std::endl;
 	}
 	else{
-		fout << "        addresses: [" << nets.at(ifID)->nameservers.at(0) << "," << nets.at(ifID)->nameservers.at(1) << "]" << std::endl;
+		fout << "network:" << std::endl;
+		fout << "  ethernets:" << std::endl;
+		fout << "    " << nets.at(ifID)->name << ":" << std::endl;
+		fout << "      dhcp4: false" << std::endl;
+		fout << "      addresses:" << std::endl;
+		fout << "        - " << nets.at(ifID)->address << "/" << netmask2prefix(nets.at(ifID)->netmask) << std::endl;
+		fout << "      routes:" << std::endl;
+		fout << "        - to: default" << std::endl;
+		fout << "          via: " << nets.at(ifID)->gateway << std::endl;     
+		fout << "      nameservers:" << std::endl; 
+		if (nets.at(ifID)->nameservers.at(1) == "0.0.0.0"){
+			fout << "        addresses: [" << nets.at(ifID)->nameservers.at(0) << "]" << std::endl;
+		}
+		else{
+			fout << "        addresses: [" << nets.at(ifID)->nameservers.at(0) << "," << nets.at(ifID)->nameservers.at(1) << "]" << std::endl;
+		}
+	//       search:
+	//         - nmi.measurement.gov.au
+		//version: 2
 	}
- //       search:
- //         - nmi.measurement.gov.au
-  //version: 2
-
+	fout.close();
+	
+	int retval;
+	if (0 != (retval =rename(ftmp.c_str(),netCfg.c_str()))){
+		DBGMSG(debugStream,TRACE,"Rename of " << ftmp << " to " << netCfg << " failed err = " << errno);
+		return false;
+	}
+	
+	// netplan is fussy about permissions
+	chmod(netCfg.c_str(),S_IRUSR | S_IWUSR);
 	
 	return true;
 }
@@ -730,7 +796,6 @@ void LCDMonitor::networkConfigDHCP0(){
 void LCDMonitor::networkConfigStaticIP40(){
 	networkConfigStaticIP4(0);
 }
-
 
 
 // Disabled for OpenTTP
@@ -748,16 +813,17 @@ bool LCDMonitor::restartNetworking()
 	runSystemCommand("/bin/nmcli connection reload  && /bin/nmcli networking off && /bin/nmcli networking on","Restarted OK","Restart failed !");
 	sleep(1);
 #else
-	runSystemCommand("/bin/systemctl restart network","Restarted OK","Restart failed !");
+// runSystemCommand("/bin/systemctl restart systemd-networkd","Restarted OK","Restart failed !");
+	runSystemCommand("/usr/sbin/netplan apply","Restarted OK","Restart failed !"); // Ubuntu only
 	sleep(1);
 #endif
 	clearDisplay();
 	updateLine(1,"Trying ssh restart");
-	runSystemCommand("/bin/systemctl try-restart sshd","Restarted OK","Restart failed !");
+	runSystemCommand("/bin/systemctl try-restart ssh","Restarted OK","Restart failed !");
 	sleep(1);
 	
 	clearDisplay();
-	updateLine(1,"Restarting ntpd");
+	updateLine(1,"Restarting NTP");
 	runSystemCommand(ntpRestartCommand,"Restarted OK","Restart failed !");
 	sleep(1);
 
