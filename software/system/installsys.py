@@ -4,7 +4,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2020 Michael J. Wouters
+# Copyright (c) 2020-2025 Michael J. Wouters
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the 'Software'), to deal
@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.3.0'
+VERSION = '1.4.0'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -157,7 +157,9 @@ def DetectOS():
 	# breaks compatibility with Raspberry Pi OS. It works for Ubuntu though.
 	# TODO: Fix this properly. It will likely stop working in future versions
 	# of Python 3.
-	(dist, distrover,_) = (distro.linux_distribution())
+	# 2025-09-30 ELM  I think it is time to break compatibility...
+	#(dist, distrover,_) = (distro.linux_distribution())
+	(dist, distrover) = (distro.id(),distro.version())
 	Debug('Detected ' + dist + ' ' + distrover)
 	dist=dist.lower()
 	ver=distrover.split('.')
