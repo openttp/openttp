@@ -93,7 +93,7 @@ osinfo = [
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
 	'sysmonitor','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib',
-	'okcounterd','okbitloader','udevrules','gpscvperllibs','rpi5']
+	'okcounterd','okbitloader','udevrules','gpscvperllibs','rpi5','rpi5gpio']
 
 # Targets for a minimal installation
 mintargets = ['libconfigurator','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib']
@@ -535,19 +535,29 @@ if ('sysmonitor' in targets):
 		hints += 'To start sysmonitor, run: start sysmonitor\n'
 
 if (rpi5 and ('rpi5' in targets)):
-	# Install new config.sys
+	# Install new config.txt
 	CreateBackup('/boot/firmware/config.txt')
 	InstallScript('src/rpi5/config.txt','/boot/firmware')
-	hints += ("The Raspberry Pi must be rebooted for the new "+
-						"/boot/firmware/ configuration to become active.\n")
 	# Install new EEPROM configuration
 	InstallEEPROMconfig('src/rpi5/eeprom.conf')
-	hints += ("The Raspberry Pi must be rebooted for the new EEPROM "+
-						"configuration to become active.\n")
+	hints += ("The Raspberry Pi must be rebooted for the new firmware and "+
+						"EEPROM configurations to become active.\n")
 	# Install specific udev rule files for Pi5 based TTS
 	InstallScript('src/rpi5/50-serial.rules','/etc/udev/rules.d')
 	#FIXME trigger? Note: A reboot will do this, and may be necessary because
 	#                     overlays must be loaded for some of the rules.
+
+if (rpi5 and ('rpi5gpio' in targets)):
+	MakeDirectory('/home/cvgps/gpios')
+	InstallScript('src/gpio/pi5ttsgpio.py','/usr/local/sbin')
+	InstallScript('src/gpio/pi5ttsgpio.conf','/usr/local/etc/')
+	if (initSys == SYSTEMD): # It should be, this is a Pi 5
+		InstallScript('src/gpio/pi5ttsgpio.service','/lib/systemd/system')
+		EnableService('pi5ttsgpio.service')
+		hints += 'To start pi5ttsgpio, run: systemctl start pi5ttsgpio.service\n'
+	elif (initSys == UPSTART):
+		InstallScript('src/gpio/pi5ttsgpio.service','/etc/init/sysmonitor.conf')
+		hints += 'To start pi5ttsgpio, run: start pi5ttsgpio\n'
 
 # Print any post-installation hints
 if (not hints == ''):
