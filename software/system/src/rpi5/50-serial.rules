@@ -1,0 +1,8 @@
+# Adding a rule for /dev/mostcom1
+KERNEL=="ttyAMA0", SYMLINK+="mostcom1"
+# Adding a rule for /dev/furuno
+KERNEL=="ttyAMA1", SYMLINK+="furuno"
+# Adding a rule for /dev/mostcom2
+KERNEL=="ttyAMA2", SYMLINK+="mostcom2"
+# Adding a rule for /dev/lcd
+KERNEL=="ttyAMA4", SYMLINK+="lcd"

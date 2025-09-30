@@ -1,0 +1,99 @@
+[all]
+arm_64bit=1
+kernel=vmlinuz
+cmdline=cmdline.txt
+initramfs initrd.img followkernel
+
+# Enable the audio output, I2C and SPI interfaces on the GPIO header. As these
+# parameters related to the base device-tree they must appear *before* any
+# other dtoverlay= specification
+#dtparam=audio=on
+#dtparam=i2c_arm=on
+#dtparam=spi=on
+
+# Comment out the following line if the edges of the desktop appear outside
+# the edges of your display
+disable_overscan=1
+
+# If you have issues with audio, you may try uncommenting the following line
+# which forces the HDMI output into HDMI mode instead of DVI (which doesn't
+# support audio output)
+#hdmi_drive=2
+
+# Enable the KMS ("full" KMS) graphics overlay, leaving GPU memory as the
+# default (the kernel is in control of graphics memory with full KMS)
+dtoverlay=vc4-kms-v3d
+disable_fw_kms_setup=1
+
+# Enable the serial pins
+enable_uart=1
+
+# Autoload overlays for any recognized cameras or displays that are attached
+# to the CSI/DSI ports. Please note this is for libcamera support, *not* for
+# the legacy camera stack
+camera_auto_detect=0
+display_auto_detect=0
+
+# Config settings specific to arm64
+dtoverlay=dwc2
+
+[pi4]
+max_framebuffers=2
+arm_boost=1
+
+[pi3+]
+# Use a smaller contiguous memory area, specifically on the 3A+ to avoid an
+# OOM oops on boot. The 3B+ is also affected by this section, but it shouldn't
+# cause any issues on that board
+dtoverlay=vc4-kms-v3d,cma-128
+
+[pi02]
+# The Zero 2W is another 512MB board which is occasionally affected by the same
+# OOM oops on boot.
+dtoverlay=vc4-kms-v3d,cma-128
+
+[cm4]
+# Enable the USB2 outputs on the IO board (assuming your CM4 is plugged into
+# such a board)
+dtoverlay=dwc2,dr_mode=host
+
+[all]
+
+# Disable wireless communucations
+
+dtoverlay=disable-wifi-pi5
+dtoverlay=disable-bt-pi5
+
+# Add required serial ports
+
+dtoverlay=uart0-pi5
+dtoverlay=uart1-pi5
+dtoverlay=uart2-pi5
+dtoverlay=uart4-pi5
+
+# SPI0 with 2 chip selects for expansion
+
+dtoverlay=spi0-2cs
+
+# I2C interface for expansion
+
+dtoverlay=i2c1-pi5
+
+# GPIO 19 is GPSDO PPS (Ref), GPIO 26 is EVENT_A PPS (GPS Receiver)
+# Note that the order is important. This way (hopefully!) GPIO 26 registers as pps1, 
+# and GPIO 19 registers as pps0.
+
+dtoverlay=pps-gpio,gpiopin=26
+dtoverlay=pps-gpio,gpiopin=19
+
+# Allow USB ports to receive maximum power
+
+usb_max_current_enable=1
+
+# Send power off signal to be used for removing power from the system
+
+dtoverlay=gpio-poweroff,gpiopin=20,input,active_delay_ms=0,inactive_delay_ms=0
+
+# RTC battery charging voltage
+
+dtparam=rtc_bbat_vchg=3000000

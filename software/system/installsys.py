@@ -4,7 +4,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2020 Michael J. Wouters
+# Copyright (c) 2020-2025 Michael J. Wouters
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the 'Software'), to deal
@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.3.0'
+VERSION = '1.4.0'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -93,7 +93,7 @@ osinfo = [
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
 	'sysmonitor','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib',
-	'okcounterd','okbitloader','udevrules','gpscvperllibs']
+	'okcounterd','okbitloader','udevrules','gpscvperllibs','rpi5']
 
 # Targets for a minimal installation
 mintargets = ['libconfigurator','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib']
@@ -157,7 +157,9 @@ def DetectOS():
 	# breaks compatibility with Raspberry Pi OS. It works for Ubuntu though.
 	# TODO: Fix this properly. It will likely stop working in future versions
 	# of Python 3.
-	(dist, distrover,_) = (distro.linux_distribution())
+	# 2025-09-30 ELM  I think it is time to break compatibility...
+	#(dist, distrover,_) = (distro.linux_distribution())
+	(dist, distrover) = (distro.id(),distro.version())
 	Debug('Detected ' + dist + ' ' + distrover)
 	dist=dist.lower()
 	ver=distrover.split('.')
@@ -290,6 +292,29 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 	return
 
 #--------------------------------------------
+def CreateBackup(flnm):
+	if not os.path.isfile(flnm):
+		return
+	success = False
+	n = 0
+	bkup = ""
+	while not success:
+		bkup = f"{flnm}.{n:03d}"
+		if not os.path.isfile(bkup):
+			cmd = ['cp','-p',flnm,bkup]
+			retval = subprocess.run(cmd,capture_output=True)
+			if retval.returncode == 0:
+				success = True
+			else:
+				ErrorExit(f"Could not create backup of {flnm}")
+		n += 1
+		if n > 999:
+			ErrorExit(f"Could not create backup of {flnm}. Clean out old backups.")
+	Log(f"Made backup of {flnm}")
+	Debug(f"Made a backup of {flnm}: {bkup}")
+	return
+
+#--------------------------------------------
 def InstallScript(src,dst):
 	shutil.copy(src,dst)
 	Log('Installed ' +src + ' to ' + dst)
@@ -302,6 +327,18 @@ def EnableService(service):
 		Log('Enabled the service ' + service)
 	except:
 		Log('Failed to enable the service ' + service)
+	return
+
+# ------------------------------------------
+def InstallEEPROMconfig(flnm):
+	cmd = ['rpi-eeprom-config','-a',flnm]
+	retval = subprocess.run(cmd,capture_output=True)
+	if retval.returncode == 0:
+		Log(f"Installed EEPROM configuration: {flnm}")
+		Debug(f"Installed EEPROM configuratin: {flnm}")
+	else:
+		print(retval.stderr.decode('ascii'))
+		ErrorExit("Was not successful in installing EEPROM configuration.")	
 	return
 
 # ------------------------------------------
@@ -369,10 +406,15 @@ if not thisos:
 		# FIXME better defaults
 		thisos = ['Unsupported','?','unsupported','/usr/local/lib/site_perl']
 
+
+rpi5 = False
 (_,_,_,_,architecture,processor)=platform.uname()
 #                                    Ubuntu arm reports aarch64
 if architecture.find('arm') == 0 or architecture.find('aarch64') == 0: 
 	processor = 'arm'
+	ret = GetYesNo('Is the computer in this system a Raspberry Pi 5')
+	if ret:
+		rpi5 = True
 
 initSys = thisos[INITSYS]
 
@@ -491,7 +533,22 @@ if ('sysmonitor' in targets):
 	elif (initSys == UPSTART):
 		InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf')
 		hints += 'To start sysmonitor, run: start sysmonitor\n'
-		
+
+if (rpi5 and ('rpi5' in targets)):
+	# Install new config.sys
+	CreateBackup('/boot/firmware/config.txt')
+	InstallScript('src/rpi5/config.txt','/boot/firmware')
+	hints += ("The Raspberry Pi must be rebooted for the new "+
+						"/boot/firmware/ configuration to become active.\n")
+	# Install new EEPROM configuration
+	InstallEEPROMconfig('src/rpi5/eeprom.conf')
+	hints += ("The Raspberry Pi must be rebooted for the new EEPROM "+
+						"configuration to become active.\n")
+	# Install specific udev rule files for Pi5 based TTS
+	InstallScript('src/rpi5/50-serial.rules','/etc/udev/rules.d')
+	#FIXME trigger? Note: A reboot will do this, and may be necessary because
+	#                     overlays must be loaded for some of the rules.
+
 # Print any post-installation hints
 if (not hints == ''):
 	print()
