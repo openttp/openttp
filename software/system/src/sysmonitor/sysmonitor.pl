@@ -78,7 +78,7 @@ sub new
 package main;
 
 $AUTHORS="Michael Wouters";
-$VERSION="1.0.2";
+$VERSION="1.1.0";
 
 #$MAX_FILE_AGE=60; # file can be up to this old before an alarm is raised
 $MAX_FILE_AGE=180; # Increased it to 180 seconds, because GPSDO data is  
@@ -157,6 +157,11 @@ if (defined $Init{'ntp account'}){
 	$ntpHome = '/home/'.$Init{'ntp account'};
 }
 
+$NTPdaemon ='chronyd';
+if (defined $Init{'ntp daemon'}){
+	$NTPdaemon = lc $Init{'ntp daemon'};
+}
+
 $alerterQueue = '/usr/local/log/alert.log';
 if (defined $Init{'alerter queue'}){
 	$alerterQueue = $Init{'alerter queue'};
@@ -177,21 +182,38 @@ if (!(-e $gpscvConfigFile)){
 
 %GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
 
-$gpscvLogPath=$gpscvHome.'/logs/';
+$gpscvLogPath=$gpscvHome.'/log/';
+if (!(-d $gpscvLogPath)){
+	$gpscvLogPath=$gpscvHome.'/logs/'; # legacy
+}
+
+$gpscvVarPath=$gpscvHome.'/var/';
+if (!(-d $gpscvLogPath)){
+	$gpscvVarPath=$gpscvHome.'/logs/'; # legacy
+}
+
+# If there is no counter defined in gpscv.conf then we had better ignore it
+$checkCounter = 1;
+if (defined $GPSCVInit{'counter:status file'}){
+	@check=('reference:oscillator','reference:status file',
+	'receiver:manufacturer','receiver:status file',
+	'counter:status file');
+}
+else{
+	@check=('reference:oscillator','reference:status file',
+	'receiver:manufacturer','receiver:status file');
+	$checkCounter = 0;
+}
 
 # Check we got the info we need from the config file
- @check=('reference:oscillator','reference:status file',
- 'receiver:manufacturer','receiver:status file',
- 'counter:status file');
- 
 foreach (@check) {
   $tag=$_;
   $tag=~tr/A-Z/a-z/;	
-  unless (defined $GPSCVInit{$tag}) {AlarmExit("No entry for $_ found in $configFile")}
+  unless (defined $GPSCVInit{$tag}) {AlarmExit("No entry for $_ found in $gpscvConfigFile")}
 }
 
 $refOscillator = lc $GPSCVInit{'reference:oscillator'};
-$refStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'reference:status file'},$gpscvHome,$gpscvLogPath);
+$refStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'reference:status file'},$gpscvHome,$gpscvVarPath);
 $checkRefPower=0;
 if (defined $GPSCVInit{'reference:power flag'}){
 	$refPowerFlag = $GPSCVInit{'reference:power flag'};
@@ -199,9 +221,11 @@ if (defined $GPSCVInit{'reference:power flag'}){
 }
 
 $receiver = $GPSCVInit{'receiver:manufacturer'};
-$rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$gpscvHome,$gpscvLogPath);
+$rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$gpscvHome,$gpscvVarPath);
 
-$counterStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'counter:status file'},$gpscvHome,$gpscvLogPath);
+if ($checkCounter){
+	$counterStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'counter:status file'},$gpscvHome,$gpscvVarPath);
+}
 
 # Create all the monitors
 @monitors = ();
@@ -233,12 +257,14 @@ if (defined $Init{'ntpd refclocks'}){
 
 # Reference monitors
 
-$mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
-$mon->{statusFile}=$counterStatusFile;
-$mon->{methods} = $DEFAULT_ALARMS;
-$mon->{threshold}=$alarmThreshold;
-CheckForOldAlarm($mon);
-push @monitors,$mon;
+if ($checkCounter){
+	$mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
+	$mon->{statusFile}=$counterStatusFile;
+	$mon->{methods} = $DEFAULT_ALARMS;
+	$mon->{threshold}=$alarmThreshold;
+	CheckForOldAlarm($mon);
+	push @monitors,$mon;
+}
 
 $mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
 $mon->{statusFile}=$refStatusFile;
@@ -266,14 +292,14 @@ if ($checkRefPower){
 	push @monitors,$mon;
 }
 
-$mon = new Monitored("GPS", "GPS logging not running", "GPS not logging",99,\&CheckGPSLogging);
+$mon = new Monitored("GPS", "GNSS Rx logging not running", "GNSS Rx not logging",99,\&CheckGNSSRxLogging);
 $mon->{statusFile}=$rxStatusFile;
 $mon->{methods} = $DEFAULT_ALARMS;
 $mon->{threshold}=$alarmThreshold;
 CheckForOldAlarm($mon);
 push @monitors,$mon;
 
-$mon = new Monitored("GPS", "GPS insufficient satellites", "GPS low sats",99,\&CheckGPSSignal);
+$mon = new Monitored("GPS", "GNSS Rx insufficient satellites", "GNSS Rx low sats",99,\&CheckGPSSignal);
 $mon->{statusFile}=$rxStatusFile;
 $mon->{receiver}=$receiver;
 $mon->{methods} = $DEFAULT_ALARMS;;
@@ -307,26 +333,42 @@ $SIG{TERM} = sub { SysmonitorLog("Received SIGTERM - exiting."); $killed = 1; };
 SysmonitorLog("Started");
 
 $ntpqClks={}; # NB global
-$lastNtpq = 0; 
+$lastNTPRefClkCheck= 0; 
 
 while ($killed == 0){
 	
 	my $now =time;
 	
-	if ($now - $lastNtpq > 128){ # clocks are polled at 16 s typically and it takes 8 polls for reachability to hit zero
-		Debug("Running ntpq");
-		@ntpqOut= split /\n/,`ntpq -pn 2>/dev/null`; # if ntpd is not running get 'Connection refused'
-		if ($#ntpqOut >= 1){
-			shift @ntpqOut; shift @ntpqOut; # first two lines are uninteresting
-			foreach (@ntpqOut){
-				my @fields = split /\s+/,$_;
-				if ($#fields == 9){
-					$fields[0]=~/(\d+\.\d+\.\d+\.\d+)/;
-					$ntpqClks{$1}=$fields[6]; # hash for easy lookup
+	if ($now - $lastNTPRefClkCheck> 128){ # clocks are polled at 16 s typically and it takes 8 polls for reachability to hit zero
+		if ($NTPdaemon eq 'ntpd'){
+			Debug("Running ntpq");
+			@ntpqOut= split /\n/,`ntpq -pn 2>/dev/null`; # if ntpd is not running get 'Connection refused'
+			if ($#ntpqOut >= 1){
+				shift @ntpqOut; shift @ntpqOut; # first two lines are uninteresting
+				foreach (@ntpqOut){
+					my @fields = split /\s+/,$_;
+					if ($#fields == 9){
+						$fields[0]=~/(\d+\.\d+\.\d+\.\d+)/;
+						$ntpqClks{$1}=$fields[6]; # hash for easy lookup
+					}
+				}
+				$lastNTPRefClkCheck=$now;
+			}
+		}
+		elsif ($NTPdaemon eq 'chronyd' ){
+			Debug("Running chronyc");
+			@srcsOut= split /\n/,`chronyc -n sources 2>/dev/null`;
+			if ($#srcsOut >= 1){
+				shift @srcsOut; shift @srcsOut; # first two lines are uninteresting
+				foreach (@srcsOut){
+					my @fields = split /\s+/,$_;
+					if ($#fields >= 5){
+						$ntpqClks{$fields[1]}=$fields[4]; # hash for easy lookup
+					}
 				}
 			}
-			$lastNtpq=$now;
 		}
+		
 	}
 	
 	for ($i=0;$i<=$#monitors;$i++){
@@ -506,16 +548,16 @@ sub CheckRefLocked
 }
 
 # -------------------------------------------------------------------------
-sub CheckGPSLogging
+sub CheckGNSSRxLogging
 {
-	Debug("\n-->CheckGPSLogging");
+	Debug("\n-->CheckGNSSRxLogging");
 	return CheckFile($_[0]->{statusFile});
 }
 
 # -------------------------------------------------------------------------
-sub CheckNTPD
+sub CheckNTP
 {
-	Debug("\n-->CheckNTPD UNIMPLEMENTED");
+	Debug("\n-->CheckNTP UNIMPLEMENTED");
 }
 
 # -------------------------------------------------------------------------
@@ -576,6 +618,27 @@ sub CheckGPSSignal
 		return 1;
 	}
 	elsif ($mon->{receiver} eq "ublox"){
+		if (-e $statusFile){
+			open (IN,"<$statusFile");
+			while ($line=<IN>){
+				chomp $line;
+				Debug("$mon->{receiver} $line");
+				if ($line =~ /GPS/){
+					@gps = split('=',$line);
+					if ($#gps == 1){
+						@prns = split ',',$gps[1];
+						$ngps = $#prns+1;
+						Debug("$mon->{receiver} $ngps GPS visible");
+						return $ngps >= 4;
+					}
+				}
+			}
+			close IN;
+			return 0;
+		}
+		return 1;
+	}
+	elsif ($mon->{receiver} eq "Septentrio"){
 		if (-e $statusFile){
 			open (IN,"<$statusFile");
 			while ($line=<IN>){
