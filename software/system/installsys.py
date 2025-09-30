@@ -555,7 +555,7 @@ if (rpi5 and ('rpi5gpio' in targets)):
 		InstallScript('src/gpio/pi5ttsgpio.service','/lib/systemd/system')
 		EnableService('pi5ttsgpio.service')
 		hints += 'To start pi5ttsgpio, run: systemctl start pi5ttsgpio.service\n'
-	elif (initSys == UPSTART):
+	elif (initSys == UPSTART): # Unlikley to EVER be used.
 		InstallScript('src/gpio/pi5ttsgpio.service','/etc/init/sysmonitor.conf')
 		hints += 'To start pi5ttsgpio, run: start pi5ttsgpio\n'
 	hints += 'The pi5ttsgpio service MUST be running for the TTS hardware to function.\n'
