@@ -548,6 +548,9 @@ if (rpi5 and ('rpi5' in targets)):
 	#                     overlays must be loaded for some of the rules.
 
 if (rpi5 and ('rpi5gpio' in targets)):
+	if not os.path.isdir('/home/cvgps'):
+		ErrorExit("It looks like the 'cvgps' user does not exist yet. Create the "+
+						"user then try again.")
 	MakeDirectory('/home/cvgps/gpios')
 	InstallScript('src/gpio/pi5ttsgpio.py','/usr/local/sbin')
 	InstallScript('src/gpio/pi5ttsgpio.conf','/usr/local/etc/')
