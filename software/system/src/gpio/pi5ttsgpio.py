@@ -312,7 +312,7 @@ def gethome(u):
 	try:
 		hm = pwd.getpwnam(u).pw_dir
 	except:
-		ErrorExit(f"User {u} does not exist.")
+		errorExit(f"User {u} does not exist.")
 	if not hm.endswith('/'):
 		hm += '/'
 	if os.path.isdir(hm):
