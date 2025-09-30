@@ -93,7 +93,7 @@ osinfo = [
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
 	'sysmonitor','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib',
-	'okcounterd','okbitloader','udevrules','gpscvperllibs']
+	'okcounterd','okbitloader','udevrules','gpscvperllibs','rpi5']
 
 # Targets for a minimal installation
 mintargets = ['libconfigurator','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib']
@@ -371,10 +371,15 @@ if not thisos:
 		# FIXME better defaults
 		thisos = ['Unsupported','?','unsupported','/usr/local/lib/site_perl']
 
+
+rpi5 = False
 (_,_,_,_,architecture,processor)=platform.uname()
 #                                    Ubuntu arm reports aarch64
 if architecture.find('arm') == 0 or architecture.find('aarch64') == 0: 
 	processor = 'arm'
+	ret = GetYesNo('Is the computer in this system a Raspberry Pi 5')
+	if ret:
+		rpi5 = True
 
 initSys = thisos[INITSYS]
 
@@ -493,7 +498,17 @@ if ('sysmonitor' in targets):
 	elif (initSys == UPSTART):
 		InstallScript('src/sysmonitor/sysmonitor.upstart.conf','/etc/init/sysmonitor.conf')
 		hints += 'To start sysmonitor, run: start sysmonitor\n'
-		
+
+if (rpi5 and ('rpi5' in targets)):
+	# Install new config.sys
+	#CreateBackup('/boot/firmware/config.txt')
+	InstallScript('src/rpi5/config.txt','/boot/firmware')
+	# Install new EEPROM configuration
+	
+	# Install specific udev rule files for Pi5 based TTS
+	
+
+
 # Print any post-installation hints
 if (not hints == ''):
 	print()
