@@ -292,6 +292,29 @@ def InstallPyModule(modname,srcdir,py2libdir,py3libdir):
 	return
 
 #--------------------------------------------
+def CreateBackup(flnm):
+	if not os.path.isfile(flnm):
+		return
+	success = False
+	n = 0
+	bkup = ""
+	while not success:
+		bkup = f"{flnm}.{n:03d}"
+		if not os.path.isfile(bkup):
+			cmd = ['cp','-p',flnm,bkup]
+			retval = subprocess.run(cmd,capture_output=True)
+			if retval.returncode == 0:
+				success = True
+			else:
+				ErrorExit(f"Could not create backup of {flnm}")
+		n += 1
+		if n > 999:
+			ErrorExit(f"Could not create backup of {flnm}. Clean out old backups.")
+	Log(f"Made backup of {flnm}")
+	Debug(f"Made a backup of {flnm}: {bkup}")
+	return
+
+#--------------------------------------------
 def InstallScript(src,dst):
 	shutil.copy(src,dst)
 	Log('Installed ' +src + ' to ' + dst)
@@ -304,6 +327,18 @@ def EnableService(service):
 		Log('Enabled the service ' + service)
 	except:
 		Log('Failed to enable the service ' + service)
+	return
+
+# ------------------------------------------
+def InstallEEPROMconfig(flnm):
+	cmd = ['rpi-eeprom-config','-a',flnm]
+	retval = subprocess.run(cmd,capture_output=True)
+	if retval.returncode == 0:
+		Log(f"Installed EEPROM configuration: {flnm}")
+		Debug(f"Installed EEPROM configuratin: {flnm}")
+	else:
+		print(retval.stderr.decode('ascii'))
+		ErrorExit("Was not successful in installing EEPROM configuration.")	
 	return
 
 # ------------------------------------------
@@ -501,13 +536,18 @@ if ('sysmonitor' in targets):
 
 if (rpi5 and ('rpi5' in targets)):
 	# Install new config.sys
-	#CreateBackup('/boot/firmware/config.txt')
+	CreateBackup('/boot/firmware/config.txt')
 	InstallScript('src/rpi5/config.txt','/boot/firmware')
+	hints += ("The Raspberry Pi must be rebooted for the new "+
+						"/boot/firmware/ configuration to become active.\n")
 	# Install new EEPROM configuration
-	
+	InstallEEPROMconfig('src/rpi5/eeprom.conf')
+	hints += ("The Raspberry Pi must be rebooted for the new EEPROM "+
+						"configuration to become active.\n")
 	# Install specific udev rule files for Pi5 based TTS
-	
-
+	InstallScript('src/rpi5/50-serial.rules','/etc/udev/rules.d')
+	#FIXME trigger? Note: A reboot will do this, and may be necessary because
+	#                     overlays must be loaded for some of the rules.
 
 # Print any post-installation hints
 if (not hints == ''):
