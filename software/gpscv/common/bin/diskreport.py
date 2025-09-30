@@ -4,10 +4,22 @@
 # Use smartmontools to check status of a disk drive
 #
 # -----------------------------------------------------------------------------
-# Ver: 0.1.0
+# Ver: 0.1
 # Author: Louis Marais
 # Start: 2024-11-01
-# Last: 2024-??-??
+# Last: 2024-11-01
+#
+# -----------------------------------------------------------------------------
+# Ver: 0.2
+# Author: Louis Marais
+# Start: 2025-10-01
+# Last: 2025-10-01
+#
+# Modifications:
+# --------------
+#
+# 1. Removed printing of end-of-script message (now a debug message) to prevent
+#    email being sent to root user every time the program terminates.
 #
 # -----------------------------------------------------------------------------
 # Ver: {Next}
@@ -29,7 +41,7 @@ import configparser
 import signal
 
 script = os.path.basename(__file__)
-VERSION = "0.1.0"
+VERSION = "0.2"
 AUTHORS = "Louis Marais"
 
 running = True
@@ -339,5 +351,5 @@ while running:
 
 RemoveProcessLock(lockfile)
 
-print(ts(),script,'terminated.')
+debug(f"{script} terminated.")
 
