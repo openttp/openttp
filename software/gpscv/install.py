@@ -105,7 +105,7 @@ osinfo = [
 basetargets = ['mktimetx','misc scripts']
 #alltargets  = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','septentrio',
 alltargets  = ['mktimetx','javad','nvs','trimble','ublox','septentrio',
-							 'prs10','ltelite','furuno','misc scripts']  
+							 'prs10','ltelite','uln1100','furuno','misc scripts']  
 ttsv5dirs   = ['raw/rest','raw/navspark'] # extra directories for TTS V5
 ttsv6dirs   = ['raw/cputemp'] # extra directory for TTS v6 (Pi based)
 
@@ -120,9 +120,9 @@ receivers = [
 	['all', '', '']
 ]
 
-# TODO: Add ULN1100 bits (now legacy, but we have these in the field)
-gpsdos = [                                # manufacturer, model, directory
-	['Jackson Labs','LTELite','ltelite'],
+gpsdos = [
+	['Jackson Labs','LTELite','ltelite'], # manufacturer, model, directory
+	['Jackson Labs','ULN1100','uln1100'],
 	['Furuno','GF-8805','furuno'],
 	['all','',''],
 ]
@@ -587,8 +587,14 @@ if ('septentrio' in targets):
 if ('ltelite' in targets):
 	InstallExecutables('ltelite',binDir,os.path.join(archiveDir,'bin'))
 	InstallConfigs('ltelite',configDir)
-	hints += ("Make sure that the ltelite/LTELite/DecodeNMEA.pm library is "+
+	hints += ("Make sure that the common/libs/DecodeNMEA.pm library is "+
 					 "installed in /usr/local/lib/site_perl/LTELite/")
+
+if ('uln1100' in targets):
+	InstallExecutables('uln1100',binDir,os.path.join(archiveDir,'bin'))
+	InstallConfigs('uln1100',configDir)
+	hints += ("Make sure that the common/libs/DecodeJacksonLabs.pm library is "+
+					 "installed in /usr/local/lib/site_perl/gpsdo/")
 
 if ('furuno' in targets):
 	InstallExecutables('furuno',binDir,os.path.join(archiveDir,'bin'))

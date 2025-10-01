@@ -451,10 +451,13 @@ if ('tflibrary' in targets):
 if ('gpscvperllibs' in targets):
 	libdir = thisos[PERLLIBDIR] + '/' + 'LTELite'
 	MakeDirectory(libdir)
-	#shutil.copy('../gpscv/gpsdo/LTELite/DecodeNMEA.pm',libdir)
-	shutil.copy('../gpscv/ltelite/LTELite/DecodeNMEA.pm',libdir)
-	#Log('Installed gpsdo/LTELite/DecodeNMEA.pm to ' + libdir) 
-	Log('Installed ltelite/LTELite/DecodeNMEA.pm to ' + libdir) 
+	shutil.copy('../gpscv/common/libs/DecodeNMEA.pm',libdir)
+	Log('Installed common/libs/DecodeNMEA.pm to ' + libdir) 
+	
+	libdir = thisos[PERLLIBDIR] + '/' + 'gpsdo'
+	MakeDirectory(libdir)
+	shutil.copy('../gpscv/common/libs/DecodeJacksonLabs.pm',libdir)
+	Log('Installed common/libs/DecodeJacksonLabs.pm to ' + libdir) 
 	
 	libdir = thisos[PERLLIBDIR] + '/' + 'NV08C'
 	MakeDirectory(libdir)
