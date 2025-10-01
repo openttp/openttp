@@ -481,9 +481,11 @@ if (not args.install):
 
 	# Make hardware dependent directories
 	if (ttsver == 5):
-		MakeDirectory(ttsv5dirs)
+		for dir in ttsv5dirs:
+			MakeDirectory(dir)
 	if (ttsver == 6):
-		MakeDirectory(ttsv6dirs)
+		for dir in ttsv6dirs:
+			MakeDirectory(dir)
 	
 # Make the archival directory
 # Currently, only executables are archived
