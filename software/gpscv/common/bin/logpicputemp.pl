@@ -1,45 +1,42 @@
 #!/usr/bin/perl
 # logpicputemp.pl
+
 use warnings;
 use strict;
 
-# Logs Pi CPU temperature - note this is a quick hack based on
-# the OpenTTP log1Wtemp.pl script
+# Logs Pi CPU temperature 
+
 #
+# The MIT License (MIT)
+#
+# Copyright (c) 2020-2025 E. Louis Marais
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the 'Software'), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
 # 2020-04-29 ELM First version
 # 2022-09-15 ELM Location of the vcgencmd command changed in the Raspberry Pi
 #                distribution. Version bumped to 1.1. Cleaned up debugging
 #                output.
-
-
-# Original comments for log1Wtemp.pl
-
-# Logs the CPU temperature to a file {MJD}.cputemp in the data
-# directory specified in gpscv.conf on an OpenTTP system. Also
-# writes the temperature to the cputemp file in the ~/logs
-# directory
-#
-# based on logCPUtemp.pl
-# Version 1.0 start date: 2016-12-20 (Louis Marais)
-# Version 1.0 finalised:  2016-12-21
-#
-# Version 1.1 start date: 2017-07-19 (Louis Marais)
-# Version 1.1 finalised:  2017-??-??
-# ~~~~~~~~~~~~~~~~~~~~ Why am I changing it? ~~~~~~~~~~~~~~~~~~~~~~
-# OpenTTP hardware specification finalised. Only one 1W temperature
-# sensor is installed, a surface mount unit, mounted underneath the
-# GPSDO miniPCIe module. In version 1.0 there are provision for up
-# to 7 sensors.
-# ~~~~~~~~~~~~~~~~~~~~~~~ Changes made ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 1. Code modified to work with only one 1W sensor, called GPSDO. 
-#    All code related to other sensors removed.
-# 2. Changed status and lock file location to lockStatusCheck 
-#    directory instead of logs directory. The lockStatusCheck
-#    directory is a temporary directory for files that are 
-#    frequently written, located in RAM (tmpfs).
-#
-# Last modification date: 2016-12-21
-#
+# 2025-10-01 ELM Cleaned up comments. Add license. 'log' now preferred location
+#                for $logPath, 'var' now preferred location for lock and status
+#                files. Version now 1.2.
 
 # Libraries, etc. to use
 use POSIX;
@@ -53,7 +50,7 @@ my ($nowstr,%Init,$temp,$logPath,$then,$lockFile,$statusFile,@info,$msg,$sec);
 my ($GPSDO,@dirs,$dir,$sn,$gpsdo_temp);
 
 $AUTHORS = "Louis Marais";
-$VERSION = "1.1";
+$VERSION = "1.2";
 
 # Default debug state is OFF
 $DEBUG = 0;
@@ -84,27 +81,37 @@ if (!(-d "$home/etc"))
   ErrorExit("No ~/etc directory found!\n");
 }
 
-if (-d "$home/logs")
+if (-d "$home/log")
+{
+  $logPath = "$home/log";
+}
+elsif (-d "$home/logs")
 {
   $logPath = "$home/logs";
 }
 else
 {
-  ErrorExit("No ~/logs directory found!\n");
+  ErrorExit("No ~/log or ~/logs directory found!\n");
 }
 
-if (-d "$home/lockStatusCheck")  {
-  $lockPath="$home/lockStatusCheck";
-  $statusFile=TFMakeAbsoluteFilePath("cputemp",$home,$lockPath);
+if (-d "$home/var")  
+{
+  $lockPath="$home/var";
 }
-elsif (-d "$home/status"){ # added this for NTP auditor application
+elsif (-d "$home/lockStatusCheck")  
+{
+  $lockPath="$home/lockStatusCheck";
+}
+elsif (-d "$home/status") # added this for NTP auditor application
+{
   $lockPath="$home/status";
-  $statusFile=TFMakeAbsoluteFilePath("cputemp",$home,$lockPath);
 }
 else
 {
-  ErrorExit("No ~/lockStatusCheck or ~/status directory found!\n");
+  ErrorExit("No ~/var or ~/lockStatusCheck or ~/status directory found!\n");
 }
+
+$statusFile=TFMakeAbsoluteFilePath("cputemp",$home,$lockPath);
 
 if (defined $opt_c)
 {
@@ -121,24 +128,16 @@ Debug("Authors: $AUTHORS");
 Debug("Version: $VERSION");
 Debug("Home directory: $home");
 Debug("Log path: $logPath");
+Debug("Lock path: $lockPath");
 Debug("Configuration file: $configFile");
 
 Initialise($configFile);
-
-# Assign serial numbers to sensor variables
-
-#$GPSDO = $Init{"cputemp:gpsdo"};
-#if (!(defined $GPSDO)) { Debug("No GPSDO entry found in config. Exiting."); exit; }
 
 # Check for an existing lock file
 $lockFile = TFMakeAbsoluteFilePath($Init{"cputemp:lock file"},$home,$lockPath);
 Debug("\$lockFile: $lockFile");
 
-# Check if the process is already running. Note that this 
-# assumes the user is conscientious about keeping the lock
-# file up to date... You have to write the process id to 
-# the file when you start it, and delete the file when you
-# kill the process.
+# Check if the process is already running.
 if (-e $lockFile)
 {
   open(LCK,"<$lockFile");
@@ -173,19 +172,10 @@ OpenDataFile($mjd,1);
 $next=($mjd-40587+1)*86400;     # seconds at next MJD
 $then=0;
 
-# Set initial state of script to running fine.
 $killed = 0;
-# This intercepts the termination signal, and in this case sets
-# the variable $killed = 1. This $killed variable controls the main loop.
-# Very clever!
-$SIG{TERM} = sub {$killed=1}; 
-# Also capture Ctrl-C to gracefully exit during testing...
-$SIG{INT} = sub {$killed=1};
 
-# Get a list of sensors registered on the system
-#opendir(DIR,"/sys/devices/w1_bus_master1/");
-#@dirs = grep(/^28-0/,readdir(DIR));
-#closedir(DIR);
+$SIG{TERM} = sub {$killed=1}; 
+$SIG{INT} = sub {$killed=1};
 
 my $cmd = '/opt/vc/bin/vcgencmd';
 if (!(-e $cmd)){
@@ -209,7 +199,6 @@ while (!$killed)
 
   Debug("Value that will be stored: $temp");
 
-  # Store temperatures
   $now = time(); 
   $mjd = int($now/86400) + 40587;
 
