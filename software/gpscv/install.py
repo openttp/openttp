@@ -120,7 +120,8 @@ receivers = [
 	['all', '', '']
 ]
 
-gpsdos = [
+# TODO: Add ULN1100 bits (now legacy, but we have these in the field)
+gpsdos = [                                # manufacturer, model, directory
 	['Jackson Labs','LTELite','ltelite'],
 	['Furuno','GF-8805','furuno'],
 	['all','',''],
