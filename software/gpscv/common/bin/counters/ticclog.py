@@ -146,7 +146,7 @@ if ('counter:timestamp format' in cfg):
 # Create the process lock
 if os.path.exists(home+'var'):
 	lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/var')
-elif os.path.exists(home+'logs')::
+elif os.path.exists(home+'logs'):
 	lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/logs')
 else:
 	ErrorExit(f"Neither '{home}var' or '{home}logs' directories exist.")
