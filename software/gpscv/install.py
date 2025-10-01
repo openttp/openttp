@@ -103,8 +103,9 @@ osinfo = [
 
 # All available installation targets
 basetargets = ['mktimetx','misc scripts']
-alltargets  = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','septentrio',
-							 'prs10','misc scripts']  
+#alltargets  = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','septentrio',
+alltargets  = ['mktimetx','javad','nvs','trimble','ublox','septentrio',
+							 'prs10','ltelite','furuno','misc scripts']  
 ttsv5dirs   = ['raw/rest','raw/navspark'] # extra directories for TTS V5
 ttsv6dirs   = ['raw/cputemp'] # extra directory for TTS v6 (Pi based)
 
@@ -117,6 +118,12 @@ receivers = [
 	['ublox','ZED-F9T','ublox'],
 	['septentrio','MosaicT','septentrio'],
 	['all', '', '']
+]
+
+gpsdos = [
+	['Jackson Labs','LTELite','ltelite'],
+	['Furuno','GF-8805','furuno'],
+	['all','',''],
 ]
 
 # ------------------------------------------
@@ -314,6 +321,47 @@ def ChooseReceiver():
 			pass
 	return
 
+#--------------------------------------------
+# Returns an index into the gpsdo list
+def DetectGPSDO(cfg):
+	if ('reference:manufacturer' in cfg and 'reference:model' in cfg):
+		refman = cfg['reference:manufacturer']
+		refmod = cfg['reference:model']
+		i=0
+		for g in gpsdos:
+			if (g[0] == refman and g[1] == refmod):
+				Log('Identified a supported gpsdo in gpscv.conf: ' + refman + ' ' + refmod)
+				return i
+			i=i+1
+		Log('Couldn\'t match the gpsdo configured in gpscv.conf')
+	else:
+		Log('A gspdo is not (properly?) defined in gpscv.conf')
+		return -1
+	return
+
+#--------------------------------------------
+# Select the gpsdo to install software for
+# Returns an index into the gpsdo list
+def ChooseGPSDO():
+
+	print 
+	print('Please select the gpsdo to install software for:')
+	i=1
+	for g in gpsdos:
+		print(str(i) + '. ' + g[0] + ' ' + g[1])
+		i += 1
+	max = i-1
+	
+	while (True):
+		sval = input('Choose (1-'+str(max)+'): ')
+		try:
+			val=int(sval)
+			if (val >=1 and val <= max): 
+				return val-1 # cos it's an index
+		except:
+			pass
+	return
+
 # ------------------------------------------
 # Main
 # ------------------------------------------
@@ -432,7 +480,7 @@ if (not args.install):
 	if (rx < 0):
 		rx = ChooseReceiver()
 
-	if (rx == len(receivers) -1):
+	if (rx == len(receivers)-1):
 		for i in range(0,len(receivers)-1):
 			if (not (receivers[i][2] in targets)):
 				targets.append(receivers[i][2])		
@@ -453,15 +501,25 @@ if (not args.install):
 			targets.append('prs10')
 	
 	# Detect if a GPSDO is the reference
+	gpsdo = -1
 	if (usingCfg):
 		if ('reference:oscillator' in cfg):
 			if ('gpsdo' in cfg['reference:oscillator']):
-				targets.append('gpsdo')
+				gpsdo = DetectGPSDO(cfg)
+				#targets.append('gpsdo')
 		else:
 			pass
 	else:
-		if GetYesNo('Do you want to install GPSDO support (y/n)? '):  # TODO: But for which one?
-			targets.append('gpsdo')
+		if GetYesNo('Do you want to install GPSDO support (y/n)? '):
+			gpsdo = ChooseGPSDO()
+			#targets.append('gpsdo')
+	
+	if (gpsdo == len(gpsdos)-1):
+		for i in range(0,len(gpsdos)-1):
+			if (not (gpsdos[i][2] in targets)):
+				targets.append(gpsdos[i][2])		
+	else:
+		targets.append(gpsdos[gpsdo][2])
 	
 	# Create any missing directories
 
@@ -524,6 +582,16 @@ if ('ublox' in targets):
 if ('septentrio' in targets):
 	InstallExecutables('septentrio',binDir,os.path.join(archiveDir,'bin'))
 	InstallConfigs('septentrio',configDir)
+
+if ('ltelite' in targets):
+	InstallExecutables('ltelite',binDir,os.path.join(archiveDir,'bin'))
+	InstallConfigs('ltelite',configDir)
+	hints += ("Make sure that the ltelite/LTELite/DecodeNMEA.pm library is "+
+					 "installed in /usr/local/lib/site_perl/LTELite/")
+
+if ('furuno' in targets):
+	InstallExecutables('furuno',binDir,os.path.join(archiveDir,'bin'))
+	InstallConfigs('furuno',configDir)
 
 if ('prs10' in targets):
 	CompileTarget('prs10','prs10')
