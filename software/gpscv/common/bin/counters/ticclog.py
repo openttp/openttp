@@ -32,6 +32,7 @@
 #                Bug fix. Arguments to subprocess() constructed incorrectly.
 # 2025-01-23 ELM Added more help for command line arguments
 #                Prepend 'ottp.' to 'Debug' statements
+# 2025-10-01 ELM Changed default directories to 'log' and 'var'
 #
 
 # WARNING!!!!
@@ -102,8 +103,13 @@ configFile = args.config;
 
 if (not os.path.isfile(configFile)):
 	ottp.ErrorExit(configFile + " not found")
-	
-logPath = os.path.join(home,'logs')
+
+if os.path.exists(home+'log'):
+	logPath = os.path.join(home,'log')
+elif os.path.exists(home+'logs'):
+	logPath = os.path.join(home,'logs')
+else:
+	ErrorExit(f"Neither '{home}log' or '{home}logs' directories exist.")
 if (not os.path.isdir(logPath)):
 	ottp.ErrorExit(logPath + "not found")
 
@@ -137,8 +143,13 @@ if ('counter:timestamp format' in cfg):
 	elif (tsf == 'time of day'):
 		tsformat = TS_TOD
 		
-# Create the process lock		
-lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/logs')
+# Create the process lock
+if os.path.exists(home+'var'):
+	lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/var')
+elif os.path.exists(home+'logs')::
+	lockFile=ottp.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/logs')
+else:
+	ErrorExit(f"Neither '{home}var' or '{home}logs' directories exist.")
 ottp.Debug("Creating lock " + lockFile)
 if (not ottp.CreateProcessLock(lockFile)):
 	ottp.ErrorExit("Couldn't create a lock")
