@@ -25,8 +25,6 @@
 # THE SOFTWARE.
 #
 
-# 2022-08-01 ELM Added path info for Ubuntu 22, version now 0.1.2 (was 0.1.1)
-
 import argparse
 import datetime
 import distro
@@ -48,7 +46,7 @@ sys.path.append('/usr/local/lib/python3.11/dist-packages')
 sys.path.append('/usr/local/lib/python3.12/dist-packages')
 import ottplib
 
-VERSION = '0.1.5'
+VERSION = '0.1.6'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -105,8 +103,10 @@ osinfo = [
 
 # All available installation targets
 basetargets = ['mktimetx','misc scripts']
-alltargets  = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','prs10','misc scripts']
+alltargets  = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','septentrio',
+							 'prs10','misc scripts']  
 ttsv5dirs   = ['raw/rest','raw/navspark'] # extra directories for TTS V5
+ttsv6dirs   = ['raw/cputemp'] # extra directory for TTS v6 (Pi5 based)
 
 receivers = [
 	['Trimble','Resolution T','trimble'], # manufacturer, model, directory
@@ -115,6 +115,7 @@ receivers = [
 	['ublox','NEOM8T','ublox'],
 	['ublox','ZED-F9P','ublox'],
 	['ublox','ZED-F9T','ublox'],
+	['septentrio','MosaicT','septentrio'],
 	['all', '', '']
 ]
 
@@ -150,8 +151,12 @@ def GetYesNo(msg):
 
 # ------------------------------------------
 def DetectOS():
-
-	(dist,distrover,_)=distro.linux_distribution()
+	
+	# linux_distribution() is deprecated. Now using distro.id and distro.version
+	# which breaks compatibility with earlier Rasperry Pi OS versions and I 
+	# suspect some older Linux distributions.
+	#(dist,distrover,_)=distro.linux_distribution()
+	(dist, distrover) = (distro.id(),distro.version())
 	Log('Detected ' + dist + ',ver ' + distrover)
 	dist=dist.lower()
 	ver=distrover.split('.')
@@ -162,7 +167,7 @@ def DetectOS():
 			Debug('Matched ' + dist + ' ' + majorVer)
 			Log('OS is supported')
 			return os
-
+	
 	return []
 
 # ------------------------------------------
@@ -328,7 +333,7 @@ parser = argparse.ArgumentParser(
 # Optional arguments
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--install','-i',help='install a target')
-parser.add_argument('--ttsversion','-t',help='tts version (5 only, currently)')
+parser.add_argument('--ttsversion','-t',help='tts version (5 and 6, currently)')
 parser.add_argument('--list','-l',help='list targets for installation',
 	action='store_true')
 parser.add_argument('--version','-v',action='version',
@@ -358,8 +363,8 @@ if args.install:
 
 if args.ttsversion:
 	ttsver = int(args.ttsversion)
-	if not(ttsver == 5):
-		ErrorExit(args.install + ' only TTS version 5 is supported')
+	if not(ttsver in [5,6]):
+		ErrorExit(args.install + ' only TTS versions 5 and 6 are supported')
 thisos = DetectOS()
 if not thisos:
 	print('Your Linux distribution has not been tested against.')
@@ -391,7 +396,8 @@ dataRoot = instRoot
 configDir  = os.path.join(instRoot, 'etc')
 binDir =     os.path.join(instRoot, 'bin')
 cggttsDir =  os.path.join(dataRoot, 'cggtts')
-logDir =  os.path.join(dataRoot, 'logs')
+#logDir =  os.path.join(dataRoot, 'logs')
+logDir =  os.path.join(dataRoot, 'log')
 rawDir = os.path.join(dataRoot, 'raw')
 rinexDir = os.path.join(dataRoot, 'rinex')
 tmpDir = os.path.join(dataRoot, 'tmp')
@@ -449,7 +455,7 @@ if (not args.install):
 		else:
 			pass
 	else:
-		if GetYesNo('Do you want to install GPSDO support (y/n)? '):
+		if GetYesNo('Do you want to install GPSDO support (y/n)? '):  # TODO: But for which one?
 			targets.append('gpsdo')
 	
 	# Create any missing directories
@@ -470,7 +476,9 @@ if (not args.install):
 
 	# Make hardware dependent directories
 	if (ttsver == 5):
-		MakeDirector(ttsv5dirs)
+		MakeDirectory(ttsv5dirs)
+	if (ttsver == 6):
+		MakeDirectory(ttsv6dirs)
 	
 # Make the archival directory
 # Currently, only executables are archived
