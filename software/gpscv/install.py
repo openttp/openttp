@@ -4,7 +4,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2020 Michael J. Wouters
+# Copyright (c) 2020 - 2025 Michael J. Wouters
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the 'Software'), to deal
@@ -106,7 +106,7 @@ basetargets = ['mktimetx','misc scripts']
 alltargets  = ['mktimetx','gpsdo','javad','nvs','trimble','ublox','septentrio',
 							 'prs10','misc scripts']  
 ttsv5dirs   = ['raw/rest','raw/navspark'] # extra directories for TTS V5
-ttsv6dirs   = ['raw/cputemp'] # extra directory for TTS v6 (Pi5 based)
+ttsv6dirs   = ['raw/cputemp'] # extra directory for TTS v6 (Pi based)
 
 receivers = [
 	['Trimble','Resolution T','trimble'], # manufacturer, model, directory
@@ -336,6 +336,8 @@ parser.add_argument('--install','-i',help='install a target')
 parser.add_argument('--ttsversion','-t',help='tts version (5 and 6, currently)')
 parser.add_argument('--list','-l',help='list targets for installation',
 	action='store_true')
+parser.add_argument('--legacy','-g',action=store_true,help='Use legacy location for '+
+										'logging files (~/logs instead of ~/log')
 parser.add_argument('--version','-v',action='version',
 	version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
@@ -348,6 +350,8 @@ home = os.path.expanduser("~")
 debug = args.debug
 
 targets = basetargets
+
+LEGACY = args.legacy
 
 if args.list:
 	print('Available targets for installation are:')
@@ -396,8 +400,9 @@ dataRoot = instRoot
 configDir  = os.path.join(instRoot, 'etc')
 binDir =     os.path.join(instRoot, 'bin')
 cggttsDir =  os.path.join(dataRoot, 'cggtts')
-#logDir =  os.path.join(dataRoot, 'logs')
 logDir =  os.path.join(dataRoot, 'log')
+if LEGACY:
+	logDir =  os.path.join(dataRoot, 'logs')
 rawDir = os.path.join(dataRoot, 'raw')
 rinexDir = os.path.join(dataRoot, 'rinex')
 tmpDir = os.path.join(dataRoot, 'tmp')
@@ -513,6 +518,10 @@ if ('trimble' in targets):
 if ('ublox' in targets):
 	InstallExecutables('ublox',binDir,os.path.join(archiveDir,'bin'))
 	InstallConfigs('ublox',configDir)
+
+if ('septentrio' in targets):
+	InstallExecutables('septentrio',binDir,os.path.join(archiveDir,'bin'))
+	InstallConfigs('septentrio',configDir)
 
 if ('prs10' in targets):
 	CompileTarget('prs10','prs10')
