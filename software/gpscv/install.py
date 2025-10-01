@@ -336,7 +336,7 @@ parser.add_argument('--install','-i',help='install a target')
 parser.add_argument('--ttsversion','-t',help='tts version (5 and 6, currently)')
 parser.add_argument('--list','-l',help='list targets for installation',
 	action='store_true')
-parser.add_argument('--legacy','-g',action=store_true,help='Use legacy location for '+
+parser.add_argument('--legacy','-g',action="store_true",help='Use legacy location for '+
 										'logging files (~/logs instead of ~/log')
 parser.add_argument('--version','-v',action='version',
 	version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
