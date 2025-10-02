@@ -1,0 +1,3 @@
+# Install this to /etc/cron.d/
+# This will call the diskreport script every 15 minutes.
+0-59/15 * * * * root /home/cvgps/bin/diskreport.py -c /home/cvgps/etc/diskreport.conf

@@ -551,6 +551,7 @@ if (rpi5 and ('rpi5' in targets)):
 	InstallScript('src/rpi5/50-serial.rules','/etc/udev/rules.d')
 	#FIXME trigger? Note: A reboot will do this, and may be necessary because
 	#                     overlays must be loaded for some of the rules.
+	InstallScript('src/rpi5/diskreport','/etc/cron.d')
 
 if (rpi5 and ('rpi5gpio' in targets)):
 	if not os.path.isdir('/home/cvgps'):
