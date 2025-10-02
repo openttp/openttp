@@ -33,7 +33,7 @@
 
 import argparse
 import glob
-import gpiozero
+#import gpiozero
 import os
 import re
 import signal
@@ -59,6 +59,8 @@ STARTUP_WINDOW = 300
 GPSDO_STATUS_UPDATE_PERIOD = 10
 
 FURUNO_LOCK_TIME = 300
+
+GPSCV_USER = "cvgps"
 
 killed = False
 
@@ -175,17 +177,17 @@ def RestartReceiver(rxScript):
 
 # -----------------------------------------------
 
-home = os.environ['HOME'] 
-root = home 
+root = '/usr/local' 
 configFile = os.path.join(root,'etc','refmonitor.conf')
 refManufacturer = 'furuno'
+gpscvUser = GPSCV_USER
 
 parser = argparse.ArgumentParser(description='')
 
 examples =  'Usage examples\n'
 examples += ''
 
-parser = argparse.ArgumentParser(description='Monitor and control the system reference clock and its measurement systems, in particular,the GNSS receiver',
+parser = argparse.ArgumentParser(description='Monitor and control the system reference clock and its dependent systems, in particular,the GNSS receiver',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
 
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
@@ -224,7 +226,7 @@ signal.signal(signal.SIGINT,SignalHandler) # Note that CTRL-C will not interrupt
 signal.signal(signal.SIGTERM,SignalHandler) 
 signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY, but handle it anyway
 
-logFile = ottp.MakeAbsoluteFilePath(cfg['paths:log file'],home,home + '/logs')
+logFile = ottp.MakeAbsoluteFilePath(cfg['paths:log file'],home,home + '/log')
 Log(logFile,'started')
 # If the system is being operated as a frequency standard, then we don't care too much about
 # pps synchronization but it's nice to have small numbers in time transfer files
