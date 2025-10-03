@@ -31,8 +31,8 @@
 # It then waits 5 minutes before checking that it is OK to synchronize the time transfer receiver
 #
 
-import argparse
 import glob
+import argparse
 #import gpiozero
 import os
 import re
@@ -52,7 +52,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.0.0"
+VERSION = "0.1.0"
 AUTHORS = "Michael Wouters"
 
 STARTUP_WINDOW = 300
@@ -61,6 +61,7 @@ GPSDO_STATUS_UPDATE_PERIOD = 10
 FURUNO_LOCK_TIME = 300
 
 GPSCV_USER = "cvgps"
+KICKSTART = "/usr/local/bin/kickstart.py"
 
 killed = False
 
@@ -172,9 +173,86 @@ def RefOK(refManufacturer,statusFile):
 
 
 # -----------------------------------------------
-def RestartReceiver(rxScript):
-	pass
+def ReadGPIO(gpioName):
+	fgpio = open(os.path.join(gpioFS,gpioName), 'r')
+	val = int(fgpio.readline().strip())						
+	fgpio.close()
+	ottp.Debug(f'READ {gpioName} {val}')
+	return val
 
+# -----------------------------------------------
+def WriteGPIO(gpioName,val):
+	fgpio = open(os.path.join(gpioFS,gpioName), 'w')
+	fgpio.write(f'{val}\n')					
+	fgpio.close()
+	ottp.Debug(f'WRITE {gpioName} {val}')
+
+# -----------------------------------------------
+def RestartReceiver():
+	
+	# Reset the receiver
+	# This is most easily done via the GPIO
+	# If we try killall,restart then there is a small risk that 
+	# the user crontab will restart the receiver between kill and restart
+	
+	ottp.Debug('Resetting the receiver')
+	WriteGPIO('MOS_T_RESET.txt',0)
+	time.sleep(3) # only checked once per second
+	WriteGPIO('MOS_T_RESET.txt',1)
+	
+	Log(logFile,"receiver reset")
+	
+	# Wait a bit for MOS-T to become ready
+	ottp.Debug('{} Waiting for MOS_T to assert READY\n'.format(time.strftime('%Y-%02m-%02d %H:%M:%S',time.gmtime())))
+	rdy = ReadGPIO('MOST_T_READY.txt')
+						 
+	while rdy == 0:
+		time.sleep(1)
+		rdy = ReadGPIO('MOST_T_READY.txt')
+	ottp.Debug('{} READY\n'.format(time.strftime('%Y-%02m-%02d %H:%M:%S',time.gmtime())))
+	
+	# Kick it back into life
+	ottp.Debug('Restarting receiver')
+	try:
+		x = subprocess.check_output(['su','-l',gpscvUser,'-c',KICKSTART]) # eat the output
+	except Exception as e:
+		Log(logFile,'Failed to run kickstart')
+		ottp.ErrorExit('Failed to run kickstart')
+	ottp.Debug(x.decode('utf-8'))
+	Log(logFile,"receiver logging started")
+	
+	ottp.Debug('Waiting ...')
+	time.sleep(5);
+	
+	# To get chronyd to reliably pick up the GNSS receiver after a reset
+	# we need to:
+	
+	# restart gpsd
+	ottp.Debug('Restarting gpsd')
+	try:
+		x = subprocess.check_output(['systemctl','restart','gpsd']) # eat the output
+	except Exception as e:
+		Log(logFile,'Failed to restart gpsd')
+		print(e)
+		ottp.ErrorExit('Failed to restart gpsd')
+	ottp.Debug(x.decode('utf-8'))
+	Log(logFile,"gpsd restarted")
+	
+	time.sleep(5);
+	
+
+	# and restart chronyd
+	
+	ottp.Debug('Restarting chrony')
+	try:
+		x = subprocess.check_output(['systemctl','restart','chrony']) # eat the output
+	except Exception as e:
+		Log(logFile,'Failed to restart chrony')
+		ottp.ErrorExit('Failed to restart chrony')
+	ottp.Debug(x.decode('utf-8'))
+	
+	Log(logFile,"chrony restarted")
+		 
 # -----------------------------------------------
 
 root = '/usr/local' 
@@ -206,18 +284,21 @@ if (not os.path.isfile(configFile)):
 
 cfg=ottp.Initialise(configFile,['reference:manufacturer','reference:config file','receiver:logging script'])
 refManufacturer = cfg['reference:manufacturer'].lower()
-refConfigFile = ottp.MakeAbsoluteFilePath( cfg['reference:config file'],root,root + 'etc')
+refConfigFile = ottp.MakeAbsoluteFilePath( cfg['reference:config file'],root,os.path.join(root,'etc'))
 rxScript = cfg['receiver:logging script']
 
 if (not os.path.isfile(refConfigFile)):
 	ottp.ErrorExit(refConfigFile + ' not found')
 	
-refCfg = ottp.Initialise(refConfigFile,['status:path','status:file name'])
-refStatusFile = ottp.MakeAbsoluteFilePath( os.path.join(refCfg['status:path'],refCfg['status:file name']),root,root + 'status')
+gpscvUserHome = os.path.join('/home',gpscvUser)
 
+refCfg = ottp.Initialise(refConfigFile,['status:path','status:file name'])
+refStatusFile = ottp.MakeAbsoluteFilePath( os.path.join(refCfg['status:path'],refCfg['status:file name']),gpscvUserHome,os.path.join(gpscvUserHome,'var'))
+
+gpioFS = os.path.join(gpscvUserHome,'gpios')
 
 # Create the process lock		
-lockFile = ottp.MakeAbsoluteFilePath(cfg['paths:lock file'],home,home + '/lock')
+lockFile = ottp.MakeAbsoluteFilePath(cfg['paths:lock file'],root,os.path.join(root,'log'))
 ottp.Debug('Creating lock ' + lockFile)
 if (not ottp.CreateProcessLock(lockFile)):
 	ottp.ErrorExit("Couldn't create a lock")
@@ -226,7 +307,7 @@ signal.signal(signal.SIGINT,SignalHandler) # Note that CTRL-C will not interrupt
 signal.signal(signal.SIGTERM,SignalHandler) 
 signal.signal(signal.SIGHUP,SignalHandler) # not usually run with a controlling TTY, but handle it anyway
 
-logFile = ottp.MakeAbsoluteFilePath(cfg['paths:log file'],home,home + '/log')
+logFile = ottp.MakeAbsoluteFilePath(cfg['paths:log file'],root,os.path.join(root,'log'))
 Log(logFile,'started')
 # If the system is being operated as a frequency standard, then we don't care too much about
 # pps synchronization but it's nice to have small numbers in time transfer files
@@ -236,9 +317,11 @@ up = GetUptime()
 ottp.Debug(f'Uptime = {up}')
 if (up < STARTUP_WINDOW):
 	Log(logFile,'system has rebooted')
+	
 	# TODO Check what the reference source is
 	# If external reference is in use, then it may have lost power too
-	# if we've been up less than XX minutes, then wait
+	
+	# If we've been up less than XX minutes, then wait
 	tUp = GetUptime()
 	#tUp = 598 #FIXME
 	if tUp < STARTUP_WINDOW:
@@ -246,16 +329,24 @@ if (up < STARTUP_WINDOW):
 		time.sleep(STARTUP_WINDOW - tUp)
 	# Else, if system GPSDO is the reference, then check the GPSDO 
 	if RefOK(refManufacturer,refStatusFile):
-		Log(logFile,'Restarting time-transfer receiver')
-		RestartReceiver(rxScript)
+		Log(logFile,'GNSSDO locked - restarting receiver')
+		RestartReceiver()
 		
-ottp.Debug('Boot checks completed')
+Log(logFile, 'boot checks completed')
 
+refLocked = True
 while not killed:
 	time.sleep(30)
 	if RefOK(refManufacturer,refStatusFile):
-		pass
-
+		if not refLocked:
+			Log(logFile,"GNSSDO locked")
+			RestartReciver()
+			refLocked = True
+	else:
+		if refLocked:
+			Log(logFile,"GNSSDO unlocked")
+		refLocked = False
+	
 # Clean up		
 Log(logFile,'killed')
 ottp.RemoveProcessLock(lockFile)
