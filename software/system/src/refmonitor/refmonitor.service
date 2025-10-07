@@ -1,0 +1,23 @@
+[Unit]
+Description=TTS reference monitoring
+ConditionPathExists=/usr/local/bin/refmonitor.py
+ConditionPathExists=/usr/local/etc/refmonitor.conf
+# Customise as necessary
+#After=
+#Requires= 
+
+# Note: StartLimitInterval must be > StartLimitBurst * RestartSec
+#
+#             120                           5             20
+#
+
+[Service]
+Restart=always
+StartLimitInterval=120
+StartLimitBurst=5
+RestartSec=20
+# Non-forking
+ExecStart=/usr/local/bin/refmonitor.py
+
+[Install]
+WantedBy=multi-user.target

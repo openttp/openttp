@@ -151,27 +151,10 @@ def RefOK(refManufacturer,statusFile):
 
 	if refManufacturer == 'furuno':
 		status = GetFurunoStatus(fin)
-		if status >= 3:
-			return True
-		# If we got here, then the GPSDO is not in fine lock/holdover
-		# So wait until this is true, within limits
-		# Spec is lock in < 5 mins and testing agrees with this
-
-		# We'll use our own timer - no need for SIGTIME
-		Log(logFile,'waiting for fine lock')
-		timerStart = time.time()
-		while (time.time() - timerStart < FURUNO_LOCK_TIME):
-			time.sleep(30)
-			fin =  GetGoodStatusFile(statusFile,GPSDO_STATUS_UPDATE_PERIOD)
-			if fin:
-				status = GetFurunoStatus(fin)
-				if status >= 3:
-					Log(logFile,f'OK status={status}')
-					return True
-		
-	return False
-
-
+		return (status >= 3)
+	
+	return True # TODO
+	
 # -----------------------------------------------
 def ReadGPIO(gpioName):
 	fgpio = open(os.path.join(gpioFS,gpioName), 'r')
@@ -240,7 +223,6 @@ def RestartReceiver():
 	
 	time.sleep(5);
 	
-
 	# and restart chronyd
 	
 	ottp.Debug('Restarting chrony')
@@ -313,8 +295,14 @@ Log(logFile,'started')
 # pps synchronization but it's nice to have small numbers in time transfer files
 
 up = GetUptime()
-#up = 30 # FIXME
 ottp.Debug(f'Uptime = {up}')
+
+# We detect reboots and handle them as a special case
+# where we always restart receiver, gpsd, chrony ..
+# Could detect warm boots but I think a user would expect everything to be restarted
+
+refLocked = True # may not have rebooted - may have eg restarted service
+
 if (up < STARTUP_WINDOW):
 	Log(logFile,'system has rebooted')
 	
@@ -323,24 +311,44 @@ if (up < STARTUP_WINDOW):
 	
 	# If we've been up less than XX minutes, then wait
 	tUp = GetUptime()
-	#tUp = 598 #FIXME
 	if tUp < STARTUP_WINDOW:
 		ottp.Debug('Waiting {:d} s'.format(STARTUP_WINDOW - tUp))
 		time.sleep(STARTUP_WINDOW - tUp)
-	# Else, if system GPSDO is the reference, then check the GPSDO 
+		
+	# TODO else, if system GPSDO is the reference, then check the GPSDO
+	
+	# Spec is lock in < 5 mins and testing agrees with this
+
+	# We'll use our own timer - no need for SIGTIME
+	Log(logFile,'waiting for fine lock')
+	timerStart = GetUptime() # better than using the system time 
+	while (GetUptime() - timerStart < FURUNO_LOCK_TIME):
+		time.sleep(GPSDO_STATUS_UPDATE_PERIOD)
+		if RefOK(refManufacturer,refStatusFile):
+			refLocked = True
+			break
+					
+	# check again
 	if RefOK(refManufacturer,refStatusFile):
 		Log(logFile,'GNSSDO locked - restarting receiver')
+		refLocked = True
 		RestartReceiver()
+	else:
+		Log(logFile,'GNSSDO still unlocked')
+		refLocked = False
 		
 Log(logFile, 'boot checks completed')
 
-refLocked = True
+# We might get to this point without the reference being locked 
+# - but that's OK
+# the main loop will take care of that 
+
 while not killed:
-	time.sleep(30)
+	time.sleep(GPSDO_STATUS_UPDATE_PERIOD) # this needs to be sufficiently frequent that we catch a short 'unlock'
 	if RefOK(refManufacturer,refStatusFile):
 		if not refLocked:
 			Log(logFile,"GNSSDO locked")
-			RestartReciver()
+			RestartReceiver()
 			refLocked = True
 	else:
 		if refLocked:
