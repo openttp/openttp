@@ -553,8 +553,8 @@ if (rpi5 and ('rpi5' in targets)):
 	#                     overlays must be loaded for some of the rules.
 	InstallScript('src/rpi5/diskreport','/etc/cron.d')
 	# Install pemmican brownout inhibit. RPi5 is powered through GPIO, and cannot
-	# negotiate a 5A supply. Note that this will inhibit a legitimate brownout
-	# warning.
+	# negotiate a 5A supply (only possible through USB-C port). WARNING: This
+	# will inhibit a legitimate brownout warning!
 	MakeDirectory('/etc/xdg/pemmican')
 	InstallScript('src/rpi5/brownout.inhibit','/etc/xdg/pemmican')
 
