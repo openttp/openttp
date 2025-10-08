@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.4.0'
+VERSION = '1.5.0'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -552,6 +552,11 @@ if (rpi5 and ('rpi5' in targets)):
 	#FIXME trigger? Note: A reboot will do this, and may be necessary because
 	#                     overlays must be loaded for some of the rules.
 	InstallScript('src/rpi5/diskreport','/etc/cron.d')
+	# Install pemmican brownout inhibit. RPi5 is powered through GPIO, and cannot
+	# negotiate a 5A supply. Note that this will inhibit a legitimate brownout
+	# warning.
+	MakeDirectory('/etc/xdg/pemmican')
+	InstallScript('src/rpi5/brownout.inhibit','/etc/xdg/pemmican')
 
 if (rpi5 and ('rpi5gpio' in targets)):
 	if not os.path.isdir('/home/cvgps'):
