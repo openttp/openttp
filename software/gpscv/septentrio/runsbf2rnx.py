@@ -49,7 +49,7 @@ import time
 
 import ottplib
 
-VERSION = '0.1.3'
+VERSION = '0.2.0'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -168,6 +168,10 @@ if (args.mjd):
 
 Debug('Processing MJDs ' + str(firstMJD) + ' to ' + str(lastMJD))
 
+
+if 'paths:root' in cfg:
+	root = cfg['paths:root']
+	
 rawDir = ottplib.MakeAbsolutePath(cfg['paths:receiver data'],root)
 rxExtension = '.sbf'
 
