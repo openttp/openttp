@@ -40,7 +40,7 @@
 
 #define APP_AUTHORS "Michael Wouters"
 #define APP_NAME    "sbf2rnx"
-#define APP_VERSION "0.3.1"
+#define APP_VERSION "0.3.2"
 
 #define MAXSTR 4097 // this is accomodates longest file path on Linux 
 
