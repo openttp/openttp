@@ -52,7 +52,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
 
 STARTUP_WINDOW = 300
@@ -205,12 +205,22 @@ def RestartReceiver():
 	Log(logFile,"receiver logging started")
 	
 	ottp.Debug('Waiting ...')
+	time.sleep(60); # time to first fix is 45 so wait a minute 
+	
+	# Restart chronyd
+	ottp.Debug('Restarting chrony')
+	try:
+		x = subprocess.check_output(['systemctl','restart','chrony']) # eat the output
+	except Exception as e:
+		Log(logFile,'Failed to restart chrony')
+		ottp.ErrorExit('Failed to restart chrony')
+	ottp.Debug(x.decode('utf-8'))
+	
+	Log(logFile,"chrony restarted")
+	ottp.Debug('Waiting ...')
 	time.sleep(5);
 	
-	# To get chronyd to reliably pick up the GNSS receiver after a reset
-	# we need to:
-	
-	# restart gpsd
+	# Restart gpsd - this must be done AFTER starting chrony
 	ottp.Debug('Restarting gpsd')
 	try:
 		x = subprocess.check_output(['systemctl','restart','gpsd']) # eat the output
@@ -221,20 +231,7 @@ def RestartReceiver():
 	ottp.Debug(x.decode('utf-8'))
 	Log(logFile,"gpsd restarted")
 	
-	time.sleep(5);
 	
-	# and restart chronyd
-	
-	ottp.Debug('Restarting chrony')
-	try:
-		x = subprocess.check_output(['systemctl','restart','chrony']) # eat the output
-	except Exception as e:
-		Log(logFile,'Failed to restart chrony')
-		ottp.ErrorExit('Failed to restart chrony')
-	ottp.Debug(x.decode('utf-8'))
-	
-	Log(logFile,"chrony restarted")
-		 
 # -----------------------------------------------
 
 root = '/usr/local' 
