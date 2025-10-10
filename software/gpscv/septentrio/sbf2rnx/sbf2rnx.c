@@ -621,8 +621,11 @@ main(
 			tow = MeasEpoch.TOW_ms;
 			if (tow/1000 % obsInterval == 0){
 				if (firstObsWN == -1){ 
-					firstObsTOW = MeasEpoch.TOW_ms;
-					firstObsWN  = MeasEpoch.WNc;
+					// check validity of  MeasEpoch.TOW_ms and MeasEpoch.WNc
+					if (MeasEpoch.TOW_ms != U32_NOTVALID && MeasEpoch.WNc != U16_NOTVALID){
+						firstObsTOW = MeasEpoch.TOW_ms;
+						firstObsWN  = MeasEpoch.WNc;
+					}
 				}
 				lastObsTOW = MeasEpoch.TOW_ms;
 				lastObsWN  = MeasEpoch.WNc;
@@ -747,6 +750,11 @@ main(
 			if (!makeObsFile){
 				continue;
 			}
+			
+			if (MeasEpoch.TOW_ms == U32_NOTVALID || MeasEpoch.WNc == U16_NOTVALID){
+				continue;
+			}
+			
 			int i,tow;
 			tow = MeasEpoch.TOW_ms;
 			if (tow/1000 % obsInterval == 0){
