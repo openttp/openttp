@@ -77,7 +77,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "3.1.0"
+#define LCDMONITOR_VERSION "3.1.1"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -825,6 +825,12 @@ bool LCDMonitor::restartNetworking()
 	clearDisplay();
 	updateLine(1,"Restarting NTP");
 	runSystemCommand(ntpRestartCommand,"Restarted OK","Restart failed !");
+	if (NTPDaemon == CHRONYD){
+		sleep(1);
+		clearDisplay();
+		updateLine(1,"Restarting gpsd");
+		runSystemCommand(gpsdRestartCommand,"gpsd restarted OK","gpsd restart failed");
+	}
 	sleep(1);
 
 	return ret;
@@ -1102,7 +1108,14 @@ void LCDMonitor::restartNTP()
 	bool ret = execDialog(dlg);
 	if (ret){
 		clearDisplay();
+		updateLine(1,"Restarting NTP");
 		runSystemCommand(ntpRestartCommand,"NTP restarted","NTP restart failed");
+		if (NTPDaemon == CHRONYD){
+			sleep(1);
+			clearDisplay();
+			updateLine(1,"Restarting gpsd");
+			runSystemCommand(gpsdRestartCommand,"gpsd restarted","gpsd restart failed");
+		}
 	}
 	delete dlg;
 }
@@ -1930,6 +1943,7 @@ void LCDMonitor::configure()
 	poweroffCommand="/usr/sbin/poweroff";
 	rebootCommand="/usr/sbin/shutdown -r now";
 	ntpRestartCommand="/usr/bin/systemctl restart chrony";
+	gpsdRestartCommand="/usr/bin/systemctl restart gpsd";
 	gpsRxRestartCommand="su - cvgps -c 'kickstart.py'";
 	gpsLoggerLockFile="/home/cvgps/logs/rest.lock";
 

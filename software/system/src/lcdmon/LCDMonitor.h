@@ -170,6 +170,7 @@ class LCDMonitor:public CFA635
 		std::string poweroffCommand;
 		std::string rebootCommand;
 		std::string ntpRestartCommand;
+		std::string gpsdRestartCommand;
 		std::string gpsRxRestartCommand;
 		std::string gpsLoggerLockFile;
 
