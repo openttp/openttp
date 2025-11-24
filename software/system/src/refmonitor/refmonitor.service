@@ -2,6 +2,7 @@
 Description=TTS reference monitoring
 ConditionPathExists=/usr/local/bin/refmonitor.py
 ConditionPathExists=/usr/local/etc/refmonitor.conf
+Before=umount.target
 # Customise as necessary
 #After=
 #Requires= 
