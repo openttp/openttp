@@ -52,8 +52,8 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.1.1"
-AUTHORS = "Michael Wouters"
+VERSION = "0.1.2"
+AUTHORS = "Michael Wouters, Louis Marais"
 
 STARTUP_WINDOW = 300
 GPSDO_STATUS_UPDATE_PERIOD = 10
@@ -158,7 +158,7 @@ def RefOK(refManufacturer,statusFile):
 # -----------------------------------------------
 def ReadGPIO(gpioName):
 	fgpio = open(os.path.join(gpioFS,gpioName), 'r')
-	val = int(fgpio.readline().strip())						
+	val = int(fgpio.readline().strip())
 	fgpio.close()
 	ottp.Debug(f'READ {gpioName} {val}')
 	return val
@@ -166,9 +166,83 @@ def ReadGPIO(gpioName):
 # -----------------------------------------------
 def WriteGPIO(gpioName,val):
 	fgpio = open(os.path.join(gpioFS,gpioName), 'w')
-	fgpio.write(f'{val}\n')					
+	fgpio.write(f'{val}\n')
 	fgpio.close()
 	ottp.Debug(f'WRITE {gpioName} {val}')
+
+# -----------------------------------------------
+def restartChrony():
+	# Restart chronyd
+	ottp.Debug('Restarting chrony')
+	try:
+		x = subprocess.check_output(['systemctl','restart','chrony']) # eat the output
+	except Exception as e:
+		Log(logFile,'Failed to restart chrony')
+		print(e)
+		ottp.ErrorExit('Failed to restart chrony')
+	ottp.Debug(x.decode('utf-8'))
+	
+	Log(logFile,"chrony restarted")
+	ottp.Debug('Waiting ...')
+
+# -----------------------------------------------
+def restartGpsd():
+	# Restart gpsd - this must be done AFTER starting chrony
+	ottp.Debug('Restarting gpsd')
+	try:
+		x = subprocess.check_output(['systemctl','restart','gpsd']) # eat the output
+	except Exception as e:
+		Log(logFile,'Failed to restart gpsd')
+		print(e)
+		ottp.ErrorExit('Failed to restart gpsd')
+	ottp.Debug(x.decode('utf-8'))
+	Log(logFile,"gpsd restarted")
+
+# -----------------------------------------------
+# For now just a simple check that Chrony reports a stratum number > 0
+def checkChrony():
+	ottp.Debug("Check chrony")
+	cmd = ['chronyc','tracking']
+	retval = subprocess.run(cmd,capture_output=True)
+	if retval.returncode != 0:
+		return(False)
+	lines = retval.stdout.decode('ascii').split('\n')
+	p = re.compile(r'Stratum\s+:\s+(\d+)')
+	for line in lines:
+		if not line.startswith('Stratum'):
+			continue
+		m = re.match(p,line)
+		if m:
+			stratum = int(m.groups()[0])
+			ottp.Debug(f"chrony reports stratum {stratum}")
+			if stratum > 0 and stratum < 10:  # TODO: Find good value for max stratum
+				return(True)
+			break
+	return(False)
+
+# -----------------------------------------------
+def terminateApp(script):
+	app = os.path.basename(script)
+	ottp.Debug(f"Check if {app} is running")
+	cmd = ['ps','ax']
+	retval = subprocess.run(cmd,capture_output=True)
+	if not retval.returncode == 0:
+		return(False)
+	v = list(filter(None,[s.strip() for s in retval.stdout.decode('ascii').split('\n')]))
+	for s in v:
+		if app in s:
+			p = re.compile(r'(\d+)')
+			m = re.match(p,s)
+			if m:
+				ottp.Debug(f"{app} is still running.")
+				pid = m.groups()[0]
+				cmd = ['kill',pid]
+				retval = subprocess.run(cmd,capture_output=True)
+				if not retval.returncode == 0:
+					return(False)
+				Log(logFile,f"{os.path.basename(script)} terminated.")
+			break
+	return(True) # Either killed successfully, or not running.
 
 # -----------------------------------------------
 def RestartReceiver():
@@ -194,6 +268,11 @@ def RestartReceiver():
 		rdy = ReadGPIO('MOST_T_READY.txt')
 	ottp.Debug('{} READY\n'.format(time.strftime('%Y-%02m-%02d %H:%M:%S',time.gmtime())))
 	
+	# First make sure plrxlog is dead... for s/n 6 it just did not die when it should have,
+	# so kickstart did not actually restart it! NOTE: This seems to be the silver bullet
+	# for s/n 6.
+	terminateApp(rxScript)
+	
 	# Kick it back into life
 	ottp.Debug('Restarting receiver')
 	try:
@@ -207,31 +286,21 @@ def RestartReceiver():
 	ottp.Debug('Waiting ...')
 	time.sleep(60); # time to first fix is 45 so wait a minute 
 	
-	# Restart chronyd
-	ottp.Debug('Restarting chrony')
-	try:
-		x = subprocess.check_output(['systemctl','restart','chrony']) # eat the output
-	except Exception as e:
-		Log(logFile,'Failed to restart chrony')
-		ottp.ErrorExit('Failed to restart chrony')
-	ottp.Debug(x.decode('utf-8'))
+	# LM, 2025-11-19
+	# s/n 6 does not recover from an antenna disconnect. All of s/n 1..5 do. What is up?
+	#
+	# Just waiting may not be enough to ensure the receiver is up, what if TTFF is > 60 s? 
+	#
+	# Maybe rather check that the receiver is OK, check receiver status file(?) > 4 GPS SVs?
 	
-	Log(logFile,"chrony restarted")
-	ottp.Debug('Waiting ...')
+	restartChrony()
+	
 	time.sleep(5);
 	
-	# Restart gpsd - this must be done AFTER starting chrony
-	ottp.Debug('Restarting gpsd')
-	try:
-		x = subprocess.check_output(['systemctl','restart','gpsd']) # eat the output
-	except Exception as e:
-		Log(logFile,'Failed to restart gpsd')
-		print(e)
-		ottp.ErrorExit('Failed to restart gpsd')
-	ottp.Debug(x.decode('utf-8'))
-	Log(logFile,"gpsd restarted")
+	restartGpsd()
 	
-	
+	return
+
 # -----------------------------------------------
 
 root = '/usr/local' 
@@ -276,7 +345,7 @@ refStatusFile = ottp.MakeAbsoluteFilePath( os.path.join(refCfg['status:path'],re
 
 gpioFS = os.path.join(gpscvUserHome,'gpios')
 
-# Create the process lock		
+# Create the process lock
 lockFile = ottp.MakeAbsoluteFilePath(cfg['paths:lock file'],root,os.path.join(root,'log'))
 ottp.Debug('Creating lock ' + lockFile)
 if (not ottp.CreateProcessLock(lockFile)):
@@ -299,6 +368,21 @@ ottp.Debug(f'Uptime = {up}')
 # Could detect warm boots but I think a user would expect everything to be restarted
 
 refLocked = True # may not have rebooted - may have eg restarted service
+
+
+
+#
+# LM, 2025-11-19 It may not be a good idea to wait without checking 'killed'.
+# The 'killed' variable should be checked in the loop below.
+# For example if the system is shut down within a few minutes of starting up
+# this application may prevent the shut down while it does its thing.
+# A possible scenario for this to happen is when a UPS is used and it is close
+# to running out of power after a brown-out or similar that caused the TTS
+# to shut down and then start up again - the UPS may force a shut down which 
+# may not happen in time due to this application holding up the shutdown.
+#
+
+
 
 if (up < STARTUP_WINDOW):
 	Log(logFile,'system has rebooted')
@@ -340,6 +424,9 @@ Log(logFile, 'boot checks completed')
 # - but that's OK
 # the main loop will take care of that 
 
+ncycle = 0
+checkcycle = 10            # TODO: is n == 10 the right choice?
+            
 while not killed:
 	time.sleep(GPSDO_STATUS_UPDATE_PERIOD) # this needs to be sufficiently frequent that we catch a short 'unlock'
 	if RefOK(refManufacturer,refStatusFile):
@@ -347,11 +434,20 @@ while not killed:
 			Log(logFile,"GNSSDO locked")
 			RestartReceiver()
 			refLocked = True
+			ncycle = 0
+		# Check status of chrony every n cycles
+		if ncycle >= checkcycle:  
+			time.sleep(5)
+			#print(time.strftime("%Y-%m-%d %H:%M:%S ",time.gmtime()))
+			if not checkChrony():
+				restartGpsd()
+			ncycle = 0
+		ncycle += 1
 	else:
 		if refLocked:
 			Log(logFile,"GNSSDO unlocked")
 		refLocked = False
-	
-# Clean up		
+
+# Clean up
 Log(logFile,'killed')
 ottp.RemoveProcessLock(lockFile)
