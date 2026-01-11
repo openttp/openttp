@@ -88,7 +88,10 @@ osinfo = [
 	['Raspbian GNU/Linux','11','rpidebian11',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.9/dist-packages/'],
 	['Debian GNU/Linux','12','rpidebian12',SYSTEMD,'/usr/local/lib/site_perl',
-		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.11/dist-packages/']]
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.11/dist-packages/'],
+	['Debian GNU/Linux','13','rpidebian13',SYSTEMD,'/usr/local/lib/site_perl',
+		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.13/dist-packages/'],
+	]
 
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
@@ -158,8 +161,9 @@ def DetectOS():
 	# TODO: Fix this properly. It will likely stop working in future versions
 	# of Python 3.
 	# 2025-09-30 ELM  I think it is time to break compatibility...
+	# NOTE: Not tested extensively
 	#(dist, distrover,_) = (distro.linux_distribution())
-	(dist, distrover) = (distro.id(),distro.version())
+	(dist, distrover) = (distro.name(),distro.version())
 	Debug('Detected ' + dist + ' ' + distrover)
 	dist=dist.lower()
 	ver=distrover.split('.')
