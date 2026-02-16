@@ -31,7 +31,7 @@ use Getopt::Std;
 use TFLibrary;
 use vars qw($opt_a $opt_c $opt_f $opt_h $opt_m $opt_l $opt_L $opt_u $opt_p $opt_r $opt_s $opt_t $opt_v $opt_x);
 
-$VERSION="2.0.1";
+$VERSION="2.0.2";
 
 $M_PI=4*atan2(1,1);
 $CVACUUM=299792458.0;
@@ -210,7 +210,7 @@ while (<RXDATA>)
 				$bits = ($data[6] & (0x01 << 7)) >> 7;
 				print $bits," ";}
 			if ($opt_t) {print $data[15]," ";}
-			if ($opt_x){ printf "%04x %02x %e %e %e",$data[6],$data[7],$data[16]*180.0/$M_PI,$data[17]*180.0/$M_PI,$data[18];} 
+			if ($opt_x){ printf "%04x %02x %lf %lf %e",$data[6],$data[7],$data[16]*180.0/$M_PI,$data[17]*180.0/$M_PI,$data[18];} 
 		}
 		elsif ($opt_f && ($submsg eq "41"))
 		{
