@@ -1,0 +1,3 @@
+# No useful serial number it seems
+KERNEL=="ttyACM*", ATTRS{idVendor}=="0525", ATTRS{idProduct}=="a4a7",ENV{ID_USB_INTERFACE_NUM}=="02", SYMLINK+="jvd01ACM0", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0"
+KERNEL=="ttyACM*", ATTRS{idVendor}=="0525", ATTRS{idProduct}=="a4a7",ENV{ID_USB_INTERFACE_NUM}=="04", SYMLINK+="jvd01ACM1", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0"
