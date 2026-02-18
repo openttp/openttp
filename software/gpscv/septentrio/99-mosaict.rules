@@ -1,0 +1,3 @@
+# You can remove the ATTRS{serial} if you only have one receiver attached
+KERNEL=="ttyACM*", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",ATTRS{serial}=="3612929",ENV{ID_USB_INTERFACE_NUM}=="02", SYMLINK+="mos01ACM0", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0" 
+KERNEL=="ttyACM*", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="85c0",ATTRS{serial}=="3612929",ENV{ID_USB_INTERFACE_NUM}=="04", SYMLINK+="mos01ACM1", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0"
