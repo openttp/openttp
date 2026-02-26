@@ -49,7 +49,7 @@ import time
 
 import ottplib as ottp
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 AUTHORS = 'Michael Wouters'
 
 
@@ -103,7 +103,7 @@ defRnxStation = 'SEPT' # default station name used by sbf2rin
 fixHeader = False
 bodgeSatCountBug = False
 
-rxFile = SBF
+rxFileFormat = SBF
 
 configFile = os.path.join(home,'etc','runrx2rnx.conf')
 
@@ -132,7 +132,7 @@ if (not os.path.isdir(logPath)):
 	ottp.ErrorExit(logPath + "not found")
 
 cfg=ottp.Initialise(configFile,['paths:receiver data','receiver:file extension', \
-		       'rinex:obs sta','rinex:nav sta'])
+		'rinex:obs sta','rinex:nav sta'])
 
 firstMJD = ottp.MJD(time.time()) - 1; # two days ago
 lastMJD  = firstMJD
@@ -166,20 +166,21 @@ if 'paths:tmp' in cfg:
 	
 if 'rinex:version' in cfg:
 	rnxVersion = cfg['rinex:version']
-if 'rinex:version' in cfg:
-	rnxVersion = cfg['rinex:version']
 
-if 'main:receiver file' in cfg:
-	token  = cfg['main:receiver file'].lower()
+if rnxVersion[0] == '2':
+	ottp.ErrorExit('Version 2 RINEX is not supported')
+
+if 'receiver:file format' in cfg:
+	token  = cfg['receiver:file format'].lower()
 	if token == 'sbf':
-		rxFile = SBF
+		rxFileFormat = SBF
 	elif token == 'jps':
-		rxFile = JPS
+		rxFileFormat = JPS
 
 if 'main:exec' in cfg:
-	if rxFile == SBF:
+	if rxFileFormat == SBF:
 		SBF2RIN = ottp.MakeAbsoluteFilePath(cfg['main:exec'],root,os.path.join(root,'bin'))
-	elif rxFile == JPS:
+	elif rxFileFormat == JPS:
 		JPS2RIN = ottp.MakeAbsoluteFilePath(cfg['main:exec'],root,os.path.join(root,'bin'))
 
 if 'main:sbf station name' in cfg:
@@ -194,23 +195,22 @@ if 'rinex:create nav file' in cfg:
 	if ('yes' == token or 'true' == token):
 		createNav =True
 
-if rxFile == SBF:
+if rxFileFormat == SBF:
 	rnxFiles = 'O'
 	if createNav:
 		rnxFiles += 'P'
-elif rxFile == JPS:
+elif rxFileFormat == JPS:
 	pass
 	
 	
 if 'rinex:exclusions' in cfg:
-	if rxFile == SBF:
+	if rxFileFormat == SBF:
 		rnxExclusions = cfg['rinex:exclusions']
-	elif rxFile == JPS:
+	elif rxFileFormat == JPS:
 		# We'll assume they know what they're doing
 		rnxExclusions = []
 		for g in cfg['rinex:exclusions']:
 			rnxExclusions.append('-'+g)
-		print(rnxExclusions)
 		
 if 'rinex:obs directory' in cfg:
 	rnxObsDir = ottp.MakeAbsolutePath(cfg['rinex:obs directory'],root)
@@ -262,16 +262,21 @@ for mjd in range(firstMJD,lastMJD+1):
 	
 	# sbf2rin defaults to file names in V2 format
 	# sbf2rnx follows the same convention
-	if rxFile == SBF:
-		fObs = '{}{:03d}0.{:02d}O'.format(defRnxStation,doy,yy)
+	if rxFileFormat == SBF:
+		fObs = '{}{:03d}0.{:02d}O'.format(defRnxStation,doy,yy) # as produced by sbf2rin
 		fNav = '{}{:03d}0.{:02d}P'.format(defRnxStation,doy,yy) # mixed navigation file
 		# Some ambiguity about whether spaces are allowed between option and value
 		# but it works for the options used here
 		cmd = [SBF2RIN,'-f',frx,'-R',rnxVersion,'-i',rnxObsInterval,'-n',rnxFiles,'-x',rnxExclusions]
-	elif rxFile == JPS:
-		cmd = [JPS2RIN,'-v='+rnxVersion] + rnxExclusions + ['--dt='+str(int(rnxObsInterval)*1000),'--fd','--mxd',frx]
-		print(cmd)
-		sys.exit(0)
+	elif rxFileFormat == JPS:
+		fObs = '{}.{:02d}o'.format(mjd,yy) # as produced by jps2rin
+		fNav = '{}.{:02d}p'.format(mjd,yy) # mixed navigation file
+		# Again, inconsistencies in the way option values are handled by jps2rin
+		# Doppler and signal strength observations can be filtered out
+		# We'll keep GPS L5 observations
+		excludedObservations = '-b=D??,S??'
+		navFileOption = '--mxd'
+		cmd = [JPS2RIN,'-v='+rnxVersion] + rnxExclusions + ['--dt='+str(int(rnxObsInterval)*1000),'--fd',navFileOption,excludedObservations,frx]
 	ottp.Debug('Running')
 	try:
 		x = subprocess.check_output(cmd) 
@@ -325,6 +330,9 @@ for mjd in range(firstMJD,lastMJD+1):
 			ottp.Debug('Moving ' + fObs + '.tmp' + ' to ' + os.path.join(rnxObsDir,fObs))
 			shutil.move(fObs + '.tmp',os.path.join(rnxObsDir,fObs))
 			os.unlink(fObs)
+		else:
+			ottp.Debug('Moving ' + fObs + ' to ' + os.path.join(rnxObsDir,fObs))
+			shutil.move(fObs,os.path.join(rnxObsDir,fObs))
 	else:
 		pass
 	
