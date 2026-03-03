@@ -35,6 +35,7 @@
 import argparse
 import binascii
 import os
+from pathlib import Path
 import string
 import shutil
 import subprocess
@@ -49,7 +50,7 @@ import time
 
 import ottplib as ottp
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 AUTHORS = 'Michael Wouters'
 
 
@@ -102,7 +103,7 @@ rnxExclusions = 'ISJ'  # typically, we don't care about these
 defRnxStation = 'SEPT' # default station name used by sbf2rin
 fixHeader = False
 bodgeSatCountBug = False
-
+useRxCopy = False        # RINEX converters eg may not work happily with a live file. Workaround is to use a copy. 
 rxFileFormat = SBF
 
 configFile = os.path.join(home,'etc','runrx2rnx.conf')
@@ -113,6 +114,7 @@ parser = argparse.ArgumentParser(description='Generate RINEX files using vendor 
 parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, the MJD of the previous day is used)')
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug',action='store_true')
+parser.add_argument('--usecopy',help='debug',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
@@ -161,6 +163,19 @@ rxExtension = '.sbf'
 if 'receiver:file extension' in cfg:
 	rxExtension = cfg['receiver:file extension']
 
+if 'receiver:file format' in cfg:
+	token  = cfg['receiver:file format'].lower()
+	if token == 'sbf':
+		rxFileFormat = SBF
+	elif token == 'jps':
+		rxFileFormat = JPS
+
+if args.usecopy: # overrides configuration file
+	useRxCopy = True
+elif 'receiver:use copy' in cfg:
+	tmp = cfg['receiver:use copy'].lower()
+	useRxCopy = (tmp == '1') or (tmp == 'yes') or (tmp =='true')
+	
 if 'paths:tmp' in cfg:
 	tmpDir = ottp.MakeAbsolutePath(cfg['paths:tmp'],root)
 	
@@ -169,13 +184,6 @@ if 'rinex:version' in cfg:
 
 if rnxVersion[0] == '2':
 	ottp.ErrorExit('Version 2 RINEX is not supported')
-
-if 'receiver:file format' in cfg:
-	token  = cfg['receiver:file format'].lower()
-	if token == 'sbf':
-		rxFileFormat = SBF
-	elif token == 'jps':
-		rxFileFormat = JPS
 
 if 'main:exec' in cfg:
 	if rxFileFormat == SBF:
@@ -201,7 +209,6 @@ if rxFileFormat == SBF:
 		rnxFiles += 'P'
 elif rxFileFormat == JPS:
 	pass
-	
 	
 if 'rinex:exclusions' in cfg:
 	if rxFileFormat == SBF:
@@ -253,13 +260,27 @@ for mjd in range(firstMJD,lastMJD+1):
 	frx = os.path.join(rawDir,str(mjd) + '.' + rxExtension)
 	recompress  = False
 	if not(os.path.exists(frx)):
-		if (os.path.exists(frx + '.gz')):
-			DecompressFile(frx,'.gz')
-			recompress = True
+		frxgz = frx + '.gz' 
+		if (os.path.exists(frxgz)):
+			
+			if useRxCopy:
+				ottp.Debug(f'Copying {frxgz}')
+				shutil.copy(frxgz,'./')
+				frx = Path(frx).name
+				DecompressFile(frx,'.gz')
+				# don't bother recompressing, because it will be deleted
+			else:
+				DecompressFile(frx,'.gz')
+				recompress = True
 		else:
 			sys.stderr.write(frx + ' is missing\n')
 			continue
-	
+	else:
+		if useRxCopy:
+			ottp.Debug(f'Copying {frx}')
+			shutil.copy(frx,'./')
+			frx = Path(frx).name # strip path - it's now in the working directory
+			
 	# sbf2rin defaults to file names in V2 format
 	# sbf2rnx follows the same convention
 	if rxFileFormat == SBF:
@@ -334,8 +355,8 @@ for mjd in range(firstMJD,lastMJD+1):
 			ottp.Debug('Moving ' + fObs + ' to ' + os.path.join(rnxObsDir,fObs))
 			shutil.move(fObs,os.path.join(rnxObsDir,fObs))
 	else:
-		pass
-	
+		ottp.Debug('The OBS file is missing')
+		
 	oldFNav = fNav
 	if nameFormat == '2':
 		fNav = '{}{:03d}0.{:02d}P'.format(rnxNavStation,doy,yy) # nb mixed GNSS
@@ -346,8 +367,17 @@ for mjd in range(firstMJD,lastMJD+1):
 		ottp.Debug('Moving ' + oldFNav + ' to ' + os.path.join(rnxNavDir,fNav))
 		shutil.move(oldFNav,os.path.join(rnxNavDir,fNav))
 	else:
-		pass
+		ottp.Debug('The NAV file is missing')
 	
+	if rxFileFormat == JPS:
+		# jps2rin creates a directory jps2rin for temporary files
+		# If there was an abnormal termination, then the files are not scrubbbed
+		ottp.Debug('Scrubbing jps2rin temporary files')
+		shutil.rmtree('jps2rin')
+		
+	if useRxCopy:
+		ottp.Debug('Deleting receiver data file')
+		os.unlink(frx)
 	if recompress:
 		CompressFile(frx,'.gz')
 		
