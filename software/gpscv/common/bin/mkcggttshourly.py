@@ -39,7 +39,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22
 sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24
 import ottplib as ottp
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
 
 debug = False
@@ -313,6 +313,7 @@ elif (mkcggttsCfg['cggtts:naming convention'].upper() == 'BIPM'):
 		mkcggttsCfg['cggtts:receiver id'].upper(),mjdDD,mjdDDD))
 
 # Step 1: generate RINEX observation and navigation files for r2cggtts to digest
+		
 ottp.Debug('Running runrx2rnx.py')
 try:
 	x = subprocess.check_output([RUN_RX2RNX,'-c',runrx2rnxConf,str(mjd)],stderr=subprocess.STDOUT) # eat the output
@@ -376,5 +377,6 @@ if not debug:
 	for f in files:
 		os.unlink(f)
 		
-	# The cggtts file we just created
-	os.unlink(cggttsFile)
+	# The cggtts file we just created, if it exists
+	if os.path.isfile(cggttsFile):
+		os.unlink(cggttsFile)
