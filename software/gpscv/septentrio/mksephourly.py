@@ -36,9 +36,14 @@ import time
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22
-import ottplib
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
 
-VERSION = "1.0.1"
+try: 
+	import ottplib as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
+
+VERSION = "1.1.0"
 AUTHORS = "Michael Wouters"
 
 debug = False
@@ -142,8 +147,8 @@ def ReadCGGTTS(fname):
 		if not l:
 			Debug('Bad format')
 			return d
-		if (re.search('STTIME TRKL ELV AZTH',l)):
-			if (re.search('MSIO',l)):
+		if (re.search(r'STTIME TRKL ELV AZTH',l)):
+			if (re.search(r'MSIO',l)):
 				hasMSIO=True
 				Debug('MSIO present')
 			continue

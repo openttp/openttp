@@ -60,9 +60,12 @@ sys.path.append('/usr/local/lib/python3.12/dist-packages')
 
 import time
 
-import ottplib
+try: 
+	import ottplib as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.6.1'
+VERSION = '0.7.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -298,7 +301,7 @@ def ConfigureReceiver(rxcfg):
 			continue
 		if (comment_re.search(l)): # skip comments
 			continue
-		if re.match('SetSBFoutput',l,flags=re.IGNORECASE):
+		if re.match(r'SetSBFoutput',l,flags=re.IGNORECASE):
 			cmdargs = l.split(',') 	# arguments are comma delimited
 			l = 'SetSBFoutput,' + cmdargs[1] + ',' + commInterface + ',' + cmdargs[3] + ',' + cmdargs[4] # retain only the last two fields
 		SendCommand(l)

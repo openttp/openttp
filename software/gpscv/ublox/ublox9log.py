@@ -44,14 +44,21 @@ import string
 import struct
 import subprocess
 import sys
+
 # This is where ottplib is installed
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
+
 import time
 
-import ottplib
+try: 
+	import ottplib as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -551,7 +558,7 @@ if ('receiver:communication interface' in cfg):
 		commInterface = USB
 	elif ('uart1'== newCommInterface):
 		commInterface = UART1
-	elif (re.search('uart2',newCommInterface)):
+	elif (re.search(r'uart2',newCommInterface)):
 		commInterface = UART2
 	else:
 		ErrorExit('Invalid communication interface: ' + newCommInterface)

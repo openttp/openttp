@@ -45,11 +45,16 @@ import sys
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
 sys.path.append('/usr/local/lib/python3.10/site-packages')
+sys.path.append('/usr/local/lib/python3.12/site-packages')
+
 import time
 
-import ottplib
+try: 
+	import ottplib as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -127,7 +132,7 @@ bodgeSatCountBug = False
 
 configFile = os.path.join(home,'etc','runsbf2rnx.conf')
 
-parser = argparse.ArgumentParser(description='Generate RINEX files from Septentrio SBF (wrapper for sbf2rin) ',
+parser = argparse.ArgumentParser(description='THIS IS DEPRECATED Use runrx2rnx.py. Generate RINEX files from Septentrio SBF (wrapper for sbf2rin) ',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
 
 parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, the MJD of the previous day is used)')

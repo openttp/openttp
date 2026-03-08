@@ -34,15 +34,20 @@ import shutil
 import subprocess
 import sys
 import time
+
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
-sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
 
-import ottplib as ottp
+try: 
+	import ottplib as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
+	
 import rinexlib as rinex
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 AUTHORS = "Michael Wouters"
 NMISSING  = 7 # number of days to look backwards for missing files
 
