@@ -65,7 +65,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.7.0'
+VERSION = '0.7.1'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -172,7 +172,7 @@ def ErrorExit(msg):
 	
 #-----------------------------------------------------------------------------
 def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
+	cfg=ottp.LoadConfig(configFile,{'tolower':True})
 	if (cfg == None):
 		ErrorExit("Error loading " + configFile)
 		
@@ -190,7 +190,7 @@ def Initialise(configFile):
 #-----------------------------------------------------------------------------
 def Cleanup():
 	# Hmm ugly globals
-	ottplib.RemoveProcessLock(lockFile)
+	ottp.RemoveProcessLock(lockFile)
 	if (not serport==None):
 		SendCommand('setDataInOut,' + commInterface + ',,-SBF') # turn off all SBF output
 		serport.close()
@@ -264,7 +264,7 @@ def ConfigureReceiver(rxcfg):
 		Debug('Resetting: Hard,PVTData+SatData')
 		SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
 		# A hard reset closes the serial port so no need to deal with that
-		ottplib.RemoveProcessLock(lockFile)
+		ottp.RemoveProcessLock(lockFile)
 		sys.exit(0)
 		
 	# FIXME This assumes that there is only Stream1  enabled
@@ -602,14 +602,14 @@ if ('receiver:timeout' in cfg):
 
 port = cfg['receiver:port']
 
-dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
+dataPath = ottp.MakeAbsolutePath(cfg['paths:receiver data'], home)
 
 logStatus = False
 if ('receiver:status file' in cfg):
 	if (cfg['receiver:status file'].lower() == 'none'):
 		logStatus=False
 	else:
-		rxStatus = ottplib.MakeAbsoluteFilePath(cfg['receiver:status file'], home,home + '/log')
+		rxStatus = ottp.MakeAbsoluteFilePath(cfg['receiver:status file'], home,home + '/log')
 		logStatus=True
 
 dataExt = cfg['receiver:file extension']
@@ -617,7 +617,7 @@ if (None == re.search(r'\.$',dataExt)): # add a '.' separator if needed
 	dataExt = '.' + dataExt 
 
 # Check that the receiver configuration file exists
-rxCfg = 	ottplib.MakeAbsoluteFilePath(cfg['receiver:configuration'], home, home + '/etc/')
+rxCfg = 	ottp.MakeAbsoluteFilePath(cfg['receiver:configuration'], home, home + '/etc/')
 if (not os.path.isfile(rxCfg)):
 		ErrorExit(rxCfg + ' not found')
 		
@@ -637,9 +637,9 @@ if ('receiver:communication interface' in cfg):
 syncAlarmTimeout = 60
 
 # Create the process lock		
-lockFile = ottplib.MakeAbsoluteFilePath(cfg['receiver:lock file'],home,home + '/etc')
+lockFile = ottp.MakeAbsoluteFilePath(cfg['receiver:lock file'],home,home + '/etc')
 Debug('Creating lock ' + lockFile)
-if (not ottplib.CreateProcessLock(lockFile)):
+if (not ottp.CreateProcessLock(lockFile)):
 	ErrorExit("Couldn't create a lock")
 
 signal.signal(signal.SIGINT,SignalHandler) 
@@ -669,7 +669,7 @@ Debug('Creating uucp lock in ' + uucpLockPath)
 ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,'-p',str(os.getpid()),port,sys.argv[0]])
 
 if (re.match(rb'1',ret)==None):
-	ottplib.RemoveProcessLock(lockFile)
+	ottp.RemoveProcessLock(lockFile)
 	ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
 
 Debug('Opening ' + port)
@@ -692,7 +692,7 @@ tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400        # again, our best gue
 print(str(datetime.datetime.now(datetime.timezone.utc)) + ' Est: tGPS = ' + str(tGPSNow) + 
 			' rollover at ' + str(tGPSNextRollover))
 
-mjd = ottplib.MJD(tNow)
+mjd = ottp.MJD(tNow)
 fdata = OpenDataFile(mjd)
 
 tLastStatusUpdate=0
@@ -819,14 +819,14 @@ while (not killed):
 					    + str(tGPSNextRollover))
 				# The initial guess for GPS time may have been bad so rollover the file
 				fdata.close()
-				mjd=ottplib.MJD(tGPSNow + GPS_EPOCH)
+				mjd=ottp.MJD(tGPSNow + GPS_EPOCH)
 				fdata = OpenDataFile(mjd)
 			gotCN0=1
 			# TOW in this packet is used to decide rollover
 			if (tGPSNow >= tGPSNextRollover): # invalid tGPSNow == -1 so this will fail 
 				Debug(str(datetime.datetime.now(datetime.timezone.utc))+' tGPSNow = ' + str(tGPSNow))
 				fdata.close()
-				mjd=ottplib.MJD(tGPSNow + GPS_EPOCH)
+				mjd=ottp.MJD(tGPSNow + GPS_EPOCH)
 				Debug(str(datetime.datetime.now(datetime.timezone.utc))+' Next MJD = ' + str(mjd))
 				fdata = OpenDataFile(mjd)
 				tGPSNextRollover = 86400*int(tGPSNow/86400) + 86400
@@ -843,7 +843,7 @@ while (not killed):
 				if (checkSync and (tt - tLastSyncOK) > syncAlarmTimeout):
 					print('Sync timeout : status = 0x{:04x}'.format(receiverStatus))
 					SendCommand('exeResetReceiver,Hard,PVTData+SatData') # FIXME Not checked for PolaRx4,5 receivers
-					ottplib.RemoveProcessLock(lockFile) 
+					ottp.RemoveProcessLock(lockFile) 
 					sys.exit(0)
 		elif ((pktID & 8191) == 4006): # PVTCartesian
 			Debug('pkt 4006 ' + str(pktLen))

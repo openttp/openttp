@@ -43,7 +43,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 AUTHORS = "Michael Wouters"
 
 debug = False
@@ -103,7 +103,7 @@ def ErrorExit(msg):
 
 # ------------------------------------------
 def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
+	cfg=ottp.LoadConfig(configFile,{'tolower':True})
 	if (cfg == None):
 		ErrorExit("Error loading " + configFile)
 		
@@ -282,7 +282,7 @@ cfg=Initialise(configFile)
 # Script is run hourly, so to make sure we get the data from the end of the day
 # use the current time - 1 hour to get the MJD
 
-mjd = ottplib.MJD(time.time() - 3600) 
+mjd = ottp.MJD(time.time() - 3600) 
 Debug('Generating for {:d}'.format(mjd))
 
 # mjd = 59898 # FIXME
@@ -290,30 +290,30 @@ Debug('Generating for {:d}'.format(mjd))
 runsbf2rnxConf = RUN_SBF2RNX_CONF
 if 'main:runsbf2rnx conf' in cfg:
 	runsbf2rnxConf = cfg['main:runsbf2rnx conf']
-runsbf2rnxConf = ottplib.MakeAbsoluteFilePath(runsbf2rnxConf,root,os.path.join(root,'etc'))
+runsbf2rnxConf = ottp.MakeAbsoluteFilePath(runsbf2rnxConf,root,os.path.join(root,'etc'))
 Debug('Using ' + runsbf2rnxConf)
 
 mkcggttsConf = MKCGGTTS_CONF
 if 'main:mkcggtts conf' in cfg:
 	mkcggttsConf = cfg['main:mkcggtts conf']
-mkcggttsConf = ottplib.MakeAbsoluteFilePath(mkcggttsConf,root,os.path.join(root,'etc'))
+mkcggttsConf = ottp.MakeAbsoluteFilePath(mkcggttsConf,root,os.path.join(root,'etc'))
 Debug('Using ' + mkcggttsConf)
 
-mkcggttsCfg = ottplib.LoadConfig(mkcggttsConf,{'tolower':True})
+mkcggttsCfg = ottp.LoadConfig(mkcggttsConf,{'tolower':True})
 if (mkcggttsCfg == None):
 	ErrorExit("Error loading " + mkcggttsCfg)
 	
 # Determine the file to load from hourly.mkcggtts.conf
 cggtts = cfg['main:cggtts source'].lower()
 cggttsPath = mkcggttsCfg[ cggtts + ':directory' ]
-cggttsPath = ottplib.MakeAbsolutePath(cggttsPath,root)
+cggttsPath = ottp.MakeAbsolutePath(cggttsPath,root)
 
 constellation = mkcggttsCfg[ cggtts + ':constellation' ].upper()
 code = mkcggttsCfg[ cggtts + ':code' ]
 rinexObsPath =  mkcggttsCfg['rinex:obs directory' ] # could also come from runsbf2rnxConf 
-rinexObsPath = ottplib.MakeAbsolutePath(rinexObsPath,root)
+rinexObsPath = ottp.MakeAbsolutePath(rinexObsPath,root)
 rinexNavPath =  mkcggttsCfg['rinex:nav directory' ]
-rinexNavPath = ottplib.MakeAbsolutePath(rinexNavPath,root)
+rinexNavPath = ottp.MakeAbsolutePath(rinexNavPath,root)
 
 if (mkcggttsCfg['cggtts:naming convention'].lower() == 'plain'):
 	cggttsFile = os.path.join(cggttsPath,str(mjd) + '.cctf')
@@ -360,7 +360,7 @@ Debug(x.decode('utf-8'))
 
 # Step 3: rewrite the summary file
 
-summaryPath = ottplib.MakeAbsolutePath(cfg['main:summary path'],root)
+summaryPath = ottp.MakeAbsolutePath(cfg['main:summary path'],root)
 summaryFilename = os.path.join(summaryPath,'{:d}.dat'.format(mjd))
 Debug('Updating ' + summaryFilename)
 

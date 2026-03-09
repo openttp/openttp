@@ -54,7 +54,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.3.0'
+VERSION = '0.3.1'
 AUTHORS = 'Michael Wouters'
 
 # Some defaults
@@ -74,7 +74,7 @@ def ErrorExit(msg):
 
 #-----------------------------------------------------------------------------
 def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
+	cfg=ottp.LoadConfig(configFile,{'tolower':True})
 	if (cfg == None):
 		ErrorExit("Error loading " + configFile)
 		
@@ -91,7 +91,7 @@ def Initialise(configFile):
 #-----------------------------------------------------------------------------
 def Cleanup():
 	# Hmm ugly globals
-	ottplib.RemoveProcessLock(lockFile)
+	ottp.RemoveProcessLock(lockFile)
 
 
 # ---------------------------------------------
@@ -156,7 +156,7 @@ if (not os.path.isdir(logPath)):
 
 cfg=Initialise(configFile)
 
-firstMJD = ottplib.MJD(time.time()) - 1; # two days ago
+firstMJD = ottp.MJD(time.time()) - 1; # two days ago
 lastMJD  = firstMJD
 
 if (args.mjd):
@@ -177,14 +177,14 @@ Debug('Processing MJDs ' + str(firstMJD) + ' to ' + str(lastMJD))
 if 'paths:root' in cfg:
 	root = cfg['paths:root']
 	
-rawDir = ottplib.MakeAbsolutePath(cfg['paths:receiver data'],root)
+rawDir = ottp.MakeAbsolutePath(cfg['paths:receiver data'],root)
 rxExtension = '.sbf'
 
 if 'receiver:file extension' in cfg:
 	rxExtension = cfg['receiver:file extension']
 
 if 'paths:tmp' in cfg:
-	tmpDir = ottplib.MakeAbsolutePath(cfg['paths:tmp'],root)
+	tmpDir = ottp.MakeAbsolutePath(cfg['paths:tmp'],root)
 	
 if 'rinex:version' in cfg:
 	rnxVersion = cfg['rinex:version']
@@ -192,7 +192,7 @@ if 'rinex:version' in cfg:
 	rnxVersion = cfg['rinex:version']
 
 if 'main:exec' in cfg:
-	SBF2RIN = ottplib.MakeAbsoluteFilePath(cfg['main:exec'],root,os.path.join(root,'bin'))
+	SBF2RIN = ottp.MakeAbsoluteFilePath(cfg['main:exec'],root,os.path.join(root,'bin'))
 
 if 'main:sbf station name' in cfg:
 	defRnxStation = cfg['main:sbf station name']
@@ -214,10 +214,10 @@ if 'rinex:exclusions' in cfg:
 	rnxExclusions = cfg['rinex:exclusions']
 	
 if 'rinex:obs directory' in cfg:
-	rnxObsDir = ottplib.MakeAbsolutePath(cfg['rinex:obs directory'],root)
+	rnxObsDir = ottp.MakeAbsolutePath(cfg['rinex:obs directory'],root)
 
 if 'rinex:nav directory' in cfg:
-	rnxNavDir = ottplib.MakeAbsolutePath(cfg['rinex:nav directory'],root)
+	rnxNavDir = ottp.MakeAbsolutePath(cfg['rinex:nav directory'],root)
 	
 rnxObsStation = cfg['rinex:obs sta']
 rnxNavStation = cfg['rinex:nav sta']
@@ -238,7 +238,7 @@ os.chdir(tmpDir)
 
 headerFixes = {}  # store as dictionary
 if fixHeader:
-	headerFile = ottplib.MakeAbsoluteFilePath(cfg['rinex:header fixes'],root,os.path.join(root,'etc'))
+	headerFile = ottp.MakeAbsoluteFilePath(cfg['rinex:header fixes'],root,os.path.join(root,'etc'))
 	if os.path.exists(headerFile):
 		fin = open(headerFile,'r')
 		for l in fin:

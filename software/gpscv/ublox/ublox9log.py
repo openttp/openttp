@@ -58,7 +58,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.3.0'
+VERSION = '0.3.1'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -120,7 +120,7 @@ def ErrorExit(msg):
 	
 # ------------------------------------------
 def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
+	cfg=ottp.LoadConfig(configFile,{'tolower':True})
 	if (cfg == None):
 		ErrorExit("Error loading " + configFile)
 		
@@ -138,7 +138,7 @@ def Initialise(configFile):
 #-----------------------------------------------------------------------------
 def Cleanup():
 	# Hmm ugly globals
-	ottplib.RemoveProcessLock(lockFile)
+	ottp.RemoveProcessLock(lockFile)
 	if (not serport==None):
 		serport.close()
 		subprocess.check_output(['/usr/local/bin/lockport','-r',port])
@@ -581,8 +581,8 @@ if ('receiver:timeout' in cfg):
 
 port = cfg['receiver:port']
 
-dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
-rxStatus = ottplib.MakeAbsoluteFilePath(cfg['receiver:status file'], home,home + '/log')
+dataPath = ottp.MakeAbsolutePath(cfg['paths:receiver data'], home)
+rxStatus = ottp.MakeAbsoluteFilePath(cfg['receiver:status file'], home,home + '/log')
 statusUpdateInterval = 30
  
 dataExt = cfg['receiver:file extension']
@@ -597,9 +597,9 @@ if ('receiver:file format' in cfg):
 		cfg['receiver:file extension']= '.ubx'
 
 # Create the process lock		
-lockFile = ottplib.MakeAbsoluteFilePath(cfg['receiver:lock file'],home,home + '/etc')
+lockFile = ottp.MakeAbsoluteFilePath(cfg['receiver:lock file'],home,home + '/etc')
 Debug('Creating lock ' + lockFile)
-if (not ottplib.CreateProcessLock(lockFile)):
+if (not ottp.CreateProcessLock(lockFile)):
 	ErrorExit("Couldn't create a lock")
 
 # Create UUCP lock for the serial port
@@ -610,7 +610,7 @@ Debug('Creating uucp lock in ' + uucpLockPath)
 ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,'-p',str(os.getpid()),port,sys.argv[0]])
 
 if (re.match(rb'1',ret)==None):
-	ottplib.RemoveProcessLock(lockFile)
+	ottp.RemoveProcessLock(lockFile)
 	ErrorExit('Could not obtain a lock on ' + port + '.Exiting.')
 
 signal.signal(signal.SIGINT,SignalHandler) 
@@ -630,7 +630,7 @@ ConfigureReceiver(serport)
 
 tt = time.time()
 tStr = time.strftime('%H:%M:%S',time.gmtime(tt))
-mjd = ottplib.MJD(tt)
+mjd = ottp.MJD(tt)
 fdata = OpenDataFile(mjd)
 tNext=(mjd-40587+1)*86400
 tThen = 0

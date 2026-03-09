@@ -54,7 +54,7 @@ except ImportError:
 
 import time
 
-VERSION = '0.3.0'
+VERSION = '0.3.1'
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -91,7 +91,7 @@ def ErrorExit(msg):
 	
 # ------------------------------------------
 def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
+	cfg=ottp.LoadConfig(configFile,{'tolower':True})
 	if (cfg == None):
 		ErrorExit("Error loading " + configFile)
 	# Check for required arguments
@@ -270,7 +270,7 @@ def GNSSMeasurements(meas):
 home =os.environ['HOME'] + '/'
 configFile = os.path.join(home,'etc/gpscv.conf')
 tt = time.time()
-mjd = ottplib.MJD(tt) - 1 # previous day
+mjd = ottp.MJD(tt) - 1 # previous day
 compress=False
 
 parser = argparse.ArgumentParser(description='Extract messages from a ublox data file')
@@ -320,7 +320,7 @@ else:
 	
 	cfg=Initialise(configFile)
 	
-	dataPath = ottplib.MakeAbsolutePath(cfg['paths:receiver data'], home)
+	dataPath = ottp.MakeAbsolutePath(cfg['paths:receiver data'], home)
 
 	rxExt = cfg['receiver:file extension']
 	if (None == re.search(r'\.$',rxExt)):
