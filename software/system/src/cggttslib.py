@@ -28,7 +28,7 @@ import sys
 
 LIB_MAJOR_VERSION  = 1
 LIB_MINOR_VERSION  = 0
-LIB_PATCH_VERSION  = 2
+LIB_PATCH_VERSION  = 3
 
 debug=False
 
@@ -608,7 +608,7 @@ def ReadHeader(fname,intdelays=[]):
 				for i in range(0,len(intdelays)):
 					d = intdelays[i]
 					if d in l:
-						match = re.search(r'([+-]?\d+\.?\d?)\sns\s\(\s*' + d + '\s*\)',l)
+						match = re.search(r'([+-]?\d+\.?\d?)\sns\s\(\s*' + d + r'\s*\)',l)
 						if match:
 							nfound += 1
 							if i == 0:

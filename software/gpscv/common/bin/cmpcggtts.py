@@ -45,13 +45,14 @@ import sys
 sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
 
 try: 
 	import cggttslib
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.11.0"
+VERSION = "0.12.0"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -229,15 +230,15 @@ def ReadCGGTTS(path,prefix,ext,mjd,startTime,stopTime,measCode,delays,badsv):
 		if not l:
 			Warn('Bad format')
 			return ([],[],{})
-		if (re.search('STTIME TRKL ELV AZTH',l)):
-			if (re.search('MSIO',l)):
+		if (re.search(r'STTIME TRKL ELV AZTH',l)):
+			if (re.search(r'MSIO',l)):
 				hasMSIO=True
 				Debug('MSIO present')
-			if (re.search('FRC',l)):
+			if (re.search(r'FRC',l)):
 				hasFRC=True
 				Debug('FRC present')
 			continue
-		match = re.match('\s+hhmmss',l)
+		match = re.match(r'\s+hhmmss',l)
 		if match:
 			break
 		
@@ -686,7 +687,7 @@ firstMJD = int(args.firstMJD)
 lastMJD  = int(args.lastMJD)
 
 if (args.starttime):
-	match = re.search('(\d+):(\d+):(\d+)',args.starttime)
+	match = re.search(r'(\d+):(\d+):(\d+)',args.starttime)
 	if match:
 		hh = int(match.group(1))
 		mm = int(match.group(2))
@@ -694,7 +695,7 @@ if (args.starttime):
 		startTime=hh*3600+mm*60+ss
 	
 if (args.stoptime):
-	match = re.search('(\d+):(\d+):(\d+)',args.stoptime)
+	match = re.search(r'(\d+):(\d+):(\d+)',args.stoptime)
 	if match:
 		hh = int(match.group(1))
 		mm = int(match.group(2))

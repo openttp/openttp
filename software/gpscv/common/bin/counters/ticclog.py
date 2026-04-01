@@ -46,15 +46,21 @@ import serial
 import signal
 import subprocess
 import sys
+
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.6/site-packages")
 sys.path.append("/usr/local/lib/python3.8/site-packages")
 sys.path.append("/usr/local/lib/python3.10/dist-packages")
+sys.path.append("/usr/local/lib/python3.12/dist-packages")
+
 import time
 
-import ottplib as ottp
+try:
+	import ottplib   as ottp
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.2.1"
+VERSION = "0.3.0"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats

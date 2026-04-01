@@ -31,7 +31,6 @@ import argparse
 from   datetime import datetime,timezone
 import math as m
 import os
-import re
 import subprocess
 import sys
 import time
@@ -41,6 +40,7 @@ import time
 sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
 
 import ottplib as ottp
 import cggttslib as cggttsl
@@ -48,7 +48,7 @@ from cggttslib import CGGTTS
 
 import rinexlib
 
-VERSION = "1.0.3"
+VERSION = "1.1.0"
 AUTHORS = "Michael Wouters"
 
 MKCGGTTS_FORMAT = 0

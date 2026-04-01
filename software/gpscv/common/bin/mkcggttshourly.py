@@ -34,12 +34,12 @@ import sys
 import time
 
 # This is where ottplib is installed
-sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20
+sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22
-sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 22
-import ottplib
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24
+import ottplib as ottp
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
 
 debug = False
@@ -85,22 +85,6 @@ RUN_RX2RNX_CONF = 'hourly.runsrx2rnx.conf'
 
 MKCGGTTS    = '/usr/local/bin/mkcggtts.py'
 MKCGGTTS_CONF = 'hourly.mkcggtts.conf'
-
-# ------------------------------------------
-def Initialise(configFile):
-	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
-	if (cfg == None):
-		ottp.ErrorExit("Error loading " + configFile)
-		
-	# Check for required arguments
-	reqd = ['main:cggtts source','main:summary path']
-	
-	for k in reqd:
-		if (not k in cfg):
-			ottp.ErrorExit('The required configuration entry "' + k + '" is undefined')
-		
-	return cfg
-
 
 # ------------------------------------------
 def SetDataColumns(isdf):
@@ -269,7 +253,7 @@ cfg=ottp.Initialise(configFile,['main:cggtts source','main:summary path'])
 # Script is run hourly, so to make sure we get the data from the end of the day
 # use the current time - 1 hour to get the MJD
 
-mjd = ottplib.MJD(time.time() - 3600) 
+mjd = ottp.MJD(time.time() - 3600) 
 ottp.Debug('Generating for {:d}'.format(mjd))
 
 # mjd = 59898 # FIXME
@@ -277,30 +261,30 @@ ottp.Debug('Generating for {:d}'.format(mjd))
 runrx2rnxConf = RUN_RX2RNX_CONF
 if 'main:runrx2rnx conf' in cfg:
 	runrx2rnxConf = cfg['main:runrx2rnx conf']
-runrx2rnxConf = ottplib.MakeAbsoluteFilePath(runrx2rnxConf,root,os.path.join(root,'etc'))
-ottp.Debug('Using ' + runsbf2rnxConf)
+runrx2rnxConf = ottp.MakeAbsoluteFilePath(runrx2rnxConf,root,os.path.join(root,'etc'))
+ottp.Debug('Using ' + runrx2rnxConf)
 
 mkcggttsConf = MKCGGTTS_CONF
 if 'main:mkcggtts conf' in cfg:
 	mkcggttsConf = cfg['main:mkcggtts conf']
-mkcggttsConf = ottplib.MakeAbsoluteFilePath(mkcggttsConf,root,os.path.join(root,'etc'))
+mkcggttsConf = ottp.MakeAbsoluteFilePath(mkcggttsConf,root,os.path.join(root,'etc'))
 ottp.Debug('Using ' + mkcggttsConf)
 
-mkcggttsCfg = ottplib.LoadConfig(mkcggttsConf,{'tolower':True})
+mkcggttsCfg = ottp.LoadConfig(mkcggttsConf,{'tolower':True})
 if (mkcggttsCfg == None):
 	ottp.ErrorExit("Error loading " + mkcggttsCfg)
 	
 # Determine the file to load from hourly.mkcggtts.conf
 cggtts = cfg['main:cggtts source'].lower()
 cggttsPath = mkcggttsCfg[ cggtts + ':directory' ]
-cggttsPath = ottplib.MakeAbsolutePath(cggttsPath,root)
+cggttsPath = ottp.MakeAbsolutePath(cggttsPath,root)
 
 constellation = mkcggttsCfg[ cggtts + ':constellation' ].upper()
 code = mkcggttsCfg[ cggtts + ':code' ]
 rinexObsPath =  mkcggttsCfg['rinex:obs directory' ] # could also come from runrx2rnxConf 
-rinexObsPath = ottplib.MakeAbsolutePath(rinexObsPath,root)
+rinexObsPath = ottp.MakeAbsolutePath(rinexObsPath,root)
 rinexNavPath =  mkcggttsCfg['rinex:nav directory' ]
-rinexNavPath = ottplib.MakeAbsolutePath(rinexNavPath,root)
+rinexNavPath = ottp.MakeAbsolutePath(rinexNavPath,root)
 
 if (mkcggttsCfg['cggtts:naming convention'].lower() == 'plain'):
 	cggttsFile = os.path.join(cggttsPath,str(mjd) + '.cctf')
@@ -329,9 +313,10 @@ elif (mkcggttsCfg['cggtts:naming convention'].upper() == 'BIPM'):
 		mkcggttsCfg['cggtts:receiver id'].upper(),mjdDD,mjdDDD))
 
 # Step 1: generate RINEX observation and navigation files for r2cggtts to digest
-ottp.Debug('Running runsbf2rnx.py')
+		
+ottp.Debug('Running runrx2rnx.py')
 try:
-	x = subprocess.check_output([RUN_RX2RNX,'-c',runsbf2rnxConf,str(mjd)]) # eat the output
+	x = subprocess.check_output([RUN_RX2RNX,'-c',runrx2rnxConf,str(mjd)],stderr=subprocess.STDOUT) # eat the output
 except:
 	ottp.ErrorExit('Failed to run runrx2rnx.py')
 ottp.Debug(x.decode('utf-8'))
@@ -346,7 +331,7 @@ ottp.Debug(x.decode('utf-8'))
 
 # Step 3: rewrite the summary file
 
-summaryPath = ottplib.MakeAbsolutePath(cfg['main:summary path'],root)
+summaryPath = ottp.MakeAbsolutePath(cfg['main:summary path'],root)
 summaryFilename = os.path.join(summaryPath,'{:d}.dat'.format(mjd))
 ottp.Debug('Updating ' + summaryFilename)
 
@@ -392,5 +377,6 @@ if not debug:
 	for f in files:
 		os.unlink(f)
 		
-	# The cggtts file we just created
-	os.unlink(cggttsFile)
+	# The cggtts file we just created, if it exists
+	if os.path.isfile(cggttsFile):
+		os.unlink(cggttsFile)

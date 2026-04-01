@@ -32,7 +32,6 @@ from   datetime import datetime
 
 import numpy as np
 import os
-import re
 import socket
 import subprocess
 import sys
@@ -49,13 +48,14 @@ import allantools
 sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
 
 try: 
 	import ottplib as ottp
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0

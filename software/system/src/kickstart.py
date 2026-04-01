@@ -47,7 +47,6 @@ import argparse
 import datetime
 import glob
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -58,14 +57,14 @@ import time
 sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
-sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
 
 try: 
 	import ottplib as ottp
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 AUTHORS = "Michael Wouters,Louis Marais"
 
 debug = False
