@@ -36,11 +36,9 @@ import sys
 # This is where cggttslib is installed
 sys.path.append("/usr/local/lib/python3.6/site-packages") # Ubuntu 18.04
 sys.path.append("/usr/local/lib/python3.8/site-packages") # Ubuntu 20.04
-sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 20.04
-sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 20.04
 import cggttslib
 
-VERSION = "0.5.0"
+VERSION = "0.4.0"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -55,20 +53,6 @@ def Warn(msg):
 		sys.stderr.write(msg+'\n')
 	return
 
-# ------------------------------------------
-def EditLine(key,fin,newValue,newhdr,fout):
-	l = fin.readline().rstrip()
-	if key in newhdr: # this takes precedence
-		hdrout =	newhdr[key]
-	else:
-		if newValue:
-			fields = l.split('=',1)
-			hdrout = fields[0] + ' = ' + newValue
-		else:
-			hdrout = l
-	fout.write(hdrout+'\n')
-	return hdrout
-	
 # --------------------------------------------
 # Main
 # --------------------------------------------
@@ -83,8 +67,9 @@ parser = argparse.ArgumentParser(description='Edit CGGTTS files',
 parser.add_argument('infile',nargs='+',help='input file(s)',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--comments',help='set comment')
-parser.add_argument('--header',help='replace header fields with new header fields as given in a file') # FIXME should not be useable with other edits
-parser.add_argument('--keeprev',help="don't update REV DATE",action='store_true')
+#parser.add_argument('--cabdly',help='set cable delay')
+#parser.add_argument('--intdly',help='set internal delay')
+#parser.add_argument('--refdly',help='set reference delay')
 
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--output','-o',help='output to file/directory',default='')
@@ -112,23 +97,31 @@ if (2==len(args.infile)):
 else:
 	infiles = args.infile
 
-if args.header:
-	try:
-		newhdr = {}
-		with open(args.header,'r') as fin:
-			for l in fin:
-				newhdr[l.split('=')[0].strip().lower()] = l.rstrip()
-	except:
-		sys.exit(f'Unable to open {args.header}')
-
 # Process the files	
-
 for finName in infiles:
 	
 	if (not os.path.isfile(finName)):
 		Warn(finName + ' is missing')
 		continue
 	
+	(hdr,warnings,checksumOK) = cggttslib.ReadHeader(finName)
+	if (not hdr):
+		Warn(warnings)
+		continue
+	if (not(warnings == '')): # header OK, but there was a warning
+		Warn(warnings)
+	
+	# Do a few tests before proceeding
+	#if (args.cabdly):
+		#if (not 'cab dly' in hdr):
+			#sys.stderr.write('CAB DLY is not defined in the header of ' + f + '\n')
+			#sys.exit()
+
+	#if (args.refdly):
+		#if (not 'ref dly' in hdr):
+			#sys.stderr.write('REF DLY is not defined in the header of ' + f + '\n')
+			#sys.exit()
+			
 	foutName = finName + '.tmp'
 	
 	if (args.output):
@@ -149,57 +142,92 @@ for finName in infiles:
 	# Print the new header
 	hdrstring  = ''
 
-	try:
-		fin = open(finName,'r')
-	except:
-		continue
-
-	# First line is CGGTTS version
-	l = fin.readline()
-	fout.write(l)
-	hdrstring += l.rstrip()
+	hdrout = 'CGGTTS     GENERIC DATA FORMAT VERSION = ' + hdr['version']
+	fout.write(hdrout + '\n')
 	
+	hdrstring += hdrout
+
 	# If the header information changes, the REV DATE should be updated
-	if args.keeprev: # unless we say not to
-		revDate = None
-	else:
-		revDate = datetime.now().strftime('%Y-%m-%d')
-	hdrstring += EditLine('rev date',fin,revDate,newhdr,fout)
-	
-	newValue = None # placeholder for the moment
-	# This section of the header is well-defined
-	hdrstring += EditLine('rcvr',fin,newValue,newhdr,fout)
-	hdrstring += EditLine('ch',fin,newValue,newhdr,fout)
-	hdrstring += EditLine('ims',fin,newValue,newhdr,fout)
-	hdrstring += EditLine('lab',fin,newValue,newhdr,fout)
-	hdrstring += EditLine('x',fin,newValue,newhdr,fout)
-	hdrstring += EditLine('y',fin,newValue,newhdr,fout)
-	hdrstring += EditLine('z',fin,newValue,newhdr,fout)
-	hdrstring += EditLine('frame',fin,newValue,newhdr,fout)
+	# if (args.cabdly or args.refdly or args.comments):
+	if (args.comments):
+		hdr['rev date'] = datetime.now().strftime('%Y-%m-%d')
+		
+	hdrout = 'REV DATE = ' + hdr['rev date']
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
 
-	l = fin.readline().rstrip() # comments
-	fout.write(l + '\n')
-	hdrstring += l
-	 # TO DO some files incorrectly use multiple comment lines
-	 
-	# The section of the header that describes delays 
-	# has a variant form depending on the way delays are specified
-	# Normally, you wouldn't edit the delays but perhaps you want to anonymize the data
-	
-	lastPos = fin.tell()
-	l = fin.readline()
-	fin.seek(lastPos)
-	if re.match('TOT DLY',l):    # If TOT DLY then no other delays
-		hdrstring += EditLine('tot dly',fin,newValue,newhdr,fout)
-	elif re.match('SYS DLY',l): # If SYS DLY then REF delay
-		hdrstring += EditLine('sys dly',fin,newValue,newhdr,fout)
-		hdrstring += EditLine('ref dly',fin,newValue,newhdr,fout)
-	elif re.match('INT DLY',l): # If INT DLY then CAB DLY and REF DLY
-		hdrstring += EditLine('int dly',fin,newValue,newhdr,fout)
-		hdrstring += EditLine('cab dly',fin,newValue,newhdr,fout)
-		hdrstring += EditLine('ref dly',fin,newValue,newhdr,fout)
-	
-	hdrstring += EditLine('ref',fin,newValue,newhdr,fout)
+	hdrout =  hdr['rcvr']
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	hdrout = hdr['ch']
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	hdrout =  hdr['ims']
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	hdrout =  hdr['lab']
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	hdrout =  'X = ' + hdr['x'] + ' m'
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	hdrout =  'Y = ' + hdr['y'] + ' m'
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	hdrout =  'Z = ' + hdr['z'] + ' m'
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	hdrout =  hdr['frame']
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	if (args.comments):
+		hdrout = 'COMMENTS = ' + args.comments
+	else:
+		hdrout = 'COMMENTS = ' + hdr['comments'] # note that this replaces a multi-line comment with a single line
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout
+
+	if (hdr['version'] == '2E'):
+		if ('tot dly' in hdr):
+			hdrout = 'TOT DLY = ' + hdr['tot dly']
+			fout.write(hdrout + '\n')
+			hdrstring += hdrout
+		elif ('sys dly' in hdr):
+			hdrout = 'SYS DLY = ' + hdr['sys dly']
+			fout.write(hdrout + '\n')
+			hdrstring += hdrout
+		elif ('int dly' in hdr):
+			#if (args.intdly):
+			#	hdr['int dly']= args.intdly
+			hdrout = 'INT DLY = {:.1f} ns'.format(float(hdr['int dly']))
+			fout.write(hdrout + '\n')
+			hdrstring += hdrout
+
+	if ('cab dly' in hdr):
+		#if (args.cabdly):
+		#	hdr['cab dly']= args.cabdly
+		hdrout = 'CAB DLY = {:.1f} ns'.format(float(hdr['cab dly']))
+		fout.write(hdrout + '\n')
+		hdrstring += hdrout
+		
+	if ('ref dly' in hdr):
+		#if (args.refdly):
+		#	hdr['ref dly']= args.refdly
+		hdrout = 'REF DLY = {:.1f} ns'.format(float(hdr['ref dly']))
+		fout.write(hdrout + '\n')
+		hdrstring += hdrout
+			
+	hdrout = 'REF = ' + hdr['ref']
+	fout.write(hdrout + '\n')
+	hdrstring += hdrout 
 
 	hdrstring += 'CKSUM = '
 	cksum = cggttslib.CheckSum(hdrstring) # compute the new checksum
@@ -211,7 +239,7 @@ for finName in infiles:
 			fout.write('\n')
 			fout.write(l)
 			break
-			
+
 	for l in fin:
 		fout.write(l)
 
