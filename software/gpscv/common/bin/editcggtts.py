@@ -41,7 +41,7 @@ sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 20.04
 
 import cggttslib
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 AUTHORS = "Michael Wouters"
 
 # ------------------------------------------
@@ -56,6 +56,19 @@ def Warn(msg):
 		sys.stderr.write(msg+'\n')
 	return
 
+def EditLine(key,fin,newValue,newHeader,fout):
+	l = fin.readline().rstrip()
+	if key in newHeader: # overrides newValue 
+		hdrout = newHeader[key]
+	else:
+		if newValue:
+			fields = l.split('=',1)
+			hdrout = fields[0].strip() + ' = ' + newValue
+		else:
+			hdrout = l
+	fout.write(hdrout + '\n')
+	return hdrout
+
 # --------------------------------------------
 # Main
 # --------------------------------------------
@@ -69,10 +82,10 @@ parser = argparse.ArgumentParser(description='Edit CGGTTS files',
 
 parser.add_argument('infile',nargs='+',help='input file(s)',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
+parser.add_argument('--header',help='replace header lines from file')
 parser.add_argument('--comments',help='set comment')
-#parser.add_argument('--cabdly',help='set cable delay')
-#parser.add_argument('--intdly',help='set internal delay')
-#parser.add_argument('--refdly',help='set reference delay')
+parser.add_argument('--keeprev',help="don't update REV DATE",action='store_true')
+
 
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--output','-o',help='output to file/directory',default='')
@@ -100,6 +113,19 @@ if (2==len(args.infile)):
 else:
 	infiles = args.infile
 
+if args.header:
+	newHeader = {}
+	try:
+		fin = open(args.header,'r')
+		for l in fin:
+			l = l.rstrip()
+			fields = l.split('=',1)
+			newHeader[fields[0].strip()] = l
+		fin.close()
+	except:
+		sys.exit('Blah')
+
+
 # Process the files	
 for finName in infiles:
 	
@@ -107,24 +133,6 @@ for finName in infiles:
 		Warn(finName + ' is missing')
 		continue
 	
-	(hdr,warnings,checksumOK) = cggttslib.ReadHeader(finName)
-	if (not hdr):
-		Warn(warnings)
-		continue
-	if (not(warnings == '')): # header OK, but there was a warning
-		Warn(warnings)
-	
-	# Do a few tests before proceeding
-	#if (args.cabdly):
-		#if (not 'cab dly' in hdr):
-			#sys.stderr.write('CAB DLY is not defined in the header of ' + f + '\n')
-			#sys.exit()
-
-	#if (args.refdly):
-		#if (not 'ref dly' in hdr):
-			#sys.stderr.write('REF DLY is not defined in the header of ' + f + '\n')
-			#sys.exit()
-			
 	foutName = finName + '.tmp'
 	
 	if (args.output):
@@ -132,7 +140,7 @@ for finName in infiles:
 			foutName = os.path.join(args.output,os.path.basename(finName))
 		else:# otherwise, write to the specified file
 			foutName = args.output
-		
+	
 	if (args.replace or args.output or args.tmp):
 		try:
 			fout = open(foutName,'w')
@@ -142,110 +150,60 @@ for finName in infiles:
 	else:
 		fout = sys.stdout
 	
-	# Print the new header
-	hdrstring  = ''
-
-	hdrout = 'CGGTTS     GENERIC DATA FORMAT VERSION = ' + hdr['version']
-	fout.write(hdrout + '\n')
+	fin = open(finName,'r')
 	
-	hdrstring += hdrout
-
-	# If the header information changes, the REV DATE should be updated
-	# if (args.cabdly or args.refdly or args.comments):
-	if (args.comments):
-		hdr['rev date'] = datetime.now().strftime('%Y-%m-%d')
-		
-	hdrout = 'REV DATE = ' + hdr['rev date']
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout =  hdr['rcvr']
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout = hdr['ch']
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout =  hdr['ims']
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout =  hdr['lab']
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout =  'X = ' + hdr['x'] + ' m'
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout =  'Y = ' + hdr['y'] + ' m'
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout =  'Z = ' + hdr['z'] + ' m'
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	hdrout =  hdr['frame']
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
-
-	if (args.comments):
-		hdrout = 'COMMENTS = ' + args.comments
+	# Version information in the first line
+	hdrstring = ''
+	l = fin.readline().rstrip()
+	hdrstring += l
+	fout.write(l +'\n')
+	
+	# Update the REV DATE, unless this is disabled
+	if args.keeprev:
+		revDate = None
 	else:
-		hdrout = 'COMMENTS = ' + hdr['comments'] # note that this replaces a multi-line comment with a single line
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout
+		revDate = datetime.now().strftime('%Y-%m-%d') # FIXME UTC?
+	hdrstring += EditLine('REV DATE',fin,revDate,newHeader,fout)
+	
+	newValue = None
+	hdrstring += EditLine('RCVR',fin,newValue,newHeader,fout)
+	hdrstring += EditLine('CH',fin,newValue,newHeader,fout)
+	hdrstring += EditLine('IMS',fin,newValue,newHeader,fout)
+	hdrstring += EditLine('LAB',fin,newValue,newHeader,fout)
+	hdrstring += EditLine('X',fin,newValue,newHeader,fout)
+	hdrstring += EditLine('Y',fin,newValue,newHeader,fout)
+	hdrstring += EditLine('Z',fin,newValue,newHeader,fout)
+	hdrstring += EditLine('FRAME',fin,newValue,newHeader,fout)
+	# TODO some times there are multiple comments
+	hdrstring += EditLine('COMMENTS',fin,args.comments,newHeader,fout)
 
-	if (hdr['version'] == '2E'):
-		if ('tot dly' in hdr):
-			hdrout = 'TOT DLY = ' + hdr['tot dly']
-			fout.write(hdrout + '\n')
-			hdrstring += hdrout
-		elif ('sys dly' in hdr):
-			hdrout = 'SYS DLY = ' + hdr['sys dly']
-			fout.write(hdrout + '\n')
-			hdrstring += hdrout
-		elif ('int dly' in hdr):
-			#if (args.intdly):
-			#	hdr['int dly']= args.intdly
-			hdrout = 'INT DLY = {:.1f} ns'.format(float(hdr['int dly']))
-			fout.write(hdrout + '\n')
-			hdrstring += hdrout
-
-	if ('cab dly' in hdr):
-		#if (args.cabdly):
-		#	hdr['cab dly']= args.cabdly
-		hdrout = 'CAB DLY = {:.1f} ns'.format(float(hdr['cab dly']))
-		fout.write(hdrout + '\n')
-		hdrstring += hdrout
-		
-	if ('ref dly' in hdr):
-		#if (args.refdly):
-		#	hdr['ref dly']= args.refdly
-		hdrout = 'REF DLY = {:.1f} ns'.format(float(hdr['ref dly']))
-		fout.write(hdrout + '\n')
-		hdrstring += hdrout
-			
-	hdrout = 'REF = ' + hdr['ref']
-	fout.write(hdrout + '\n')
-	hdrstring += hdrout 
-
+	lastPos = fin.tell()
+	l = fin.readline()
+	fin.seek(lastPos)
+	
+	# Why would you edit the delays ?
+	# But, for completeness
+	if re.match('TOT DLY',l):
+		hdrstring += EditLine('TOT DLY',fin,newValue,newHeader,fout)
+	elif re.match('SYS DLY',l):
+		hdrstring += EditLine('SYS DLY',fin,newValue,newHeader,fout)
+		hdrstring += EditLine('REF DLY',fin,newValue,newHeader,fout)
+	elif re.match('INT DLY',l):
+		hdrstring += EditLine('INT DLY',fin,newValue,newHeader,fout)
+		hdrstring += EditLine('CAB DLY',fin,newValue,newHeader,fout)
+		hdrstring += EditLine('REF DLY',fin,newValue,newHeader,fout)
+	
+	hdrstring += EditLine('REF',fin,newValue,newHeader,fout)
+	
+	fin.readline() # eat the CKSUM line
 	hdrstring += 'CKSUM = '
 	cksum = cggttslib.CheckSum(hdrstring) # compute the new checksum
 	fout.write('CKSUM = {:02X}\n'.format(cksum))
-
-	fin = open(finName,'r')
-	for l in fin:
-		if (l.find('STTIME TRKL ELV AZTH') > 0): # lazy
-			fout.write('\n')
-			fout.write(l)
-			break
-
+	
+	# Now the rest of the file
 	for l in fin:
 		fout.write(l)
-
+	
 	fin.close()
 	fout.close()
 	
