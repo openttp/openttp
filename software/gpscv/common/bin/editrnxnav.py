@@ -35,7 +35,7 @@ import argparse
 import os
 import sys
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 AUTHORS = "Michael Wouters"
 
 
@@ -63,6 +63,7 @@ parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--output','-o',help='output to file/directory',default='')
 group.add_argument('--replace','-r',help='replace edited file',action='store_true')
+group.add_argument('--extract-header','-x',help='extract the file header',action='store_true')
 parser.add_argument('--ura','-u',help='remove entries with URA greater than this',default=0)
 parser.add_argument('--leap','-l',help='add the leap second information from another navigation file',default='')
 parser.add_argument('--ionosphere','-i',help='add the ionosphere information from another navigation file',default='')
@@ -96,6 +97,13 @@ if (args.replace or args.output):
 		ErrorExit('Unable to open ' + foutName)
 else:
 	fout = sys.stdout
+
+
+if args.extract_header:
+	for l in fin:
+		fout.write(l)
+		if (l.find('END OF HEADER',60)>0):
+			sys.exit(0)
 
 leapinfo=''
 
