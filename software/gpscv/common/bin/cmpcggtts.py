@@ -34,7 +34,7 @@
 # 
 
 import argparse
-from   datetime import datetime
+import datetime
 import math
 import numpy as np
 import os
@@ -52,7 +52,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install cggttslib\n eg openttp/software/system/installsys.py -i cggttslib')
 
-VERSION = "0.12.0"
+VERSION = "0.12.1"
 AUTHORS = "Michael Wouters"
 
 # cggtts versions
@@ -1356,7 +1356,7 @@ if (MODE_DELAY_CAL==mode ):
 	if comment:
 		title += comment + '\n'
 	title += cmdline + '\n'
-	title += os.path.basename(sys.argv[0])+ ' v' + VERSION   + '     ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+	title += os.path.basename(sys.argv[0])+ ' v' + VERSION   + '     ' + datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S')
 	f.suptitle(title,ha='left',x=0.02,size='small')
 		
 	if (cmpMethod == USE_CV): 

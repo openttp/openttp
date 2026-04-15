@@ -55,7 +55,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 AUTHORS = "Michael Wouters"
 
 MODE_CMPALL = 0
@@ -95,10 +95,10 @@ def LoadRefCalAvMatches(fName):
 	
 	for l in fin:
 		# format is 
-		# MJD TOD(s) REFSYS_1 REFSYS_2 Delta NSATS
+		# MJD TOD(s)  Delta NSATS
 		data = l.split()
 		t.append(float(data[0]) + float(data[1])/86400)
-		delta.append(float(data[4]))
+		delta.append(float(data[2]))
 	
 	fin.close()
 	return np.array([t,delta])
