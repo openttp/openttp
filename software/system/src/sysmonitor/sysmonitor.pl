@@ -78,7 +78,7 @@ sub new
 package main;
 
 $AUTHORS="Michael Wouters";
-$VERSION="1.1.0";
+$VERSION="1.1.1";
 
 #$MAX_FILE_AGE=60; # file can be up to this old before an alarm is raised
 $MAX_FILE_AGE=180; # Increased it to 180 seconds, because GPSDO data is  
@@ -177,7 +177,7 @@ Debug("Alarm threshold = $alarmThreshold");
 # Read the system gpscv.conf
 $gpscvConfigFile = $gpscvHome.'/etc/gpscv.conf';
 if (!(-e $gpscvConfigFile)){
-	AlarmExit("The configuration file $configFile was not found!\n");
+	AlarmExit("The configuration file $gpscvConfigFile was not found!\n");
 }
 
 %GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
