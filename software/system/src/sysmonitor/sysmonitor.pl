@@ -78,7 +78,7 @@ sub new
 package main;
 
 $AUTHORS="Michael Wouters";
-$VERSION="1.1.1";
+$VERSION="1.2.0";
 
 #$MAX_FILE_AGE=60; # file can be up to this old before an alarm is raised
 $MAX_FILE_AGE=180; # Increased it to 180 seconds, because GPSDO data is  
@@ -101,6 +101,9 @@ $ALARM_THRESHOLD=60;
 $MDSTAT='/proc/mdstat';
 
 $ROOT = '/usr/local';
+
+$SYS_TTS = 0;
+$SYS_NTP = 1;
 
 # Check command line
 if ($0=~m#^(.*/)#) {$path=$1} else {$path="./"}	# read path info
@@ -134,6 +137,15 @@ if (!(-e $configFile)){
 Debug("Using config $configFile");
 
 %Init = &TFMakeHash2($configFile,(tolower=>1));
+
+$system = $SYS_TTS;
+if (defined $Init{"system"}){
+	$sys = lc $Init{"system"};
+	if ($sys eq "ntp"){
+		$system = $SYS_NTP;
+	}
+}
+Debug("System = " + (($system eq $SYS_NTP)?"NTP":"TTS"));
 
 $alarmPath= $logPath.'/alarms/';
 if (defined $Init{"alarm path"}){
@@ -175,56 +187,59 @@ if (defined $Init{'alarm threshold'}){
 Debug("Alarm threshold = $alarmThreshold");
 
 # Read the system gpscv.conf
-$gpscvConfigFile = $gpscvHome.'/etc/gpscv.conf';
-if (!(-e $gpscvConfigFile)){
-	AlarmExit("The configuration file $gpscvConfigFile was not found!\n");
-}
 
-%GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
+if ($system == $SYS_TTS){
+	$gpscvConfigFile = $gpscvHome.'/etc/gpscv.conf';
+	if (!(-e $gpscvConfigFile)){
+		AlarmExit("The configuration file $gpscvConfigFile was not found!\n");
+	}
 
-$gpscvLogPath=$gpscvHome.'/log/';
-if (!(-d $gpscvLogPath)){
-	$gpscvLogPath=$gpscvHome.'/logs/'; # legacy
-}
+	%GPSCVInit = &TFMakeHash2($gpscvConfigFile,(tolower=>1));
 
-$gpscvVarPath=$gpscvHome.'/var/';
-if (!(-d $gpscvLogPath)){
-	$gpscvVarPath=$gpscvHome.'/logs/'; # legacy
-}
+	$gpscvLogPath=$gpscvHome.'/log/';
+	if (!(-d $gpscvLogPath)){
+		$gpscvLogPath=$gpscvHome.'/logs/'; # legacy
+	}
 
-# If there is no counter defined in gpscv.conf then we had better ignore it
-$checkCounter = 1;
-if (defined $GPSCVInit{'counter:status file'}){
-	@check=('reference:oscillator','reference:status file',
-	'receiver:manufacturer','receiver:status file',
-	'counter:status file');
-}
-else{
-	@check=('reference:oscillator','reference:status file',
-	'receiver:manufacturer','receiver:status file');
-	$checkCounter = 0;
-}
+	$gpscvVarPath=$gpscvHome.'/var/';
+	if (!(-d $gpscvLogPath)){
+		$gpscvVarPath=$gpscvHome.'/logs/'; # legacy
+	}
 
-# Check we got the info we need from the config file
-foreach (@check) {
-  $tag=$_;
-  $tag=~tr/A-Z/a-z/;	
-  unless (defined $GPSCVInit{$tag}) {AlarmExit("No entry for $_ found in $gpscvConfigFile")}
-}
+	# If there is no counter defined in gpscv.conf then we had better ignore it
+	$checkCounter = 1;
+	if (defined $GPSCVInit{'counter:status file'}){
+		@check=('reference:oscillator','reference:status file',
+		'receiver:manufacturer','receiver:status file',
+		'counter:status file');
+	}
+	else{
+		@check=('reference:oscillator','reference:status file',
+		'receiver:manufacturer','receiver:status file');
+		$checkCounter = 0;
+	}
 
-$refOscillator = lc $GPSCVInit{'reference:oscillator'};
-$refStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'reference:status file'},$gpscvHome,$gpscvVarPath);
-$checkRefPower=0;
-if (defined $GPSCVInit{'reference:power flag'}){
-	$refPowerFlag = $GPSCVInit{'reference:power flag'};
-	$checkRefPower = !((lc $refPowerFlag) eq 'none');
-}
+	# Check we got the info we need from the config file
+	foreach (@check) {
+		$tag=$_;
+		$tag=~tr/A-Z/a-z/;	
+		unless (defined $GPSCVInit{$tag}) {AlarmExit("No entry for $_ found in $gpscvConfigFile")}
+	}
 
-$receiver = $GPSCVInit{'receiver:manufacturer'};
-$rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$gpscvHome,$gpscvVarPath);
+	$refOscillator = lc $GPSCVInit{'reference:oscillator'};
+	$refStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'reference:status file'},$gpscvHome,$gpscvVarPath);
+	$checkRefPower=0;
+	if (defined $GPSCVInit{'reference:power flag'}){
+		$refPowerFlag = $GPSCVInit{'reference:power flag'};
+		$checkRefPower = !((lc $refPowerFlag) eq 'none');
+	}
 
-if ($checkCounter){
-	$counterStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'counter:status file'},$gpscvHome,$gpscvVarPath);
+	$receiver = $GPSCVInit{'receiver:manufacturer'};
+	$rxStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'receiver:status file'},$gpscvHome,$gpscvVarPath);
+
+	if ($checkCounter){
+		$counterStatusFile = TFMakeAbsoluteFilePath($GPSCVInit{'counter:status file'},$gpscvHome,$gpscvVarPath);
+	}
 }
 
 # Create all the monitors
@@ -248,7 +263,7 @@ if (defined $Init{'ntpd refclocks'}){
 			$mon->{threshold}=$alarmThreshold;
 			push @monitors,$mon;
 			CheckForOldAlarm($mon);
-			Debug("Added $clk ($name)");
+			Debug("Added monitor $clk ($name)");
 		}else{
 			AlarmExit("$clk:refid undefined");
 		}
@@ -256,56 +271,57 @@ if (defined $Init{'ntpd refclocks'}){
 }
 
 # Reference monitors
+if ($system == $SYS_TTS){
+	if ($checkCounter){
+		$mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
+		$mon->{statusFile}=$counterStatusFile;
+		$mon->{methods} = $DEFAULT_ALARMS;
+		$mon->{threshold}=$alarmThreshold;
+		CheckForOldAlarm($mon);
+		push @monitors,$mon;
+	}
 
-if ($checkCounter){
-	$mon = new Monitored("TIC", "TIC logging not running", "TIC not logging",99,\&CheckTICLogging);
-	$mon->{statusFile}=$counterStatusFile;
-	$mon->{methods} = $DEFAULT_ALARMS;
-	$mon->{threshold}=$alarmThreshold;
-	CheckForOldAlarm($mon);
-	push @monitors,$mon;
-}
-
-$mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
-$mon->{statusFile}=$refStatusFile;
-$mon->{oscillator}=$refOscillator;
-$mon->{methods} = $DEFAULT_ALARMS;
-$mon->{threshold}=$alarmThreshold;
-CheckForOldAlarm($mon);
-push @monitors,$mon;
-
-$mon = new Monitored("Oscillator", "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
-$mon->{statusFile}=$refStatusFile;
-$mon->{methods} = $DEFAULT_ALARMS;
-$mon->{oscillator}=lc $refOscillator;
-$mon->{threshold}=$alarmThreshold;
-CheckForOldAlarm($mon);
-push @monitors,$mon;
-
-if ($checkRefPower){
-	$mon = new Monitored("Oscillator", "Reference power failure", "Ref power failure",99,\&CheckRefPowerFlag);
-	$mon->{powerFlag}=$refPowerFlag;
-	$mon->{methods} = $DEFAULT_ALARMS;
+	$mon = new Monitored("Oscillator", "Reference logging not running", "Ref not logging",99,\&CheckRefLogging);
+	$mon->{statusFile}=$refStatusFile;
 	$mon->{oscillator}=$refOscillator;
+	$mon->{methods} = $DEFAULT_ALARMS;
+	$mon->{threshold}=$alarmThreshold;
+	CheckForOldAlarm($mon);
+	push @monitors,$mon;
+
+	$mon = new Monitored("Oscillator", "Reference unlocked", "Ref unlocked",99,\&CheckRefLocked);
+	$mon->{statusFile}=$refStatusFile;
+	$mon->{methods} = $DEFAULT_ALARMS;
+	$mon->{oscillator}=lc $refOscillator;
+	$mon->{threshold}=$alarmThreshold;
+	CheckForOldAlarm($mon);
+	push @monitors,$mon;
+
+	if ($checkRefPower){
+		$mon = new Monitored("Oscillator", "Reference power failure", "Ref power failure",99,\&CheckRefPowerFlag);
+		$mon->{powerFlag}=$refPowerFlag;
+		$mon->{methods} = $DEFAULT_ALARMS;
+		$mon->{oscillator}=$refOscillator;
+		$mon->{threshold}=$alarmThreshold;
+		CheckForOldAlarm($mon);
+		push @monitors,$mon;
+	}
+
+	$mon = new Monitored("GPS", "GNSS Rx logging not running", "GNSS Rx not logging",99,\&CheckGNSSRxLogging);
+	$mon->{statusFile}=$rxStatusFile;
+	$mon->{methods} = $DEFAULT_ALARMS;
+	$mon->{threshold}=$alarmThreshold;
+	CheckForOldAlarm($mon);
+	push @monitors,$mon;
+
+	$mon = new Monitored("GPS", "GNSS Rx insufficient satellites", "GNSS Rx low sats",99,\&CheckGPSSignal);
+	$mon->{statusFile}=$rxStatusFile;
+	$mon->{receiver}=$receiver;
+	$mon->{methods} = $DEFAULT_ALARMS;;
 	$mon->{threshold}=$alarmThreshold;
 	CheckForOldAlarm($mon);
 	push @monitors,$mon;
 }
-
-$mon = new Monitored("GPS", "GNSS Rx logging not running", "GNSS Rx not logging",99,\&CheckGNSSRxLogging);
-$mon->{statusFile}=$rxStatusFile;
-$mon->{methods} = $DEFAULT_ALARMS;
-$mon->{threshold}=$alarmThreshold;
-CheckForOldAlarm($mon);
-push @monitors,$mon;
-
-$mon = new Monitored("GPS", "GNSS Rx insufficient satellites", "GNSS Rx low sats",99,\&CheckGPSSignal);
-$mon->{statusFile}=$rxStatusFile;
-$mon->{receiver}=$receiver;
-$mon->{methods} = $DEFAULT_ALARMS;;
-$mon->{threshold}=$alarmThreshold;
-CheckForOldAlarm($mon);
-push @monitors,$mon;
 
 # Check for RAID
 if (-e $MDSTAT){
