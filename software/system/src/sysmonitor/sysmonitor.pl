@@ -78,7 +78,7 @@ sub new
 package main;
 
 $AUTHORS="Michael Wouters";
-$VERSION="1.2.0";
+$VERSION="1.2.1";
 
 #$MAX_FILE_AGE=60; # file can be up to this old before an alarm is raised
 $MAX_FILE_AGE=180; # Increased it to 180 seconds, because GPSDO data is  
@@ -145,7 +145,7 @@ if (defined $Init{"system"}){
 		$system = $SYS_NTP;
 	}
 }
-Debug("System = " + (($system eq $SYS_NTP)?"NTP":"TTS"));
+Debug("System = " . (($system eq $SYS_NTP)?"NTP":"TTS"));
 
 $alarmPath= $logPath.'/alarms/';
 if (defined $Init{"alarm path"}){
