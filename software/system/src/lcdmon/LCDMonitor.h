@@ -109,6 +109,7 @@ class LCDMonitor:public CFA635
 		enum AddressAssignment {DHCP,Static};
 		enum Reference {LCXO,ULN1100,Furuno};
 		enum NTPDaemon {NTPD,CHRONYD};
+		enum System    {SYSTTS,SYSNTP};
 		
 		void getNetworkInterfaces(std::string &, std::string &,std::string &,std::string &);
 		
@@ -167,6 +168,8 @@ class LCDMonitor:public CFA635
 	
 		void parseConfigEntry(std::string &,std::string &,char );
 
+		int systemType; // TTS or NTP
+		
 		std::string poweroffCommand;
 		std::string rebootCommand;
 		std::string ntpRestartCommand;

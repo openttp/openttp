@@ -77,7 +77,7 @@
 #include "WidgetCallback.h"
 #include "Wizard.h"
 
-#define LCDMONITOR_VERSION "3.1.1"
+#define LCDMONITOR_VERSION "3.2.0"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -1272,7 +1272,7 @@ void LCDMonitor::showStatus()
 				break;
 			}
 			case GPS:
-			{
+			{ // no need to check if this is TTS/NTP because you can't select an incompatible mode ...
 				std::string prn="";
 				int nsats=0;
 				bool unexpectedEOF;
@@ -1938,6 +1938,7 @@ void LCDMonitor::configure()
 	int itmp;
 
 	// set some sensible defaults
+  systemType = SYSTTS;
 	displayMode = GPS;
 
 	poweroffCommand="/usr/sbin/poweroff";
@@ -2000,6 +2001,15 @@ void LCDMonitor::configure()
 	}
 
 	// General
+	
+	
+	if (list_get_string_value(last,"General","system",&stmp)){
+		if (NULL !=  strstr(stmp,"NTP") or NULL !=  strstr(stmp,"ntp")){
+			systemType = SYSNTP;
+		}
+	}
+	
+
 	if (list_get_string_value(last,"General","Ntp user",&stmp)){
 		NTPuser=stmp;
 		ntpadminHome = "/home/"+NTPuser+"/";
@@ -2059,39 +2069,42 @@ void LCDMonitor::configure()
 #endif
 	
 	// GPSCV
-	if (list_get_string_value(last,"GPSCV","GPSCV user",&stmp)){
-		GPSCVuser=stmp;
-		ntpadminHome = "/home/"+GPSCVuser+"/";
-	}
-	else
-		log("GPSCV user not found in config file");
-
-	if (list_get_string_value(last,"GPSCV","gpscv config",&stmp))
-		gpscvConfig=stmp;
-	else
-		log("GPSCV config not found in config file");
-
-	if (list_get_string_value(last,"GPSCV","GPS restart command",&stmp))
-		gpsRxRestartCommand=stmp;
-	else
-		log("GPS restart command not found in config file");
-
-	if (list_get_string_value(last,"GPSCV","oscillator",&stmp)){
-		strtmp = stmp;
-		boost::to_upper(strtmp);
-		if (strtmp=="FURUNO"){
-			reference= Furuno;
+	if (systemType == SYSTTS){
+		if (list_get_string_value(last,"GPSCV","GPSCV user",&stmp)){
+			GPSCVuser=stmp;
+			ntpadminHome = "/home/"+GPSCVuser+"/";
 		}
-		else if(strtmp == "LCXO"){
-			reference= LCXO;
+		else
+			log("GPSCV user not found in config file");
+
+		if (list_get_string_value(last,"GPSCV","gpscv config",&stmp))
+			gpscvConfig=stmp;
+		else
+			log("GPSCV config not found in config file");
+
+		if (list_get_string_value(last,"GPSCV","GPS restart command",&stmp))
+			gpsRxRestartCommand=stmp;
+		else
+			log("GPS restart command not found in config file");
+
+		if (list_get_string_value(last,"GPSCV","oscillator",&stmp)){
+			strtmp = stmp;
+			boost::to_upper(strtmp);
+			if (strtmp=="FURUNO"){
+				reference= Furuno;
+			}
+			else if(strtmp == "LCXO"){
+				reference= LCXO;
+			}
+			else if(strtmp == "ULN1100"){
+				reference= ULN1100;
+			}
 		}
-		else if(strtmp == "ULN1100"){
-			reference= ULN1100;
+		else{
+			log("GPSCV reference not found in config file");
 		}
 	}
-	else{
-		log("GPSCV reference not found in config file");
-	}
+	
 	// OS
 	if (list_get_string_value(last,"OS","reboot command",&stmp))
 		rebootCommand= stmp;
@@ -2152,6 +2165,9 @@ void LCDMonitor::configure()
 			msg << "Unknown display mode " << stmp;
 			log(msg.str());
 		}
+		if (systemType == SYSNTP){
+			displayMode = SYSNTP; // it's the only choice
+		}
 	}
 
 	list_clear(last);
@@ -2160,50 +2176,52 @@ void LCDMonitor::configure()
 	// Parse gpscv.conf
 	//
 
-	if (!configfile_parse_as_list(&last,gpscvConfig.c_str())){
-		ostringstream msg;
-		msg << "failed to read " << gpscvConfig;
-		log(msg.str());
-		exit(EXIT_FAILURE);
+	if (systemType == SYSTTS){
+		if (!configfile_parse_as_list(&last,gpscvConfig.c_str())){
+			ostringstream msg;
+			msg << "failed to read " << gpscvConfig;
+			log(msg.str());
+			exit(EXIT_FAILURE);
+		}
+
+		if (list_get_string_value(last,"receiver","model",&stmp))
+			receiverName=stmp;
+		else
+			log("receiver type not found in gpscv.conf");
+
+		if (list_get_string_value(last,"receiver","lock file",&stmp))
+			gpsLoggerLockFile=relativeToAbsolutePath(stmp,cvgpsHome);
+		else
+			log("receiver:lock file not found in gpscv.conf");
+
+		if (list_get_string_value(last,"receiver","status file",&stmp))
+			rxStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+		else
+			log("receiver:status file not found in gpscv.conf");
+
+		if (list_get_string_value(last,"reference","status file",&stmp))
+			refStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+		else
+			log("reference:status file not found in gpscv.conf");
+
+	#ifdef MULTIRX
+		// This is for V? of the NMIA TTS with GPS (NV08C/ublox9), GLONASS (SMT360), and BDS (NavSpark) receivers
+		if (list_get_string_value(last,"GNSS","GLONASS status",&stmp))
+		//if (list_get_string_value(last,"gnss","glonass status",&stmp))
+			GLONASSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+		else
+			log("GLONASS status not found in gpscv.conf");
+		
+		if (list_get_string_value(last,"GNSS","Beidou status",&stmp))
+		//if (list_get_string_value(last,"gnss","beidou status",&stmp))
+			BeidouStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
+		else
+			log("Beidou status not found in gpscv.conf");
+	#endif
+		
+		list_clear(last);
 	}
-
-	if (list_get_string_value(last,"receiver","model",&stmp))
-		receiverName=stmp;
-	else
-		log("receiver type not found in gpscv.conf");
-
-	if (list_get_string_value(last,"receiver","lock file",&stmp))
-		gpsLoggerLockFile=relativeToAbsolutePath(stmp,cvgpsHome);
-	else
-		log("receiver:lock file not found in gpscv.conf");
-
-	if (list_get_string_value(last,"receiver","status file",&stmp))
-		rxStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
-	else
-		log("receiver:status file not found in gpscv.conf");
-
-	if (list_get_string_value(last,"reference","status file",&stmp))
-		refStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
-	else
-		log("reference:status file not found in gpscv.conf");
-
-#ifdef MULTIRX
-	// This is for V? of the NMIA TTS with GPS (NV08C/ublox9), GLONASS (SMT360), and BDS (NavSpark) receivers
-	if (list_get_string_value(last,"GNSS","GLONASS status",&stmp))
-	//if (list_get_string_value(last,"gnss","glonass status",&stmp))
-		GLONASSStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
-	else
-		log("GLONASS status not found in gpscv.conf");
 	
-	if (list_get_string_value(last,"GNSS","Beidou status",&stmp))
-	//if (list_get_string_value(last,"gnss","beidou status",&stmp))
-		BeidouStatusFile=relativeToAbsolutePath(stmp,cvgpsHome);
-	else
-		log("Beidou status not found in gpscv.conf");
-#endif
-	
-	list_clear(last);
-
 	//
 	// Parse sysmon.conf
 	//
@@ -2303,28 +2321,33 @@ void LCDMonitor::makeMenu()
 		displayModeM = new Menu("Display mode...");
 		setupM->insertItem(displayModeM);
 
-			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGPSDisplayMode);
-		  midGPSDisplayMode =  displayModeM ->insertItem("GPS",cb);
-			mi = displayModeM->itemAt(midGPSDisplayMode);
-			DBGMSG(debugStream,TRACE, "midGPSDisplayMode = " << midGPSDisplayMode);
-			if (mi != NULL) mi->setChecked(displayMode==GPS);
-
+			if (systemType == SYSTTS){
+				cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGPSDisplayMode);
+				midGPSDisplayMode =  displayModeM ->insertItem("GPS",cb);
+				mi = displayModeM->itemAt(midGPSDisplayMode);
+				DBGMSG(debugStream,TRACE, "midGPSDisplayMode = " << midGPSDisplayMode);
+				if (mi != NULL) mi->setChecked(displayMode==GPS);
+			}
+			
 			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setNTPDisplayMode);
 		  midNTPDisplayMode = displayModeM ->insertItem("NTP",cb);
 			mi = displayModeM->itemAt(midNTPDisplayMode);
 			if (mi != NULL) mi->setChecked(displayMode==NTP);
 
-			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setRefDisplayMode);
-		  midGPSDODisplayMode = displayModeM ->insertItem("REF",cb);
-			mi = displayModeM->itemAt(midGPSDODisplayMode);
-			if (mi != NULL) mi->setChecked(displayMode==REF);
-#ifdef MULTIRX
-			cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGLOBDDisplayMode);
-		  midGLOBDDisplayMode = displayModeM ->insertItem("GLOBD",cb);
-			mi = displayModeM->itemAt(midGLOBDDisplayMode);
-			DBGMSG(debugStream,TRACE,"midGLOBDDisplayMode = " << midGLOBDDisplayMode);
-			if (mi != NULL) mi->setChecked(displayMode==GLOBD);
-#endif		
+			if (systemType == SYSTTS){
+				cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setRefDisplayMode);
+				midGPSDODisplayMode = displayModeM ->insertItem("REF",cb);
+				mi = displayModeM->itemAt(midGPSDODisplayMode);
+				if (mi != NULL) mi->setChecked(displayMode==REF);
+	#ifdef MULTIRX
+				cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::setGLOBDDisplayMode);
+				midGLOBDDisplayMode = displayModeM ->insertItem("GLOBD",cb);
+				mi = displayModeM->itemAt(midGLOBDDisplayMode);
+				DBGMSG(debugStream,TRACE,"midGLOBDDisplayMode = " << midGLOBDDisplayMode);
+				if (mi != NULL) mi->setChecked(displayMode==GLOBD);
+	#endif	
+			}
+			
 		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::showIP);
 		setupM->insertItem("Show IP addresses..",cb);
 
@@ -2335,8 +2358,10 @@ void LCDMonitor::makeMenu()
 	menu->insertItem("Show system info",cb);
 
 	Menu *restartM = new Menu("Restart...");
-	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartRx);
-	restartM->insertItem("Restart GPS",cb);
+	if (systemType == SYSTTS){
+		cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartRx);
+		restartM->insertItem("Restart GPS",cb);
+	}
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::restartNTP);
 	restartM->insertItem("Restart NTP",cb);
 	cb = new WidgetCallback<LCDMonitor>(this, &LCDMonitor::reboot);
