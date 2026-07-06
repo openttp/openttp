@@ -3,6 +3,7 @@ Description=PPS device logger
 ConditionPathExists=/usr/local/bin/ppsdevlog
 ConditionPathExists=/usr/local/etc/ppsdevlog.conf
 # Customise as necessary
+# Note: don't use these if PPS are mapped to GPIOs eg on RPi - these are available at boot
 #After = dev-pps3.device
 #Requires = dev-pps3.device
 

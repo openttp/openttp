@@ -43,7 +43,7 @@
 #include <sys/timepps.h>
 
 #define APP_NAME "ppsdevlog"
-#define APP_VERSION "0.1.4"
+#define APP_VERSION "0.1.5"
 #define LAST_MODIFIED ""
 
 #define DEFAULT_CONFIG			"/usr/local/etc/ppsdevlog.conf" 
@@ -257,7 +257,7 @@ ppsdevlog_make_lock(
 			fclose(fd);
 			if (!kill(pid, 0) || errno == EPERM){
 				fprintf(stderr,
-					"A ppslogdev is already running as process %d\n"
+					"A ppsdevlog is already running as process %d\n"
 					"If it is no longer running, remove %s\n",
 					  pid,pp->lockFileName);
 				exit(EXIT_FAILURE);
@@ -269,11 +269,17 @@ ppsdevlog_make_lock(
 	}
 	
 	if ((fd = fopen(pp->lockFileName, "w"))){ /* write a new lock file */
-		fprintf(fd,"ppslogdev %d\n",getpid());
+		fprintf(fd,"ppsdevlog %d\n",getpid());
 		fclose(fd);
 	}
 }
 
+static void
+ppsdevlog_remove_lock(
+	ppsdevlog *pp){
+	unlink(pp->lockFileName); /* won't bother to test for errors - not much we can do about it */
+}
+	
 static int
 ppsdevlog_open_log(
 	ppsdevlog *pp,
@@ -489,6 +495,7 @@ int main(
 	
 	if (FALSE == ppsdevlog_open_source(&pp)){
 		ppsdevlog_log_status(&pp,"Failed to get pps device");
+		ppsdevlog_remove_lock(&pp);
 		exit(EXIT_FAILURE);
 	}
 	
@@ -543,7 +550,8 @@ int main(
 	time_pps_destroy(pp.devHandle);
 
 	ppsdevlog_log_status(&pp,"stopped");
-
+	ppsdevlog_remove_lock(&pp);
+	
 	return ret;
 }
 
