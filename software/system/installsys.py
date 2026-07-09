@@ -4,7 +4,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2020-2025 Michael J. Wouters
+# Copyright (c) 2020-2026 Michael J. Wouters
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the 'Software'), to deal
@@ -73,6 +73,9 @@ osinfo = [
 	['Ubuntu','24','ubuntu24',SYSTEMD,
 		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
 		'/usr/local/lib/python3.12/dist-packages'],
+	['Ubuntu','26','ubuntu26',SYSTEMD,
+		'/usr/local/lib/site_perl','/usr/local/lib/python2.7/site-packages',
+		'/usr/local/lib/python3.14/dist-packages'],
 	['Debian GNU/Linux','8','bbdebian8',SYSTEMD,'/usr/local/lib/site_perl',
 		'/usr/local/lib/python2.7/site-packages','/usr/local/lib/python3.4/dist-packages/'],
 	['Debian GNU/Linux','9','bbdebian9',SYSTEMD,'/usr/local/lib/site_perl',
