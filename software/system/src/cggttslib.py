@@ -28,7 +28,7 @@ import sys
 
 LIB_MAJOR_VERSION  = 1
 LIB_MINOR_VERSION  = 0
-LIB_PATCH_VERSION  = 3
+LIB_PATCH_VERSION  = 4
 
 debug=False
 
@@ -262,8 +262,6 @@ class CGGTTS:
 				trk[self.ELV]   = float(l[25:28])/10.0
 				trk[self.AZTH]  = float(l[29:33])/10.0
 				trk[self.REFSV] = float(l[34:45])/10.0
-				if (self.version != self.CGGTTS_RAW): 
-					trk[self.SRSV]  = float(l[46:52])/10.0 # not defined, logically enough!
 				trk[self.REFSYS]= float(l[53:64])/10.0
 				srsys = l[65:71]
 				dsg   = l[72:76]
@@ -301,10 +299,13 @@ class CGGTTS:
 				if (trk[self.TRKL]  < self.minTrackLength):
 					nShortTracks +=1
 					reject = True
-				if (not(self.CGGTTS_RAW == self.version)):
-					if (trk[self.SRSV] == '99999' or trk[self.SRSV]=='*****'):
+				if (not(self.CGGTTS_RAW == self.version)): # SRSV not defined for raw CGGTTS, logically enough!
+					trk[self.SRSV]  = l[46:52]
+					if (trk[self.SRSV] == '99999' or trk[self.SRSV]=='******'):
 						nBadSRSV +=1
 						reject=True
+					else:
+						trk[self.SRSV]  = float(l[46:52])/10.0
 					if (hasMSIO):
 						if (trk[self.MSIO] == '9999' or trk[self.MSIO] == '****' or trk[self.SMSI]=='***' ):
 							nBadMSIO +=1
