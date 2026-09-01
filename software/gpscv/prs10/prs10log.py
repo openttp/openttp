@@ -24,6 +24,12 @@
 #
 # prs10log.py a logging script for the SRS PRS10 rubidium frequency standard
 #
+# Modification history
+# 
+# 2026-09-01 ELM Update script for newer versions of Python (up to 3.14).
+#                Modified waiting for new data collection time to arrive.
+#                Version now 0.0.4.
+#
 
 import argparse
 import os
@@ -34,34 +40,43 @@ import subprocess
 import sys
 import time
 
+# This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.6/site-packages")
-import ottplib
+sys.path.append("/usr/local/lib/python3.8/site-packages")
+sys.path.append("/usr/local/lib/python3.10/dist-packages")
+sys.path.append("/usr/local/lib/python3.12/dist-packages")
+sys.path.append("/usr/local/lib/python3.14/dist-packages")
 
-VERSION = "0.0.3"
-AUTHORS = "Michael Wouters"
+try:
+	import ottplib
+except ImportError:
+	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
+
+VERSION = "0.0.4"
+AUTHORS = "Michael Wouters, Louis Marais"
 
 # Globals
 debug = False
 killed = False
 
-# ------------------------------------------
+# -------------------------------------------------------------------------
 def SignalHandler(signal,frame):
 	global killed
 	killed=True
 	return
 
-# ------------------------------------------
+# -------------------------------------------------------------------------
 def Debug(msg):
 	if (debug):
 		print(msg)
 	return
 
-# ------------------------------------------
+# -------------------------------------------------------------------------
 def ErrorExit(msg):
 	print(msg)
 	sys.exit(0)
 
-# ------------------------------------------
+# -------------------------------------------------------------------------
 def Initialise(configFile):
 	cfg=ottplib.LoadConfig(configFile,{'tolower':True})
 	if (cfg == None):
@@ -75,13 +90,14 @@ def Initialise(configFile):
 		
 	return cfg
 
-# ------------------------------------------
+# -------------------------------------------------------------------------
 def GetResponse(ser,cmd):
 	Debug('GetResponse %f' % time.time())
 	
 	ser.write((cmd + '\r').encode('utf-8'))
 	ret = ser.read_until(b'\r') # The io.TextWrapper solution does not seem to be a rock solid one
-	Debug('(%f) Got %s' % (time.time(),ret))
+	#Debug('(%f) Got %s' % (time.time(),ret))
+	Debug(f"({time.time()}) Got {ret}")
 	return ret.decode('utf-8').rstrip()
 
 # -------------------------------------------------------------------------
@@ -102,10 +118,9 @@ def GetAD(ser,index):
 		return rdg # don't convert to float since we're just convert to convert back to a string anyway
 	return '-1'
 		
-# ------------------------------------------
+# -------------------------------------------------------------------------
 # The main 
-# ------------------------------------------
-
+# -------------------------------------------------------------------------
 
 maxTimeouts = 5
 
@@ -135,7 +150,10 @@ if (not os.path.isdir(logPath)):
 
 cfg=Initialise(configFile)
 
-port = cfg['counter:port'] # required
+if 'reference:port' in cfg:     # For when the PRS10 is not the system counter.
+	port = cfg['reference:port']
+else:
+	port = cfg['counter:port'] # required
 refLogPath= ottplib.MakeAbsolutePath(cfg['reference:log path'], home) # required
 
 statusExtension = '.rb'  
@@ -156,8 +174,11 @@ if 'reference:power flag' in cfg:
 	powerFlag = cfg['reference:power flag']
 powerFlag = ottplib.MakeAbsoluteFilePath(powerFlag,home,home + 'logs')
 
-# Create the process lock		
-lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
+# Create the process lock
+if 'reference:lock file' in cfg:
+	lockFile=ottplib.MakeAbsoluteFilePath(cfg['reference:lock file'],home,home + '/etc')
+else:
+	lockFile=ottplib.MakeAbsoluteFilePath(cfg['counter:lock file'],home,home + '/etc')
 Debug('Creating lock ' + lockFile)
 if (not ottplib.CreateProcessLock(lockFile)):
 	ErrorExit("Couldn't create a lock")
@@ -170,7 +191,8 @@ uucpLockPath='/var/lock'
 if ('paths:uucp lock' in cfg):
 	uucpLockPath = cfg['paths:uucp lock']
 
-ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,'-p',str(os.getpid()),port,sys.argv[0]]).decode('utf-8')
+ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,
+										 '-p',str(os.getpid()),port,sys.argv[0]]).decode('utf-8')
 
 if (re.match('1',ret)==None):
 	ottplib.RemoveProcessLock(lockFile)
@@ -198,14 +220,14 @@ except Exception as ex:
 	
 oldmjd = -1
 nTimeouts = 0
-lastLog = -1
 
 ser.reset_input_buffer() # eat junk
 
 # Preliminaries over
+tt = time.time()
 while (not killed):
-	tt = time.time()
 	mjd = ottplib.MJD(tt)
+	# Create new file if necessary
 	if (not( mjd == oldmjd)):
 		oldmjd = mjd
 		fnlog = refLogPath + str(mjd) + statusExtension
@@ -219,39 +241,23 @@ while (not killed):
 			flog = open(fnlog,'a')
 		Debug('Opened ' + fnlog)
 	
-	if (tt - lastLog >= logInterval):
+	# log data
+	fstatus = open(statusFile,'w')
+	
+	statusBytes = GetStatus(ser)
+	advals = []
+	timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
+	
+	# Check for power loss
+	if (129 <= int(statusBytes[5])):
+		Debug('Power lost')
+		fpwr = open(powerFlag,'w')
+		fpwr.write('%d %s power loss detected\n' % (mjd,timestr))
+		fpwr.close()
 		
-		fstatus = open(statusFile,'w')
-		
-		statusBytes = GetStatus(ser)
-		advals = []
-		timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
-		
-		# Check for power loss
-		if (129 <= int(statusBytes[5])):
-			Debug('Power lost')
-			fpwr = open(powerFlag,'w')
-			fpwr.write('%d %s power loss detected\n' % (mjd,timestr))
-			fpwr.close()
-			
-			for i in range(0,16):
-				advals.append(GetAD(ser,i))
-			
-			# Write the status data to the log so we have a record that power was lost
-			outstr = timestr 
-			for sb in statusBytes:
-				outstr += ' ' + sb
-			for i in range(0,16):
-				outstr += ' ' + advals[i]
-			outstr += '\n'
-			flog.write(outstr)
-		
-			statusBytes = GetStatus(ser) # get the updated status 
-			timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
-		
-		# Get AD values
 		for i in range(0,16):
 			advals.append(GetAD(ser,i))
+		
 		# Write the status data to the log so we have a record that power was lost
 		outstr = timestr 
 		for sb in statusBytes:
@@ -259,27 +265,37 @@ while (not killed):
 		for i in range(0,16):
 			outstr += ' ' + advals[i]
 		outstr += '\n'
-		
 		flog.write(outstr)
-		flog.flush()
-		
-		fstatus.write(outstr)
-		fstatus.close()
-		
-		lastLog = tt
-		
-	# Don't try to be fancy
-	time.sleep(logInterval) 
 	
-	#try:
-	#	time.sleep(1)
-	#except:
-	#	Debug('Timeout')
-	#	nTimeouts += 1
-	#	if (nTimeouts == maxTimeouts):
-	#		flog.close()
-	#		ottplib.RemoveProcessLock(lockFile)
-	#		ErrorExit('Too many timeouts')
+		statusBytes = GetStatus(ser) # get the updated status 
+		timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
+	
+	# Get AD values
+	for i in range(0,16):
+		advals.append(GetAD(ser,i))
+	# Write the status data to the log so we have a record that power was lost
+	outstr = timestr 
+	for sb in statusBytes:
+		outstr += ' ' + sb
+	for i in range(0,16):
+		outstr += ' ' + advals[i]
+	outstr += '\n'
+	
+	flog.write(outstr)
+	flog.flush()
+	
+	fstatus.write(outstr)
+	fstatus.close()
+	
+	tt += logInterval # Next data grab time
+	
+	while not killed: # Wait for next data grab time
+		if time.time() >= tt:
+			break
+		time.sleep(0.5)
+	
+	if killed:
+		break
 	
 # All done - cleanup		
 flog.close()
