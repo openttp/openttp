@@ -31,7 +31,7 @@
 # 2020-07-07 MJW Extensive modifications to allow USB and UARTs to be used
 #                General cleanups
 # 2020-07-08 ELM Some minor fixups, version number changed to 0.1.6
-#
+# 2026-09-04 ELM Explicitly turn on both PPS signals
 
 import argparse
 import binascii
@@ -48,8 +48,9 @@ import sys
 # This is where ottplib is installed
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
-sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
-sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
+sys.path.append("/usr/local/lib/python3.10/dist-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/dist-packages") # Ubuntu 24.04
+sys.path.append("/usr/local/lib/python3.14/dist-packages") # Ubuntu 26.04
 
 import time
 
@@ -363,12 +364,21 @@ def ConfigureReceiver(serport):
 	# The time scale for the output 1 pps needs to be set to GPS
 	# UTC=0, GPS=1, GLO=2, BDS=3,GAL=4
 	CFG_TP_TIMEGRID_TP1 = b'\x0c\x00\x05\x20'; # CFG-TP-TIMEGRID_TP1 0x2005000c
-	msg = UBX_CFG_VAL_SET + CFG_TP_TIMEGRID_TP1 + b'\x01';
+	msg = UBX_CFG_VAL_SET + CFG_TP_TIMEGRID_TP1 + b'\x01'
 	SendCommand(serport,msg)
 	
 	# And the other one, just in case
 	CFG_TP_TIMEGRID_TP2 = b'\x17\x00\x05\x20'; # CFG-TP-TIMEGRID_TP1 0x20050017
-	msg = UBX_CFG_VAL_SET + CFG_TP_TIMEGRID_TP2 + b'\x01';
+	msg = UBX_CFG_VAL_SET + CFG_TP_TIMEGRID_TP2 + b'\x01'
+	SendCommand(serport,msg)
+	
+	# Make sure both PPS signals are enabled
+	CFG_TP_TP1_ENA = b'\x10\x05\x00\x07'   # CFG-TP-TP1_ENA 0x10050007
+	msg = UBX_CFG_VAL_SET + CFG_TP_TP1_ENA + b'\x01'
+	SendCommand(serport,msg)
+	
+	CFG_TP_TP2_ENA = b'\x10\x05\x00\x12'   # CFG-TP-TP2_ENA 0x10050012
+	msg = UBX_CFG_VAL_SET + CFG_TP_TP2_ENA + b'\x01'
 	SendCommand(serport,msg)
 	
 	# Navigation/measurement rate settings
