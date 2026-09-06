@@ -31,7 +31,7 @@
 # 2020-07-07 MJW Extensive modifications to allow USB and UARTs to be used
 #                General cleanups
 # 2020-07-08 ELM Some minor fixups, version number changed to 0.1.6
-# 2026-09-04 ELM Explicitly turn on both PPS signals
+# 2026-09-07 ELM Explicitly turn on both PPS signals
 
 import argparse
 import binascii
@@ -373,11 +373,11 @@ def ConfigureReceiver(serport):
 	SendCommand(serport,msg)
 	
 	# Make sure both PPS signals are enabled
-	CFG_TP_TP1_ENA = b'\x10\x05\x00\x07'   # CFG-TP-TP1_ENA 0x10050007
+	CFG_TP_TP1_ENA = b'\x07\x00\x05\x10'   # CFG-TP-TP1_ENA 0x10050007
 	msg = UBX_CFG_VAL_SET + CFG_TP_TP1_ENA + b'\x01'
 	SendCommand(serport,msg)
 	
-	CFG_TP_TP2_ENA = b'\x10\x05\x00\x12'   # CFG-TP-TP2_ENA 0x10050012
+	CFG_TP_TP2_ENA = b'\x12\x00\x05\x10'   # CFG-TP-TP2_ENA 0x10050012
 	msg = UBX_CFG_VAL_SET + CFG_TP_TP2_ENA + b'\x01'
 	SendCommand(serport,msg)
 	
