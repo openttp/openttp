@@ -32,6 +32,7 @@
 #                General cleanups
 # 2020-07-08 ELM Some minor fixups, version number changed to 0.1.6
 # 2026-09-07 ELM Explicitly turn on both PPS signals
+# 2026-09-11 ELM Add output of saw tooth error in separate data file
 
 import argparse
 import binascii
@@ -171,6 +172,29 @@ def OpenDataFile(mjd):
 		except:
 			Cleanup()
 			ErrorExit('Failed to open data file ' + fname)
+	fout.flush()
+	return fout
+
+#----------------------------------------------------------------------------
+def OpenSawtoothFile(mjd):
+	fname = sawtoothPath + str(mjd) + sawtoothExt;
+	appending = os.path.isfile(fname)
+	
+	Debug('Opening ' + fname);
+	
+	try:
+		fout = open(fname,'a')
+	except:
+		Cleanup()
+		ErrorExit('Failed to open saw tooth file ' + fname)
+		
+	fout.write('# {} {} (version {})\n'.format( \
+		time.strftime('%H:%M:%S',time.gmtime()),
+		os.path.basename(sys.argv[0]),VERSION, \
+		'continuing' if appending  else 'beginning'))
+	fout.write('# {} {}\n'.format('Appending to ' if appending  else 'Beginning new',fname))
+	fout.write('@ MJD={}\n'.format(mjd))
+	fout.write('#HH:MM:SS  Sawtooth correction (ps)\n')
 	fout.flush()
 	return fout
 
@@ -368,17 +392,17 @@ def ConfigureReceiver(serport):
 	SendCommand(serport,msg)
 	
 	# And the other one, just in case
-	CFG_TP_TIMEGRID_TP2 = b'\x17\x00\x05\x20'; # CFG-TP-TIMEGRID_TP1 0x20050017
+	CFG_TP_TIMEGRID_TP2 = b'\x17\x00\x05\x20'; # CFG-TP-TIMEGRID_TP2 0x20050017
 	msg = UBX_CFG_VAL_SET + CFG_TP_TIMEGRID_TP2 + b'\x01'
 	SendCommand(serport,msg)
 	
 	# Make sure both PPS signals are enabled
-	CFG_TP_TP1_ENA = b'\x07\x00\x05\x10'   # CFG-TP-TP1_ENA 0x10050007
-	msg = UBX_CFG_VAL_SET + CFG_TP_TP1_ENA + b'\x01'
+	CFG_TP_TP1_ENA = b'\x07\x00\x05\x10'   # CFG-TP-TP1_ENA 0x10050007 - default is ON
+	msg = UBX_CFG_VAL_SET + CFG_TP_TP1_ENA + UBX_ON
 	SendCommand(serport,msg)
 	
-	CFG_TP_TP2_ENA = b'\x12\x00\x05\x10'   # CFG-TP-TP2_ENA 0x10050012
-	msg = UBX_CFG_VAL_SET + CFG_TP_TP2_ENA + b'\x01'
+	CFG_TP_TP2_ENA = b'\x12\x00\x05\x10'   # CFG-TP-TP2_ENA 0x10050012 - default is OFF
+	msg = UBX_CFG_VAL_SET + CFG_TP_TP2_ENA + UBX_ON
 	SendCommand(serport,msg)
 	
 	# Navigation/measurement rate settings
@@ -520,10 +544,16 @@ def UpdateStatus(rxStatus,msg):
 	fstat.write('GPS = ' + gps + '\n')
 	fstat.write('QZSS = ' + qzss + '\n')
 	fstat.close()
-	
-# ------------------------------------------
+
+# ---------------------------------------------------------------------------
+def getSawTooth(d):
+	b = d[8:12]
+	swCorr = int.from_bytes(b,byteorder="little",signed=True)
+	return(swCorr)
+
+# ---------------------------------------------------------------------------
 # Main 
-# ------------------------------------------
+# ---------------------------------------------------------------------------
 			
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
@@ -599,6 +629,16 @@ dataExt = cfg['receiver:file extension']
 if (None == re.search(r'\.$',dataExt)): # add a '.' separator if needed
 	dataExt = '.' + dataExt 
 
+# Create a separate sawtooth data file if requested
+saveSawtooth = False
+if 'paths:sawtooth data' in cfg:
+	if 'receiver:sawtooth extension' in cfg:
+		sawtoothPath = ottp.MakeAbsolutePath(cfg['paths:sawtooth data'],home)
+		sawtoothExt = cfg['receiver:sawtooth extension']
+		if (None == re.search(r'\.$',sawtoothExt)): # add a '.' separator if needed
+			sawtoothExt = '.' + sawtoothExt
+		saveSawtooth = True
+
 dataFormat = OPENTTP_FORMAT
 if ('receiver:file format' in cfg):
 	ff = cfg['receiver:file format'].lower()
@@ -642,6 +682,8 @@ tt = time.time()
 tStr = time.strftime('%H:%M:%S',time.gmtime(tt))
 mjd = ottp.MJD(tt)
 fdata = OpenDataFile(mjd)
+if saveSawtooth:
+	fswt = OpenSawtoothFile(mjd)
 tNext=(mjd-40587+1)*86400
 tThen = 0
 tLastStatusUpdate=0
@@ -709,6 +751,9 @@ while (not killed):
 				fdata.close()
 				mjd=int(tNow/86400) + 40587	
 				fdata = OpenDataFile(mjd)
+				if saveSawtooth:
+					fswt.close()
+					fswt = OpenSawtoothFile(mjd)
 				
 				PollVersionInfo(serport)
 				PollChipID(serport)
@@ -728,6 +773,12 @@ while (not killed):
 					if (dataFormat  == OPENTTP_FORMAT):
 						fdata.write('{:02x}{:02x} {} {}\n'.format(ubxClass,ubxID,tStr,str(binascii.hexlify(data[:payloadLength+2]))[2:-1]))
 						fdata.flush()
+						
+						if ubxClass == 13 and ubxID == 1:
+							if saveSawtooth:
+								sawtooth = getSawTooth(data[:payloadLength+2])
+								fswt.write(f"{tStr} {sawtooth}\n")
+								fswt.flush()
 						
 				if (ubxClass == 0x01 and ubxID == 0x35 and tNow - tLastStatusUpdate >= statusUpdateInterval):
 					UpdateStatus(rxStatus,data[:payloadLength+2])
@@ -751,6 +802,13 @@ msg = '# {} {} timeout/killed\n'.format( \
 
 if (dataFormat == OPENTTP_FORMAT):
 	fdata.write(msg)
+
+fdata.close()
+
+if saveSawtooth:
+	fswt.write(msg)
+
+fswt.close()
 
 Cleanup()
 
