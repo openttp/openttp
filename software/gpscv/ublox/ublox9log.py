@@ -32,7 +32,7 @@
 #                General cleanups
 # 2020-07-08 ELM Some minor fixups, version number changed to 0.1.6
 # 2026-09-07 ELM Explicitly turn on both PPS signals
-# 2026-09-11 ELM Add output of saw tooth error in separate data file
+# 2026-09-11 ELM Add output of saw tooth error in separate data file if configured
 
 import argparse
 import binascii
