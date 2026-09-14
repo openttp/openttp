@@ -26,7 +26,8 @@
 #
 # Modification history
 # 
-# 2026-09-01 ELM Update script for newer versions of Python (up to 3.14).
+# 2026-09-15 ELM Update script for newer versions of Python (up to 3.14).
+#                Added time stamp capability.
 #                Modified waiting for new data collection time to arrive.
 #                Version now 0.0.4.
 #
@@ -64,6 +65,10 @@ def SignalHandler(signal,frame):
 	global killed
 	killed=True
 	return
+
+# -----------------------------------------------------------------------------
+def ts():
+	return(time.strftime("%H:%M:%S ",time.gmtime()))
 
 # -------------------------------------------------------------------------
 def Debug(msg):
@@ -109,7 +114,7 @@ def GetStatus(ser):
 	if m:
 		return [m.group(1),m.group(2),m.group(3),m.group(4),m.group(5),m.group(6)]
 	return ['-1','-1','-1','-1','-1','-1']
-	
+
 # -------------------------------------------------------------------------
 def GetAD(ser,index):
 	rdg = GetResponse(ser,'AD ' + str(index) + '?')
@@ -117,17 +122,25 @@ def GetAD(ser,index):
 	if m:
 		return rdg # don't convert to float since we're just convert to convert back to a string anyway
 	return '-1'
-		
+
+# -------------------------------------------------------------------------
+def GetTimeTag(ser):
+	s = GetResponse(ser,'tt?')
+	m = re.match(r'(-*\d+)',s)
+	if m:
+		return m.groups()[0]
+	return ""
+
 # -------------------------------------------------------------------------
 # The main 
 # -------------------------------------------------------------------------
 
-maxTimeouts = 5
+#maxTimeouts = 5  # never used... kickstart should take care of this
 
 home =os.environ['HOME'] + os.sep
 configFile = os.path.join(home,'etc','gpscv.conf')
 
-parser = argparse.ArgumentParser(description='Log a SRS PRS10 (status only)',
+parser = argparse.ArgumentParser(description='Log a SRS PRS10 status and time tags (if configured)',
 	formatter_class=argparse.RawDescriptionHelpFormatter)
 
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
@@ -159,6 +172,8 @@ refLogPath= ottplib.MakeAbsolutePath(cfg['reference:log path'], home) # required
 statusExtension = '.rb'  
 if 'reference:file extension' in cfg:
 	statusExtension=cfg['reference:file extension']
+	if (None == re.search(r'\.$',statusExtension)): # add a '.' separator if needed
+		statusExtension = '.' + statusExtension
 
 logInterval = 60
 if 'reference:log interval' in cfg:
@@ -173,6 +188,22 @@ powerFlag = 'prs10.pwr'
 if 'reference:power flag' in cfg:
 	powerFlag = cfg['reference:power flag']
 powerFlag = ottplib.MakeAbsoluteFilePath(powerFlag,home,home + 'logs')
+
+# Note that this breaks compatibility with the old way of doing things.
+# The counter path and file extension was previously used (i.e. 
+# [paths][counter data] and [counter][file extension] in gpscv.conf).
+counterMode = False
+counterPath = refLogPath
+counterExtension = ".ti"
+if 'reference:counter mode' in cfg:
+	if cfg['reference:counter mode'] == '1' or cfg['reference:counter mode'].lower() == 'true':
+		counterMode = True
+		if 'reference:counter path' in cfg:
+			counterPath = ottplib.MakeAbsolutePath(cfg['reference:counter path'], home)
+		if 'reference:counter extension' in cfg:
+			counterExtension = cfg['reference:counter extension']
+			if (None == re.search(r'\.$',counterExtension)):
+				counterExtension = '.' + counterExtension
 
 # Create the process lock
 if 'reference:lock file' in cfg:
@@ -216,10 +247,10 @@ except Exception as ex:
 	
 	ottplib.RemoveProcessLock(lockFile)
 	subprocess.check_output(['/usr/local/bin/lockport','-r',port]) # but ignore return value anyway
-	exit()
+	exit(1)
 	
 oldmjd = -1
-nTimeouts = 0
+#nTimeouts = 0  # Never used.
 
 ser.reset_input_buffer() # eat junk
 
@@ -241,23 +272,66 @@ while (not killed):
 			flog = open(fnlog,'a')
 		Debug('Opened ' + fnlog)
 	
-	# log data
-	fstatus = open(statusFile,'w')
-	
-	statusBytes = GetStatus(ser)
-	advals = []
-	timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
-	
-	# Check for power loss
-	if (129 <= int(statusBytes[5])):
-		Debug('Power lost')
-		fpwr = open(powerFlag,'w')
-		fpwr.write('%d %s power loss detected\n' % (mjd,timestr))
-		fpwr.close()
+	# log time tag if configured
+	if counterMode:
+		ti = GetTimeTag(ser)
+		if tt == "": # Serial timeout
+			break 
 		
+		if ti == "-1": # Reading not available yet
+			time.sleep(0.1)
+			if killed:   # The application can sit in this loop "forever" if a PPS input is not available.
+				break
+			if time.time() < tt:
+				continue
+		else:
+			fnti = counterPath + str(mjd) + counterExtension
+			if not os.path.isfile(fnti):
+				fti = open(fnti,'w')
+				fti.write(f"# prs10log.py version {VERSION}\n")
+				fti.write(f"# MJD: {mjd}\n")
+				fti.write(f"# HH:MM:SS  Time interval (s)\n")
+			else:
+				fti = open(fnti,'a')
+			v = int(ti)
+			if v > 5E8:
+				v -= 1E9
+			fti.write(f"{ts()} {float(v)/1E9:12.9f}\n")
+			fti.close()
+	
+	# log status data if it is that time...
+	if time.time() >= tt:
+		fstatus = open(statusFile,'w')
+		
+		statusBytes = GetStatus(ser)
+		advals = []
+		timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
+		
+		# Check for power loss
+		if (129 <= int(statusBytes[5])):
+			Debug('Power lost')
+			fpwr = open(powerFlag,'w')
+			fpwr.write('%d %s power loss detected\n' % (mjd,timestr))
+			fpwr.close()
+			
+			for i in range(0,16):
+				advals.append(GetAD(ser,i))
+			
+			# Write the status data to the log so we have a record that power was lost
+			outstr = timestr 
+			for sb in statusBytes:
+				outstr += ' ' + sb
+			for i in range(0,16):
+				outstr += ' ' + advals[i]
+			outstr += '\n'
+			flog.write(outstr)
+			
+			statusBytes = GetStatus(ser) # get the updated status 
+			timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
+		
+		# Get AD values
 		for i in range(0,16):
 			advals.append(GetAD(ser,i))
-		
 		# Write the status data to the log so we have a record that power was lost
 		outstr = timestr 
 		for sb in statusBytes:
@@ -265,34 +339,16 @@ while (not killed):
 		for i in range(0,16):
 			outstr += ' ' + advals[i]
 		outstr += '\n'
+		
 		flog.write(outstr)
+		flog.flush()
+		
+		fstatus.write(outstr)
+		fstatus.close()
+		
+		tt += logInterval # Next data grab time
 	
-		statusBytes = GetStatus(ser) # get the updated status 
-		timestr = time.strftime('%H:%M:%S',time.gmtime(tt))
-	
-	# Get AD values
-	for i in range(0,16):
-		advals.append(GetAD(ser,i))
-	# Write the status data to the log so we have a record that power was lost
-	outstr = timestr 
-	for sb in statusBytes:
-		outstr += ' ' + sb
-	for i in range(0,16):
-		outstr += ' ' + advals[i]
-	outstr += '\n'
-	
-	flog.write(outstr)
-	flog.flush()
-	
-	fstatus.write(outstr)
-	fstatus.close()
-	
-	tt += logInterval # Next data grab time
-	
-	while not killed: # Wait for next data grab time
-		if time.time() >= tt:
-			break
-		time.sleep(0.5)
+	time.sleep(0.1)
 	
 	if killed:
 		break
