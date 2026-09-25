@@ -39,7 +39,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22
 sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24
 import ottplib as ottp
 
-VERSION = "0.1.1"
+VERSION = "0.2.0"
 AUTHORS = "Michael Wouters"
 
 debug = False
@@ -77,7 +77,7 @@ FRC=21
 
 MIN_TRACK_LENGTH=750
 DSG_MAX = 20.0 # in ns
-SRSYS_MAX = 9999.9 # in ns
+SRSYS_MAX = 100.0 # in ps/s
 ELV_MASK = 0.0 # in degrees
 
 RUN_RX2RNX = '/usr/local/bin/runrx2rnx.py'
@@ -219,6 +219,17 @@ def ReadCGGTTS(fname):
 	return d
 
 # -----------------------------------------------
+# Note! Just a placeholder for filtering
+#
+def FilteredAverage(d):
+	
+	avRefSys = 0.0
+	for v in d:
+		avRefSys += v
+	nTracks = len(d)
+	return avRefSys/nTracks, nTracks
+	
+# -----------------------------------------------
 
 elevationMask  = ELV_MASK
 minTrackLength = MIN_TRACK_LENGTH
@@ -345,24 +356,24 @@ if d: # tested
 
 	lastMJD = d[0][0]
 	lastTT  = d[0][1]
-	nTracks = 0
-	refSys  = 0
+	refSys  = []
 	for dd in d:
 		currMJD = dd[0]
 		currTT  = dd[1]
 		#print(currMJD,lastMJD,currTT,lastTT)
 		if (currMJD == lastMJD and currTT == lastTT):
-			refSys  += dd[2]
-			nTracks += 1
+			refSys.append(dd[2])
 		else:
-			fout.write('{:d} {:d} {:f} {:d}\n'.format(lastMJD,lastTT,refSys/nTracks,nTracks))
-			refSys = dd[2]
-			nTracks = 1
+			avRefSys,nTracks = FilteredAverage(refSys)
+			fout.write('{:d} {:d} {:f} {:d}\n'.format(lastMJD,lastTT,avRefSys,nTracks))
+			refSys = []
+			refSys.append(dd[2])
 		
 		lastMJD = currMJD 
 		lastTT  = currTT
 	# Last one
-	fout.write('{:d} {:d} {:f} {:d}\n'.format(currMJD,currTT,refSys/nTracks,nTracks))		
+	avRefSys,nTracks = FilteredAverage(refSys)
+	fout.write('{:d} {:d} {:f} {:d}\n'.format(currMJD,currTT,avRefSys,nTracks))		
 
 	fout.close()
 
