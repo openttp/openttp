@@ -33,6 +33,7 @@
 # 2020-07-08 ELM Some minor fixups, version number changed to 0.1.6
 # 2026-09-07 ELM Explicitly turn on both PPS signals
 # 2026-09-11 ELM Add output of saw tooth error in separate data file if configured
+# 2026-10-01 ELM Add ToD output to semaphore file if configured
 
 import argparse
 import binascii
@@ -60,7 +61,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.3.1'
+VERSION = '0.3.2'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # File formats
@@ -546,10 +547,27 @@ def UpdateStatus(rxStatus,msg):
 	fstat.close()
 
 # ---------------------------------------------------------------------------
-def getSawTooth(d):
+def getSawTooth(d): # UBX-TIM-TP 0x0d 0x01
 	b = d[8:12]
 	swCorr = int.from_bytes(b,byteorder="little",signed=True)
 	return(swCorr)
+
+# ---------------------------------------------------------------------------
+def UpdateToD(fl,d): # UBX-NAV-TIMEUTC 0x01 0x21
+	if not len(d) == 22:
+		return
+	yr = int.from_bytes(d[12:14],byteorder="little",signed=False)
+	mn = d[14]
+	dy = d[15]
+	hh = d[16]
+	mm = d[17]
+	ss = d[18]
+	valid = d[19]
+	if valid & 4 == 4: # UTC is valid
+		with open(fl,'w') as f:
+			f.write(f"{yr:04d}-{mn:02d}-{dy:02d} {hh:02d}:{mm:02d}:{ss:02d}\n")
+			f.close()
+	return
 
 # ---------------------------------------------------------------------------
 # Main 
@@ -638,6 +656,11 @@ if 'paths:sawtooth data' in cfg:
 		if (None == re.search(r'\.$',sawtoothExt)): # add a '.' separator if needed
 			sawtoothExt = '.' + sawtoothExt
 		saveSawtooth = True
+
+saveToD = False
+if 'receiver:tod file' in cfg:
+	todFile = ottp.MakeAbsoluteFilePath(cfg['receiver:tod file'],home,home + '/var')
+	saveToD = True
 
 dataFormat = OPENTTP_FORMAT
 if ('receiver:file format' in cfg):
@@ -774,15 +797,20 @@ while (not killed):
 						fdata.write('{:02x}{:02x} {} {}\n'.format(ubxClass,ubxID,tStr,str(binascii.hexlify(data[:payloadLength+2]))[2:-1]))
 						fdata.flush()
 						
-						if ubxClass == 13 and ubxID == 1:
+						if ubxClass == 0x0d and ubxID == 0x01: # UBX-TIM-TP
 							if saveSawtooth:
 								sawtooth = getSawTooth(data[:payloadLength+2])
 								fswt.write(f"{tStr} {sawtooth}\n")
 								fswt.flush()
-						
+								
+						if ubxClass == 0x01 and ubxID == 0x21: # UBX-NAV-TIMEUTC
+							if saveToD:
+								UpdateToD(todFile,data[:payloadLength+2])
+				
 				if (ubxClass == 0x01 and ubxID == 0x35 and tNow - tLastStatusUpdate >= statusUpdateInterval):
 					UpdateStatus(rxStatus,data[:payloadLength+2])
 					tLastStatusUpdate = tNow
+					
 			else:
 				Debug('Unhandled')
 			# Tidy up the input buffer - remove what we just parsed
