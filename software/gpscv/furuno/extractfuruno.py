@@ -28,6 +28,9 @@
 #
 #
 
+# Modification record
+# 2026-10-07 ELM Updated python package locations
+
 import argparse
 import datetime
 import glob
@@ -38,7 +41,9 @@ import sys
 # This is where ottplib is installed
 sys.path.append('/usr/local/lib/python3.6/site-packages')  # Ubuntu 18
 sys.path.append('/usr/local/lib/python3.8/site-packages')  # Ubuntu 20
-sys.path.append('/usr/local/lib/python3.10/site-packages') # Ubuntu 22
+sys.path.append('/usr/local/lib/python3.10/dist-packages') # Ubuntu 22
+sys.path.append('/usr/local/lib/python3.12/dist-packages') # Ubuntu 24
+sys.path.append('/usr/local/lib/python3.14/dist-packages') # Ubuntu 26
 
 import ottplib as ottp
 import time
