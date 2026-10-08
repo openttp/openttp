@@ -35,7 +35,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.5.0'
+VERSION = '1.6.0'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -99,7 +99,7 @@ osinfo = [
 # All available installation targets
 alltargets = ['libconfigurator','dioctrl','lcdmon','ppsd',
 	'sysmonitor','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib',
-	'okcounterd','okbitloader','udevrules','gpscvperllibs','rpi5','rpi5gpio']
+	'okcounterd','okbitloader','udevrules','gpscvperllibs','rpi5','rpi5gpio','mosaict']
 
 # Targets for a minimal installation
 mintargets = ['libconfigurator','tflibrary','kickstart','gziplogs','misc','ottplib','cggttslib','rinexlib']
@@ -423,6 +423,20 @@ if architecture.find('arm') == 0 or architecture.find('aarch64') == 0:
 	if ret:
 		rpi5 = True
 
+# Check for a new TTS with a MosaicT running gpsd and chronyd
+# This will only be for an RPI5 system (for now) because we need
+# specific hardware (pps and NMEA serial port) to be available
+# for gpsd to function. Note that it should not be necessary to
+# ask the user this question because it is annoying and just testing
+# for rpi5 and mosaict in targets should be enough, but it is possible
+# that a future RPI5 system may not have a MosaicT receiver. 
+mosaict = False
+if rpi5 and ('mosaict' in targets):
+	ret = GetYesNo('Does this system have a MosaicT receiver on board?')
+	if ret:
+		mosaict = True
+
+
 initSys = thisos[INITSYS]
 
 
@@ -580,6 +594,13 @@ if (rpi5 and ('rpi5gpio' in targets)):
 		InstallScript('src/gpio/pi5ttsgpio.service','/etc/init/sysmonitor.conf')
 		hints += 'To start pi5ttsgpio, run: start pi5ttsgpio\n'
 	hints += 'The pi5ttsgpio service MUST be running for the TTS hardware to function.\n'
+
+if (mosaict and ('mosaict' in targets)):
+	if (initSys == SYSTEMD): # we ignore an UPSTART system (too old)
+		InstallScript('src/gpsd/gpsd.sample','/etc/default/gpsd')
+		InstallScript('src/chronyd/chrony.conf.sample','/etc/chrony/chrony.conf')
+		hints += 'Check that /etc/default/gpsd and /etc/chrony/chrony.conf are suitable for this system.\n'
+
 
 # Print any post-installation hints
 if (not hints == ''):

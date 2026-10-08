@@ -35,7 +35,7 @@ refclock PPS /dev/pps0 refid PPS0 offset 0.0 precision 5e-6 poll 3
 
 # Uncomment the following line if this is a time server. Note that this allows
 # everyone access to the server. See the man page on how to restrict access
-allow 
+#allow 
 
 # Use time sources from DHCP.
 #sourcedir /run/chrony-dhcp
