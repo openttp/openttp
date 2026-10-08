@@ -1,0 +1,9 @@
+# Devices gpsd should collect to at boot time.
+# They need to be read/writeable, either by user gpsd or the group dialout.
+DEVICES="/dev/mostcom2 /dev/pps1"
+
+# Other options you want to pass to gpsd
+GPSD_OPTIONS="-n -p -s 115200"
+
+# Automatically hot add/remove USB GPS devices via gpsdctl
+USBAUTO="false"
