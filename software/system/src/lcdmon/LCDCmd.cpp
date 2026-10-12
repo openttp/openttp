@@ -68,7 +68,7 @@ bool shortDebugMessage=false;
 
 
 #define CMD_SHOW_VERSION  1
-#define CMD_RESET_DEVICE  2
+#define CMD_SOFT_RESET  2
 
 LCDCmd *app;
 
@@ -100,7 +100,7 @@ void LCDCmd::softReset(){
 	outgoing_response.data[0]=95;
 	outgoing_response.data_length=3;
 	send_packet();
-	getResponse();
+	//getResponse();
 }
 
 void LCDCmd::signalHandler(int sig)
@@ -287,6 +287,11 @@ int main(int argc,char **argv)
 				cmd = CMD_SHOW_VERSION;
 				break;
 			}
+			case 'r':
+			{
+				cmd = CMD_SOFT_RESET;
+				break;
+			}
 		}
 	}
 
@@ -296,6 +301,9 @@ int main(int argc,char **argv)
 	{
 		case CMD_SHOW_VERSION:
 			app->showVersion();
+			break;
+		case CMD_SOFT_RESET:
+			app->softReset();
 			break;
 	}
 
