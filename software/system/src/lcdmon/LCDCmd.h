@@ -49,7 +49,7 @@ class LCDCmd:public CFA635
 		~LCDCmd();
 
 		void showVersion();
-		void reset();
+		void softReset();
 
 	private:
 	
@@ -64,7 +64,7 @@ class LCDCmd:public CFA635
 		void configure();
 		
 		void getResponse();
-
+		void showResponse();
 };
 
 #endif

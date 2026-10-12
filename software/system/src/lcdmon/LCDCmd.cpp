@@ -86,11 +86,21 @@ LCDCmd::~LCDCmd()
 
 void LCDCmd::showVersion()
 {
-
+	outgoing_response.command = 1;
+	outgoing_response.data[0]=0;
+	outgoing_response.data_length=1;
+	send_packet();
+	getResponse();
 }
 
-void LCDCmd::reset(){
-
+void LCDCmd::softReset(){
+	outgoing_response.command = 5;
+	outgoing_response.data[0]=3;
+	outgoing_response.data[0]=11;
+	outgoing_response.data[0]=95;
+	outgoing_response.data_length=3;
+	send_packet();
+	getResponse();
 }
 
 void LCDCmd::signalHandler(int sig)
@@ -185,7 +195,7 @@ void LCDCmd::getResponse()
 	for(int k=0;k<=100;k++){
 		usleep(10000);
 		if(packetReceived()){
-			ShowReceivedPacket();
+			showResponse();
 			timed_out = 0; 
 			break;
 		}
@@ -195,6 +205,36 @@ void LCDCmd::getResponse()
 	}
 }
 
+
+void LCDCmd::showResponse()
+{
+	int i;
+	//Terminate the incoming data so C handles it well in case it is a string.
+	incoming_command.data[incoming_command.data_length]=0;
+	char expanded[400];
+	expanded[0]=0;
+	for(i=0;i<incoming_command.data_length;i++){
+		if(isprint(incoming_command.data[i])){
+			int current_length=strlen(expanded);
+			expanded[current_length]=incoming_command.data[i];
+			expanded[current_length+1]=0;
+		}
+		else{
+			char bin_number[5];
+			sprintf(bin_number,"\\%03d",incoming_command.data[i]);
+			strcat(expanded,bin_number);
+		}
+	}
+
+	char buf[1024];
+	snprintf(buf,1023,"C=%d,L=%d,D=\"%s\",CRC=0x%04X",
+		incoming_command.command,
+		incoming_command.data_length,
+		expanded,
+		incoming_command.CRC);
+
+	cout << buf << endl;
+}
 
 void showHelp()
 {
