@@ -2,4 +2,4 @@
 # Install this in /etc/cron.d/ 
 #
 # 
-3 12 * * * root /usr/local/bin/restartlcd.sh
+3 12 * * * root /usr/local/sbin/restartlcd.sh
