@@ -21,7 +21,9 @@ LCDMONOBJS = Button.o CFA635.o Debug.o ConfirmationDialog.o Dialog.o Label.o IPW
 
 LCDCONFIGOBJS=CFA635.o Debug.o LCDConfigure.o
 
-all: mkversion lcdmonitor lcdconfig
+LCDCMDOBJS=CFA635.o Debug.o LCDCmd.o
+
+all: mkversion lcdmonitor lcdconfig lcdcmd
 
 .cpp.o:
 	$(CC) $(CFLAGS) $(DEFINES) -c  $*.cpp
@@ -34,6 +36,9 @@ lcdmonitor:	$(LCDMONOBJS)
 
 lcdconfig:	$(LCDCONFIGOBJS)
 	$(CC) $(CFLAGS) -o lcdconfig $(LCDCONFIGOBJS) $(LIBS)
+
+lcdcmd:	$(LCDCMDOBJS)
+	$(CC) $(CFLAGS) -o lcdconfig $(LCDCMDOBJS) $(LIBS)
 	
 Button.o: Button.h Debug.h Widget.h Functor.h
 
@@ -55,6 +60,8 @@ LCDMonitor.o: CFA635.h Debug.h Dialog.h IPWidget.h LCDMonitor.h WidgetCallback.h
 	Version.h SliderWidget.h IntensityWidget.h ContrastWidget.h Wizard.h
 
 LCDConfigure.o: CFA635.h Debug.h LCDConfigure.h Version.h
+
+LCDCmd.o: CFA635.h Debug.h LCDCmd.h Version.h
 
 MessageBox.o: Widget.h Debug.h Dialog.h Label.h KeyEvent.h
 
