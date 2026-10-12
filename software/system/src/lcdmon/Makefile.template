@@ -38,7 +38,7 @@ lcdconfig:	$(LCDCONFIGOBJS)
 	$(CC) $(CFLAGS) -o lcdconfig $(LCDCONFIGOBJS) $(LIBS)
 
 lcdcmd:	$(LCDCMDOBJS)
-	$(CC) $(CFLAGS) -o lcdconfig $(LCDCMDOBJS) $(LIBS)
+	$(CC) $(CFLAGS) -o lcdcmd $(LCDCMDOBJS) $(LIBS)
 	
 Button.o: Button.h Debug.h Widget.h Functor.h
 
