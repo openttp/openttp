@@ -95,9 +95,9 @@ void LCDCmd::showVersion()
 
 void LCDCmd::softReset(){
 	outgoing_response.command = 5;
-	outgoing_response.data[0]=3;
-	outgoing_response.data[0]=11;
-	outgoing_response.data[0]=95;
+	outgoing_response.data[0]=8;
+	outgoing_response.data[0]=25;
+	outgoing_response.data[0]=48;
 	outgoing_response.data_length=3;
 	send_packet();
 	//getResponse();
