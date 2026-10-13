@@ -54,6 +54,9 @@
 #                          Fractional frequency error now calculated by
 #                          tracking reported on-board oscillator frequency
 #                          offsets.
+# 2026-10-09 MJW    0.1.0  Fix problem of another process accessing the status file
+#						   at the wrong time, getting corrupted(?)/no data.
+#                          See comments in code.
 # -----------------------------------------------------------------------------
 
 import os
@@ -64,12 +67,13 @@ import configparser
 import subprocess
 import signal
 import re
+import tempfile
 import datetime
 import time
 
 script = os.path.basename(__file__)
-VERSION = "0.0.6"
-AUTHORS = "Louis Marais"
+VERSION = "0.1.0"
+AUTHORS = "Louis Marais,Michael Wouters"
 
 running = True
 DEBUG = False
@@ -587,13 +591,30 @@ def saveStatus(flnm,gpsdo_sn,verStr,posdop,alldop,gps,glo,gal,gpsdo,ffea):
 	additionalInfo = getmoreInfo(glo,gal,gpsdo)
 	lines.extend(additionalInfo)
 	# For debugging
-	debug(f"Information saved to status file({flnm}).")
 	if DEBUG:
 		for l in lines:
 			print(l.strip())
-	with open(flnm,'w') as f:
-		f.writelines(lines)
-		f.close()
+	# There can be problems when another process tries to read this file as it is being written.
+	# One way to handle this is to write to a temporary file and then rename it.
+	# On Linux, the rename is atomic - there is no intermediate state visible to other processes
+	# Note that the source and destination must be on the same filesystem - but that's
+	# guaranteed here by forcing use of the same directory
+	targetdir = os.path.dirname(os.path.abspath(flnm))
+	with tempfile.NamedTemporaryFile('w', dir=targetdir, delete=False, encoding='utf-8') as tmpfile:
+		tmpname = tmpfile.name
+		try:
+			for l in lines:
+				tmpfile.write(l)
+			tmpfile.flush() # flush Python's internal buffers to the OS
+			os.fsync(tmpfile.fileno()) # force Linux to flush its kernel buffer cache to the physical disk - this will block until complete
+			os.replace(tmpname,flnm)
+			os.chmod(flnm,0o644)
+			debug(f"Information saved to status file ({flnm}).")
+		except Exception as e:
+			# Clean up the temporary file if writing fails
+			os.remove(tmpname)
+			# This is not fatal - leaving the stale status file is OK
+
 	return(float(gpsdo[0][2]),float(gpsdo[3][9].split(' ')[0]))
 
 # -----------------------------------------------------------------------------
