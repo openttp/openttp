@@ -25,6 +25,12 @@
 # THE SOFTWARE.
 #
 #
+# Modification record
+# ~~~~~~~~~~~~~~~~~~~
+# 2026-10-15 ELM Changed mtime parameter from -700 to -7  in find command (only
+#                want last 7 days, not last 700)
+#
+#
 
 import argparse
 import glob
@@ -37,15 +43,16 @@ import time
 
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
-sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
-sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04
+sys.path.append("/usr/local/lib/python3.10/dist-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/dist-packages") # Ubuntu 24.04
+sys.path.append("/usr/local/lib/python3.14/dist-packages") # Ubuntu 26.04
 
 try: 
 	import ottplib as ottp
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 AUTHORS = "Michael Wouters"
 
 # -------------------------------------------------------
@@ -83,7 +90,7 @@ commands= [
  ['date'],
  ['df'],
  ['uptime'],
- ['find', cggttsPath, '-mtime', '-700', '-printf' , '%Ab %Ad %AH:%AM %s\t%p\n','|','sort','|','grep','cctf'],
+ ['find', cggttsPath, '-mtime', '-7', '-printf' , '%Ab %Ad %AH:%AM %s\t%p\n','|','sort','|','grep','cctf'],
  ['ps','x','|', 'grep','-E','plrxlog|ubloxlog','|','grep','-v','grep'],
  ['chronyc','sources']]
 
