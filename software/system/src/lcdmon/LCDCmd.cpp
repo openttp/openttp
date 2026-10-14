@@ -49,7 +49,7 @@
 #include "LCDCmd.h"
 #include "Version.h"
 
-#define LCDCMD_VERSION "1.0"
+#define LCDCMD_VERSION "1.0.1"
 
 #define BAUD 115200
 #define PORT "/dev/lcd"
@@ -238,7 +238,7 @@ void LCDCmd::showResponse()
 
 void showHelp()
 {
-	cout << "Usage: lcdconfig [options]" << endl;
+	cout << "Usage: lcdcmd [options]" << endl;
 	cout << "Available options are" << endl;
 	cout << "\t-d" << endl << "\t Turn on debugging" << endl;
 	cout << "\t-f" << endl << "\t Show firmware version" << endl;
