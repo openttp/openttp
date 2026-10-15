@@ -75,10 +75,14 @@ SliderWidget.o: Debug.h Widget.h SliderWidget.h KeyEvent.h
 
 Widget.o: Debug.h KeyEvent.h Widget.h
 
-install: mkversion lcdmonitor lcdconfig
+install: mkversion lcdmonitor lcdconfig lcdcmd
 	@ install -o root -g root -m 0744 ./lcdconfig  $(BINDIR)
+	@ install -o root -g root -m 0744 ./lcdcmd $(BINDIR)
+	@ install -o root -g root -m 0744 ./restartlcd.sh $(BINDIR)
+	@ install -o root -g root -m 0644 ./restartlcd.cron /etc/cron.d/restartlcd
 	@ install -o root -g root -m 0644 ./lcdmonitor.conf $(ETCDIR)
 	@ install -o root -g root -m 0644 ./sysinfo.conf $(ETCDIR)
+	@ systemctl restart cron
 	@ echo "You will need to edit $(ETCDIR)/sysinfo.conf"
 	@ if [[ `systemctl` =~ -\.mount ]]; then \
 		echo "systemd detected"; \
