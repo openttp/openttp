@@ -38,6 +38,7 @@
 # 2026-10-07 ELM Replaced time.sleep(x) instructions with non-blocking code
 # 2026-10-19 ELM Application now terminates in signal handler; removed code around sleeps
 # 2026-10-19 ELM Check that chrony NMEA refclock is reachable before declaring chrony OK
+# 2026-10-20 ELM Added a wait after resetting receiver before starting logging application
 
 import glob
 import argparse
@@ -325,7 +326,7 @@ def RestartReceiver():
 	Log(logFile,"receiver logging started")
 	
 	ottp.Debug(f'{ts()} Waiting ...')
-	time.sleep(60) # time to first fix is 45 so wait a minute 
+	time.sleep(60) # time to first fix is 45 s so wait a minute 
 	
 	restartChrony()
 	ottp.Debug(f'{ts()} Waiting ...')
