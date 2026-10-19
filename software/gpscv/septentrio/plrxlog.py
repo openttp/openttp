@@ -31,6 +31,7 @@
 # 2024-11-21 ELM datetime.datetime.utcnow() is being deprecated (only warning now),
 #                changed to datetime.datetime.now(datetime.timezone.utc)
 #                Kept version number steady at 0.4.0
+# 2026-10-20 ELM Updated possible ottplib locations
 
 # Extra configuration options
 # receiver:broadcast status        [enable UDP broadacst of SV data for eg gnssview]
@@ -55,8 +56,9 @@ import sys
 # This is where ottplib is installed
 sys.path.append('/usr/local/lib/python3.6/site-packages')
 sys.path.append('/usr/local/lib/python3.8/site-packages')
-sys.path.append('/usr/local/lib/python3.10/site-packages')
+sys.path.append('/usr/local/lib/python3.10/dist-packages')
 sys.path.append('/usr/local/lib/python3.12/dist-packages')
+sys.path.append('/usr/local/lib/python3.14/dist-packages')
 
 import time
 
@@ -65,7 +67,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = '0.7.1'
+VERSION = '0.7.2'
 AUTHORS = 'Michael Wouters,Louis Marais'
 
 # Globals
@@ -732,7 +734,7 @@ while (not killed):
 		msg = time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime()) + ' no response from receiver'
 		print ('# ' + msg + '\n')
 		break
-		killed = True
+		#killed = True # Never gets executed...
 
 	# The guts
 	select.select([serport],[],[],0.2)

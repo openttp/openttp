@@ -309,7 +309,8 @@ def RestartReceiver():
 	ottp.Debug(f'{ts()} READY')
 	
 	# First make sure plrxlog is dead... 
-	terminateApp(rxScript)
+	terminateApp(rxScript) # kill command successfull, but
+	time.sleep(2) # plrxlog.py can take a second or two to exit.
 	
 	# Kick it back into life
 	ottp.Debug(f'{ts()} Restarting receiver')
