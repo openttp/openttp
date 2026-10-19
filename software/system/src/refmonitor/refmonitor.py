@@ -60,7 +60,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.1.5"
+VERSION = "0.1.6"
 AUTHORS = "Michael Wouters, Louis Marais"
 
 STARTUP_WINDOW = 300
@@ -306,11 +306,13 @@ def RestartReceiver():
 	while rdy == 0:
 		time.sleep(1)
 		rdy = ReadGPIO('MOST_T_READY.txt')
-	ottp.Debug(f'{ts()} READY')
+	ottp.Debug(f'{ts()} MOST READY')
 	
 	# First make sure plrxlog is dead... 
 	terminateApp(rxScript) # kill command successfull, but
-	time.sleep(2) # plrxlog.py can take a second or two to exit.
+	time.sleep(10) # plrxlog.py can take a few seconds to exit
+	               # and the receiver needs some time for itself too.
+	               # Also tested 2 s and 5 s (which was not enough.)
 	
 	# Kick it back into life
 	ottp.Debug(f'{ts()} Restarting receiver')
