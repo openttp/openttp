@@ -36,6 +36,8 @@
 # 2025-11-19 ELM Added additional checks for correct operation of chrony
 # 2026-10-07 ELM Rewrote code for checking the reference status
 # 2026-10-07 ELM Replaced time.sleep(x) instructions with non-blocking code
+# 2026-10-19 ELM Application now terminates in signal handler; removed code around sleeps
+# 2026-10-19 ELM Check that chrony NMEA refclock is reachable before declaring chrony OK
 
 import glob
 import argparse
@@ -58,7 +60,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 AUTHORS = "Michael Wouters, Louis Marais"
 
 STARTUP_WINDOW = 300
@@ -69,17 +71,17 @@ FURUNO_LOCK_TIME = 300
 GPSCV_USER = "cvgps"
 KICKSTART = "/usr/local/bin/kickstart.py"
 
-killed = False
-
 # -----------------------------------------------------------------------------
 def ts():
 	return(time.strftime("%Y-%m-%d %H:%M:%S ",time.gmtime()))
 
 #-----------------------------------------------------------------------------
 def SignalHandler(signal,frame):
-	global killed
-	killed = True
-	return
+	if os.path.isfile(logFile):
+		Log(logFile,'killed')
+	if os.path.isfile(lockFile):
+		ottp.RemoveProcessLock(lockFile)
+	sys.exit(0)
 
 #-----------------------------------------------------------------------------
 def Log(logFile,msg):
@@ -107,8 +109,6 @@ def RefOK(refManufacturer,statusFile,logFile):
 	statusnotfound = 0
 	mode = -1
 	for i in range(0,3): # Multiple attempts allowed.
-		if killed: # Test here because we may have waited.
-			return True
 		if not os.path.exists(statusFile):
 			ottp.Debug(f'{ts()} Status file {statusFile} is missing')
 			nofile += 1
@@ -124,13 +124,11 @@ def RefOK(refManufacturer,statusFile,logFile):
 			                               # When we have other manufacturers move the reading of
 			                               # the status file to before the 'if' statement.
 			# Wait for GPSDO status file update time to not be close to now
-			while not killed:
+			while True: # not killed:
 				fileAge = time.time() - os.path.getmtime(statusFile)
 				if (fileAge > 1) and (fileAge + 1 < GPSDO_STATUS_UPDATE_PERIOD):
 					break
 				time.sleep(0.1)
-			if killed:
-				return True
 			with open(statusFile,'r') as f:
 				lines = f.readlines()
 				f.close()
@@ -213,7 +211,8 @@ def restartGpsd(): # gpsd must be restarted AFTER starting chrony
 	Log(logFile,"gpsd restarted")
 
 # -----------------------------------------------
-# For now just a simple check that Chrony reports a stratum number > 0
+# Check that Chrony reports a stratum number > 0
+# and that the NMEA refclock is reachable
 def checkChrony():
 	ottp.Debug(f"{ts()} Check chrony")
 	cmd = ['chronyc','tracking']
@@ -231,8 +230,24 @@ def checkChrony():
 			stratum = int(m.groups()[0])
 			ottp.Debug(f"{ts()} chrony reports stratum {stratum}")
 			if stratum > 0 and stratum < 10:  # TODO: Find good value for max stratum
-				return(True)
+				stratumOK = True
 			break
+	if not stratumOK:
+		return(False)
+	cmd = ['chronyc','sources']
+	retval = subprocess.run(cmd,capture_output=True)
+	if retval.returncode != 0:  # chrony is not running.
+		restartChrony()
+		return(False)
+	lines = retval.stdout.decode('ascii').split('\n')
+	for line in lines:
+		if "NMEA" in line:
+			v = line.split()
+			idx = v.index('NMEA')
+			reach = int(v[idx+3])
+			ottp.Debug(f"{ts()} chrony reports NMEA reach = {reach}")
+			if reach > 0:
+				return(True)
 	return(False)
 
 # -----------------------------------------------
@@ -266,7 +281,8 @@ def terminateApp(script):
 # Check they are really gone with pgrep gpsd | pgrep chrony
 # Then update the code that checks chrony to stop both of these, and restart
 # them in sequence. It currently takes about 12 minutes before chrony is
-# happy. Implementing the above may cut this time down considerably.
+# happy, which is how long it takes the receiver to start transmitting the
+# NMEA data stream.
 
 # -----------------------------------------------
 def RestartReceiver():
@@ -283,9 +299,6 @@ def RestartReceiver():
 	
 	Log(logFile,"receiver reset")
 	
-	if killed:
-		cleanUp()
-	
 	# Wait a bit for MOS-T to become ready
 	ottp.Debug(f'{ts()} Waiting for MOS_T to assert READY')
 	rdy = ReadGPIO('MOST_T_READY.txt')
@@ -293,10 +306,7 @@ def RestartReceiver():
 	while rdy == 0:
 		time.sleep(1)
 		rdy = ReadGPIO('MOST_T_READY.txt')
-		if killed:
-			cleanUp()
 	ottp.Debug(f'{ts()} READY')
-	
 	
 	# First make sure plrxlog is dead... 
 	terminateApp(rxScript)
@@ -312,30 +322,16 @@ def RestartReceiver():
 	Log(logFile,"receiver logging started")
 	
 	ottp.Debug(f'{ts()} Waiting ...')
-	waitUntil = time.time() + 60 # time to first fix is 45 so wait a minute 
-	while time.time() < waitUntil:
-		time.sleep(0.1)
-		if killed:
-			cleanUp()
+	time.sleep(60) # time to first fix is 45 so wait a minute 
 	
 	restartChrony()
 	ottp.Debug(f'{ts()} Waiting ...')
 	
-	waitUntil = time.time() + 5
-	while time.time() < waitUntil:
-		time.sleep(0.1)
-		if killed:
-			cleanUp()
+	time.sleep(5)
 	
 	restartGpsd()
 	
 	return
-
-# -----------------------------------------------
-def cleanUp():
-	Log(logFile,'killed')
-	ottp.RemoveProcessLock(lockFile)
-	sys.exit(0)
 
 # -----------------------------------------------
 
@@ -387,6 +383,7 @@ ottp.Debug(f'{ts()} Creating lock {lockFile}')
 if (not ottp.CreateProcessLock(lockFile)):
 	ottp.ErrorExit("Couldn't create a lock")
 
+# Application termination is handled in the 'SignalHandler' routine.
 signal.signal(signal.SIGINT,SignalHandler)  # Note that CTRL-C will not interrupt a sleep() which
 signal.signal(signal.SIGTERM,SignalHandler) # is why there are no excessive sleeps in the code.
 signal.signal(signal.SIGHUP,SignalHandler)  # Not usually run with a controlling TTY, but handle it anyway.
@@ -416,11 +413,7 @@ if (up < STARTUP_WINDOW):
 	tUp = GetUptime()
 	if tUp < STARTUP_WINDOW:
 		ottp.Debug(f'{ts()} Waiting {STARTUP_WINDOW - tUp:d} s')
-		waitUntil = time.time() + STARTUP_WINDOW - tUp
-		while time.time() < waitUntil:
-			time.sleep(0.1)
-			if killed:
-				cleanUp()
+		time.sleep(STARTUP_WINDOW - tUp)
 		
 	# TODO else, if system GPSDO is the reference, then check the GPSDO
 	
@@ -430,15 +423,13 @@ if (up < STARTUP_WINDOW):
 	Log(logFile,'waiting for fine lock')
 	timerStart = GetUptime() # better than using the system time 
 	while (GetUptime() - timerStart < FURUNO_LOCK_TIME):
-		waitUntil = time.time() + GPSDO_STATUS_UPDATE_PERIOD
-		while time.time() < waitUntil:
-			time.sleep(0.1)
-			if killed:
-				cleanUp()
+		time.sleep(GPSDO_STATUS_UPDATE_PERIOD)
 		if RefOK(refManufacturer,refStatusFile,logFile):
 			refLocked = True
 			break
-					
+	
+	time.sleep(GPSDO_STATUS_UPDATE_PERIOD) # allow status file to update
+	
 	# check again
 	if RefOK(refManufacturer,refStatusFile,logFile):
 		Log(logFile,'GNSSDO locked - restarting receiver')
@@ -455,28 +446,20 @@ Log(logFile, 'boot checks completed')
 # the main loop will take care of that 
 
 ncycle = 0
-checkcycle = 10            # TODO: is n == 10 the right choice?
+checkcycle = 10            # TODO: Check if n == 10 is the right choice.
 chronyOK = False
             
-while not killed:
-	waitUntil = time.time() + GPSDO_STATUS_UPDATE_PERIOD  # this needs to be sufficiently frequent that we catch a short 'unlock'
-	while time.time() < waitUntil:
-		time.sleep(0.1)
-		if killed:
-			cleanUp()
+while True: # Termination of application happens in 'SignalHandler' routine
+	time.sleep(GPSDO_STATUS_UPDATE_PERIOD) # this needs to be sufficiently frequent that we catch a short 'unlock'
 	if RefOK(refManufacturer,refStatusFile,logFile):
 		if not refLocked:
 			Log(logFile,"GNSSDO locked")
 			RestartReceiver()
 			refLocked = True
 			ncycle = 0
-		# Check status of chrony every n cycles
+		# Check status of chrony every 'checkcycle' cycles
 		if ncycle >= checkcycle:
-			waitUntil = time.time() + 5
-			while time.time() < waitUntil:
-				time.sleep(0.1)
-				if killed:
-					cleanUp()
+			time.sleep(5)
 			if not checkChrony():
 				chronyOK = False
 				restartGpsd()      
@@ -489,5 +472,3 @@ while not killed:
 		if refLocked:
 			Log(logFile,"GNSSDO unlocked")
 		refLocked = False
-
-cleanUp()
