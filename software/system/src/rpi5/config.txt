@@ -26,7 +26,7 @@ dtoverlay=vc4-kms-v3d
 disable_fw_kms_setup=1
 
 # Enable the serial pins
-enable_uart=1
+#enable_uart=1
 
 # Autoload overlays for any recognized cameras or displays that are attached
 # to the CSI/DSI ports. Please note this is for libcamera support, *not* for
@@ -72,8 +72,8 @@ dtoverlay=uart2-pi5
 dtoverlay=uart4-pi5
 
 # SPI0 with 2 chip selects for expansion
-
-dtoverlay=spi0-2cs
+# Temporary disabling due to dma2 (south bridge) race condition
+#dtoverlay=spi0-2cs
 
 # I2C interface for expansion
 
