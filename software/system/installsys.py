@@ -24,6 +24,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
+# 2026-10-28 ELM Added cmdline.txt installation for RPi5
 
 import argparse
 import distro
@@ -35,7 +36,7 @@ import subprocess
 
 import sys
 
-VERSION = '1.6.0'
+VERSION = '1.6.1'
 AUTHORS = 'Michael Wouters, Louis Marais'
 
 # init systems on Linux
@@ -561,9 +562,12 @@ if ('sysmonitor' in targets):
 		hints += 'To start sysmonitor, run: start sysmonitor\n'
 
 if (rpi5 and ('rpi5' in targets)):
-	# Install new config.txt
+	# Install new config.txt and cmdline.txt
 	CreateBackup('/boot/firmware/config.txt')
 	InstallScript('src/rpi5/config.txt','/boot/firmware')
+	# NOTE: Not tested with Ubuntu 26 - cmdline.txt may live in a different place.
+	CreateBackup('/boot/firmware/cmdline.txt')
+	InstallScript('src/rpi5/cmdline.txt','/boot/firmware')
 	# Install new EEPROM configuration
 	InstallEEPROMconfig('src/rpi5/eeprom.conf')
 	hints += ("The Raspberry Pi must be rebooted for the new firmware and "+
