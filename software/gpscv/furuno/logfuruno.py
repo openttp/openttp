@@ -55,7 +55,7 @@
 #                          tracking reported on-board oscillator frequency
 #                          offsets.
 # 2026-10-09 MJW    0.1.0  Fix problem of another process accessing the status file
-#						   at the wrong time, getting corrupted(?)/no data.
+#                          at the wrong time, getting corrupted(?)/no data.
 #                          See comments in code.
 # -----------------------------------------------------------------------------
 
@@ -72,7 +72,7 @@ import datetime
 import time
 
 script = os.path.basename(__file__)
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 AUTHORS = "Louis Marais,Michael Wouters"
 
 running = True
