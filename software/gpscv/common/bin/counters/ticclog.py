@@ -33,6 +33,7 @@
 # 2025-01-23 ELM Added more help for command line arguments
 #                Prepend 'ottp.' to 'Debug' statements
 # 2025-10-01 ELM Changed default directories to 'log' and 'var'
+# 2026-11-02 ELM Made changes required to work with new TICC firmware
 #
 
 # WARNING!!!!
@@ -52,6 +53,7 @@ sys.path.append("/usr/local/lib/python3.6/site-packages")
 sys.path.append("/usr/local/lib/python3.8/site-packages")
 sys.path.append("/usr/local/lib/python3.10/dist-packages")
 sys.path.append("/usr/local/lib/python3.12/dist-packages")
+sys.path.append('/usr/local/lib/python3.14/dist-packages')
 
 import time
 
@@ -60,7 +62,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -80,6 +82,10 @@ def SignalHandler(signal,frame):
 	global killed
 	killed=True
 	return
+
+# ------------------------------------------
+def isAti(s):
+	return bool(re.match(r'^[-+]?\d+(?:\.\d+)?$', s.strip()))
 
 # ------------------------------------------
 # Main 
@@ -185,10 +191,35 @@ except:
 	subprocess.check_output(['/usr/local/bin/lockport','-r',port]) # but ignore return value anyway
 	exit()
 
-state = 1 # state machine for parsing the startup information
-				# note that this is output when a serial connection is initiated
+# Notes on firmware changes:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# New firmware issued in 2025 changing the configuration and output messages.
+#
+# Time interval mode output changed, but timestamp mode output remains the same:
+# 158.183478604975 chA
+# 158.183478599758 chB
+# 159.183478599758 chB
+# 159.183478604977 chA
+# 160.183478604977 chA
+# 160.183478599758 chB
+#
+# Time interval mode, old firmware:
+# -0.000000005213 TI(A->B)
+# -0.000000005277 TI(A->B)
+# -0.000000005214 TI(A->B)
+# -0.000000005158 TI(A->B)
+#
+#
+# Time interval mode, new firmware:
+# -0.00000003932
+# -0.00000003936
+# -0.00000003937
+# -0.00000003937
 
-# Eat junk and startup information
+state = 1 # state machine for parsing the startup information
+          # note that this is output when a serial connection is initiated
+
+# Eat junk and startup information NOTE: This does not really work... TODO: Fix it!
 ctrcfg=''
 oldmjd=-1
 while (state < 4):
@@ -197,6 +228,7 @@ while (state < 4):
 	except select.error as err:
 		print(err)
 		sys.exit(0)
+	
 	if (len(l) == 0):
 		print('Timeout')
 		sys.exit(0)
@@ -204,7 +236,7 @@ while (state < 4):
 	l=l[:-2]
 	if (len(l) == 0):
 		continue
-	# If the first character is not # then break out of this completely
+	# If the first character is not '#' then break out of this completely
 	if (not (l[0] == '#')):
 		state=4
 		
@@ -236,7 +268,7 @@ for i in range(20):
 	except select.error as err: # CTRL-C returns code=4
 		print(err)
 		break;
-	
+
 while (not killed):
 	
 	# Check whether we need to create a new log file
@@ -257,7 +289,7 @@ while (not killed):
 			foutA.write(ctrcfg) # Configuration after the header
 		else:
 			foutA = open(fnoutA,'a')
-			
+		
 		ottp.Debug('Opened '+fnoutA)
 		
 		if (tic_mode == TIC_MODE_TS):
@@ -270,7 +302,7 @@ while (not killed):
 			else:
 				foutB = open(fnoutB,'a')
 			ottp.Debug('Opened '+fnoutB)
-			
+	
 	try:
 		l = ser.readline()[:-2]
 	except select.error as err: # CTRL-C returns code=4
@@ -282,15 +314,20 @@ while (not killed):
 	tt = time.time() # floating point!
 	ttround = round(tt) # round to take care of system time being close to the epoch
 											# of course, if the stop pulse is 0.5 s off, this all falls over
-											
+	
 	ottp.Debug(lstr)
 	ottp.Debug(str(tt) + ' ' + str(ttround))
 	if (tic_mode == TIC_MODE_TI): 
-		if (lstr.find('TI(A->B)') != -1):
+		tiStr = ""
+		if (lstr.find('TI(A->B)') != -1):  # Only works for old firmware...
+			tiStr = lstr.split()[0]
+		elif not((lstr.find('chA') != -1) or (lstr.find('chB') != -1)): # For new firmware
+			tiStr = lstr.strip()
+		if isAti(tiStr): # Check string to see if it is a number
 			if (tsformat == TS_UNIX):
-				foutA.write(str(tt) + ' ' + lstr.split()[0]+'\n')
+				foutA.write(str(tt) + ' ' + tiStr+'\n')
 			elif (tsformat == TS_TOD):
-				foutA.write(time.strftime('%H:%M:%S',time.gmtime(ttround)) + ' ' + lstr.split()[0]+'\n')
+				foutA.write(time.strftime('%H:%M:%S',time.gmtime(ttround)) + ' ' + tiStr+'\n')
 			foutA.flush()
 			nbad = nbad - 1
 		else:
@@ -299,29 +336,29 @@ while (not killed):
 		if (lstr.find('chA') != -1):
 			ts = lstr.split()[0]
 			if (None == re.match(r'^\d+\.\d{12}',ts)):
-				nbad =nbad + 1
+				nbad = nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
 					foutA.write(str(tt) + ' ' + ts +'\n')
 				elif (tsformat == TS_TOD):
 					foutA.write(time.strftime('%H:%M:%S',time.gmtime(ttround)) + ' ' + ts +'\n')
 				foutA.flush()
-				nbad =nbad -1
+				nbad = nbad -1
 		elif (lstr.find('chB') != -1):
 			ts = lstr.split()[0]
 			if (None == re.match(r'^\d+\.\d{12}',ts)):
-				nbad =nbad + 1
+				nbad = nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
 					foutB.write(str(tt) + ' ' + ts + '\n')
 				elif (tsformat == TS_TOD):
 					foutB.write(time.strftime('%H:%M:%S',time.gmtime(ttround)) + ' ' + ts +'\n')
 				foutB.flush()
-				nbad =nbad -1
-				
+				nbad = nbad -1
+	
 	if (nbad < 0):
-		nbad =0
-					
+		nbad = 0
+	
 	if (nbad >= 30):
 		foutA.close()
 		ottp.RemoveProcessLock(lockFile)
