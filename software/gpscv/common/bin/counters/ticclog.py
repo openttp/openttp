@@ -33,7 +33,7 @@
 # 2025-01-23 ELM Added more help for command line arguments
 #                Prepend 'ottp.' to 'Debug' statements
 # 2025-10-01 ELM Changed default directories to 'log' and 'var'
-# 2026-11-02 ELM Made changes required to work with new TICC firmware
+# 2026-11-03 ELM Made changes required to work with new TICC firmware
 #
 
 # WARNING!!!!
@@ -62,7 +62,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 AUTHORS = "Michael Wouters"
 
 # Time stamp formats
@@ -82,10 +82,6 @@ def SignalHandler(signal,frame):
 	global killed
 	killed=True
 	return
-
-# ------------------------------------------
-def isAti(s):
-	return bool(re.match(r'^[-+]?\d+(?:\.\d+)?$', s.strip()))
 
 # ------------------------------------------
 # Main 
@@ -131,6 +127,7 @@ cfg=ottp.Initialise(configFile,['counter:port','paths:counter data','counter:fil
 #	print key,"=>",val
 	
 port = cfg['counter:port']
+ottp.Debug(f"Configured counter port is '{port}'")
 dataPath= ottp.MakeAbsolutePath(cfg['paths:counter data'], home)
 
 ctrExt = cfg['counter:file extension']
@@ -144,15 +141,19 @@ if ('counter:header generator' in cfg):
 if ('counter:mode' in cfg):
 	cm = cfg['counter:mode'].lower()
 	if (cm == 'timestamp'):
+		ottp.Debug("Configured counter mode is 'timestamp'")
 		tic_mode = TIC_MODE_TS
 	elif (cm == 'time interval'):
+		ottp.Debug("Configured counter mode is 'time interval'")
 		tic_mode = TIC_MODE_TI
 		
 if ('counter:timestamp format' in cfg):
 	tsf = cfg['counter:timestamp format'] 
 	if (tsf == 'unix'):
 		tsformat = TS_UNIX
+		ottp.Debug("Configured timestamp format is 'unix'")
 	elif (tsf == 'time of day'):
+		ottp.Debug("Configured timestamp format is 'time of day'")
 		tsformat = TS_TOD
 		
 # Create the process lock
@@ -171,7 +172,8 @@ uucpLockPath="/var/lock";
 if ('paths:uucp lock' in cfg):
 	uucpLockPath = cfg['paths:uucp lock']
 
-ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,'-p',str(os.getpid()),port,sys.argv[0]])
+ret = subprocess.check_output(['/usr/local/bin/lockport','-d',uucpLockPath,
+															 '-p',str(os.getpid()),port,sys.argv[0]])
 
 if (re.match(b'1',ret)==None):
 	ottp.RemoveProcessLock(lockFile)
@@ -195,7 +197,11 @@ except:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
 # New firmware issued in 2025 changing the configuration and output messages.
 #
-# Time interval mode output changed, but timestamp mode output remains the same:
+# Time interval mode output changed, but timestamp mode output remains the
+# same, except that the default number of digits after the decimal is now 
+# eleven (twelve for old firmware):
+#
+# Timestamp mode, old firmware:
 # 158.183478604975 chA
 # 158.183478599758 chB
 # 159.183478599758 chB
@@ -203,14 +209,21 @@ except:
 # 160.183478604977 chA
 # 160.183478599758 chB
 #
-# Time interval mode, old firmware:
+# Timestamp mode, new firmware:
+# 13.958878604977 chA
+# 13.958878599697 chB
+# 14.958878604977 chA
+# 14.958878599697 chB
+# 15.958878604861 chA
+# 15.958878599636 chB
+#
+# Time interval mode, old firmware (12 digits after period):
 # -0.000000005213 TI(A->B)
 # -0.000000005277 TI(A->B)
 # -0.000000005214 TI(A->B)
 # -0.000000005158 TI(A->B)
 #
-#
-# Time interval mode, new firmware:
+# Time interval mode, new firmware (11 digits after period, no label):
 # -0.00000003932
 # -0.00000003936
 # -0.00000003937
@@ -320,10 +333,10 @@ while (not killed):
 	if (tic_mode == TIC_MODE_TI): 
 		tiStr = ""
 		if (lstr.find('TI(A->B)') != -1):  # Only works for old firmware...
-			tiStr = lstr.split()[0]
+			tiStr = lstr.split()[0].strip()
 		elif not((lstr.find('chA') != -1) or (lstr.find('chB') != -1)): # For new firmware
 			tiStr = lstr.strip()
-		if isAti(tiStr): # Check string to see if it is a number
+		if bool(re.match(r'^[-+]?\d+(?:\.\d+)?$', tiStr)):
 			if (tsformat == TS_UNIX):
 				foutA.write(str(tt) + ' ' + tiStr+'\n')
 			elif (tsformat == TS_TOD):
@@ -335,7 +348,7 @@ while (not killed):
 	elif (tic_mode == TIC_MODE_TS):
 		if (lstr.find('chA') != -1):
 			ts = lstr.split()[0]
-			if (None == re.match(r'^\d+\.\d{12}',ts)):
+			if (None == re.match(r'^\d+\.\d{11,12}',ts)): # New firmware defaults to 11 digits.
 				nbad = nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
@@ -346,7 +359,7 @@ while (not killed):
 				nbad = nbad -1
 		elif (lstr.find('chB') != -1):
 			ts = lstr.split()[0]
-			if (None == re.match(r'^\d+\.\d{12}',ts)):
+			if (None == re.match(r'^\d+\.\d{11,12}',ts)): # New firmware defaults to 11 digits.
 				nbad = nbad + 1
 			else:
 				if (tsformat == TS_UNIX):
